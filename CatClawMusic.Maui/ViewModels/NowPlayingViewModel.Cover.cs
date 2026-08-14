@@ -16,12 +16,21 @@ public partial class NowPlayingViewModel
         Log.Debug("AppViewModels", $"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
         string? coverPath = null;
 
+        // 在线歌曲（封面为 http/https URL）判定：播放页不再把在线封面缓存到本地，
+        // 改为内存字节直显（见步骤 1b），以免本地缓存文件堆积或显示错误。
+        var isOnlineCover = !string.IsNullOrEmpty(song.CoverArtPath)
+            && (song.CoverArtPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || song.CoverArtPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+        // 在线封面下载到的内存字节（播放页/通知"用完即弃"），不写缓存目录。
+        byte[]? onlineCoverBytes = null;
+
         // 缓存命中：已下采样到播放页尺寸（1000px）的封面文件，直接复用避免重复解码大图。
         // ⚠ 信任条件增加"实际尺寸校验"：旧版会把 300px 缩略图误拷进 1000px 桶
         //（DownsampleToCache 对源≤目标只做 File.Copy，配合解码失败的回退路径），
         // 播放页盲目信任后放大显示 = 低清。实际尺寸 <400（低于任何显示需求）视为污染 → 删除重取。
+        // ⚠ 在线封面跳过本地缓存命中（既是读也是写都不发生），保证每次直接取最新封面。
         var npCached = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
-        if (File.Exists(npCached) && Services.CoverHelper.IsValidImageFilePublic(npCached))
+        if (!isOnlineCover && File.Exists(npCached) && Services.CoverHelper.IsValidImageFilePublic(npCached))
         {
             var dim = Services.CoverHelper.MaxDimensionPublic(npCached);
             if (dim >= 400 || dim == 0) // 0 = 解码器读不出尺寸（多为合法但头部怪异的图），交给 UI 解码，不误删
@@ -39,7 +48,8 @@ public partial class NowPlayingViewModel
             }
         }
         // npCached 损坏或实际尺寸过小（旧污染）→ 删除，走完整解析管线（含内嵌封面全分辨率提取）
-        if (File.Exists(npCached))
+        //（在线封面不清理也不使用本地缓存，见步骤 1b）
+        if (!isOnlineCover && File.Exists(npCached))
         {
             try { File.Delete(npCached); } catch { }
         }
@@ -50,39 +60,31 @@ public partial class NowPlayingViewModel
             coverPath = song.CoverArtPath;
         }
 
-        // 1b. Navidrome/Subsonic/在线插件: CoverArtPath 是 http(s) 封面 URL，下载并缓存
-        // ⚠ 缓存 key 带 URL 指纹（cover_{Id}_{urlHash8}.jpg）：同一首歌的封面 URL 变化时
-        // （如插件版本升级/封面数据校正）旧缓存自动失效，避免"清缓存前一直显示旧封面图"。
-        if (coverPath == null
-            && !string.IsNullOrEmpty(song.CoverArtPath)
-            && (song.CoverArtPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || song.CoverArtPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+        // 1b. Navidrome/Subsonic/在线插件: CoverArtPath 是 http(s) 封面 URL。
+        // ⚠ 在线封面不落盘：直接下载到内存字节，播放页用 StreamImageSource 直显（不写 cover_{Id}.jpg），
+        //    通知封面也用内存字节"用完即弃"。彻底避免在线封面本地缓存文件堆积/显示错误。
+        if (coverPath == null && isOnlineCover)
         {
-            var cachedPath = Services.CoverHelper.GetHttpCoverCachePath(song.Id, song.CoverArtPath);
-            if (!File.Exists(cachedPath))
+            try
             {
-                try
+                ct.ThrowIfCancellationRequested();
+                var bytes = await SharedHttpClient.GetByteArrayAsync(song.CoverArtPath, ct);
+                if (bytes != null && bytes.Length > 0)
                 {
-                    ct.ThrowIfCancellationRequested();
-                    var bytes = await SharedHttpClient.GetByteArrayAsync(song.CoverArtPath, ct);
-                    if (bytes != null && bytes.Length > 0)
-                    {
-                        Directory.CreateDirectory(_coverCacheDir);
-                        await File.WriteAllBytesAsync(cachedPath, bytes, ct);
-                    }
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    Log.Debug("AppViewModels", $"[CoverArt] URL下载失败: {ex.Message}");
+                    onlineCoverBytes = bytes;          // 内存暂存，不写缓存目录
+                    coverPath = song.CoverArtPath;     // 保持 URL，作为封面标识走内存直显
                 }
             }
-            if (File.Exists(cachedPath))
-                coverPath = cachedPath;
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                Log.Debug("AppViewModels", $"[CoverArt] URL下载失败: {ex.Message}");
+            }
         }
 
         // 2. Check cached cover（带 URL 指纹：URL 变化时不会命中旧图；非 URL 封面源回退旧格式 cover_{Id}.jpg）
-        if (coverPath == null)
+        // （在线封面不读本地缓存，直接走步骤 1b 的内存直显）
+        if (coverPath == null && !isOnlineCover)
         {
             var cachedPath = Services.CoverHelper.GetHttpCoverCachePath(song.Id, song.CoverArtPath);
             if (!File.Exists(cachedPath))
@@ -274,17 +276,38 @@ public partial class NowPlayingViewModel
 
         if (coverPath != null)
         {
+            // 在线歌曲封面（http/https URL）：内存字节直显，不写本地缓存文件。
+            // - 播放页：StreamImageSource 直接读内存字节（用完即弃，不落盘）
+            // - 通知：UpdateCoverBytes 用内存字节解码（用完即弃）
+            if (coverPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || coverPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentCoverPath = coverPath;
+                var bytes = onlineCoverBytes;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (bytes is { Length: > 0 })
+                        CoverImage = ImageSource.FromStream(ct => Task.FromResult<Stream>(new MemoryStream(bytes)));
+                    else
+                        CoverImage = ImageSource.FromUri(new Uri(coverPath));
+                    HasCover = true;
+                });
+#if ANDROID
+                try { (_audioService as Services.AudioPlayerService)?.UpdateCoverBytes(bytes, coverPath); }
+                catch { }
+#elif WINDOWS
+                try { (_audioService as Services.AudioPlayerService)?.UpdateCoverPath(null); }
+                catch { }
+#endif
+                return;
+            }
+
             // 限制播放页封面最大边长 1000px：
             // - 网络封面（http/https）保持原 URL 直显（Android 解码期会按显示尺寸再降采样）；
             // - 本方法各分支刚提取出的原始文件：直接下采样到 1000 并清理临时文件；
             // - 已是 song.CoverArtPath 缩略图等情况：按播放页尺寸重新解析（源太小会自动从音频重新提取全分辨率）。
             string finalPath;
-            if (coverPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || coverPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                finalPath = coverPath;
-            }
-            else if (coverPath != song.CoverArtPath && File.Exists(coverPath))
+            if (coverPath != song.CoverArtPath && File.Exists(coverPath))
             {
                 var bucketed = Services.CoverHelper.GetCachedPath(song.Id, Services.CoverHelper.NowPlayingSize);
                 finalPath = Services.CoverHelper.DownsampleToCache(coverPath, bucketed, Services.CoverHelper.NowPlayingSize)

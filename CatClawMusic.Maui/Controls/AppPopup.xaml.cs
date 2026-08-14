@@ -124,10 +124,14 @@ public partial class AppPopup : ContentView
         if (_isOpen) return;
         _isOpen = true;
 
+        #if ANDROID
         // 在 ViewPager2 等「无界高度」宿主中，弹窗所在的 Grid 会被撑到整个内容高度，
         // 导致 PopupCard（VerticalOptions=Center）落在内容底部而非可见屏幕中心。
         // 将弹窗覆盖层固定为「一屏高」并顶对齐，使卡片在可见区域内居中。
+        // 注意：仅 Android 需要。Windows 下 MainDisplayInfo 返回的是物理屏幕高度而非窗口高度，
+        // 若在这里把 HeightRequest 设为整屏，会超出窗口导致弹窗卡片落在窗口可视区下方而不居中。
         PinToScreenHeight();
+        #endif
 
         this.InputTransparent = false;
         this.IsVisible = true;

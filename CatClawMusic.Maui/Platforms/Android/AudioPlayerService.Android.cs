@@ -1165,6 +1165,47 @@ public partial class AudioPlayerService
         UpdateForegroundNotification();
     }
 
+    /// <summary>
+    /// 更新当前歌曲封面（在线歌曲内存字节，不落盘）：解码为通知栏 Bitmap 后丢弃字节，"用完即弃"。
+    /// 用 <paramref name="coverKey"/>（一般为封面 URL）作为去重键，避免同一封面重复解码。
+    /// </summary>
+    /// <param name="coverBytes">封面图片字节（内存），为 null/空 表示无封面</param>
+    /// <param name="coverKey">封面标识（URL），用于去重</param>
+    public void UpdateCoverBytes(byte[]? coverBytes, string? coverKey)
+    {
+        lock (_notifBitmapLock)
+        {
+            // 用 coverKey（URL）占住 _currentCoverPath，使 UpdateForegroundNotification 复用 _notificationBitmap
+            // 而不走 DecodeFile；URL 下载失败时 coverKey 为 null → 清空通知封面。
+            _currentCoverPath = coverKey;
+            if (coverBytes == null || coverBytes.Length == 0 || coverKey == null)
+            {
+                if (_notificationBitmap != null)
+                {
+                    _notificationBitmap.Recycle();
+                    _notificationBitmap = null;
+                }
+                _lastNotifCoverPath = null;
+            }
+            else if (coverKey != _lastNotifCoverPath)
+            {
+                try
+                {
+                    var raw = global::Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
+                    if (raw != null)
+                    {
+                        if (_notificationBitmap != null) _notificationBitmap.Recycle();
+                        // DecodeBitmapDownsampled 内部负责回收 raw（缩小时回收源，否则原样返回）
+                        _notificationBitmap = DecodeBitmapDownsampled(raw, 512);
+                        _lastNotifCoverPath = coverKey;
+                    }
+                }
+                catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[Notif] decode online cover error: {ex.Message}"); }
+            }
+        }
+        UpdateForegroundNotification();
+    }
+
     /// <summary>启动前台播放服务</summary>
     private void StartForegroundService()
     {
