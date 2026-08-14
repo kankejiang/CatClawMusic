@@ -500,18 +500,28 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         // 可能因未知参数报 400 —— 不再发送显式 key，保留 ContextCaching 字段仅作配置展示。
         _ = config.ContextCaching;
 
-        // 推理力度参数：配置级优先；未设置（disabled/空）时兜底用全局
-        // AgentRunSettings（模型管理页的全局推理力度选择），使全局设置真正生效。
+        // 推理力度参数（仅对已知支持 reasoning_effort 的供应商发送）：
+        // - "disabled" 与 "auto" 均不发送（auto = 跟随模型默认，DeepSeek 等
+        //   枚举不含 auto，发送会 400）
+        // - 合法枚举因供应商而异：DeepSeek V4 = none/minimal/low/medium/high/xhigh/max，
+        //   Kimi K3 = low/high/max——用户配置的值直接透传，由供应商校验
+        // - 其他供应商（智谱 thinking 参数/通义 enable_thinking/讯飞等）不用
+        //   reasoning_effort，一律不发送，避免未知参数 400
         var effort = config.ReasoningEffort;
-        if (string.IsNullOrEmpty(effort) || effort == "disabled")
+        if (string.IsNullOrEmpty(effort))
         {
+            // 配置未显式设置时兜底用全局（模型管理页）；disabled/auto 为显式意图，不覆盖
             var globalEffort = AgentService.GetReasoningEffort();
-            if (!string.IsNullOrEmpty(globalEffort) && globalEffort != "disabled")
+            if (!string.IsNullOrEmpty(globalEffort) && globalEffort is not ("disabled" or "auto"))
                 effort = globalEffort;
+            else
+                effort = "";
         }
-        if (!string.IsNullOrEmpty(effort) && effort != "disabled")
+        if (!string.IsNullOrEmpty(effort) && effort is not ("disabled" or "auto"))
         {
-            body["reasoning_effort"] = effort;
+            var provider = (config.Provider ?? "").ToLowerInvariant();
+            if (provider is "deepseek" or "moonshot")
+                body["reasoning_effort"] = effort;
         }
 
         if (tools != null && tools.Count > 0)
