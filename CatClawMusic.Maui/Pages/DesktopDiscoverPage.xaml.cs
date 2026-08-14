@@ -149,6 +149,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         {
             Dispatcher.Dispatch(() =>
             {
+                RebuildHeroTrack();
                 LayoutHeroCards();
                 _ = ScrollHeroTo(0);
             });
@@ -166,18 +167,224 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         }
     }
 
-    /// <summary>根据可见宽度计算每张 Hero 卡宽度，使一屏显示约 2 张；并刷新圆点数量。</summary>
+    // === 英雄卡区（AI 助手卡 + 英雄卡，手动构建） ===
+
+    /// <summary>
+    /// 重建英雄卡横滑队列：最左侧第一张固定为 AI 助手卡（进入聊天），其后为英雄卡。
+    /// 不能混用 BindableLayout——其 ItemsSource 变化时内部会 Clear 整个布局，
+    /// 手动添加的 AI 卡会被删除导致聊天入口消失。
+    /// </summary>
+    private void RebuildHeroTrack()
+    {
+        HeroTrack.Children.Clear();
+        HeroTrack.Children.Add(CreateAiCardView());
+        foreach (var hero in _vm.HeroCards)
+        {
+            HeroTrack.Children.Add(CreateHeroCardView(hero));
+        }
+        LayoutHeroCards();
+    }
+
+    /// <summary>构建 AI 助手卡（方形，点击进入 AI 聊天模式）。</summary>
+    private View CreateAiCardView()
+    {
+        var card = new Border
+        {
+            HeightRequest = 150,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb("#667eea"), 0),
+                    new GradientStop(Color.FromArgb("#764ba2"), 1),
+                },
+                new Point(0, 0), new Point(1, 1)),
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += OnAiEntryTapped;
+        card.GestureRecognizers.Add(tap);
+
+        var grid = new Grid
+        {
+            Padding = new Thickness(18),
+            RowDefinitions =
+            {
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Star },
+                new RowDefinition { Height = GridLength.Auto },
+            },
+        };
+
+        var tagBorder = new Border
+        {
+            Padding = new Thickness(8, 3),
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 999 },
+            BackgroundColor = Color.FromArgb("#30FFFFFF"),
+            HorizontalOptions = LayoutOptions.Start,
+            Content = new Label { Text = "AI 助手", FontSize = 9.5, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
+        };
+        grid.Children.Add(tagBorder);
+
+        var content = new VerticalStackLayout
+        {
+            VerticalOptions = LayoutOptions.Center,
+            Spacing = 8,
+        };
+        var avatar = new Border
+        {
+            WidthRequest = 46,
+            HeightRequest = 46,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 23 },
+            Padding = new Thickness(0),
+            HorizontalOptions = LayoutOptions.Start,
+            Content = new Image { Source = "avatar_yuki.png", Aspect = Aspect.AspectFill, WidthRequest = 46, HeightRequest = 46 },
+        };
+        content.Children.Add(avatar);
+        content.Children.Add(new Label
+        {
+            Text = "🐾 和 Yuki 聊聊",
+            FontSize = 17,
+            FontFamily = "OpenSansSemibold",
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White,
+            MaxLines = 2,
+            Margin = new Thickness(0, 2, 16, 0),
+        });
+        content.Children.Add(new Label
+        {
+            Text = "找歌、推荐、聊天都可以",
+            FontSize = 11,
+            TextColor = Color.FromArgb("#CCFFFFFF"),
+            MaxLines = 2,
+            Margin = new Thickness(0, 0, 16, 0),
+        });
+        Grid.SetRow(content, 1);
+        grid.Children.Add(content);
+
+        var arrow = new Border
+        {
+            WidthRequest = 42,
+            HeightRequest = 42,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 21 },
+            BackgroundColor = Color.FromArgb("#50FFFFFF"),
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.End,
+            Content = new Label { Text = "›", FontSize = 24, TextColor = Colors.White, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center },
+        };
+        Grid.SetRow(arrow, 2);
+        grid.Children.Add(arrow);
+
+        card.Content = grid;
+        return card;
+    }
+
+    /// <summary>构建英雄卡（方形渐变 + 标签/标题/描述 + 播放按钮）。</summary>
+    private View CreateHeroCardView(HeroCardItem item)
+    {
+        var card = new Border
+        {
+            HeightRequest = 150,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            BindingContext = item,
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new GradientStop(item.GradientStart, 0),
+                    new GradientStop(item.GradientEnd, 1),
+                },
+                new Point(0, 0), new Point(1, 1)),
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += OnHeroCardTapped;
+        card.GestureRecognizers.Add(tap);
+
+        var grid = new Grid { Padding = new Thickness(18) };
+
+        var textStack = new VerticalStackLayout
+        {
+            VerticalOptions = LayoutOptions.Center,
+            Spacing = 6,
+        };
+        textStack.Children.Add(new Border
+        {
+            Padding = new Thickness(8, 3),
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 999 },
+            BackgroundColor = Color.FromArgb("#30FFFFFF"),
+            HorizontalOptions = LayoutOptions.Start,
+            Content = new Label { Text = item.Tag, FontSize = 9.5, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
+        });
+        textStack.Children.Add(new Label
+        {
+            Text = item.Title,
+            FontSize = 19,
+            FontFamily = "OpenSansSemibold",
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White,
+            MaxLines = 2,
+            Margin = new Thickness(0, 4, 56, 0),
+        });
+        textStack.Children.Add(new Label
+        {
+            Text = item.Description,
+            FontSize = 11.5,
+            TextColor = Color.FromArgb("#CCFFFFFF"),
+            MaxLines = 3,
+            Margin = new Thickness(0, 2, 56, 0),
+        });
+        grid.Children.Add(textStack);
+
+        var playBtn = new Border
+        {
+            WidthRequest = 42,
+            HeightRequest = 42,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 21 },
+            BackgroundColor = Color.FromArgb("#50FFFFFF"),
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.End,
+            Content = new ImageButton
+            {
+                Source = item.PlayIcon,
+                WidthRequest = 20,
+                HeightRequest = 20,
+                BackgroundColor = Colors.Transparent,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                Aspect = Aspect.AspectFit,
+            },
+        };
+        var playTap = new TapGestureRecognizer();
+        playTap.Tapped += OnHeroPlayTapped;
+        playBtn.GestureRecognizers.Add(playTap);
+        grid.Children.Add(playBtn);
+
+        card.Content = grid;
+        return card;
+    }
+
+    /// <summary>根据可见宽度计算每张 Hero 卡尺寸（方形：宽=高），目标一屏约 4 张，
+    /// 并限制单卡尺寸（方形卡片随窗口过宽会变得巨大）；同时刷新圆点数量。
+    /// AI 助手卡（最左侧第一张）与英雄卡同尺寸。</summary>
     private void LayoutHeroCards()
     {
         HeroDots.Count = _vm.HeroCards.Count;
         if (HeroScroll.Width <= 0) return;
-        var cardW = (HeroScroll.Width - HeroSpacing) / 2;
-        if (cardW < 280) cardW = 280;
+        // 一屏约 4 张；方形卡限制在 140~220px，窗口再宽也不放大
+        var cardW = (HeroScroll.Width - HeroSpacing * 4) / 4;
+        cardW = Math.Clamp(cardW, 140, 220);
         _heroCardWidth = cardW;
 
         foreach (View child in HeroTrack.Children)
         {
+            // 方形卡片：宽高一致（覆盖模板中的固定高度）
             child.WidthRequest = cardW;
+            child.HeightRequest = cardW;
         }
     }
 
@@ -188,8 +395,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         index = ((index % count) + count) % count;
         _heroIndex = index;
 
+        // 轨道第 0 位是 AI 助手卡，英雄卡从索引 1 开始：滚动位置 = (index + 1) 张卡的偏移
         var step = _heroCardWidth > 0 ? _heroCardWidth + HeroSpacing : HeroScroll.Width / 2;
-        await HeroScroll.ScrollToAsync(index * step, 0, true);
+        await HeroScroll.ScrollToAsync((index + 1) * step, 0, true);
         HeroDots.Position = index;
     }
 
@@ -198,7 +406,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         if (_heroCardWidth <= 0) return;
         var count = _vm.HeroCards.Count;
         if (count == 0) return;
-        var idx = (int)Math.Round(e.ScrollX / (_heroCardWidth + HeroSpacing));
+        var idx = (int)Math.Round(e.ScrollX / (_heroCardWidth + HeroSpacing)) - 1;
         idx = Math.Clamp(idx, 0, count - 1);
         if (idx != _heroIndex)
         {
@@ -341,9 +549,10 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         SubscribeEvents();
         _vm.GreetingText = CalculateGreeting();
 
+        // 重建英雄卡区（AI 助手卡 + 英雄卡），数据未就绪时也保留 AI 入口
+        RebuildHeroTrack();
         if (_vm.HeroCards.Count > 0)
         {
-            LayoutHeroCards();
             _heroTimer?.Start();
         }
 
@@ -361,6 +570,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             LocalScanService.NeedsReload = false;
             try { await _vm.ReloadAfterScanAsync(); }
             catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover reload: {ex.Message}"); }
+            RebuildHeroTrack();
             if (_vm.HeroCards.Count > 0)
             {
                 _heroIndex = 0;
@@ -379,6 +589,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         try { await _vm.LoadExploreDataAsync(); }
         catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover OnAppearing: {ex.Message}"); }
 
+        RebuildHeroTrack();
         if (_vm.HeroCards.Count > 0)
         {
             _heroIndex = 0;

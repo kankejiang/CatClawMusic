@@ -23,13 +23,14 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <Grid>
-                    <!-- 右上角设置按钮 -->
+                    <!-- 右上角设置按钮：ZIndex 提升到顶层，避免被内容层（Fill 铺满的 VerticalStackLayout）盖住导致点不到 -->
                     <Border HorizontalOptions="End" VerticalOptions="Start"
                             Margin="0,14,14,0"
                             WidthRequest="32" HeightRequest="32"
                             StrokeShape="RoundRectangle 10"
                             StrokeThickness="0"
-                            BackgroundColor="#33FFFFFF">
+                            BackgroundColor="#33FFFFFF"
+                            Grid.ZIndex="10">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSettingsTapped" />
                         </Border.GestureRecognizers>

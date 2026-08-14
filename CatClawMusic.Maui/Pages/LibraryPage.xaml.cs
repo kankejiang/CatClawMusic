@@ -642,13 +642,12 @@ public partial class LibraryPage : ContentPage
         var options = new[]
         {
             ("自动", "auto", "有本地和网络优先显示本地；仅网络时显示网络"),
+            ("混合", "all", "本地与网络音乐混合显示"),
             ("本地", "local", "仅显示本地音乐库内容"),
             ("网络", "network", "仅显示网络音乐源内容")
         };
 
         var currentSource = _vm.DiscoverSource ?? "auto";
-        // 兼容旧偏好：旧版本可能存了 "all"，回退到 "auto"
-        if (currentSource == "all") currentSource = "auto";
 
         DiscoverSourcePopup.ClearContent();
 
@@ -661,7 +660,8 @@ public partial class LibraryPage : ContentPage
                 StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(12) },
                 Stroke = isSelected ? primaryColor : inactiveColor,
                 StrokeThickness = isSelected ? 1.5 : 1,
-                BackgroundColor = isSelected ? Color.FromArgb("#1A") : cardBg,
+                // 选中项用主题色半透明底（原黑色 #1A 改为主题色），与弹窗整体风格一致
+                BackgroundColor = isSelected ? Color.FromArgb("#1A8C7BFF") : cardBg,
                 Padding = new Thickness(14, 10),
                 Margin = new Thickness(0, 0, 0, 8),
                 HorizontalOptions = LayoutOptions.Fill
