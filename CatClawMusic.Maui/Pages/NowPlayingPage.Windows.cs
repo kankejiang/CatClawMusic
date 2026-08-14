@@ -342,8 +342,12 @@ public partial class NowPlayingPage
                 if (s is View v && v.Width > 0)
                 {
                     var w = Math.Max(40, v.Width - 1);
-                    main.WidthRequest = w;
-                    trans.WidthRequest = w;
+                    // 幂等钳制：仅在值变化时设置，避免每次 SizeChanged 减 1 的无限缩小循环
+                    if (Math.Abs(main.WidthRequest - w) > 0.5)
+                    {
+                        main.WidthRequest = w;
+                        trans.WidthRequest = w;
+                    }
                 }
             };
 

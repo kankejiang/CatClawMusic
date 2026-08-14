@@ -149,9 +149,15 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             var text = view.Text ?? "";
             if (text.Length == 0) return;
 
-            // 用布局时的宽度约束创建/复用 layout（与 GetDesiredSize 一致，避免换行漂移）；
-            // 从未布局时兜底用控件实际宽。
-            var maxWidth = _layoutConstraint >= 0 ? _layoutConstraint : (float)Math.Max(0, sender.ActualWidth);
+            // 用布局时的宽度约束创建/复用 layout，但**钳制为控件实际宽**：
+            // StackLayout 交叉轴测量会给 GetDesiredSize 传 ∞ 约束（_layoutConstraint 可能为 ∞），
+            // 若直接用 ∞ 创建 layout 会整句不换行 → 长句绘制宽度超出控件/容器。
+            // 控件实际宽（ActualWidth）优先；布局约束较小（换行正确）时取约束。
+            var controlW = (float)Math.Max(0, sender.ActualWidth);
+            var maxWidth = controlW > 0 ? controlW : _layoutConstraint;
+            if (_layoutConstraint > 0 && _layoutConstraint < maxWidth)
+                maxWidth = _layoutConstraint;
+            maxWidth = (float)Math.Max(0, maxWidth);
             var layout = EnsureLayout(maxWidth);
             var ds = args.DrawingSession;
             ds.Clear(global::Microsoft.UI.Colors.Transparent);
@@ -178,7 +184,6 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             // 水平对齐偏移：文字宽 < 控件宽（控件通常被外层设为满宽）时，
             // 按 HorizontalTextAlignment 把文字整体偏移到居中/居右位置；
             // 文字充满控件宽（换行铺满）时偏移为 0。与 Android StaticLayout 对齐行为一致。
-            var controlW = (float)Math.Max(0, sender.ActualWidth);
             var availableW = controlW - padLeft - (float)view.Padding.Right;
             var alignX = 0f;
             switch (view.HorizontalTextAlignment)
