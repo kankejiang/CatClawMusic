@@ -279,6 +279,11 @@ public partial class NowPlayingPage
                 },
             };
 
+            // 与 Android/FullLyricsPage 一致的安全模式：标签不要直接放进 Grid 星列——
+            // 星列对内容宽标签按内容测量，居中/居右时会把行撑出容器向右侧溢出。
+            // 改为把标签包进 ContentView(host, Fill)，host 恒撑满星列宽（有限约束），
+            // 在 host.LayoutChanged 中把标签 WidthRequest 钳制为 host.Width-1，
+            // 文本对齐完全由标签内部 HorizontalTextAlignment 完成，任何对齐都不溢出。
             var main = new KaraokeLabel
             {
                 Text = line.Text,
@@ -291,14 +296,24 @@ public partial class NowPlayingPage
                 FillProgress = 1,
                 LineBreakMode = LineBreakMode.WordWrap,
                 HorizontalTextAlignment = _settings.ToTextAlignment(),
-                // 恒为 Fill：满宽标签 + 内部按 HorizontalTextAlignment 对齐（见上方注释）
                 HorizontalOptions = LayoutOptions.Fill,
                 VerticalOptions = LayoutOptions.Center,
                 // 以对齐方向为缩放锚点，放大时向对应方向生长而不是向左溢出屏幕外
                 AnchorX = alignAnchor,
                 AnchorY = 0.5,
             };
-            Grid.SetRow(main, 0); Grid.SetColumn(main, 0);
+            var mainHost = new ContentView { Content = main, HorizontalOptions = LayoutOptions.Fill };
+            mainHost.LayoutChanged += (s, _) =>
+            {
+                if (s is View v && v.Width > 0)
+                {
+                    var w = Math.Max(40, v.Width - 1);
+                    // 幂等钳制：仅在值变化时设置，避免无限缩小循环
+                    if (Math.Abs(main.WidthRequest - w) > 0.5)
+                        main.WidthRequest = w;
+                }
+            };
+            Grid.SetRow(mainHost, 0); Grid.SetColumn(mainHost, 0);
 
             // 译文常驻占位：无译文也占固定高度 → 所有行高一致 → 滚动锚点稳定
             var trans = new Label
@@ -311,12 +326,21 @@ public partial class NowPlayingPage
                 LineBreakMode = LineBreakMode.WordWrap,
                 // 译文与正文同对齐：标签满宽 + 内部按 HorizontalTextAlignment 对齐
                 HorizontalTextAlignment = _settings.ToTextAlignment(),
-                // 恒为 Fill：满宽标签（与正文一致），对齐由内部完成
                 HorizontalOptions = LayoutOptions.Fill,
                 VerticalOptions = LayoutOptions.Center,
                 HeightRequest = transSize * 1.4,
             };
-            Grid.SetRow(trans, 1); Grid.SetColumn(trans, 0);
+            var transHost = new ContentView { Content = trans, HorizontalOptions = LayoutOptions.Fill };
+            transHost.LayoutChanged += (s, _) =>
+            {
+                if (s is View v && v.Width > 0)
+                {
+                    var w = Math.Max(40, v.Width - 1);
+                    if (Math.Abs(trans.WidthRequest - w) > 0.5)
+                        trans.WidthRequest = w;
+                }
+            };
+            Grid.SetRow(transHost, 1); Grid.SetColumn(transHost, 0);
 
             var dot = new Ellipse
             {
@@ -330,32 +354,13 @@ public partial class NowPlayingPage
             dot.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Color.FromArgb("#FF5A5A"), Radius = 6f, Opacity = 0.9f };
             Grid.SetRow(dot, 0); Grid.SetColumn(dot, 1);
 
-            row.Children.Add(main);
-            row.Children.Add(trans);
+            row.Children.Add(mainHost);
+            row.Children.Add(transHost);
             row.Children.Add(dot);
 
             // 整行（正文 + 译文）一起失焦：模糊挂在行容器上，而不是逐个 Label，
             // 这样译文与正文的模糊程度一致，不会出现"正文糊了译文还清晰"的割裂。
             row.Effects.Add(new CatClawMusic.Maui.Effects.LyricBlurEffect());
-
-            // Windows 下按文字内容宽排布（无 WidthRequest）的标签在居中/居右对齐时
-            // 会把整行撑出窗口（内容宽超过容器宽时向两侧/左侧溢出）。
-            // 与 FullLyricsPage/Android 一致：标签宽度显式钳制为行宽（-1 安全边距），
-            // 文本对齐改由标签内部完成——KaraokeLabel 由 Win2D handler 按
-            // HorizontalTextAlignment 计算绘制偏移，译文 Label 用自带 HorizontalTextAlignment。
-            row.SizeChanged += (s, _) =>
-            {
-                if (s is View v && v.Width > 0)
-                {
-                    var w = Math.Max(40, v.Width - 1);
-                    // 幂等钳制：仅在值变化时设置，避免每次 SizeChanged 减 1 的无限缩小循环
-                    if (Math.Abs(main.WidthRequest - w) > 0.5)
-                    {
-                        main.WidthRequest = w;
-                        trans.WidthRequest = w;
-                    }
-                }
-            };
 
             WinLyricStack.Children.Add(row);
             _winRows.Add(new WinLyricRow { Container = row, Main = main, Trans = trans, Dot = dot });

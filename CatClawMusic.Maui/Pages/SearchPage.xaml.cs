@@ -261,12 +261,16 @@ public partial class SearchPage : DiscoverPageBase
     {
         base.OnDisappearing();
         _heroAutoScrollTimer?.Stop();
+        // 离开聊天页：注销浏览器预览宿主（Agent 浏览器请求由协调器超时兜底）
+        CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.UnregisterHost(AgentBrowserPreview);
     }
 
     /// <summary>当页面显示在屏幕上时触发。若扫描后有 NeedsReload 标记则强制重载，否则仅首次加载以避免重复解码封面。</summary>
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // 注册为 Agent 浏览器宿主（browser_open 工具在聊天页顶部弹出预览）
+        CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.RegisterHost(AgentBrowserPreview);
         _vm.GreetingText = CalculateGreeting();
         _vm.RefreshOnlineProviders(); // 刷新已启用在线音源（插件安装/启用后入口即时更新）
 

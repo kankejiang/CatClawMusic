@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CatClawMusic.Maui.Controls.AgentBrowserPreview">
+    <Border StrokeShape="RoundRectangle 14" StrokeThickness="1"
+            Stroke="#30FFFFFF" BackgroundColor="#F2192339"
+            Padding="8">
+        <Grid RowDefinitions="Auto,*" RowSpacing="4">
+            <!-- 顶部栏：关闭 + URL + 加载指示 -->
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Border Grid.Column="0" BackgroundColor="#33FFFFFF" StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12" WidthRequest="28" HeightRequest="28">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseTapped" />
+                    </Border.GestureRecognizers>
+                    <Label Text="✕" FontSize="13" TextColor="#CCFFFFFF"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <Label Grid.Column="1" x:Name="UrlLabel" Text="AI 浏览器" FontSize="11"
+                       TextColor="#AABBCCDD" VerticalOptions="Center"
+                       LineBreakMode="TailTruncation" />
+                <ActivityIndicator Grid.Column="2" x:Name="LoadingIndicator" IsRunning="False"
+                                   Color="#8C7BFF" WidthRequest="14" HeightRequest="14" />
+            </Grid>
+            <!-- WebView：Agent 控制的浏览器，加载完成后自动提取正文回传 -->
+            <WebView x:Name="BrowserWebView" Grid.Row="1"
+                     HeightRequest="230"
+                     HorizontalOptions="Fill" VerticalOptions="Fill"
+                     Navigated="OnWebViewNavigated" />
+        </Grid>
+    </Border>
+</ContentView>

@@ -556,11 +556,15 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         base.OnDisappearing();
         _heroTimer?.Stop();
         UnsubscribeEvents();
+        // 离开聊天页：注销浏览器预览宿主（Agent 浏览器请求由协调器超时兜底）
+        CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.UnregisterHost(AgentBrowserPreview);
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // 注册为 Agent 浏览器宿主（browser_open 工具在聊天页顶部弹出预览）
+        CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.RegisterHost(AgentBrowserPreview);
 
         SubscribeEvents();
         _vm.GreetingText = CalculateGreeting();

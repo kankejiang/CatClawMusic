@@ -1,30 +1,28 @@
 using System.Text.Json;
-using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services.AgentBrowser;
 
-namespace CatClawMusic.Maui.Pages;
+namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// Agent 控制的浏览器页：加载指定 URL，等待 JS 渲染后注入脚本提取页面正文，
-/// 通过协调器回传给 Agent 工具（browser_open）。
-/// 用户可见浏览过程，可手动关闭；Agent 请求超时（25s）由协调器兜底。
+/// Agent 浏览器预览：聊天页面顶部的小窗口（不跳转页面）。
+/// Agent 调用 browser_open 时显示并加载 URL，等 JS 渲染后注入脚本提取正文，
+/// 通过协调器回传给 Agent 工具。可手动关闭；Agent 请求超时由协调器兜底。
+/// 聊天页（SearchPage / DesktopDiscoverPage）在 OnAppearing 时注册为当前宿主。
 /// </summary>
-public partial class AgentBrowserPage : ContentPage
+public partial class AgentBrowserPreview : ContentView
 {
-    private readonly AgentBrowserCoordinator _coordinator;
-    private readonly TaskCompletionSource<(string, string)>? _tcs;
-
-    public AgentBrowserPage(AgentBrowserCoordinator coordinator)
+    public AgentBrowserPreview()
     {
         InitializeComponent();
-        _coordinator = coordinator;
-        // 取走当前挂起的浏览器请求，页面加载完成后回传结果
-        _tcs = coordinator.Pending;
+        IsVisible = false;
     }
 
-    /// <summary>导航到指定 URL（由协调器在 Agent 工具调用时触发）</summary>
-    public void LoadUrl(string url)
+    /// <summary>显示预览并导航到指定 URL（由协调器在 Agent 工具调用时触发，已在主线程）</summary>
+    public void Show(string url)
     {
+        IsVisible = true;
+        LoadingIndicator.IsRunning = true;
+        UrlLabel.Text = url;
         try
         {
             var navUrl = url.Trim();
@@ -36,12 +34,26 @@ public partial class AgentBrowserPage : ContentPage
         catch { }
     }
 
+    /// <summary>手动关闭：隐藏预览，回传空结果（Agent 请求由协调器超时兜底）</summary>
+    private void OnCloseTapped(object? sender, EventArgs e)
+    {
+        CloseAndNotify();
+    }
+
+    private void CloseAndNotify()
+    {
+        IsVisible = false;
+        LoadingIndicator.IsRunning = false;
+        try { BrowserWebView.Source = "about:blank"; } catch { }
+        AgentBrowserCoordinator.Instance.OnPageLoaded("", "");
+    }
+
     private async void OnWebViewNavigated(object? sender, WebNavigatedEventArgs e)
     {
-        if (_tcs == null) return;
         if (e.Result != WebNavigationResult.Success)
         {
-            _tcs.TrySetResult((e.Url ?? "", ""));
+            AgentBrowserCoordinator.Instance.OnPageLoaded("", "");
+            LoadingIndicator.IsRunning = false;
             return;
         }
 
@@ -74,23 +86,15 @@ public partial class AgentBrowserPage : ContentPage
                 title = root.TryGetProperty("title", out var tp) ? tp.GetString() ?? "" : "";
                 text = root.TryGetProperty("text", out var sp) ? sp.GetString() ?? "" : "";
             }
-            _tcs.TrySetResult((title, text));
+            AgentBrowserCoordinator.Instance.OnPageLoaded(title, text);
         }
         catch
         {
-            _tcs.TrySetResult((e.Url ?? "", ""));
+            AgentBrowserCoordinator.Instance.OnPageLoaded("", "");
         }
         finally
         {
             LoadingIndicator.IsRunning = false;
         }
-    }
-
-    private void OnCloseTapped(object? sender, EventArgs e)
-    {
-        // 关闭页面；若 Agent 仍在等待，其结果由协调器超时兜底
-        if (_tcs != null)
-            _tcs.TrySetResult(("", ""));
-        DesktopNavigation.GoBack();
     }
 }

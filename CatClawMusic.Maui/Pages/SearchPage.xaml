@@ -754,5 +754,11 @@
                 </ScrollView>
             </Grid>
         </Grid>
+
+        <!-- Agent 浏览器预览：AI 调用浏览器时在顶部弹出小窗口（不离开聊天页） -->
+        <controls:AgentBrowserPreview x:Name="AgentBrowserPreview"
+                                      VerticalOptions="Start"
+                                      Margin="12,8,12,0"
+                                      ZIndex="50" />
     </Grid>
 </base:DiscoverPageBase>

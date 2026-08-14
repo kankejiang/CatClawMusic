@@ -312,11 +312,9 @@ public static class MauiProgram
             };
             return dm;
         });
-        // Agent 浏览器：browser_open 工具经桥接控制内置浏览器页
-        var agentBrowserCoordinator = new Services.AgentBrowser.AgentBrowserCoordinator();
-        services.AddSingleton(agentBrowserCoordinator);
+        // Agent 浏览器：browser_open 工具经协调器在聊天页顶部弹出预览小窗口
         CatClawMusic.Core.Services.AI.AgentBrowserBridge.Navigator = (url, ct) =>
-            agentBrowserCoordinator.NavigateAndExtractAsync(url, ct);
+            CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.NavigateAndExtractAsync(url, ct);
         services.AddSingleton<IAgentTool, ControlPlaybackTool>();
         services.AddSingleton<IAgentTool, GetCurrentSongTool>();
         services.AddSingleton<IAgentTool, GetPlayQueueTool>();
