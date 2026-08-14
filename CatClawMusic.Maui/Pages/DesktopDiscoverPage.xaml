@@ -587,8 +587,8 @@
                                     HorizontalOptions="{Binding Role, Converter={StaticResource ChatBubbleAlignmentConverter}}"
                                     VerticalOptions="Start">
                                 <VerticalStackLayout Spacing="6">
-                                    <!-- 思考/工具调用过程区块（仅助手消息且有步骤时可见，点击折叠/展开） -->
-                                    <Border IsVisible="{Binding HasThinkingSteps}"
+                                    <!-- 思考/工具调用过程区块（仅助手消息且有思考内容时可见，点击折叠/展开） -->
+                                    <Border IsVisible="{Binding HasThinking}"
                                             Padding="10,8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                                             StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ButtonOverlayColor}">
                                         <Border.GestureRecognizers>
@@ -608,6 +608,11 @@
                                                 <Label Grid.Column="2" Text="▼" FontSize="9" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center"
                                                        IsVisible="{Binding IsThinkingExpanded, Converter={StaticResource InvertedBoolConverter}}" />
                                             </Grid>
+                                            <!-- 流式思考过程文本（推理模型 reasoning_content，展开时实时显示） -->
+                                            <Label Text="{Binding ReasoningContent}" FontSize="10"
+                                                   TextColor="{DynamicResource TextSecondaryColor}"
+                                                   LineBreakMode="WordWrap"
+                                                   IsVisible="{Binding IsThinkingExpanded}" />
                                             <CollectionView IsVisible="{Binding IsThinkingExpanded}" ItemsSource="{Binding ThinkingSteps}"
                                                             MaximumHeightRequest="160" Margin="0,2,0,0">
                                                 <CollectionView.ItemTemplate>

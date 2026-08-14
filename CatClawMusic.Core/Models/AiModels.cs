@@ -137,6 +137,20 @@ public class LlmResponse
     public string FinishReason { get; set; } = "";
 }
 
+/// <summary>流式响应增量（SSE delta）：每次收到一个 data 块回调一次。
+/// Content / ReasoningContent 均为本次增量文本（调用方自行累积拼接）。</summary>
+public class LlmStreamDelta
+{
+    /// <summary>正文增量文本</summary>
+    public string Content { get; set; } = "";
+
+    /// <summary>思考过程增量文本（reasoning_content / reasoning 字段）</summary>
+    public string ReasoningContent { get; set; } = "";
+
+    /// <summary>当前 finish_reason（未结束时为空，结束时为 stop/tool_calls 等）</summary>
+    public string FinishReason { get; set; } = "";
+}
+
 /// <summary>内置智能体定义，包含身份、形象与系统提示词</summary>
 public class BuiltinAgent
 {

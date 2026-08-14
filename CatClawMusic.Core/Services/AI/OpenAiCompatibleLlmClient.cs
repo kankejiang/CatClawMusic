@@ -78,7 +78,25 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <param name="ct">取消令牌</param>
     /// <returns>LLM 响应</returns>
     /// <exception cref="InvalidOperationException">API 未配置或所有退回均失败时抛出</exception>
-    public async Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
+    public Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
+        => ChatWithFallbackAsync(messages, tools, null, ct);
+
+    /// <summary>
+    /// 流式对话请求：SSE 实时回调正文/思考过程增量，返回最终完整响应。
+    /// 支持工具调用（流结束后随返回的 ToolCalls 给出）与主/备用模型回退。
+    /// </summary>
+    /// <param name="messages">对话消息列表</param>
+    /// <param name="tools">可用工具定义列表（可选）</param>
+    /// <param name="onDelta">流式增量回调（每次收到 delta 调用一次，来自 HTTP 读取线程）</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>LLM 响应（Content/ReasoningContent 为流式累积的完整文本）</returns>
+    public Task<LlmResponse> ChatStreamAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default)
+        => ChatWithFallbackAsync(messages, tools, onDelta, ct);
+
+    /// <summary>对话请求统一入口：主配置优先，失败时按序尝试备用配置（onDelta 非空走流式）。</summary>
+    private async Task<LlmResponse> ChatWithFallbackAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct)
     {
         var config = GetEffectiveConfig();
         if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
@@ -87,7 +105,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         // 尝试当前配置
         try
         {
-            return await ChatWithConfigAsync(config, messages, tools, ct);
+            return await ChatWithConfigAsync(config, messages, tools, onDelta, ct);
         }
         catch (Exception primaryEx)
         {
@@ -103,7 +121,7 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                 try
                 {
                     Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 尝试退回模型: {fallback.Name} ({fallback.Model})");
-                    var result = await ChatWithConfigAsync(fallback, messages, tools, ct);
+                    var result = await ChatWithConfigAsync(fallback, messages, tools, onDelta, ct);
                     Log.Debug("OpenAiCompatibleLlmClient", $"[LlmClient] 退回模型 {fallback.Name} 调用成功");
                     return result;
                 }
@@ -122,29 +140,147 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     }
 
     /// <summary>
-    /// 使用指定配置发起对话请求
+    /// 使用指定配置发起对话请求（onDelta 非空时走 SSE 流式）
     /// </summary>
     /// <param name="config">LLM 配置</param>
     /// <param name="messages">对话消息列表</param>
     /// <param name="tools">可用工具定义列表</param>
+    /// <param name="onDelta">流式增量回调（可选）</param>
     /// <param name="ct">取消令牌</param>
     /// <returns>LLM 响应</returns>
-    private async Task<LlmResponse> ChatWithConfigAsync(LlmConfig config, List<ChatMessage> messages, List<ToolDefinition>? tools, CancellationToken ct)
+    private async Task<LlmResponse> ChatWithConfigAsync(LlmConfig config, List<ChatMessage> messages, List<ToolDefinition>? tools, Action<LlmStreamDelta>? onDelta, CancellationToken ct)
     {
         var url = BuildChatUrl(config.ApiUrl);
-        var body = BuildRequestBody(messages, tools, config);
+        var body = BuildRequestBody(messages, tools, config, stream: onDelta != null);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
-        using var response = await _httpClient.SendAsync(request, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"API 请求失败 ({(int)response.StatusCode}): {Truncate(responseBody, 500)}");
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            throw new InvalidOperationException($"API 请求失败 ({(int)response.StatusCode}): {Truncate(errorBody, 500)}");
+        }
 
+        if (onDelta != null)
+            return await ReadStreamAsync(response, onDelta, ct);
+
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
         return ParseResponse(responseBody);
+    }
+
+    /// <summary>
+    /// 解析 SSE 流式响应：逐行读取 data: 块，累积正文/思考过程/工具调用，
+    /// 每收到一个 delta 通过 onDelta 实时回调（正文与思考过程各自增量）。
+    /// </summary>
+    private static async Task<LlmResponse> ReadStreamAsync(HttpResponseMessage response,
+        Action<LlmStreamDelta> onDelta, CancellationToken ct)
+    {
+        var contentBuilder = new StringBuilder();
+        var reasoningBuilder = new StringBuilder();
+        var finishReason = "";
+        // OpenAI 流式 tool_calls 分片：按 index 聚合，最后合并完整 arguments
+        var toolCallSlots = new Dictionary<int, (ToolCall call, StringBuilder args)>();
+
+        using var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (!reader.EndOfStream)
+        {
+            ct.ThrowIfCancellationRequested();
+            var line = await reader.ReadLineAsync(ct);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data:"))
+                continue;
+
+            var data = line["data:".Length..].Trim();
+            if (data == "[DONE]")
+                break;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(data);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                    continue;
+                var choice = choices[0];
+
+                if (choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
+                    finishReason = fr.GetString() ?? "";
+
+                if (!choice.TryGetProperty("delta", out var delta))
+                    continue;
+
+                string content = "";
+                if (delta.TryGetProperty("content", out var cProp) && cProp.ValueKind == JsonValueKind.String)
+                    content = cProp.GetString() ?? "";
+
+                string reasoning = "";
+                // DeepSeek/智谱/Kimi 等推理模型：reasoning_content 或 reasoning 字段
+                if (delta.TryGetProperty("reasoning_content", out var rcProp) && rcProp.ValueKind == JsonValueKind.String)
+                    reasoning = rcProp.GetString() ?? "";
+                else if (delta.TryGetProperty("reasoning", out var rProp) && rProp.ValueKind == JsonValueKind.String)
+                    reasoning = rProp.GetString() ?? "";
+
+                if (!string.IsNullOrEmpty(content))
+                    contentBuilder.Append(content);
+                if (!string.IsNullOrEmpty(reasoning))
+                    reasoningBuilder.Append(reasoning);
+
+                // 工具调用分片聚合（OpenAI 流式格式：同 index 多片，arguments 增量拼接）
+                if (delta.TryGetProperty("tool_calls", out var tcs))
+                {
+                    foreach (var tc in tcs.EnumerateArray())
+                    {
+                        int idx = tc.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : 0;
+                        if (!toolCallSlots.TryGetValue(idx, out var slot))
+                        {
+                            slot = (new ToolCall { Type = "function", Function = new ToolCallFunction() }, new StringBuilder());
+                            toolCallSlots[idx] = slot;
+                        }
+                        if (tc.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
+                            slot.call.Id = idProp.GetString() ?? "";
+                        if (tc.TryGetProperty("function", out var fn))
+                        {
+                            if (fn.TryGetProperty("name", out var nProp) && nProp.ValueKind == JsonValueKind.String
+                                && string.IsNullOrEmpty(slot.call.Function.Name))
+                                slot.call.Function.Name = nProp.GetString() ?? "";
+                            if (fn.TryGetProperty("arguments", out var aProp) && aProp.ValueKind == JsonValueKind.String)
+                                slot.args.Append(aProp.GetString() ?? "");
+                        }
+                    }
+                }
+
+                onDelta(new LlmStreamDelta
+                {
+                    Content = content,
+                    ReasoningContent = reasoning,
+                    FinishReason = finishReason
+                });
+            }
+            catch (JsonException)
+            {
+                // 忽略无法解析的 SSE 块（部分服务端会夹杂注释/空块）
+            }
+        }
+
+        var toolCalls = toolCallSlots.OrderBy(kv => kv.Key)
+            .Select(kv =>
+            {
+                kv.Value.call.Function.Arguments = kv.Value.args.ToString();
+                return kv.Value.call;
+            })
+            .ToList();
+
+        return new LlmResponse
+        {
+            Content = contentBuilder.ToString(),
+            ReasoningContent = reasoningBuilder.ToString(),
+            ToolCalls = toolCalls,
+            FinishReason = finishReason
+        };
     }
 
     /// <summary>
@@ -272,8 +408,9 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <param name="messages">对话消息列表</param>
     /// <param name="tools">可用工具定义列表</param>
     /// <param name="config">LLM 配置</param>
+    /// <param name="stream">是否启用 SSE 流式响应</param>
     /// <returns>JSON 字符串请求体</returns>
-    private static string BuildRequestBody(List<ChatMessage> messages, List<ToolDefinition>? tools, LlmConfig config)
+    private static string BuildRequestBody(List<ChatMessage> messages, List<ToolDefinition>? tools, LlmConfig config, bool stream = false)
     {
         var msgList = new List<object>();
         foreach (var m in messages)
@@ -312,6 +449,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             ["model"] = config.Model,
             ["messages"] = msgList
         };
+
+        // SSE 流式（思考过程/正文实时增量）
+        if (stream)
+            body["stream"] = true;
 
         // 温度：仅对非推理模型发送（推理模型 o1/o3/deepseek-reasoner 等不支持 temperature）
         var isReasoningModel = !string.IsNullOrEmpty(config.ReasoningEffort)

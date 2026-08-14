@@ -459,8 +459,19 @@ public class AgentService : IAgentService
             try
             {
                 var requestMessages = BuildRequestMessages();
-                // ChatAsync 本身是 async HTTP 调用，无需 Task.Run 包装（多余线程跳转 + Task 分配）
-                response = await _llmClient.ChatAsync(requestMessages, toolDefs, ct).ConfigureAwait(false);
+                // 流式请求：思考过程与正文实时回调给 UI（onPartialMessage 由 Agent 层转发）
+                response = await _llmClient.ChatStreamAsync(requestMessages, toolDefs, delta =>
+                {
+                    if (onPartialMessage == null) return;
+                    if (string.IsNullOrEmpty(delta.Content) && string.IsNullOrEmpty(delta.ReasoningContent))
+                        return;
+                    onPartialMessage(new ChatMessage
+                    {
+                        Role = "assistant",
+                        Content = delta.Content,
+                        ReasoningContent = delta.ReasoningContent
+                    });
+                }, ct).ConfigureAwait(false);
                 _logService.Info("Agent", $"Agent LLM 响应: content='{Truncate(response.Content, 200)}', toolCalls={response.ToolCalls.Count}, finishReason={response.FinishReason}");
                 if (!string.IsNullOrEmpty(response.ReasoningContent))
                 {

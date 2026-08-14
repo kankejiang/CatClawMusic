@@ -284,12 +284,39 @@ public partial class SearchViewModel
         }
     }
 
-    /// <summary>Agent 中间消息回调：将工具调用过程追加到当前思考气泡（回调来自后台线程，需切回主线程更新 UI）</summary>
+    /// <summary>Agent 中间消息回调：工具调用过程追加思考步骤；流式正文/思考增量实时更新占位气泡。
+    /// 回调来自 HTTP 读取线程，需切回主线程更新 UI。</summary>
     private void OnPartialMessage(ChatMessage partial)
     {
         if (_currentThinkingMessage == null) return;
 
-        if (partial.Role == "assistant" && partial.ToolCalls != null && partial.ToolCalls.Count > 0)
+        // 流式思考过程增量：累积到 ReasoningContent（思考区实时显示）
+        if (partial.Role == "assistant" && !string.IsNullOrEmpty(partial.ReasoningContent))
+        {
+            var delta = partial.ReasoningContent;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var msg = _currentThinkingMessage;
+                if (msg == null) return;
+                msg.ReasoningContent = (msg.ReasoningContent ?? "") + delta;
+                // 首个思考增量到达时移除"正在思考"占位
+                if (msg.ThinkingSteps.Count > 0 && msg.ThinkingSteps[0].StartsWith("💭"))
+                    msg.ThinkingSteps.RemoveAt(0);
+            });
+        }
+        // 流式正文增量：实时填入回复内容
+        else if (partial.Role == "assistant" && !string.IsNullOrEmpty(partial.Content)
+            && (partial.ToolCalls == null || partial.ToolCalls.Count == 0))
+        {
+            var delta = partial.Content;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var msg = _currentThinkingMessage;
+                if (msg == null) return;
+                msg.Content = (msg.Content ?? "") + delta;
+            });
+        }
+        else if (partial.Role == "assistant" && partial.ToolCalls != null && partial.ToolCalls.Count > 0)
         {
             var toolNames = string.Join(", ", partial.ToolCalls.Select(tc => tc.Function?.Name ?? "?"));
             var step = $"🔧 调用工具: {toolNames}";

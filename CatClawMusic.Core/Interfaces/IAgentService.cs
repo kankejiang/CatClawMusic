@@ -13,6 +13,17 @@ public interface ILlmClient
     /// <param name="ct">取消令牌</param>
     Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// 流式对话请求：SSE 实时回调正文/思考过程增量（onDelta），返回最终完整响应。
+    /// 支持工具调用（工具调用在流结束后随返回的 ToolCalls 给出）与主/备用模型回退。
+    /// </summary>
+    /// <param name="messages">对话消息列表</param>
+    /// <param name="tools">可选的工具定义列表</param>
+    /// <param name="onDelta">流式增量回调（每次收到 delta 调用一次，来自 HTTP 读取线程）</param>
+    /// <param name="ct">取消令牌</param>
+    Task<LlmResponse> ChatStreamAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default);
+
     /// <summary>测试与 LLM 服务的连接是否正常</summary>
     Task<bool> TestConnectionAsync();
 
