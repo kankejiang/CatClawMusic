@@ -340,7 +340,13 @@ public partial class AudioPlayerService
 
         try
         {
-            var player = EnsurePlayer();
+            // EnsurePlayer 必须在主线程调用：ExoPlayer 的 setter（Volume/RepeatMode/
+            // PlayWhenReady/SetAudioAttributes/AddListener）带 application looper 线程校验，
+            // 非主线程调用会抛 IllegalStateException 且 AddListener 不执行 →
+            // 后续 OnIsPlayingChanged/OnPlaybackStateChanged 永不回调 → 音乐正常播放但
+            // 进度条不走（Yuki 工具在线程池调用 PlayAsync 时复现；UI 线程发起时锁空闲
+            // 恰好在主线程执行而"碰巧正常"）。
+            var player = await EnsurePlayerOnMainThreadAsync(ct).ConfigureAwait(false);
             // ExoPlayer 要求所有方法在创建它的线程（主线程）调用。
             // WebDAV/SMB 路径中 await AsyncUrlResolver 后 continuation 可能在线程池线程，
             // 因此所有 player 操作必须 Post 到主线程执行，否则触发 native 数据竞争。
@@ -494,6 +500,15 @@ public partial class AudioPlayerService
         return tcs.Task;
     }
 
+    /// <summary>在主线程上获取 ExoPlayer 实例（首次创建/配置/挂监听必须发生在主线程）。
+    /// 主线程不会持有 _playLock 等待本方法（PlayAsync 不阻塞等待锁），不会死锁。</summary>
+    private async Task<SimpleExoPlayer> EnsurePlayerOnMainThreadAsync(CancellationToken ct = default)
+    {
+        SimpleExoPlayer? player = null;
+        await PostToMainThreadAsync(() => player = EnsurePlayer(), ct).ConfigureAwait(false);
+        return player!;
+    }
+
     /// <summary>确保 FFmpegService 已初始化并注入（解决启动时 Task.Run 注入时序问题）</summary>
     /// <param name="ct">取消令牌</param>
     private async Task EnsureFFmpegReadyAsync(CancellationToken ct = default)
@@ -528,7 +543,7 @@ public partial class AudioPlayerService
             var wavPath = await _ffmpeg.TranscodeToWavAsync(localPath).ConfigureAwait(false);
             if (wavPath == null) return;
 
-            var player = EnsurePlayer();
+            var player = await EnsurePlayerOnMainThreadAsync().ConfigureAwait(false);
             var mediaItem = MediaItem.FromUri(global::Android.Net.Uri.Parse("file://" + wavPath));
             // ExoPlayer 操作必须在主线程
             await PostToMainThreadAsync(() =>
@@ -883,6 +898,10 @@ public partial class AudioPlayerService
                         // 若等 OnIsPlayingChanged(true) 才刷新，主线程拥塞期间通知栏会显示
                         // 00:00 数秒。STATE_READY 早于 IsPlaying 回调，在此推送可立即修正。
                         _owner.UpdateForegroundNotification();
+                        // 双保险：若实际已在播放（如从解码错误自动恢复后 OnIsPlayingChanged
+                        // 不再翻转为 true），确保进度定时器已启动，避免"歌在播进度条不走"。
+                        if (_owner._player?.IsPlaying == true)
+                            _owner.StartPositionTimer();
                     }
                     catch { }
                 });
@@ -961,6 +980,16 @@ public partial class AudioPlayerService
                     // 停掉位置定时器后无人重启，进度条会永久冻结而音频仍在播（“进度条不会跑了”）。
                     // 定时器始终按真实 CurrentPosition 轮询：播放恢复则进度继续推进，
                     // 若播放确已停止，ExoPlayer 会自行触发 OnIsPlayingChanged(false) 来正确停表。
+                    // 双保险：若错误后仍在/恢复播放（首次启动 timer 尚未运行过的情况），补启动定时器。
+                    _owner._mainHandler.Post(() =>
+                    {
+                        try
+                        {
+                            if (_owner._player?.IsPlaying == true)
+                                _owner.StartPositionTimer();
+                        }
+                        catch { }
+                    });
                     return;
                 }
                 Interlocked.Exchange(ref _owner._lastPlayerErrorTicks, nowTicks);
