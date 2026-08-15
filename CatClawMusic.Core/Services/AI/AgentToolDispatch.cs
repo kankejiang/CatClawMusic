@@ -93,41 +93,34 @@ public static class AgentToolDispatch
     }
 
     /// <summary>
-    /// 结果截断：行数+字节双限，保留头部 + 明确截断标记。
-    /// 与 opencode truncate.ts 同思路（head 方向），超出时提示模型按需重取。
+    /// 结果截断：字节限（保头部）。与 opencode truncate.ts 同思路（head 方向）。
+    /// 注意：工具结果多为单行 JSON（JsonSerializer 紧凑格式无换行），不能按行切分——
+    /// 否则第一行超限就一行都保不住（曾导致模型收到"只剩截断提示"的空结果）。
+    /// 改为流式逐字符按 UTF-8 字节累计，头部内容优先保留。
     /// </summary>
     public static string TruncateResult(string result)
     {
         if (result.Length <= MaxResultBytes)
             return result;
 
-        var lines = result.Split('\n');
-        var outLines = new List<string>(Math.Min(lines.Length, MaxResultLines));
+        var sb = new System.Text.StringBuilder(Math.Min(result.Length, MaxResultBytes));
         var bytes = 0;
-        var hitLimit = false;
-        foreach (var line in lines)
+        var lineCount = 0;
+        foreach (var ch in result)
         {
-            if (outLines.Count >= MaxResultLines)
+            if (ch == '\n')
             {
-                hitLimit = true;
-                break;
+                if (++lineCount >= MaxResultLines)
+                    break;
             }
-            var lineBytes = System.Text.Encoding.UTF8.GetByteCount(line) + (outLines.Count > 0 ? 1 : 0);
-            if (bytes + lineBytes > MaxResultBytes)
-            {
-                hitLimit = true;
+            var chBytes = System.Text.Encoding.UTF8.GetByteCount(ch.ToString());
+            if (bytes + chBytes > MaxResultBytes)
                 break;
-            }
-            outLines.Add(line);
-            bytes += lineBytes;
+            sb.Append(ch);
+            bytes += chBytes;
         }
 
-        if (!hitLimit && lines.Length <= MaxResultLines)
-            return result;
-
-        var removed = hitLimit
-            ? $"约 {System.Text.Encoding.UTF8.GetByteCount(result) - bytes} 字节"
-            : $"{lines.Length - outLines.Count} 行";
-        return $"{string.Join("\n", outLines)}\n\n...(结果过长已截断，省略{removed}。如需完整内容请再调用本工具获取特定部分)...";
+        var removed = System.Text.Encoding.UTF8.GetByteCount(result) - bytes;
+        return $"{sb}\n\n...(结果过长已截断，省略约{removed}字节。以上为开头内容，请基于已有信息继续，必要时换个更精确的关键词再次搜索)...";
     }
 }

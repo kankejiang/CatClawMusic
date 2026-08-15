@@ -57,8 +57,10 @@ public static class AgentRunSettings
     public const string KeyReasoningEffort = "agent_reasoning_effort";
 
     /// <summary>执行轮数上限默认值（0=不限）。
-    /// 搜索→抓取等联网场景需要多轮（搜索+抓取+再搜索），5 轮偏紧容易误报"步骤过多"</summary>
-    public const int DefaultMaxToolRounds = 8;
+    /// 联网类任务（搜索→抓取→下载）实测需要 6-10 轮：搜索 1-2 次定位、抓取 1-2 次
+    /// 读正文/找下载链接、失败换源重试、最后 download_file。8 轮偏紧容易误报
+    /// "步骤过多"；死循环检测（同工具+同参数连续 3 次）兜底防卡死，放宽容错空间</summary>
+    public const int DefaultMaxToolRounds = 12;
     /// <summary>规划轮数上限默认值（0=不限）</summary>
     public const int DefaultMaxPlanRounds = 0;
     /// <summary>推理力度默认值</summary>
