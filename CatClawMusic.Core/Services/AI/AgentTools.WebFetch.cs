@@ -75,8 +75,37 @@ public class FetchWebPageTool : IAgentTool
 
         try
         {
-            // 用 Task.Run 包裹避免调用方同步上下文影响（工具在 Agent 线程池中执行，实际无碍）
-            var response = await _httpClient.GetAsync(url);
+            // Accept 头：text/plain 优先（部分站点按 Accept 直接返回纯文本/markdown，
+            // 省去 HTML 解析；opencode webfetch 同款策略）。默认请求头已含 Accept，先移除再设。
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Remove("Accept");
+            request.Headers.TryAddWithoutValidation("Accept",
+                "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1");
+            var response = await _httpClient.SendAsync(request);
+
+            // Cloudflare 人机验证拦截（403 + cf-mitigated: challenge）：换诚实 UA 重试一次
+            //（opencode webfetch 同款：TLS 指纹不匹配时被 CF 拦截，换 UA 可绕过部分）
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                var cfChallenge = response.Headers.TryGetValues("cf-mitigated", out var cfVals)
+                    && cfVals.Any(v => v.Contains("challenge", StringComparison.OrdinalIgnoreCase));
+                response.Dispose();
+                if (cfChallenge)
+                {
+                    request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Remove("Accept");
+                    request.Headers.Remove("User-Agent");
+                    request.Headers.TryAddWithoutValidation("Accept",
+                        "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1");
+                    request.Headers.TryAddWithoutValidation("User-Agent", "CatClawMusic/1.8");
+                    response = await _httpClient.SendAsync(request);
+                }
+                else
+                {
+                    return JsonSerializer.Serialize(new { error = "抓取失败: HTTP 403" });
+                }
+            }
+
             if (!response.IsSuccessStatusCode)
                 return JsonSerializer.Serialize(new { error = $"抓取失败: HTTP {(int)response.StatusCode}" });
 

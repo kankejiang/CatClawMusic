@@ -80,10 +80,22 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 响应速度优化：不等全部源完成（Task.WhenAll 会拖到最慢源的超时）。
-            // 三个源**并发启动**，但只 await 主源 cn.bing（通常 <1s）：
-            // 结果充足（≥3 条）立即返回；不足才依次等百度/DDG（各自限时 6s，
-            // 它们在等待期间已并行完成，通常无需额外耗时）。
+            // 首选：Exa 托管 AI 搜索（opencode 同款方案，免 key）——
+            // 返回 LLM-ready 结果文本，livecrawl 自动抓取页面内容（如天气数据表），
+            // 通常 1-3s 返回，质量远高于自抓搜索引擎 HTML。
+            var exaText = await SearchExaAsync(query);
+            if (!string.IsNullOrWhiteSpace(exaText) && exaText.Length > 50)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    query = query,
+                    content = exaText,
+                    message = "搜索完成（Exa AI 搜索）"
+                });
+            }
+
+            // 回退：自抓搜索引擎（cn.bing 主源，结果充足即返回，不等慢源）
             using var ctsBing = new CancellationTokenSource(TimeSpan.FromSeconds(6));
             using var ctsBaidu = new CancellationTokenSource(TimeSpan.FromSeconds(6));
             using var ctsDdg = new CancellationTokenSource(TimeSpan.FromSeconds(6));
@@ -238,6 +250,86 @@ public class WebSearchTool : IAgentTool
     /// <summary>搜索结果页最多读取的字节数：搜索结果都在页面头部，截断大幅降低下载/解析耗时
     /// （百度结果页实测 1.19MB，全量下载+正则解析明显拖慢搜索）</summary>
     private const int MaxPageBytes = 400 * 1024;
+
+    /// <summary>
+    /// 调用 Exa 托管 AI 搜索（opencode 同款：MCP JSON-RPC tools/call，免 key）。
+    /// livecrawl=fallback：缓存内容缺失时自动抓取页面 → 直接返回含正文的结果文本。
+    /// </summary>
+    private async Task<string?> SearchExaAsync(string query)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                id = 1,
+                method = "tools/call",
+                @params = new
+                {
+                    name = "web_search_exa",
+                    arguments = new
+                    {
+                        query = query,
+                        type = "auto",
+                        numResults = 8,
+                        livecrawl = "fallback",
+                        contextMaxCharacters = 10000
+                    }
+                }
+            });
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://mcp.exa.ai/mcp");
+            request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+            request.Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync();
+            return ParseMcpText(body);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AgentTools", $"[WebSearch] Exa 搜索失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>解析 MCP JSON-RPC 响应（SSE 或纯 JSON）：取 result.content[].text</summary>
+    private static string? ParseMcpText(string body)
+    {
+        foreach (var line in body.Split('\n'))
+        {
+            if (!line.StartsWith("data: ")) continue;
+            var text = TryExtractMcpText(line["data: ".Length..].Trim());
+            if (text != null) return text;
+        }
+        // 无 SSE 前缀时整段可能是 JSON
+        return TryExtractMcpText(body.Trim());
+    }
+
+    private static string? TryExtractMcpText(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || !json.StartsWith("{")) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("result", out var result)
+                && result.TryGetProperty("content", out var content)
+                && content.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var c in content.EnumerateArray())
+                {
+                    if (c.TryGetProperty("text", out var t))
+                    {
+                        var text = t.GetString();
+                        if (!string.IsNullOrWhiteSpace(text)) return text;
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
 
     /// <summary>限流读取响应内容（最多 maxBytes 字节），并按 UTF-8/GBK 探测解码。</summary>
     private static async Task<string> ReadHtmlLimitedAsync(HttpResponseMessage response, int maxBytes)
