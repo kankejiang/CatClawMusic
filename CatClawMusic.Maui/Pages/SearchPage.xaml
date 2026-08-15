@@ -194,18 +194,18 @@
                             <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
                         </Grid>
 
-                        <!-- Hero 卡片并排网格（不轮播）：AI 助手卡 + 英雄卡，2 列方形铺开。
+                        <!-- Hero 卡片横向并排（横屏同款：一行方形卡横滑，不自动轮播）。
                              数据源由 code-behind 赋值：AI 助手卡 + HeroCards -->
                         <CollectionView x:Name="HeroGrid" Margin="18,0,18,14"
                                         SelectionMode="None" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                             <CollectionView.ItemsLayout>
-                                <GridItemsLayout Orientation="Vertical" Span="2" VerticalItemSpacing="12" HorizontalItemSpacing="12" />
+                                <LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" />
                             </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
-                                    <!-- 方形英雄卡（2 列网格，宽度随列宽、高度固定近似方形） -->
-                                    <Border HeightRequest="184" Padding="14" StrokeThickness="0" StrokeShape="RoundRectangle 20"
+                                    <!-- 方形英雄卡（横屏同款：宽=高 170，一屏约 2 张，横滑浏览） -->
+                                    <Border WidthRequest="170" HeightRequest="170" Padding="14" StrokeThickness="0" StrokeShape="RoundRectangle 20"
                                             HorizontalOptions="Fill" VerticalOptions="Fill">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnHeroCardTapped" />
