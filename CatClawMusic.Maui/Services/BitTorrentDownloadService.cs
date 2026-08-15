@@ -58,8 +58,17 @@ public class BitTorrentDownloadService : IDisposable
             if (!magnet.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
                 return "不是有效的磁力链接（需以 magnet: 开头）";
 
-            var manager = await _engine.AddAsync(magnet, saveDir);
+            // 必须用 MagnetLink.Parse + AddAsync(MagnetLink)：AddAsync(string) 会把
+            // magnet 字符串当 torrent 文件路径尝试读取（Path.Combine 当前目录），
+            // 抛"文件名、目录名或卷标语法不正确"IOException。
+            if (!MagnetLink.TryParse(magnet.Trim(), out var link))
+                return "磁力链接解析失败（btih 信息不完整）";
+
+            var manager = await _engine.AddAsync(link, saveDir);
             lock (_lock) _managers[taskId] = manager;
+
+            // AddAsync 后状态为 Stopped，需显式 StartAsync 才开始 DHT/tracker 查找做种者
+            await manager.StartAsync();
 
             manager.TorrentStateChanged += (_, e) =>
             {
