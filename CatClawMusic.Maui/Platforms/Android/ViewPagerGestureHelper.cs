@@ -14,7 +14,7 @@ namespace CatClawMusic.Maui.Platforms.Android;
 /// </summary>
 public static class ViewPagerGestureHelper
 {
-    /// <summary>给横向 CollectionView 挂载手势仲裁（需在控件 Handler 就绪后调用，如 Loaded/OnHandlerChanged）</summary>
+    /// <summary>给横向 CollectionView 挂载手势仲裁（需在控件 Handler 就绪后调用，如 HandlerChanged）</summary>
     public static void Attach(CollectionView cv)
     {
         if (cv?.Handler?.PlatformView is not AndroidX.RecyclerView.Widget.RecyclerView rv) return;
@@ -29,6 +29,7 @@ public static class ViewPagerGestureHelper
         if (!horizontal) return;
 
         rv.SetOnTouchListener(new PagerTouchListener(rv));
+        Log.Debug("ViewPagerGesture", $"[PagerGuard] Attached to {cv.GetType().Name} (rv={rv.GetHashCode()})");
     }
 
     private sealed class PagerTouchListener : Java.Lang.Object, AView.IOnTouchListener
@@ -53,23 +54,24 @@ public static class ViewPagerGestureHelper
                 case MotionEventActions.Down:
                     _downX = e.RawX;
                     _downY = e.RawY;
-                    // DOWN 立即抢占手势：ViewPager2 在 MOVE 早期就会拦截水平拖动
-                    //（其 onInterceptTouchEvent 先于子视图的 disallow 执行），
-                    // 必须 DOWN 时就 disallow，卡片区域的滑动才能归列表。
                     _disallowed = true;
                     v?.Parent?.RequestDisallowInterceptTouchEvent(true);
+                    Log.Debug("ViewPagerGesture", $"[PagerGuard] DOWN (rv={_rv.GetHashCode()}, canH={_rv.CanScrollHorizontally(0)}) disallow=TRUE");
                     break;
 
                 case MotionEventActions.Move:
                     if (!_disallowed) break;
                     float dx = Math.Abs(e.RawX - _downX);
                     float dy = Math.Abs(e.RawY - _downY);
+                    int dir = (int)(_downX - e.RawX);
+                    bool canScroll = _rv.CanScrollHorizontally(dir);
                     // 水平趋势且列表在该方向已无法继续滚动（滑到最左/最右）→ 放行给
                     // ViewPager2 切 tab；未到边界则保持卡片滚动。
-                    if (dx > dy && dx > _touchSlop && !_rv.CanScrollHorizontally((int)(_downX - e.RawX)))
+                    if (dx > dy && dx > _touchSlop && !canScroll)
                     {
                         v?.Parent?.RequestDisallowInterceptTouchEvent(false);
                         _disallowed = false;
+                        Log.Debug("ViewPagerGesture", $"[PagerGuard] MOVE 放行: dx={dx:F0} dy={dy:F0} dir={dir} canScroll={canScroll}");
                     }
                     break;
 
