@@ -185,23 +185,29 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             HeroTrack.Children.Clear();
             HeroTrack.Children.Add(CreateAiCardView());
 
-            // 插件快捷入口卡（通用机制：任何 IQuickEntryPlugin 都可注册，老插件无则自动不显示）
+            // 插件快捷入口卡（通用机制：任何 IQuickEntryPlugin 都可注册，老插件无则自动不显示）。
+            // 排序：SortOrder 升序，并列按插件注册顺序（先注册在前）——确定性排序，多插件不冲突。
             int quickEntryCount = 0;
             if (Services.GetService(typeof(IPluginManager)) is IPluginManager pluginManager)
             {
-                foreach (var plugin in pluginManager.GetEnabledPlugins<IQuickEntryPlugin>())
+                var quickEntries = new List<(int PluginOrder, IQuickEntryPlugin Plugin, QuickEntryInfo Entry)>();
+                var plugins = pluginManager.GetEnabledPlugins<IQuickEntryPlugin>();
+                for (int pi = 0; pi < plugins.Count; pi++)
                 {
-                    foreach (var entry in plugin.QuickEntries)
+                    foreach (var entry in plugins[pi].QuickEntries)
+                        quickEntries.Add((pi, plugins[pi], entry));
+                }
+                foreach (var (_, plugin, entry) in quickEntries
+                    .OrderBy(q => q.Entry.SortOrder).ThenBy(q => q.PluginOrder))
+                {
+                    try
                     {
-                        try
-                        {
-                            HeroTrack.Children.Add(CreateQuickEntryCardView(plugin, entry));
-                            quickEntryCount++;
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 快捷入口卡构建失败(跳过): {ex.Message}");
-                        }
+                        HeroTrack.Children.Add(CreateQuickEntryCardView(plugin, entry));
+                        quickEntryCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 快捷入口卡构建失败(跳过): {ex.Message}");
                     }
                 }
             }

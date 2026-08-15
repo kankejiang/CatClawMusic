@@ -23,6 +23,11 @@ public class QuickEntryInfo
 
     /// <summary>卡片渐变结束色（#RRGGBB）</summary>
     public string Color2 { get; set; } = "#764ba2";
+
+    /// <summary>
+    /// 排序权重（升序，越小越靠前）。并列时按插件注册顺序排列（先注册在前），保证确定性不冲突。
+    /// </summary>
+    public int SortOrder { get; set; }
 }
 
 /// <summary>

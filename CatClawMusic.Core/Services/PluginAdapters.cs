@@ -885,6 +885,7 @@ internal class QuickEntryAdapter : BasicPluginAdapter, IQuickEntryPlugin
                             Subtitle = t.GetProperty("Subtitle")?.GetValue(item) as string ?? "",
                             Color1 = t.GetProperty("Color1")?.GetValue(item) as string ?? "#667eea",
                             Color2 = t.GetProperty("Color2")?.GetValue(item) as string ?? "#764ba2",
+                            SortOrder = t.GetProperty("SortOrder")?.GetValue(item) is int so ? so : 0,
                         });
                     }
                 }
