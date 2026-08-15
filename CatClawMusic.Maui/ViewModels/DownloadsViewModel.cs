@@ -98,11 +98,20 @@ public partial class DownloadsViewModel : ObservableObject, IDisposable
         if (!string.IsNullOrWhiteSpace(id)) _manager.Delete(id);
     }
 
-    /// <summary>删除任务并删除已下载文件</summary>
+    /// <summary>删除任务并删除已下载文件；文件被占用时提示用户</summary>
     [RelayCommand]
-    public void DeleteTaskWithFile(string? id)
+    public async Task DeleteTaskWithFileAsync(string? id)
     {
-        if (!string.IsNullOrWhiteSpace(id)) _manager.Delete(id, deleteFile: true);
+        if (string.IsNullOrWhiteSpace(id)) return;
+        var error = await Task.Run(() => _manager.Delete(id, deleteFile: true));
+        if (error != null)
+        {
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                if (Application.Current?.MainPage is Page page)
+                    await page.DisplayAlert("文件删除失败", error, "确定");
+            });
+        }
     }
 
     /// <summary>清空已结束的任务（完成/失败/取消）</summary>
@@ -112,7 +121,6 @@ public partial class DownloadsViewModel : ObservableObject, IDisposable
         var finished = Tasks.Where(t => t.Status is DownloadStatus.Completed or DownloadStatus.Failed or DownloadStatus.Canceled).ToList();
         foreach (var t in finished) _manager.Delete(t.Id);
     }
-
     public void Dispose()
     {
         _manager.TasksChanged -= OnTasksChanged;

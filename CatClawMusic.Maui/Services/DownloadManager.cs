@@ -306,8 +306,9 @@ public class DownloadManager : IDisposable
         });
     }
 
-    /// <summary>删除任务记录；deleteFile=true 时同时删除已下载文件</summary>
-    public void Delete(string id, bool deleteFile = false)
+    /// <summary>删除任务记录；deleteFile=true 时同时删除已下载文件。
+    /// 返回 null=删除成功；否则返回失败原因（如文件被占用），任务记录仍会被移除。</summary>
+    public string? Delete(string id, bool deleteFile = false)
     {
         var task = Find(id);
         lock (_lock)
@@ -315,17 +316,26 @@ public class DownloadManager : IDisposable
             if (_ctsMap.TryGetValue(id, out var cts)) { cts.Cancel(); cts.Dispose(); _ctsMap.Remove(id); }
             _networkProviders.Remove(id);
         }
+        string? fileError = null;
         if (task != null)
         {
             DeletePartFile(task);
-            if (deleteFile && task.Status == DownloadStatus.Completed)
+            if (deleteFile && !string.IsNullOrEmpty(task.LocalPath) && File.Exists(task.LocalPath))
             {
-                try { if (File.Exists(task.LocalPath)) File.Delete(task.LocalPath); } catch { }
+                try { File.Delete(task.LocalPath); }
+                catch (Exception ex)
+                {
+                    fileError = ex is IOException
+                        ? "文件正被占用（可能正在播放），请先停止播放后再试"
+                        : $"文件删除失败：{ex.Message}";
+                    Log.Debug("DownloadManager", $"[Download] 删除文件失败: {task.LocalPath} - {ex.Message}");
+                }
             }
             MainThread.BeginInvokeOnMainThread(() => Tasks.Remove(task));
             SaveTasks();
             TasksChanged?.Invoke();
         }
+        return fileError;
     }
 
     /// <summary>失败任务重新下载</summary>
