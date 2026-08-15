@@ -194,9 +194,10 @@
                             <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
                         </Grid>
 
-                        <!-- Hero 横向方形卡轮播（带左右箭头，对齐横屏布局） -->
+                        <!-- Hero 横向方形卡轮播（带左右箭头，对齐横屏布局）。
+                             数据源由 code-behind 组合：AI 助手卡 + HeroCards -->
                         <Grid Margin="18,0,18,0">
-                            <CarouselView x:Name="HeroCarousel" ItemsSource="{Binding HeroCards}"
+                            <CarouselView x:Name="HeroCarousel"
                                           HeightRequest="216" IndicatorView="HeroIndicator" IsBounceEnabled="False"
                                           PeekAreaInsets="44,0,44,0" HorizontalScrollBarVisibility="Never">
                                 <CarouselView.Behaviors><controls:ScrollPerformanceBehavior /></CarouselView.Behaviors>
@@ -383,33 +384,6 @@
                                          BackgroundColor="#1A000000" CornerRadius="15" Padding="6" Aspect="AspectFit"
                                          HorizontalOptions="End" VerticalOptions="Center" Margin="0,0,4,0" Clicked="OnArtistNextClicked" IsVisible="False" />
                         </Grid>
-
-                        <!-- AI 助手入口卡：位于推荐区底部，点击进入 AI 聊天模式 -->
-                        <Border x:Name="AiEntryCard"
-                                Margin="18,0,18,16"
-                                Padding="16,14"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 16">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnAiEntryTapped" />
-                            </Border.GestureRecognizers>
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="#667eea" Offset="0" />
-                                    <GradientStop Color="#764ba2" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" Padding="0">
-                                    <Image Source="avatar_yuki.png" Aspect="AspectFill" WidthRequest="42" HeightRequest="42" />
-                                </Border>
-                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                                    <Label Text="🐾 和 Yuki 聊聊" FontSize="15" FontAttributes="Bold" TextColor="White" />
-                                    <Label Text="帮你找歌、推荐、聊天都可以" FontSize="11" TextColor="#CCFFFFFF" />
-                                </VerticalStackLayout>
-                                <Label Grid.Column="2" Text="›" FontSize="22" TextColor="#CCFFFFFF" VerticalOptions="Center" />
-                            </Grid>
-                        </Border>
                     </VerticalStackLayout>
 
                     <ScrollView x:Name="PanelRank" IsVisible="{Binding CurrentCategory, Converter={StaticResource IntToBoolConverter}, ConverterParameter=1}" Orientation="Vertical">

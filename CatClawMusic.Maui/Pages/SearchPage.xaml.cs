@@ -88,6 +88,8 @@ public partial class SearchPage : DiscoverPageBase
                 _vm.ScrollToLatestMessageRequested += OnScrollToLatestMessageRequested;
                 _vm.PropertyChanged -= OnSearchVmPropertyChanged;
                 _vm.PropertyChanged += OnSearchVmPropertyChanged;
+                // Hero 轮播组合源（AI 卡 + 英雄卡）：订阅时立即构建一次（数据可能已就绪）
+                RebuildHeroDisplay();
             }
         };
 
@@ -182,6 +184,11 @@ public partial class SearchPage : DiscoverPageBase
         {
             UpdateChatMiniPlayerVisibility();
         }
+        else if (e.PropertyName == nameof(_vm.HeroCards))
+        {
+            // 英雄卡数据更新（含首次加载）：重建轮播组合源（AI 卡 + 英雄卡）
+            MainThread.BeginInvokeOnMainThread(RebuildHeroDisplay);
+        }
     }
 
     /// <summary>滚动到最新聊天消息。</summary>
@@ -226,11 +233,12 @@ public partial class SearchPage : DiscoverPageBase
 
     private void OnHeroAutoScrollTick(object? sender, EventArgs e)
     {
-        if (_vm.HeroCards.Count == 0) return;
+        // 组合数据源（AI 卡 + 英雄卡）仅含 AI 卡时无需轮播
+        if (_heroDisplayItems.Count <= 1) return;
         if (!IsVisible) return;
         // 设置抽屉打开时轮播被遮挡、聊天模式下轮播被隐藏，均不做无用的滚动
         if (_isSettingsPanelOpen || _vm.IsChatMode) return;
-        _heroCurrentPosition = (_heroCurrentPosition + 1) % _vm.HeroCards.Count;
+        _heroCurrentPosition = (_heroCurrentPosition + 1) % _heroDisplayItems.Count;
         HeroCarousel.ScrollTo(_heroCurrentPosition, position: ScrollToPosition.Center, animate: true);
     }
 
@@ -456,7 +464,14 @@ public partial class SearchPage : DiscoverPageBase
     /// <summary>点击主推歌曲卡片时触发，播放该主推歌曲及每日推荐列表。</summary>
     private async void OnHeroCardTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is Border border && border.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        if (sender is not Border border || border.BindingContext is not HeroCardItem heroItem) return;
+        // AI 助手卡：点击整卡 = 进入聊天模式
+        if (heroItem.Tag == AiCardTag)
+        {
+            _vm.EnterChatModeCommand.Execute(null);
+            return;
+        }
+        if (heroItem.Song != null)
             await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
     }
 
@@ -507,11 +522,48 @@ public partial class SearchPage : DiscoverPageBase
 
     private async void OnHeroPlayTapped(object? sender, EventArgs e)
     {
-        if (sender is ImageButton btn && btn.BindingContext is HeroCardItem heroItem && heroItem.Song != null)
+        if (sender is not ImageButton btn || btn.BindingContext is not HeroCardItem heroItem) return;
+        // AI 助手卡：点击播放按钮 = 进入聊天模式（与横屏 AI 卡行为一致）
+        if (heroItem.Tag == AiCardTag)
+        {
+            _vm.EnterChatModeCommand.Execute(null);
+            return;
+        }
+        if (heroItem.Song != null)
             await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
     }
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e) => _vm.ShuffleDailyCommand.Execute(null);
+
+    // === AI 助手卡（Hero 轮播第一张，对齐横屏布局） ===
+
+    /// <summary>AI 助手卡标记（HeroDisplayItems 首项，点击进入聊天模式）</summary>
+    private const string AiCardTag = "AI 助手";
+
+    /// <summary>Hero 轮播组合数据源：AI 助手卡 + 英雄卡（横屏同款结构，AI 卡固定第一张）</summary>
+    private readonly List<HeroCardItem> _heroDisplayItems = new();
+
+    /// <summary>重建 Hero 轮播数据源：AI 助手卡 + 当前 HeroCards（数据变化时调用）</summary>
+    private void RebuildHeroDisplay()
+    {
+        _heroDisplayItems.Clear();
+        _heroDisplayItems.Add(new HeroCardItem
+        {
+            Tag = AiCardTag,
+            Title = "🐾 和 Yuki 聊聊",
+            Description = "找歌、推荐、聊天都可以",
+            GradientStart = Color.FromArgb("#667eea"),
+            GradientEnd = Color.FromArgb("#764ba2"),
+            PlayIcon = ImageSource.FromFile("ic_play_dark")
+        });
+        foreach (var h in _vm.HeroCards)
+        {
+            if (h != null) _heroDisplayItems.Add(h);
+        }
+        HeroCarousel.ItemsSource = _heroDisplayItems;
+        if (HeroCarousel.Position > 0)
+            HeroCarousel.Position = 0;
+    }
 
     // === 左右箭头导航（对齐横屏布局：Hero / 每日推荐 / 推荐艺人） ===
 
