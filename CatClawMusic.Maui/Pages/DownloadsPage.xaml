@@ -86,6 +86,9 @@
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="services:DownloadTaskItem">
                             <Border Style="{StaticResource GlassCardStyle}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTaskTapped" />
+                                </Border.GestureRecognizers>
                                 <VerticalStackLayout Spacing="8">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <Label Text="{Binding DisplayName}"

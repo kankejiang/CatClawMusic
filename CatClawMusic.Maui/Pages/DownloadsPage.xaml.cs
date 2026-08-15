@@ -45,6 +45,52 @@ public partial class DownloadsPage : ContentPage
         _vm.AddUrlDownload(url, string.IsNullOrWhiteSpace(name) ? null : name);
     }
 
+    /// <summary>点击任务卡片：已完成任务打开文件/所在文件夹；磁力多文件种子打开所在目录</summary>
+    private async void OnTaskTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Border { BindingContext: DownloadTaskItem item }) return;
+        if (item.Status != DownloadStatus.Completed)
+            return;
+
+        var path = item.LocalPath;
+        var isDir = Directory.Exists(path);
+        if (!isDir && !File.Exists(path))
+        {
+            await DisplayAlert("提示", "文件不存在或已被移动", "确定");
+            return;
+        }
+
+        try
+        {
+#if WINDOWS
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+#elif ANDROID
+            if (isDir)
+            {
+                // Android 打开目录需文件管理器授权，直接提示路径（BT 种子目录）
+                await DisplayAlert("下载完成", $"文件已保存到：\n{path}", "确定");
+            }
+            else
+            {
+                await Launcher.OpenAsync(new OpenFileRequest
+                {
+                    Title = "打开文件",
+                    File = new ReadOnlyFile(path)
+                });
+            }
+#endif
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("打开失败", ex.Message, "确定");
+        }
+    }
+
     /// <summary>更改下载位置：Android 走自研文件管理器（需所有文件访问权限），Windows 走系统文件夹选择器</summary>
     private async void OnChangePathClicked(object? sender, EventArgs e)
     {
