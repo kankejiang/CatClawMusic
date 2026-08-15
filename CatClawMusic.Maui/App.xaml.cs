@@ -102,6 +102,16 @@ public partial class App : Application
             lyricsService.NetworkMusicServiceFactory = () => MauiProgram.Services.GetService<INetworkMusicService>();
         }
 
+        // 急切实例化 DownloadManager 单例：其构造函数会赋值 DownloadAgentBridge.EnqueueDownload。
+        // 该桥接是 Agent 下载工具（kuwo_download/netease_download/download_file）的入口，
+        // 若不解析单例（懒加载），Agent 会报"下载功能未初始化"。
+        try
+        {
+            _ = MauiProgram.Services.GetRequiredService<Services.DownloadManager>();
+            StartupLog("App.ctor: DownloadManager initialized");
+        }
+        catch (Exception ex) { StartupLog($"App.ctor: DownloadManager failed - {ex.Message}"); }
+
         // 初始化所有已启用的插件（fire-and-forget）
         _ = Task.Run(async () =>
         {
