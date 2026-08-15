@@ -58,7 +58,7 @@ public partial class AgentBrowserPreview : ContentView
         }
 
         // 等页面 JS 渲染（动态站点如天气/SPA 需要时间执行脚本）
-        await Task.Delay(1200);
+        await Task.Delay(800);
 
         try
         {

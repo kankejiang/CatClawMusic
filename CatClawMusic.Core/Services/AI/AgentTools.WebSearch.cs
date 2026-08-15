@@ -80,19 +80,18 @@ public class WebSearchTool : IAgentTool
 
         try
         {
-            // 三源并行 + 独立超时：总耗时 ≈ 最慢源（通常 Bing ~1s），
-            // 慢源不拖累整体（原串行实现会依次等待每个源）。
-            using var ctsBing = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            using var ctsBaidu = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            using var ctsDdg = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            // 响应速度优化：不等全部源完成（Task.WhenAll 会拖到最慢源的超时）。
+            // 三个源**并发启动**，但只 await 主源 cn.bing（通常 <1s）：
+            // 结果充足（≥3 条）立即返回；不足才依次等百度/DDG（各自限时 6s，
+            // 它们在等待期间已并行完成，通常无需额外耗时）。
+            using var ctsBing = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            using var ctsBaidu = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            using var ctsDdg = new CancellationTokenSource(TimeSpan.FromSeconds(6));
 
             var bingTask = SearchBingAsync(query, ctsBing.Token);
             var baiduTask = SearchBaiduAsync(query, ctsBaidu.Token);
             var ddgTask = SearchDuckDuckGoAsync(query, ctsDdg.Token);
 
-            var sources = await Task.WhenAll(bingTask, baiduTask, ddgTask);
-
-            // 按优先级合并去重：cn.bing（主）→ 百度 → DDG
             var results = new List<object>();
             var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             void AddUnique(IEnumerable<object> items)
@@ -105,9 +104,24 @@ public class WebSearchTool : IAgentTool
                     if (results.Count >= 8) return;
                 }
             }
-            AddUnique(sources[0]);
-            if (results.Count < 5) AddUnique(sources[1]);
-            if (results.Count < 3) AddUnique(sources[2]);
+
+            // 主源 Bing：等它（通常 <1s），充足即返回
+            AddUnique(await bingTask);
+            if (results.Count >= 3)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    query = query,
+                    results = results,
+                    message = $"搜索完成，找到 {results.Count} 条相关结果"
+                });
+            }
+
+            // 不足：补充百度（已并行执行，通常即到），再不足补 DDG
+            AddUnique(await baiduTask);
+            if (results.Count < 3)
+                AddUnique(await ddgTask);
 
             if (results.Count > 0)
             {
