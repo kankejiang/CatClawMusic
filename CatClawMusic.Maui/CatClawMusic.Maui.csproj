@@ -134,7 +134,13 @@
 		<PackageReference Include="Xamarin.AndroidX.Browser" Version="1.8.0.11" />
 	</ItemGroup>
 
-	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup） -->
+	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup）。
+	     密码兜底内置（与 build-release.ps1 / SIGNING.md 一致 catclaw123），
+	     命令行 -p:CatClawKeyPass=xxx 可覆盖。 -->
+	<PropertyGroup>
+		<CatClawKeyPass Condition="'$(CatClawKeyPass)' == ''">catclaw123</CatClawKeyPass>
+		<CatClawStorePass Condition="'$(CatClawStorePass)' == ''">catclaw123</CatClawStorePass>
+	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<AndroidKeyStore>true</AndroidKeyStore>
 		<AndroidSigningKeyStore>..\catclaw.keystore</AndroidSigningKeyStore>
@@ -145,9 +151,16 @@
 
 	<!-- 开发调试（Debug）：关闭 Fast Assembly Deployment，避免物理机部署时
 	     FastDeploy 状态冲突导致的 ADB0010 NO_CERTIFICATES / "不支持运行以前的版本"。
-	     改为完整签名 APK 正常安装，部署更稳。如需恢复快速增量部署，删除本段即可。 -->
+	     改为完整签名 APK 正常安装，部署更稳。如需恢复快速增量部署，删除本段即可。
+	     签名与 Release 使用同一 catclaw.keystore：Debug/Release 交替安装时
+	     签名一致，避免 JNIEnv::RegisterNatives 冲突（否则需清缓存/卸载重装）。 -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<AndroidUseFastDeploy>false</AndroidUseFastDeploy>
+		<AndroidKeyStore>true</AndroidKeyStore>
+		<AndroidSigningKeyStore>..\catclaw.keystore</AndroidSigningKeyStore>
+		<AndroidSigningKeyAlias>catclaw</AndroidSigningKeyAlias>
+		<AndroidSigningKeyPass>$(CatClawKeyPass)</AndroidSigningKeyPass>
+		<AndroidSigningStorePass>$(CatClawStorePass)</AndroidSigningStorePass>
 	</PropertyGroup>
 
 	<!-- Windows XAML 编译修复：XamlCompiler.exe 在 .NET 10 Release 模式下
