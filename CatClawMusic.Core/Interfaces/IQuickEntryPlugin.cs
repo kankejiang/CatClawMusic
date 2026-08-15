@@ -34,9 +34,8 @@ public class QuickEntryInfo
 /// 快捷入口插件：插件向宿主发现页 HeroTrack 注册一张或多张入口卡。
 /// <para>
 /// 宿主发现页在 AI 助手卡之后渲染所有已启用插件的 <see cref="QuickEntries"/> 卡片；
-/// 用户点击某张卡 → 宿主调用 <see cref="ExecuteQuickEntry"/>（插件自行决定动作，
-/// 如设置"打开页面后自动启动某功能"的待执行标记），随后若该插件同时实现了
-/// <see cref="IViewContributorPlugin"/>，宿主会打开其入口页面。
+/// 用户点击某张卡 → 宿主调用 <see cref="ExecuteQuickEntry"/>（传入宿主服务提供者，
+/// 插件完全自主决定动作，如直接启动播放，无需打开页面）。
 /// </para>
 /// <para>
 /// 设计动机：通用口子——新增插件快捷入口无需改动宿主；老插件未实现本接口时
@@ -49,9 +48,10 @@ public interface IQuickEntryPlugin : IPlugin
     IReadOnlyList<QuickEntryInfo> QuickEntries { get; }
 
     /// <summary>
-    /// 执行指定快捷入口动作。宿主会在执行后（若本插件同时实现 IViewContributorPlugin）
-    /// 打开插件入口页面，插件可在此方法内设置待执行状态供页面消费。
+    /// 执行指定快捷入口动作。插件可自行解析宿主服务（播放器/队列等）直接执行
+    /// （如直接启动私人漫游电台播放），是否打开入口页面由插件自行决定。
     /// </summary>
     /// <param name="entryId">被点击的 <see cref="QuickEntryInfo.Id"/></param>
-    void ExecuteQuickEntry(string entryId);
+    /// <param name="services">宿主服务提供者（用于解析 PlayQueue、IAudioPlayerService 等）</param>
+    void ExecuteQuickEntry(string entryId, IServiceProvider services);
 }

@@ -251,7 +251,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
                 new Point(0, 0), new Point(1, 1)),
         };
         var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) => await OnQuickEntryTappedAsync(plugin, entry);
+        tap.Tapped += (_, _) => OnQuickEntryTapped(plugin, entry);
         card.GestureRecognizers.Add(tap);
 
         var grid = new Grid
@@ -320,21 +320,16 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         return card;
     }
 
-    /// <summary>点击快捷入口卡：通知插件执行动作，随后打开该插件入口页面（若实现 IViewContributorPlugin）。</summary>
-    private async Task OnQuickEntryTappedAsync(IQuickEntryPlugin plugin, QuickEntryInfo entry)
+    /// <summary>点击快捷入口卡：把执行权完全交给插件（传入宿主服务），是否开页/直接播放由插件决定。</summary>
+    private void OnQuickEntryTapped(IQuickEntryPlugin plugin, QuickEntryInfo entry)
     {
         try
         {
-            plugin.ExecuteQuickEntry(entry.Id);
-            if (Services.GetService(typeof(IPluginManager)) is not IPluginManager pm) return;
-            var contributor = pm.GetEnabledPlugins<IViewContributorPlugin>()
-                .FirstOrDefault(c => string.Equals(c.PluginId, plugin.PluginId, StringComparison.OrdinalIgnoreCase));
-            if (contributor != null)
-                await OpenPluginEntryAsync(contributor);
+            plugin.ExecuteQuickEntry(entry.Id, Services);
         }
         catch (Exception ex)
         {
-            Log.Debug("DesktopDiscoverPage.xaml", $"[QuickEntry] 打开快捷入口失败: {ex.Message}");
+            Log.Debug("DesktopDiscoverPage.xaml", $"[QuickEntry] 执行快捷入口失败: {ex.Message}");
         }
     }
 

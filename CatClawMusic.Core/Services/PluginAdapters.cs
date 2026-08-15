@@ -897,10 +897,11 @@ internal class QuickEntryAdapter : BasicPluginAdapter, IQuickEntryPlugin
             }
         }
 
-        /// <summary>执行指定快捷入口动作</summary>
+        /// <summary>执行指定快捷入口动作（传入宿主服务提供者）</summary>
         /// <param name="entryId">被点击的入口 Id</param>
-        public void ExecuteQuickEntry(string entryId)
-            => _executeQuickEntryMethod?.Invoke(_target, new object[] { entryId });
+        /// <param name="services">宿主服务提供者</param>
+        public void ExecuteQuickEntry(string entryId, IServiceProvider services)
+            => _executeQuickEntryMethod?.Invoke(_target, new object[] { entryId, services });
     }
 
     /// <summary>
