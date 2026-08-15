@@ -13,8 +13,10 @@ namespace CatClawMusic.Core.Services.AI;
 /// </summary>
 public static class AgentToolDispatch
 {
-    /// <summary>工具结果最大字节数（约 6K 字符），对应 32K 上下文预算的安全余量</summary>
-    private const int MaxResultBytes = 6000;
+    /// <summary>工具结果最大字节数。取 Exa 单次搜索完整输出量（contextMaxCharacters=10000）：
+    /// 6000 字节只能容纳 8 条搜索结果的前 1-2 条，尾部候选源（如网盘/下载直链）全丢，
+    /// 模型被迫盲目多搜几轮；10000 字节可完整呈现全部候选源</summary>
+    private const int MaxResultBytes = 10000;
 
     /// <summary>工具结果最大行数（防单工具返回海量行撑爆上下文）</summary>
     private const int MaxResultLines = 200;
