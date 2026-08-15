@@ -513,6 +513,50 @@ public partial class SearchPage : DiscoverPageBase
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e) => _vm.ShuffleDailyCommand.Execute(null);
 
+    // === 左右箭头导航（对齐横屏布局：Hero / 每日推荐 / 推荐艺人） ===
+
+    /// <summary>Hero 轮播上一张（CarouselView 直接移动 Position）</summary>
+    private void OnHeroPrevClicked(object? sender, EventArgs e)
+    {
+        if (HeroCarousel.Position > 0)
+            HeroCarousel.Position--;
+    }
+
+    /// <summary>Hero 轮播下一张</summary>
+    private void OnHeroNextClicked(object? sender, EventArgs e)
+    {
+        if (HeroCarousel.Position < (HeroCarousel.ItemsSource?.Cast<object>().Count() ?? 1) - 1)
+            HeroCarousel.Position++;
+    }
+
+    /// <summary>每日推荐横滑：滚回开头</summary>
+    private void OnDailyPrevClicked(object? sender, EventArgs e)
+    {
+        if (DailyList.ItemsSource is not System.Collections.IList list || list.Count == 0) return;
+        DailyList.ScrollTo(0, -1, ScrollToPosition.Start, true);
+    }
+
+    /// <summary>每日推荐横滑：滚到尾部</summary>
+    private void OnDailyNextClicked(object? sender, EventArgs e)
+    {
+        if (DailyList.ItemsSource is not System.Collections.IList list || list.Count == 0) return;
+        DailyList.ScrollTo(Math.Max(0, list.Count - 1), -1, ScrollToPosition.End, true);
+    }
+
+    /// <summary>推荐艺人横滑：滚回开头</summary>
+    private void OnArtistPrevClicked(object? sender, EventArgs e)
+    {
+        if (ArtistsList.ItemsSource is not System.Collections.IList list || list.Count == 0) return;
+        ArtistsList.ScrollTo(0, -1, ScrollToPosition.Start, true);
+    }
+
+    /// <summary>推荐艺人横滑：滚到尾部</summary>
+    private void OnArtistNextClicked(object? sender, EventArgs e)
+    {
+        if (ArtistsList.ItemsSource is not System.Collections.IList list || list.Count == 0) return;
+        ArtistsList.ScrollTo(Math.Max(0, list.Count - 1), -1, ScrollToPosition.End, true);
+    }
+
     /// <summary>点击 AI 歌单卡片：播放歌单全部歌曲</summary>
     private async void OnAiPlaylistTapped(object? sender, TappedEventArgs e)
     {
