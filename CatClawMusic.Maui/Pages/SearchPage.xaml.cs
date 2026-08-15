@@ -31,8 +31,6 @@ public partial class SearchPage : DiscoverPageBase
 #if ANDROID
     private readonly List<global::Android.Views.View> _settingsBlurredViews = new();
 #endif
-    private IDispatcherTimer? _heroAutoScrollTimer;
-    private int _heroCurrentPosition;
 
     /// <summary>初始化 <see cref="SearchPage"/> 类的新实例，并注入所需的服务与视图模型。</summary>
     public SearchPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm, IAudioPlayerService audioPlayer, IServiceProvider services, NowPlayingViewModel nowPlayingVm, ListeningStatsView statsView)
@@ -48,7 +46,6 @@ public partial class SearchPage : DiscoverPageBase
         _statsView = statsView;
         BindingContext = _vm;
         UpdateTabVisualState(0);
-        SetupHeroAutoScroll();
 
         // 将听歌统计视图添加到"报告"面板
         PanelStats.Children.Add(_statsView);
@@ -64,22 +61,14 @@ public partial class SearchPage : DiscoverPageBase
             if (Handler == null)
             {
                 // 页面分离：取消订阅
-                if (_interactionState != null)
-                    _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
                 _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
                 _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
                 _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
                 _vm.PropertyChanged -= OnSearchVmPropertyChanged;
-                _heroAutoScrollTimer?.Stop();
             }
             else
             {
                 // 页面挂载（或重新挂载）：订阅事件（先 -= 再 += 避免重复）
-                if (_interactionState != null)
-                {
-                    _interactionState.InteractionStateChanged -= OnInteractionStateChangedForHero;
-                    _interactionState.InteractionStateChanged += OnInteractionStateChangedForHero;
-                }
                 _nowPlayingVm.PropertyChanged -= OnNowPlayingPropertyChanged;
                 _nowPlayingVm.PropertyChanged += OnNowPlayingPropertyChanged;
                 _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
@@ -216,59 +205,11 @@ public partial class SearchPage : DiscoverPageBase
 #endif
     }
 
-    // === Hero 自动轮播（竖屏 CarouselView） ===
-
-    private void SetupHeroAutoScroll()
-    {
-        _heroAutoScrollTimer = Dispatcher.CreateTimer();
-        _heroAutoScrollTimer.Interval = TimeSpan.FromSeconds(4);
-        _heroAutoScrollTimer.Tick += OnHeroAutoScrollTick;
-
-        HeroCarousel.PositionChanged += (s, e) =>
-        {
-            _heroCurrentPosition = e.CurrentPosition;
-            RestartHeroTimer();
-        };
-    }
-
-    private void OnHeroAutoScrollTick(object? sender, EventArgs e)
-    {
-        // 组合数据源（AI 卡 + 英雄卡）仅含 AI 卡时无需轮播
-        if (_heroDisplayItems.Count <= 1) return;
-        if (!IsVisible) return;
-        // 设置抽屉打开时轮播被遮挡、聊天模式下轮播被隐藏，均不做无用的滚动
-        if (_isSettingsPanelOpen || _vm.IsChatMode) return;
-        _heroCurrentPosition = (_heroCurrentPosition + 1) % _heroDisplayItems.Count;
-        HeroCarousel.ScrollTo(_heroCurrentPosition, position: ScrollToPosition.Center, animate: true);
-    }
-
-    /// <summary>用户交互（触摸/滚动/Tab 滑动）期间暂停英雄卡自动轮播，交互结束后恢复倒计时。</summary>
-    private void OnInteractionStateChangedForHero(object? sender, bool interacting)
-    {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (interacting)
-            {
-                _heroAutoScrollTimer?.Stop();
-            }
-            else if (IsVisible && !_isSettingsPanelOpen && !_vm.IsChatMode && _vm.HeroCards.Count > 0)
-            {
-                RestartHeroTimer();
-            }
-        });
-    }
-
-    private void RestartHeroTimer()
-    {
-        if (_heroAutoScrollTimer == null) return;
-        _heroAutoScrollTimer.Stop();
-        _heroAutoScrollTimer.Start();
-    }
+    // === Hero 卡片并排网格（不轮播，2 列方形铺开） ===
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        _heroAutoScrollTimer?.Stop();
         // 离开聊天页：注销浏览器预览宿主（Agent 浏览器请求由协调器超时兜底）
         CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.UnregisterHost(AgentBrowserPreview);
     }
@@ -282,21 +223,11 @@ public partial class SearchPage : DiscoverPageBase
         _vm.GreetingText = CalculateGreeting();
         _vm.RefreshOnlineProviders(); // 刷新已启用在线音源（插件安装/启用后入口即时更新）
 
-        if (_vm.HeroCards.Count > 0)
-        {
-            RestartHeroTimer();
-        }
-
         if (LocalScanService.NeedsReload)
         {
             LocalScanService.NeedsReload = false;
             try { await _vm.ReloadAfterScanAsync(); }
             catch (Exception ex) { Log.Debug("SearchPage.xaml", $"SearchPage reload after scan: {ex.Message}"); }
-            if (_vm.HeroCards.Count > 0)
-            {
-                _heroCurrentPosition = 0;
-                RestartHeroTimer();
-            }
             return;
         }
 
@@ -309,12 +240,6 @@ public partial class SearchPage : DiscoverPageBase
         catch (Exception ex)
         {
             Log.Debug("SearchPage.xaml", $"SearchPage OnAppearing error: {ex.Message}");
-        }
-
-        if (_vm.HeroCards.Count > 0)
-        {
-            _heroCurrentPosition = 0;
-            RestartHeroTimer();
         }
     }
 
@@ -535,15 +460,15 @@ public partial class SearchPage : DiscoverPageBase
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e) => _vm.ShuffleDailyCommand.Execute(null);
 
-    // === AI 助手卡（Hero 轮播第一张，对齐横屏布局） ===
+    // === AI 助手卡（Hero 网格第一张，对齐横屏布局） ===
 
     /// <summary>AI 助手卡标记（HeroDisplayItems 首项，点击进入聊天模式）</summary>
     private const string AiCardTag = "AI 助手";
 
-    /// <summary>Hero 轮播组合数据源：AI 助手卡 + 英雄卡（横屏同款结构，AI 卡固定第一张）</summary>
+    /// <summary>Hero 并排网格数据源：AI 助手卡 + 英雄卡（AI 卡固定第一张）</summary>
     private readonly List<HeroCardItem> _heroDisplayItems = new();
 
-    /// <summary>重建 Hero 轮播数据源：AI 助手卡 + 当前 HeroCards（数据变化时调用）</summary>
+    /// <summary>重建 Hero 网格数据源：AI 助手卡 + 当前 HeroCards（数据变化时调用）</summary>
     private void RebuildHeroDisplay()
     {
         _heroDisplayItems.Clear();
@@ -560,26 +485,10 @@ public partial class SearchPage : DiscoverPageBase
         {
             if (h != null) _heroDisplayItems.Add(h);
         }
-        HeroCarousel.ItemsSource = _heroDisplayItems;
-        if (HeroCarousel.Position > 0)
-            HeroCarousel.Position = 0;
+        HeroGrid.ItemsSource = _heroDisplayItems;
     }
 
-    // === 左右箭头导航（对齐横屏布局：Hero / 每日推荐 / 推荐艺人） ===
-
-    /// <summary>Hero 轮播上一张（CarouselView 直接移动 Position）</summary>
-    private void OnHeroPrevClicked(object? sender, EventArgs e)
-    {
-        if (HeroCarousel.Position > 0)
-            HeroCarousel.Position--;
-    }
-
-    /// <summary>Hero 轮播下一张</summary>
-    private void OnHeroNextClicked(object? sender, EventArgs e)
-    {
-        if (HeroCarousel.Position < (HeroCarousel.ItemsSource?.Cast<object>().Count() ?? 1) - 1)
-            HeroCarousel.Position++;
-    }
+    // === 左右箭头导航（对齐横屏布局：每日推荐 / 推荐艺人） ===
 
     /// <summary>每日推荐横滑：滚回开头</summary>
     private void OnDailyPrevClicked(object? sender, EventArgs e)
@@ -653,9 +562,6 @@ public partial class SearchPage : DiscoverPageBase
     {
         if (!_isSettingsPanelOpen) return;
         _isSettingsPanelOpen = false;
-        // 抽屉关闭后恢复英雄卡自动轮播
-        if (IsVisible && _vm.HeroCards.Count > 0)
-            RestartHeroTimer();
 
         var panelWidth = SettingsPanel.Width > 0 ? SettingsPanel.Width : Width * 0.85;
 

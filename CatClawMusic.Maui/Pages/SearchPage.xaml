@@ -194,51 +194,44 @@
                             <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
                         </Grid>
 
-                        <!-- Hero 横向方形卡轮播（带左右箭头，对齐横屏布局）。
-                             数据源由 code-behind 组合：AI 助手卡 + HeroCards -->
-                        <Grid Margin="18,0,18,0">
-                            <CarouselView x:Name="HeroCarousel"
-                                          HeightRequest="216" IndicatorView="HeroIndicator" IsBounceEnabled="False"
-                                          PeekAreaInsets="44,0,44,0" HorizontalScrollBarVisibility="Never">
-                                <CarouselView.Behaviors><controls:ScrollPerformanceBehavior /></CarouselView.Behaviors>
-                                <CarouselView.ItemTemplate>
-                                    <DataTemplate>
-                                        <!-- 方形英雄卡（与横屏布局一致）：宽=高，部分可见轮播 -->
-                                        <Border WidthRequest="204" Padding="16" StrokeThickness="0" StrokeShape="RoundRectangle 22"
-                                                HorizontalOptions="Center" VerticalOptions="Center">
-                                            <Border.GestureRecognizers>
-                                                <TapGestureRecognizer Tapped="OnHeroCardTapped" />
-                                            </Border.GestureRecognizers>
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="{Binding GradientStart}" Offset="0" />
-                                                    <GradientStop Color="{Binding GradientEnd}" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <Grid RowDefinitions="Auto,*,Auto">
-                                                <Border Padding="9,3" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
-                                                    <Label Text="{Binding Tag}" FontSize="9" FontAttributes="Bold" TextColor="White" CharacterSpacing="1.5" />
-                                                </Border>
-                                                <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" Spacing="4">
-                                                    <Label Text="{Binding Title}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" />
-                                                    <Label Text="{Binding Description}" FontSize="10.5" TextColor="#CCFFFFFF" MaxLines="2" />
-                                                </VerticalStackLayout>
-                                                <Border Grid.Row="2" WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 20" BackgroundColor="#50FFFFFF" HorizontalOptions="End">
-                                                    <ImageButton Source="ic_play" WidthRequest="20" HeightRequest="20" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnHeroPlayTapped" />
-                                                </Border>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </CarouselView.ItemTemplate>
-                            </CarouselView>
-                            <ImageButton x:Name="HeroPrev" WidthRequest="30" HeightRequest="30"
-                                         BackgroundColor="#1A000000" CornerRadius="15" Padding="6" Aspect="AspectFit"
-                                         HorizontalOptions="Start" VerticalOptions="Center" Margin="6,0,0,0" Clicked="OnHeroPrevClicked" />
-                            <ImageButton x:Name="HeroNext" WidthRequest="30" HeightRequest="30"
-                                         BackgroundColor="#1A000000" CornerRadius="15" Padding="6" Aspect="AspectFit"
-                                         HorizontalOptions="End" VerticalOptions="Center" Margin="0,0,6,0" Clicked="OnHeroNextClicked" />
-                        </Grid>
-                        <IndicatorView x:Name="HeroIndicator" Margin="0,0,0,14" IndicatorColor="#50FFFFFF" SelectedIndicatorColor="White" IndicatorsShape="Circle" HorizontalOptions="Center" />
+                        <!-- Hero 卡片并排网格（不轮播）：AI 助手卡 + 英雄卡，2 列方形铺开。
+                             数据源由 code-behind 赋值：AI 助手卡 + HeroCards -->
+                        <CollectionView x:Name="HeroGrid" Margin="18,0,18,14"
+                                        SelectionMode="None" ItemsUpdatingScrollMode="KeepItemsInView">
+                            <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                            <CollectionView.ItemsLayout>
+                                <GridItemsLayout Orientation="Vertical" Span="2" VerticalItemSpacing="12" HorizontalItemSpacing="12" />
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- 方形英雄卡（2 列网格，宽度随列宽、高度固定近似方形） -->
+                                    <Border HeightRequest="184" Padding="14" StrokeThickness="0" StrokeShape="RoundRectangle 20"
+                                            HorizontalOptions="Fill" VerticalOptions="Fill">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnHeroCardTapped" />
+                                        </Border.GestureRecognizers>
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="{Binding GradientStart}" Offset="0" />
+                                                <GradientStop Color="{Binding GradientEnd}" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <Border Padding="8,3" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
+                                                <Label Text="{Binding Tag}" FontSize="9" FontAttributes="Bold" TextColor="White" CharacterSpacing="1.5" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" Spacing="4">
+                                                <Label Text="{Binding Title}" FontSize="16" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" />
+                                                <Label Text="{Binding Description}" FontSize="10" TextColor="#CCFFFFFF" MaxLines="2" />
+                                            </VerticalStackLayout>
+                                            <Border Grid.Row="2" WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 19" BackgroundColor="#50FFFFFF" HorizontalOptions="End">
+                                                <ImageButton Source="ic_play" WidthRequest="19" HeightRequest="19" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnHeroPlayTapped" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
 
                         <!-- AI 歌单（开启智能推荐且有数据/正在生成时显示；由 AI 每天生成一次） -->
                         <VerticalStackLayout Spacing="0" IsVisible="{Binding IsAiPlaylistsSectionVisible}">
