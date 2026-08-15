@@ -52,11 +52,10 @@ public partial class SearchPage : DiscoverPageBase
 #if ANDROID
         foreach (var cv in new CollectionView[] { HeroGrid, AiPlaylistRow, RecommendAlbumGrid, DailyList, ArtistsList })
         {
-            cv.HandlerChanged += (s, _) =>
-            {
-                if (s is CollectionView c && c.Handler != null)
-                    CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(c);
-            };
+            // 双保险挂载：HandlerChanged（Handler 创建/重建时）+ Loaded（视图就绪后），
+            // 避免某一时机 Handler/PlatformView 未就绪导致监听漏挂
+            cv.HandlerChanged += (s, _) => TryAttachPagerGuard(s);
+            cv.Loaded += (s, _) => TryAttachPagerGuard(s);
         }
 #endif
 
@@ -472,6 +471,23 @@ public partial class SearchPage : DiscoverPageBase
     }
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e) => _vm.ShuffleDailyCommand.Execute(null);
+
+    /// <summary>手势仲裁挂载兜底：Handler/PlatformView 未就绪时延迟重试一次</summary>
+    private static void TryAttachPagerGuard(object? sender)
+    {
+        if (sender is not CollectionView cv) return;
+        if (cv.Handler?.PlatformView != null)
+        {
+            CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
+            return;
+        }
+        // Handler 尚未就绪：延迟一帧重试（Loaded 时 Handler 通常已就绪）
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (cv.Handler?.PlatformView != null)
+                CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
+        });
+    }
 
     // === AI 助手卡（Hero 网格第一张，对齐横屏布局） ===
 
