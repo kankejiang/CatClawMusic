@@ -313,31 +313,43 @@ public partial class App : Application
     /// <param name="splash">启动加载页实例（用于感知其真正渲染上屏的时机）</param>
     private async Task EnterMainWhenReadyAsync(Shell shell, VisualElement splash)
     {
+        // 并行化启动：数据库就绪后，音乐库数据预加载 / 封面歌词预加载 /
+        // 插件+FFmpeg 就绪 三路同时进行（互不依赖），各自带超时兜底，
+        // 替代原先「AllReady → 数据 → 封面歌词」的三段串行等待。
+        // 数据预加载仅依赖数据库（协议/歌曲/聚合读 SQLite），无需等插件/FFmpeg。
         try
         {
             var startup = MauiProgram.Services.GetService<StartupCoordinator>();
             if (startup != null)
-                await Task.WhenAny(startup.AllReadyTask, Task.Delay(StartupWaitTimeout));
+                await Task.WhenAny(startup.DatabaseReadyTask, Task.Delay(StartupWaitTimeout));
         }
         catch { }
 
-        // 音乐库数据预加载：歌曲列表/协议/总览聚合这些重 IO 都在启动页展示期间完成，
-        // 用户首次滑到音乐库 tab 时直接渲染已就绪数据，消除「进入音乐库卡顿」。
-        try
+        var preloadTasks = new List<Task>
         {
-            await Task.WhenAny(PreloadLibraryDataAsync(), Task.Delay(StartupWaitTimeout));
-        }
-        catch { }
-
+            // 音乐库数据预加载：歌曲列表/协议/总览聚合这些重 IO 在启动页展示期间完成，
+            // 用户首次滑到音乐库 tab 时直接渲染已就绪数据。
+            Task.WhenAny(PreloadLibraryDataAsync(), Task.Delay(StartupWaitTimeout)),
+        };
         // 封面/歌词预加载：上次播放歌曲的封面与歌词在启动页期间就绪，
         // 进入主界面/歌词页时直接显示，避免「启动页结束但封面歌词还在加载」。
         try
         {
             var nowPlayingVm = MauiProgram.Services.GetService<ViewModels.NowPlayingViewModel>();
             if (nowPlayingVm != null)
-                await Task.WhenAny(nowPlayingVm.PreloadMediaAsync(), Task.Delay(StartupWaitTimeout));
+                preloadTasks.Add(Task.WhenAny(nowPlayingVm.PreloadMediaAsync(), Task.Delay(StartupWaitTimeout)));
         }
         catch { }
+        // 等待插件与 FFmpeg 就绪（与上方数据预加载并行，互不阻塞）
+        try
+        {
+            var startup = MauiProgram.Services.GetService<StartupCoordinator>();
+            if (startup != null)
+                preloadTasks.Add(Task.WhenAny(startup.AllReadyTask, Task.Delay(StartupWaitTimeout)));
+        }
+        catch { }
+
+        await Task.WhenAll(preloadTasks);
 
         // 等启动页真正渲染上屏（Loaded）后再计最短展示时长：
         // 若从 CreateWindow 起算，慢设备上首帧尚未渲染时预加载可能已完成，
