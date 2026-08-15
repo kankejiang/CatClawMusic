@@ -408,6 +408,12 @@ public partial class SearchPage : DiscoverPageBase
             _vm.EnterChatModeCommand.Execute(null);
             return;
         }
+        // 插件快捷入口卡：执行权交给插件（直接播放等）
+        if (_quickEntryMap.TryGetValue(heroItem, out var quickEntry))
+        {
+            quickEntry.Plugin.ExecuteQuickEntry(quickEntry.Entry.Id, Services);
+            return;
+        }
         if (heroItem.Song != null)
             await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
     }
@@ -466,6 +472,12 @@ public partial class SearchPage : DiscoverPageBase
             _vm.EnterChatModeCommand.Execute(null);
             return;
         }
+        // 插件快捷入口卡：执行权交给插件（直接播放等）
+        if (_quickEntryMap.TryGetValue(heroItem, out var quickEntry))
+        {
+            quickEntry.Plugin.ExecuteQuickEntry(quickEntry.Entry.Id, Services);
+            return;
+        }
         if (heroItem.Song != null)
             await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
     }
@@ -496,13 +508,17 @@ public partial class SearchPage : DiscoverPageBase
     /// <summary>AI 助手卡标记（HeroDisplayItems 首项，点击进入聊天模式）</summary>
     private const string AiCardTag = "AI 助手";
 
-    /// <summary>Hero 并排网格数据源：AI 助手卡 + 英雄卡（AI 卡固定第一张）</summary>
+    /// <summary>Hero 并排网格数据源：AI 助手卡 + 插件快捷入口卡 + 英雄卡（AI 卡固定第一张）</summary>
     private readonly List<HeroCardItem> _heroDisplayItems = new();
 
-    /// <summary>重建 Hero 网格数据源：AI 助手卡 + 当前 HeroCards（数据变化时调用）</summary>
+    /// <summary>快捷入口卡 → (插件, 条目) 映射（路由用对象引用作键，Tag 仅作徽章显示文本）</summary>
+    private readonly Dictionary<HeroCardItem, (IQuickEntryPlugin Plugin, QuickEntryInfo Entry)> _quickEntryMap = new();
+
+    /// <summary>重建 Hero 网格数据源：AI 助手卡 + 插件快捷入口卡 + 当前 HeroCards（数据变化时调用）</summary>
     private void RebuildHeroDisplay()
     {
         _heroDisplayItems.Clear();
+        _quickEntryMap.Clear();
         _heroDisplayItems.Add(new HeroCardItem
         {
             Tag = AiCardTag,
@@ -512,6 +528,34 @@ public partial class SearchPage : DiscoverPageBase
             GradientEnd = Color.FromArgb("#764ba2"),
             PlayIcon = ImageSource.FromFile("ic_play_dark")
         });
+
+        // 插件快捷入口卡（通用机制，排序规则同桌面：SortOrder 升序，并列按插件注册顺序）
+        if (Services.GetService(typeof(IPluginManager)) is IPluginManager pluginManager)
+        {
+            var quickEntries = new List<(int PluginOrder, IQuickEntryPlugin Plugin, QuickEntryInfo Entry)>();
+            var plugins = pluginManager.GetEnabledPlugins<IQuickEntryPlugin>();
+            for (int pi = 0; pi < plugins.Count; pi++)
+            {
+                foreach (var entry in plugins[pi].QuickEntries)
+                    quickEntries.Add((pi, plugins[pi], entry));
+            }
+            foreach (var (_, plugin, entry) in quickEntries
+                .OrderBy(q => q.Entry.SortOrder).ThenBy(q => q.PluginOrder))
+            {
+                var item = new HeroCardItem
+                {
+                    Tag = string.IsNullOrEmpty(entry.Icon) ? entry.Title : entry.Icon,
+                    Title = entry.Title,
+                    Description = entry.Subtitle,
+                    GradientStart = Color.FromArgb(entry.Color1),
+                    GradientEnd = Color.FromArgb(entry.Color2),
+                    PlayIcon = ImageSource.FromFile("ic_play_dark"),
+                };
+                _quickEntryMap[item] = (plugin, entry);
+                _heroDisplayItems.Add(item);
+            }
+        }
+
         foreach (var h in _vm.HeroCards)
         {
             if (h != null) _heroDisplayItems.Add(h);
