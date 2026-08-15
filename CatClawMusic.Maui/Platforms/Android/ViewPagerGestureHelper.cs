@@ -29,7 +29,27 @@ public static class ViewPagerGestureHelper
         if (!horizontal) return;
 
         rv.SetOnTouchListener(new PagerTouchListener(rv));
-        Log.Debug("ViewPagerGesture", $"[PagerGuard] Attached to {cv.GetType().Name} (rv={rv.GetHashCode()})");
+        // 禁用嵌套滚动：RecyclerView 默认会把横向滚动经 NestedScrolling 通道交给外层
+        // ViewPager2 的 RecyclerView（NestedScrollingParent）先消费而切页——requestDisallowInterceptTouchEvent
+        // 只挡 onInterceptTouchEvent，挡不住嵌套滚动。禁用后子列表滚动不再上抛，
+        // 外层只剩被 disallow 控制的手势拦截通道，仲裁唯一且可控。
+        DisableNestedScrolling(rv);
+        Log.Debug("ViewPagerGesture", $"[PagerGuard] Attached to {cv.GetType().Name} (rv={rv.GetHashCode()}) nestedScroll=off");
+    }
+
+    /// <summary>
+    /// 禁用 RecyclerView 的嵌套滚动。C# 绑定未暴露 setNestedScrollingEnabled，
+    /// 用 Java 反射调用；失败时静默忽略（不影响手势仲裁主逻辑）。
+    /// </summary>
+    private static void DisableNestedScrolling(AndroidX.RecyclerView.Widget.RecyclerView rv)
+    {
+        try
+        {
+            var setter = rv.Class?.GetMethod("setNestedScrollingEnabled",
+                new Java.Lang.Class[] { Java.Lang.Boolean.Type! });
+            setter?.Invoke(rv, new Java.Lang.Object[] { Java.Lang.Boolean.False! });
+        }
+        catch { /* 忽略：反射失败仅保留 disallow 仲裁 */ }
     }
 
     private sealed class PagerTouchListener : Java.Lang.Object, AView.IOnTouchListener
