@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
@@ -40,15 +40,18 @@
                                FontSize="12"
                                TextColor="#B8C7FF" />
                     </VerticalStackLayout>
-                    <Border Grid.Column="1"
-                            Style="{StaticResource GlassIconContainerStyle}"
+                    <Button Grid.Column="1"
+                            Text="＋"
+                            FontSize="22"
+                            WidthRequest="44"
+                            HeightRequest="44"
+                            CornerRadius="22"
+                            Padding="0"
                             BackgroundColor="#24FFFFFF"
-                            Stroke="{DynamicResource GlassStrokeColor}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnAddDownloadTapped" />
-                        </Border.GestureRecognizers>
-                        <Label Text="＋" FontSize="26" HorizontalOptions="Center" VerticalOptions="Center" TextColor="White" />
-                    </Border>
+                            BorderColor="{DynamicResource GlassStrokeColor}"
+                            BorderWidth="1"
+                            TextColor="White"
+                            Clicked="OnAddDownloadTapped" />
                 </Grid>
             </controls:HeroCard.CardContent>
         </controls:HeroCard>
@@ -128,48 +131,49 @@
                                            LineBreakMode="TailTruncation"
                                            IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed}" />
 
-                                    <!-- 操作按钮 -->
+                                    <!-- 操作按钮（Windows 嵌入模式下 RelativeSource AncestorType 绑定会失效，
+                                         改用 code-behind Clicked 事件；CommandParameter 绑定 item.Id 不依赖祖先链） -->
                                     <HorizontalStackLayout Spacing="8" HorizontalOptions="End">
-                                        <Button Text="暂停"
+                                        <Button Text="暂停" ClassId="pause"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource GlassButtonColor}"
                                                 TextColor="{DynamicResource TextPrimaryColor}"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.PauseTaskCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Downloading}" />
-                                        <Button Text="继续"
+                                        <Button Text="继续" ClassId="resume"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                                 TextColor="White"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ResumeTaskCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Paused}" />
-                                        <Button Text="取消"
+                                        <Button Text="取消" ClassId="cancel"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource GlassButtonColor}"
                                                 TextColor="{DynamicResource TextPrimaryColor}"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CancelTaskCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
-                                        <Button Text="重试"
+                                        <Button Text="重试" ClassId="retry"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                                 TextColor="White"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.RetryTaskCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed}" />
-                                        <Button Text="删除"
+                                        <Button Text="删除" ClassId="delete"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource GlassButtonColor}"
                                                 TextColor="{DynamicResource TextPrimaryColor}"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteTaskCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed,Canceled}" />
-                                        <Button Text="删除（含文件）"
+                                        <Button Text="删除（含文件）" ClassId="deletefile"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource GlassButtonColor}"
                                                 TextColor="{DynamicResource TextPrimaryColor}"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteTaskWithFileCommand}"
+                                                Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
                                     </HorizontalStackLayout>

@@ -45,6 +45,25 @@ public partial class DownloadsPage : ContentPage
         _vm.AddUrlDownload(url, string.IsNullOrWhiteSpace(name) ? null : name);
     }
 
+    /// <summary>任务操作按钮统一入口（ClassId 标记动作，Windows 嵌入模式不依赖绑定树）</summary>
+    private async void OnTaskActionClicked(object? sender, EventArgs e)
+    {
+        if (sender is not Button { CommandParameter: string id } btn) return;
+        switch (btn.ClassId)
+        {
+            case "pause": _vm.PauseTask(id); break;
+            case "resume": _vm.ResumeTask(id); break;
+            case "cancel": _vm.CancelTask(id); break;
+            case "retry": _vm.RetryTask(id); break;
+            case "delete": _vm.DeleteTask(id); break;
+            case "deletefile":
+                var error = await Task.Run(() => _manager.Delete(id, deleteFile: true));
+                if (error != null)
+                    await DisplayAlert("文件删除失败", error, "确定");
+                break;
+        }
+    }
+
     /// <summary>点击任务卡片：已完成任务打开文件/所在文件夹；磁力多文件种子打开所在目录</summary>
     private async void OnTaskTapped(object? sender, TappedEventArgs e)
     {
