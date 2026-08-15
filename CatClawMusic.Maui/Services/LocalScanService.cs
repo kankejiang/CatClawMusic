@@ -112,158 +112,180 @@ public class LocalScanService
             if (hasCustomFolders) totalSteps++;
             if (totalSteps == 0) totalSteps = 1;
 
-            var currentStep = 0;
-            // 扫描阶段占 0-90%，每个步骤的宽度
-            var stepWidth = 90.0 / totalSteps;
+            // 各来源并行扫描：MediaStore（系统查询）、SAF（content URI）、自定义文件夹
+            // （TagLib 读文件）互不依赖，串行执行时总耗时 = 各段之和；并行后 ≈ 最慢段。
+            // 每段各自收集到局部集合（无共享写），完成后统一合并去重。
+            // 进度用加权平均：每段占 1/totalSteps 权重，段内进度 0~1。
+            var stepProgress = new double[totalSteps];
+            var stepLock = new object();
+            int globalPctOf(double[] slots) => (int)(90.0 * slots.Sum() / totalSteps);
 
-            // 辅助：报告当前阶段内某进度（0~1）对应的全局进度
             void ReportStepProgress(int step, double localRatio, string status)
             {
-                var globalStart = step * stepWidth;
-                var globalPct = (int)(globalStart + stepWidth * localRatio);
-                progress?.Report((globalPct, 100, status));
+                lock (stepLock)
+                {
+                    if (localRatio > stepProgress[step]) stepProgress[step] = localRatio;
+                    progress?.Report((globalPctOf(stepProgress), 100, status));
+                }
             }
+
+            var scanTasks = new List<Task>();
+            var stepIndex = 0;
 
             // 1. MediaStore 扫描
             if (useMediaStore)
             {
-                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在通过系统媒体库扫描...");
+                var myStep = stepIndex++;
+                scanTasks.Add(Task.Run(async () =>
+                {
+                    ReportStepProgress(myStep, 0, "正在通过系统媒体库扫描...");
 #if ANDROID
-                try
-                {
-                    var mediaStoreSongs = await Task.Run(() =>
-                        Platforms.Android.AndroidMediaScanner.ScanFromMediaStore(), cancellationToken);
-                    foreach (var s in mediaStoreSongs)
-                        allSongs.Add(s);
-                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] 媒体库扫描完成，发现 {mediaStoreSongs.Count} 首歌曲");
-                }
-                catch (Exception ex)
-                {
-                    Log.Debug("LocalScanService", $"[LocalScan] MediaStore error: {ex.Message}");
-                }
+                    try
+                    {
+                        var mediaStoreSongs = await Task.Run(() =>
+                            Platforms.Android.AndroidMediaScanner.ScanFromMediaStore(), cancellationToken);
+                        foreach (var s in mediaStoreSongs)
+                            allSongs.Add(s);
+                        ReportStepProgress(myStep, 1, $"媒体库扫描完成，发现 {mediaStoreSongs.Count} 首歌曲");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("LocalScanService", $"[LocalScan] MediaStore error: {ex.Message}");
+                        ReportStepProgress(myStep, 1, "媒体库扫描失败");
+                    }
 #endif
-                currentStep++;
+                    ReportStepProgress(myStep, 1, "系统媒体库扫描完成");
+                }, cancellationToken));
             }
 
             // 2. SAF 文件夹扫描
             if (useSafScan && hasSafFolders)
             {
-                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在通过 SAF 扫描已选文件夹...");
+                var myStep = stepIndex++;
+                scanTasks.Add(Task.Run(async () =>
+                {
+                    ReportStepProgress(myStep, 0, "正在通过 SAF 扫描已选文件夹...");
 #if ANDROID
-                try
-                {
-                    var existingModTimes = await GetExistingPathModTimesAsync();
-                    var safSongs = new List<Song>();
-                    var safTotal = 0;
-                    await Platforms.Android.SafeContentScanner.ScanSavedFoldersAsync(
-                        async batch =>
-                        {
-                            lock (safSongs) { safSongs.AddRange(batch); }
-                            await Task.CompletedTask;
-                        },
-                        new Progress<(int done, int total, string s)>(p =>
-                        {
-                            // 将 SAF 内部 (done, total) 映射到当前阶段的全局进度
-                            safTotal = p.total;
-                            var localRatio = p.total > 0 ? (double)p.done / p.total : 0;
-                            ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] {p.s} (已发现 {safSongs.Count} 首)");
-                        }),
-                        existingModTimes,
-                        null
-                    );
-                    foreach (var s in safSongs)
-                        allSongs.Add(s);
-                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] SAF 扫描完成，发现 {safSongs.Count} 首歌曲");
-                }
-                catch (Exception ex)
-                {
-                    Log.Debug("LocalScanService", $"[LocalScan] SAF error: {ex.Message}");
-                }
+                    try
+                    {
+                        var existingModTimes = await GetExistingPathModTimesAsync();
+                        var safSongs = new List<Song>();
+                        await Platforms.Android.SafeContentScanner.ScanSavedFoldersAsync(
+                            async batch =>
+                            {
+                                lock (safSongs) { safSongs.AddRange(batch); }
+                                await Task.CompletedTask;
+                            },
+                            new Progress<(int done, int total, string s)>(p =>
+                            {
+                                var localRatio = p.total > 0 ? (double)p.done / p.total : 0;
+                                ReportStepProgress(myStep, localRatio, $"{p.s} (已发现 {safSongs.Count} 首)");
+                            }),
+                            existingModTimes,
+                            null
+                        );
+                        foreach (var s in safSongs)
+                            allSongs.Add(s);
+                        ReportStepProgress(myStep, 1, $"SAF 扫描完成，发现 {safSongs.Count} 首歌曲");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("LocalScanService", $"[LocalScan] SAF error: {ex.Message}");
+                        ReportStepProgress(myStep, 1, "SAF 扫描失败");
+                    }
 #endif
-                currentStep++;
+                }, cancellationToken));
             }
 
             // 3. 自定义文件夹扫描（逐文件读取元数据，内部报告渐进进度）
             if (hasCustomFolders)
             {
-                ReportStepProgress(currentStep, 0, $"[{currentStep + 1}/{totalSteps}] 正在扫描自定义文件夹...");
-                try
+                var myStep = stepIndex++;
+                scanTasks.Add(Task.Run(async () =>
                 {
-                    // 先收集所有音频文件路径，再逐个读取，以便报告线性进度
-                    var allFilePaths = new List<string>();
-                    var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var folder in customFolders)
+                    try
                     {
-                        Log.Debug("LocalScanService", $"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
-                        if (!Directory.Exists(folder)) continue;
-                        try
-                        {
-                            var filePaths = MusicUtility.ScanFolderRecursive(folder);
-                            Log.Debug("LocalScanService", $"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
-                            foreach (var path in filePaths)
-                            {
-                                if (seenPaths.Add(path))
-                                    allFilePaths.Add(path);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Debug("LocalScanService", $"[LocalScan] Scan folder error: {folder}, {ex.Message}");
-                        }
-                    }
+                        ReportStepProgress(myStep, 0, "正在扫描自定义文件夹...");
+                        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        var allFilePaths = new List<string>();
 
-                    var totalFiles = allFilePaths.Count;
-                    // 并发收集，避免并行循环内向 List 加锁
-                    var customSongs = new ConcurrentBag<Song>();
-                    var processed = 0;
-
-                    await Task.Run(() =>
-                    {
-                        // 并行度上限 8，充分利用八核 CPU
-                        var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
-                        var options = new ParallelOptions
+                        ReportStepProgress(myStep, 0.03, "正在枚举文件...");
+                        foreach (var folder in customFolders)
                         {
-                            MaxDegreeOfParallelism = degree,
-                            CancellationToken = cancellationToken
-                        };
-                        Parallel.ForEach(allFilePaths, options, path =>
-                        {
+                            Log.Debug("LocalScanService", $"[LocalScan] 自定义文件夹: '{folder}', Directory.Exists={Directory.Exists(folder)}");
+                            if (!Directory.Exists(folder)) continue;
                             try
                             {
-                                // readDuration: false —— TagLib 读 duration 需全文件 IO（VBR/大 flac），
-                                // 1000 首会卡死；时长由播放器播放时回填
-                                var song = TagReader.ReadSongInfo(path, readDuration: false);
-                                if (song != null)
+                                var filePaths = MusicUtility.ScanFolderRecursive(folder);
+                                Log.Debug("LocalScanService", $"[LocalScan] 文件夹 '{folder}' 递归发现音频文件数: {filePaths.Count}");
+                                foreach (var path in filePaths)
                                 {
-                                    song.Source = SongSource.Local;
-                                    customSongs.Add(song);
+                                    if (seenPaths.Add(path))
+                                        allFilePaths.Add(path);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                Log.Debug("LocalScanService", $"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
+                                Log.Debug("LocalScanService", $"[LocalScan] Scan folder error: {folder}, {ex.Message}");
                             }
-                            // 原子自增进度
-                            var p = Interlocked.Increment(ref processed);
-                            // 每 5 个文件或最后一个文件报告一次进度，避免过于频繁
-                            if (p % 5 == 0 || p == totalFiles)
-                            {
-                                var localRatio = totalFiles > 0 ? (double)p / totalFiles : 0;
-                                ReportStepProgress(currentStep, localRatio, $"[{currentStep + 1}/{totalSteps}] 读取元数据 {p}/{totalFiles} (已发现 {customSongs.Count} 首)");
-                            }
-                        });
-                    }, cancellationToken);
+                        }
 
-                    foreach (var s in customSongs)
-                        allSongs.Add(s);
-                    ReportStepProgress(currentStep, 1, $"[{currentStep + 1}/{totalSteps}] 自定义文件夹扫描完成，发现 {customSongs.Count} 首歌曲");
-                }
-                catch (Exception ex)
-                {
-                    Log.Debug("LocalScanService", $"[LocalScan] Custom folders error: {ex.Message}");
-                }
-                currentStep++;
+                        var totalFiles = allFilePaths.Count;
+                        // 并发收集，避免并行循环内向 List 加锁
+                        var customSongs = new ConcurrentBag<Song>();
+                        var processed = 0;
+
+                        await Task.Run(() =>
+                        {
+                            // 并行度上限 8，充分利用八核 CPU
+                            var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
+                            var options = new ParallelOptions
+                            {
+                                MaxDegreeOfParallelism = degree,
+                                CancellationToken = cancellationToken
+                            };
+                            Parallel.ForEach(allFilePaths, options, path =>
+                            {
+                                try
+                                {
+                                    // readDuration: false —— TagLib 读 duration 需全文件 IO（VBR/大 flac），
+                                    // 1000 首会卡死；时长由播放器播放时回填
+                                    var song = TagReader.ReadSongInfo(path, readDuration: false);
+                                    if (song != null)
+                                    {
+                                        song.Source = SongSource.Local;
+                                        customSongs.Add(song);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Debug("LocalScanService", $"[LocalScan] ReadSongInfo error: {path}, {ex.Message}");
+                                }
+                                // 原子自增进度
+                                var p = Interlocked.Increment(ref processed);
+                                // 每 5 个文件或最后一个文件报告一次进度，避免过于频繁
+                                if (p % 5 == 0 || p == totalFiles)
+                                {
+                                    var localRatio = totalFiles > 0 ? (double)p / totalFiles : 0;
+                                    ReportStepProgress(myStep, localRatio, $"读取元数据 {p}/{totalFiles} (已发现 {customSongs.Count} 首)");
+                                }
+                            });
+                        }, cancellationToken);
+
+                        foreach (var s in customSongs)
+                            allSongs.Add(s);
+                        ReportStepProgress(myStep, 1, $"自定义文件夹扫描完成，发现 {customSongs.Count} 首歌曲");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("LocalScanService", $"[LocalScan] Custom folders error: {ex.Message}");
+                        ReportStepProgress(myStep, 1, "自定义文件夹扫描失败");
+                    }
+                }, cancellationToken));
             }
+
+            // 并行等待全部扫描来源完成（MediaStore / SAF / 自定义文件夹）
+            await Task.WhenAll(scanTasks);
 
             var songList = allSongs.ToList();
 
