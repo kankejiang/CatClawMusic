@@ -21,6 +21,14 @@ public static class CoverHelper
     private static readonly ConcurrentDictionary<int, byte> _networkCoverInflight = new();
 
     /// <summary>
+    /// 封面下采样/编码全局并发信号量：Skia 解码+缩放+JPEG 编码很重（CPU+内存），
+    /// 1000 首歌同时 Downsample 会打爆线程池与 GC（表现为扫描后列表页卡死数分钟、
+    /// 日志大量 .NET TP Worker + GC + Skipped frames、Glide 加载失败刷屏）。
+    /// 全局限制并发 2——重启后缓存命中不触发，首次全量解析时自动排队节流。
+    /// </summary>
+    private static readonly SemaphoreSlim _downsampleSemaphore = new(2);
+
+    /// <summary>
     /// 轻量级封面文件完整性校验：检查文件存在、大小 > 0、文件头为已知图片格式魔术字节，
     /// 并检查文件尾标记（JPEG EOI / PNG IEND），避免写入中途崩溃/断电留下的半截损坏缓存
     /// 被当成有效图片使用，导致封面只显示上半部分。
@@ -128,8 +136,9 @@ public static class CoverHelper
 
         // 并行度：上限 8（八核设备满负载解码），封顶避免过多线程争抢；下限 2 避免双核设备过慢。
         // 该解析运行在后台线程（BatchResolveCoversAsync 内 Task.Run），不阻塞 UI 渲染与输入。
-        var degree = Math.Min(8, Math.Max(2, Environment.ProcessorCount));
-        var options = new ParallelOptions { MaxDegreeOfParallelism = degree };
+        // 并行度 3：TagLib 提取内嵌封面 = 全文件读取（大 flac/mp3），并行太高 IO 饱和
+        // （1000 首时曾拖垮整个设备）；下采样另有全局信号量(2)二次限流。
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 3 };
         Parallel.ForEach(songList, options, s => ResolveOneInline(s, maxSize));
     }
 
@@ -138,12 +147,13 @@ public static class CoverHelper
     /// 音频文件内嵌封面导致设备整体卡顿、GC 压力剧增（表现为进入音乐库各页面时主线程被拖垮）。
     /// 用于进入"歌曲/艺术家/专辑"页面时的后台封面填充：列表先以占位图即时渲染，
     /// 封面在后台分批就绪后通过绑定（INotifyPropertyChanged）自动刷新。
+    /// 块大小 32 / 让出 10ms：批量更大时仍会长时间占用 IO（实测 1000 首场景）。
     /// </summary>
     /// <param name="songs">待解析封面的歌曲集合</param>
     /// <param name="chunkSize">每批处理的歌曲数</param>
     /// <param name="yieldDelayMs">每批之间的让出间隔（毫秒），给渲染/输入让路</param>
     /// <param name="ct">取消令牌</param>
-    public static async Task BatchResolveCoversAsync(IEnumerable<Song> songs, int chunkSize = 64, int yieldDelayMs = 6, CancellationToken ct = default)
+    public static async Task BatchResolveCoversAsync(IEnumerable<Song> songs, int chunkSize = 32, int yieldDelayMs = 10, CancellationToken ct = default)
     {
         var list = songs as List<Song> ?? songs.ToList();
         if (list.Count == 0) return;
@@ -390,11 +400,27 @@ public static class CoverHelper
     /// <summary>
     /// 将源图片下采样到 MaxCoverSize 并保存到目标路径。
     /// 使用 Microsoft.Maui.Graphics 跨平台 API，避免主线程同步解码大图。
+    /// 全局信号量限流：Skia 解码+JPEG 编码重负载，批量场景（1000 首封面首次解析）
+    /// 同时进行会打爆线程池/GC，限制全局并发 2 自动排队。
     /// </summary>
     /// <param name="sourcePath">原始图片路径</param>
     /// <param name="destPath">目标缓存路径</param>
     /// <returns>下采样成功返回 true；失败返回 false</returns>
     public static bool DownsampleToCache(string sourcePath, string destPath, int maxSize = DefaultMaxSize)
+    {
+        _downsampleSemaphore.Wait();
+        try
+        {
+            return DownsampleCore(sourcePath, destPath, maxSize);
+        }
+        finally
+        {
+            _downsampleSemaphore.Release();
+        }
+    }
+
+    /// <summary>DownsampleToCache 的核心实现（调用方需持有 _downsampleSemaphore）</summary>
+    private static bool DownsampleCore(string sourcePath, string destPath, int maxSize)
     {
         try
         {
