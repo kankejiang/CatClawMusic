@@ -148,10 +148,14 @@ public class DownloadManager : IDisposable
     private readonly HttpClient _http;
     private readonly SemaphoreSlim _gate = new(MaxConcurrent);
     private readonly Dictionary<string, CancellationTokenSource> _ctsMap = new();
+    private readonly Dictionary<string, Func<CancellationToken, Task<Stream?>>> _networkProviders = new();
     private readonly object _lock = new();
     private bool _disposed;
 
-    /// <summary>全部下载任务（按创建时间排序）</summary>
+    /// <summary>磁力（BT）下载引擎（由 DI 注入；测试环境可为 null）</summary>
+    private readonly BitTorrentDownloadService? _bt;
+
+    /// <summary>下载任务集合（按创建时间排序）</summary>
     public ObservableCollection<DownloadTaskItem> Tasks { get; } = new();
 
     /// <summary>任务集合变化（增删）时触发</summary>
@@ -160,8 +164,9 @@ public class DownloadManager : IDisposable
     /// <summary>单个任务进度/状态变化时触发</summary>
     public event Action<DownloadTaskItem>? TaskUpdated;
 
-    public DownloadManager()
+    public DownloadManager(BitTorrentDownloadService? bt = null)
     {
+        _bt = bt;
         _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _http.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
         LoadTasks();
@@ -206,6 +211,32 @@ public class DownloadManager : IDisposable
             : SanitizeFileName(fileName);
         var item = CreateTask(url, name, "url");
         _ = RunAsync(item);
+        return item;
+    }
+
+    /// <summary>新建磁力（BT）下载任务：magnet: 链接由内置 BT 引擎下载（DHT/tracker 发现做种者）</summary>
+    /// <param name="magnet">magnet: 链接</param>
+    /// <param name="displayName">可选展示名（缺省取 magnet dn= 参数或 infohash）</param>
+    public DownloadTaskItem EnqueueMagnet(string magnet, string? displayName = null)
+    {
+        var name = !string.IsNullOrWhiteSpace(displayName)
+            ? SanitizeFileName(displayName)
+            : DeriveMagnetName(magnet);
+        // BT 任务保存到 下载目录/BT/名称/（多文件种子保持目录结构）
+        var dir = Path.Combine(DownloadFolderPath, "BT");
+        try { Directory.CreateDirectory(dir); } catch { }
+        var saveDir = GetUniqueDirPath(Path.Combine(dir, name));
+
+        var item = new DownloadTaskItem
+        {
+            Name = name,
+            Url = magnet,
+            Kind = "magnet",
+            CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            LocalPath = saveDir
+        };
+        AddTask(item);
+        _ = RunMagnetAsync(item, magnet, saveDir);
         return item;
     }
 
@@ -257,7 +288,17 @@ public class DownloadManager : IDisposable
                 cts.Cancel();
         }
         var task = Find(id);
-        if (task != null && task.Status == DownloadStatus.Downloading)
+        if (task == null) return;
+        if (task.Kind == "magnet")
+        {
+            _ = _bt?.PauseAsync(id);
+            if (task.Status == DownloadStatus.Downloading)
+            {
+                UpdateTask(task, t => { t.Status = DownloadStatus.Paused; t.IsPaused = true; t.SpeedText = ""; });
+            }
+            return;
+        }
+        if (task.Status == DownloadStatus.Downloading)
         {
             UpdateTask(task, t => { t.Status = DownloadStatus.Paused; t.IsPaused = true; t.SpeedText = ""; });
         }
@@ -268,6 +309,12 @@ public class DownloadManager : IDisposable
     {
         var task = Find(id);
         if (task == null || task.Status != DownloadStatus.Paused) return;
+        if (task.Kind == "magnet")
+        {
+            UpdateTask(task, t => { t.Status = DownloadStatus.Queued; t.IsPaused = false; t.Error = ""; });
+            _ = _bt?.ResumeAsync(id);
+            return;
+        }
         UpdateTask(task, t =>
         {
             t.Status = DownloadStatus.Queued;
@@ -316,19 +363,39 @@ public class DownloadManager : IDisposable
             if (_ctsMap.TryGetValue(id, out var cts)) { cts.Cancel(); cts.Dispose(); _ctsMap.Remove(id); }
             _networkProviders.Remove(id);
         }
+        if (task?.Kind == "magnet")
+            _ = _bt?.RemoveAsync(id);
+
         string? fileError = null;
         if (task != null)
         {
             DeletePartFile(task);
-            if (deleteFile && !string.IsNullOrEmpty(task.LocalPath) && File.Exists(task.LocalPath))
+            var target = task.LocalPath;
+            if (deleteFile && !string.IsNullOrEmpty(target))
             {
-                try { File.Delete(task.LocalPath); }
-                catch (Exception ex)
+                // BT 任务是目录（多文件种子），HTTP 任务是文件
+                var isDir = task.Kind == "magnet" && Directory.Exists(target);
+                if (isDir)
                 {
-                    fileError = ex is IOException
-                        ? "文件正被占用（可能正在播放），请先停止播放后再试"
-                        : $"文件删除失败：{ex.Message}";
-                    Log.Debug("DownloadManager", $"[Download] 删除文件失败: {task.LocalPath} - {ex.Message}");
+                    try { Directory.Delete(target, recursive: true); }
+                    catch (Exception ex)
+                    {
+                        fileError = ex is IOException
+                            ? "文件夹正被占用（可能正在播放），请先停止播放后再试"
+                            : $"删除失败：{ex.Message}";
+                        Log.Debug("DownloadManager", $"[Download] 删除 BT 目录失败: {target} - {ex.Message}");
+                    }
+                }
+                else if (File.Exists(target))
+                {
+                    try { File.Delete(target); }
+                    catch (Exception ex)
+                    {
+                        fileError = ex is IOException
+                            ? "文件正被占用（可能正在播放），请先停止播放后再试"
+                            : $"文件删除失败：{ex.Message}";
+                        Log.Debug("DownloadManager", $"[Download] 删除文件失败: {target} - {ex.Message}");
+                    }
                 }
             }
             MainThread.BeginInvokeOnMainThread(() => Tasks.Remove(task));
@@ -349,7 +416,11 @@ public class DownloadManager : IDisposable
             t.Error = "";
             t.DownloadedBytes = 0;
         });
-        if (task.Kind == "network")
+        if (task.Kind == "magnet")
+        {
+            _ = RunMagnetAsync(task, task.Url, task.LocalPath);
+        }
+        else if (task.Kind == "network")
         {
             var provider = _networkProviders.ContainsKey(id) ? _networkProviders[id] : null;
             if (provider != null) _ = RunStreamAsync(task, provider);
@@ -365,7 +436,81 @@ public class DownloadManager : IDisposable
     // 内部执行
     // ═══════════════════════════════════════════════════════
 
-    private readonly Dictionary<string, Func<CancellationToken, Task<Stream?>>> _networkProviders = new();
+    /// <summary>磁力任务执行：委托 BT 引擎下载，回调更新任务进度/状态</summary>
+    private async Task RunMagnetAsync(DownloadTaskItem task, string magnet, string saveDir)
+    {
+        if (_bt == null)
+        {
+            MarkFailed(task, "磁力下载引擎未初始化");
+            return;
+        }
+        try
+        {
+            UpdateTask(task, t => { t.Status = DownloadStatus.Downloading; t.SpeedText = ""; });
+            var error = await _bt.StartAsync(task.Id, magnet, saveDir,
+                onState: text => UpdateTask(task, t => { if (t.Status != DownloadStatus.Completed) t.Error = text == "下载中" ? "" : text; }),
+                onProgress: p => UpdateTask(task, t =>
+                {
+                    if (t.TotalBytes > 0) t.DownloadedBytes = (long)(t.TotalBytes * p / 100.0);
+                }),
+                onBytes: (downloaded, total) => UpdateTask(task, t =>
+                {
+                    t.DownloadedBytes = downloaded;
+                    t.TotalBytes = total;
+                }),
+                onComplete: () =>
+                {
+                    if (IsTerminal(task)) return;
+                    UpdateTask(task, t =>
+                    {
+                        t.Status = DownloadStatus.Completed;
+                        t.DownloadedBytes = t.TotalBytes;
+                        t.SpeedText = "";
+                    });
+                    SaveTasks();
+                });
+            if (error != null)
+            {
+                MarkFailed(task, error);
+            }
+        }
+        catch (Exception ex)
+        {
+            MarkFailed(task, ex.Message);
+        }
+    }
+
+    /// <summary>从 magnet 链接提取展示名（dn= 参数优先，否则取 infohash）</summary>
+    private static string DeriveMagnetName(string magnet)
+    {
+        try
+        {
+            var q = magnet.Contains('?') ? magnet[(magnet.IndexOf('?') + 1)..] : "";
+            foreach (var part in q.Split('&'))
+            {
+                if (part.StartsWith("dn=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var dn = Uri.UnescapeDataString(part[3..]).Trim();
+                    if (!string.IsNullOrWhiteSpace(dn)) return SanitizeFileName(dn);
+                }
+            }
+            var btih = System.Text.RegularExpressions.Regex.Match(magnet, @"btih:([0-9a-fA-F]{40})").Groups[1].Value;
+            if (!string.IsNullOrEmpty(btih)) return btih[..12];
+        }
+        catch { }
+        return "bt-download";
+    }
+
+    /// <summary>目标目录已存在时追加序号（BT 任务同名目录不覆盖）</summary>
+    private static string GetUniqueDirPath(string path)
+    {
+        if (!Directory.Exists(path)) return path;
+        for (int i = 1; ; i++)
+        {
+            var candidate = $"{path} ({i})";
+            if (!Directory.Exists(candidate)) return candidate;
+        }
+    }
 
     private async Task RunAsync(DownloadTaskItem task)
     {
@@ -677,7 +822,7 @@ public class DownloadManager : IDisposable
             {
                 // 恢复时：下载中的任务视为暂停，避免应用重启后自动重下
                 var status = dto.Status == DownloadStatus.Downloading ? DownloadStatus.Paused : dto.Status;
-                Tasks.Add(new DownloadTaskItem
+                var item = new DownloadTaskItem
                 {
                     Id = dto.Id,
                     Name = dto.Name,
@@ -690,7 +835,17 @@ public class DownloadManager : IDisposable
                     Status = status,
                     Error = dto.Error,
                     IsPaused = status == DownloadStatus.Paused
-                });
+                };
+                Tasks.Add(item);
+
+                // 磁力任务：重启后自动续传（BT 引擎校验已下数据后继续，无需重新开始）
+                if (dto.Kind == "magnet" && _bt != null
+                    && status is DownloadStatus.Queued or DownloadStatus.Paused or DownloadStatus.Downloading)
+                {
+                    item.Status = DownloadStatus.Queued;
+                    item.IsPaused = false;
+                    _ = RunMagnetAsync(item, dto.Url, dto.LocalPath);
+                }
             }
         }
         catch { }

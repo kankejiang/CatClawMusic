@@ -29,15 +29,19 @@ public partial class DownloadsPage : ContentPage
         _vm.Dispose();
     }
 
-    /// <summary>右上角 ＋ ：新建 URL 下载任务</summary>
+    /// <summary>右上角 ＋ ：新建下载任务（支持 http/https 直链与 magnet: 磁力链接）</summary>
     private async void OnAddDownloadTapped(object? sender, TappedEventArgs e)
     {
-        var url = await DisplayPromptAsync("新建下载", "输入文件下载地址（http/https）", "开始下载", "取消",
-            placeholder: "https://example.com/file.mp3", keyboard: Keyboard.Url);
+        var url = await DisplayPromptAsync("新建下载", "输入下载地址\n支持：http/https 直链、magnet: 磁力链接", "开始下载", "取消",
+            placeholder: "https://... 或 magnet:?xt=urn:btih:...", keyboard: Keyboard.Url);
         if (string.IsNullOrWhiteSpace(url)) return;
 
-        var name = await DisplayPromptAsync("文件名称", "输入保存文件名（留空自动识别）", "开始下载", "取消",
-            placeholder: "文件名.mp3");
+        string? name = null;
+        if (!url.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
+        {
+            name = await DisplayPromptAsync("文件名称", "输入保存文件名（留空自动识别）", "开始下载", "取消",
+                placeholder: "文件名.mp3");
+        }
         _vm.AddUrlDownload(url, string.IsNullOrWhiteSpace(name) ? null : name);
     }
 

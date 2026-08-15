@@ -111,6 +111,7 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.9" />
+		<PackageReference Include="MonoTorrent" Version="3.0.2" />
 		<!-- Android 16（16KB 内存页）：sqlite-net-pcl 1.9.172 传递引入的 SQLitePCLRaw 2.1.2 中
 		     libe_sqlite3.so 为 4KB 对齐，在三星 One UI 8.5/Android 16 等 16KB 页设备上 dlopen 失败
 		     导致启动后（DB 初始化时）闪退。顶层锁定 2.1.11（16KB 对齐且数据库可正常打开，

@@ -183,7 +183,7 @@
                         <Label Text="⬇️" FontSize="34" HorizontalOptions="Center" />
                         <Label Text="暂无下载任务" Style="{StaticResource PageSubtitleStyle}"
                                HorizontalTextAlignment="Center" />
-                        <Label Text="点击右上角 ＋ 输入文件地址即可下载，网络歌曲也可一键下载到本地"
+                        <Label Text="点击右上角 ＋ 输入地址即可下载：支持 http 直链与 magnet 磁力链接，网络歌曲也可一键下载到本地"
                                FontSize="11"
                                TextColor="{DynamicResource TextHintColor}"
                                HorizontalTextAlignment="Center" />

@@ -306,12 +306,15 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, KuwoMusicDownloadTool>();
         services.AddSingleton<IAgentTool, UpdateMusicSourceTool>();
         // Agent 下载：download_file 工具复用应用内置下载管理器（任务出现在下载中心）
+        services.AddSingleton<Services.BitTorrentDownloadService>();
         services.AddSingleton<Services.DownloadManager>(sp =>
         {
-            var dm = new Services.DownloadManager();
+            var dm = new Services.DownloadManager(sp.GetRequiredService<Services.BitTorrentDownloadService>());
             CatClawMusic.Core.Services.AI.DownloadAgentBridge.EnqueueDownload = (url, filename) =>
             {
-                var item = dm.EnqueueUrl(url, filename);
+                var item = url.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase)
+                    ? dm.EnqueueMagnet(url, filename)
+                    : dm.EnqueueUrl(url, filename);
                 return $"已开始下载「{item.DisplayName}」，保存到 {item.LocalPath}，可在下载管理查看进度";
             };
             return dm;
