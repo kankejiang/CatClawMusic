@@ -32,9 +32,9 @@ public partial class AboutViewModel : ObservableObject
         }
     }
 
-    /// <summary>版权声明文本</summary>
+    /// <summary>版权声明文本（年份动态取当前系统时间，避免硬编码过期）</summary>
     [ObservableProperty]
-    private string _copyright = "© 2024-2026 CatClawMusic. All rights reserved.";
+    private string _copyright = $"© 2024-{DateTime.Now.Year} CatClawMusic. All rights reserved.";
 
     /// <summary>是否正在检查更新</summary>
     [ObservableProperty]
