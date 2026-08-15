@@ -485,7 +485,9 @@ public partial class SearchPage : DiscoverPageBase
         {
             if (h != null) _heroDisplayItems.Add(h);
         }
-        HeroGrid.ItemsSource = _heroDisplayItems;
+        // 每次赋新 List 实例：CollectionView 对同一实例的 Clear/Add 不感知，
+        // 否则 HeroCards 后到（先只渲染 AI 卡）时网格不会刷新
+        HeroGrid.ItemsSource = _heroDisplayItems.ToList();
     }
 
     // === 左右箭头导航（对齐横屏布局：每日推荐 / 推荐艺人） ===
