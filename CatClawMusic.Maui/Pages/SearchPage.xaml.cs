@@ -49,13 +49,16 @@ public partial class SearchPage : DiscoverPageBase
 
         // Android：外层 ViewPager2 与内层横向卡片列表的手势仲裁——
         // 卡片横向滑动时不误切 tab（Hero/AI 歌单/推荐专辑/每日推荐/艺人）
-        Loaded += (_, _) =>
-        {
 #if ANDROID
-            foreach (var cv in new CollectionView[] { HeroGrid, AiPlaylistRow, RecommendAlbumGrid, DailyList, ArtistsList })
-                CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
+        foreach (var cv in new CollectionView[] { HeroGrid, AiPlaylistRow, RecommendAlbumGrid, DailyList, ArtistsList })
+        {
+            cv.HandlerChanged += (s, _) =>
+            {
+                if (s is CollectionView c && c.Handler != null)
+                    CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(c);
+            };
+        }
 #endif
-        };
 
         // 将听歌统计视图添加到"报告"面板
         PanelStats.Children.Add(_statsView);

@@ -53,19 +53,23 @@ public static class ViewPagerGestureHelper
                 case MotionEventActions.Down:
                     _downX = e.RawX;
                     _downY = e.RawY;
-                    _disallowed = false;
+                    // DOWN 立即抢占手势：ViewPager2 在 MOVE 早期就会拦截水平拖动
+                    //（其 onInterceptTouchEvent 先于子视图的 disallow 执行），
+                    // 必须 DOWN 时就 disallow，卡片区域的滑动才能归列表。
+                    _disallowed = true;
+                    v?.Parent?.RequestDisallowInterceptTouchEvent(true);
                     break;
 
                 case MotionEventActions.Move:
-                    if (_disallowed) break;
+                    if (!_disallowed) break;
                     float dx = Math.Abs(e.RawX - _downX);
                     float dy = Math.Abs(e.RawY - _downY);
-                    // 水平趋势（dx > dy）且列表在该方向还能滚动时才抢手势；
-                    // 列表不满一屏（无法横向滚动）时交给 ViewPager2 正常切 tab
-                    if (dx > dy && dx > _touchSlop && _rv.CanScrollHorizontally((int)(_downX - e.RawX)))
+                    // 水平趋势且列表在该方向已无法继续滚动（滑到最左/最右）→ 放行给
+                    // ViewPager2 切 tab；未到边界则保持卡片滚动。
+                    if (dx > dy && dx > _touchSlop && !_rv.CanScrollHorizontally((int)(_downX - e.RawX)))
                     {
-                        v?.Parent?.RequestDisallowInterceptTouchEvent(true);
-                        _disallowed = true;
+                        v?.Parent?.RequestDisallowInterceptTouchEvent(false);
+                        _disallowed = false;
                     }
                     break;
 
