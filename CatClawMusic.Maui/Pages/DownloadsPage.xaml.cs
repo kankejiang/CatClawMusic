@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 
@@ -30,19 +30,40 @@ public partial class DownloadsPage : ContentPage
     }
 
     /// <summary>右上角 ＋ ：新建下载任务（支持 http/https 直链与 magnet: 磁力链接）</summary>
-    private async void OnAddDownloadTapped(object? sender, TappedEventArgs e)
+    private async void OnAddDownloadTapped(object? sender, EventArgs e)
     {
-        var url = await DisplayPromptAsync("新建下载", "输入下载地址\n支持：http/https 直链、magnet: 磁力链接", "开始下载", "取消",
+        var url = await PromptAsync("新建下载", "输入下载地址\n支持：http/https 直链、magnet: 磁力链接", "开始下载", "取消",
             placeholder: "https://... 或 magnet:?xt=urn:btih:...", keyboard: Keyboard.Url);
         if (string.IsNullOrWhiteSpace(url)) return;
 
         string? name = null;
         if (!url.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
         {
-            name = await DisplayPromptAsync("文件名称", "输入保存文件名（留空自动识别）", "开始下载", "取消",
-                placeholder: "文件名.mp3");
+            name = await PromptAsync("文件名称", "输入保存文件名（留空自动识别）", "开始下载", "取消",
+                placeholder: "文件名.mp3", keyboard: Keyboard.Text);
         }
         _vm.AddUrlDownload(url, string.IsNullOrWhiteSpace(name) ? null : name);
+    }
+
+    /// <summary>弹输入框：Windows 嵌入模式本页不在窗口视觉树（Page.Window 为 null），
+    /// DisplayPromptAsync 会静默失败——改由窗口根页面调用</summary>
+    private Task<string?> PromptAsync(string title, string message, string accept, string cancel,
+        string placeholder, Keyboard keyboard)
+    {
+        var root = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root != null && root != this)
+            return root.DisplayPromptAsync(title, message, accept, cancel,
+                placeholder: placeholder, keyboard: keyboard);
+        return DisplayPromptAsync(title, message, accept, cancel, placeholder: placeholder, keyboard: keyboard);
+    }
+
+    /// <summary>弹提示框：同上，Windows 嵌入模式用窗口根页面</summary>
+    private Task AlertAsync(string title, string message, string cancel = "确定")
+    {
+        var root = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root != null && root != this)
+            return root.DisplayAlert(title, message, cancel);
+        return DisplayAlert(title, message, cancel);
     }
 
     /// <summary>任务操作按钮统一入口（ClassId 标记动作，Windows 嵌入模式不依赖绑定树）</summary>
@@ -59,7 +80,7 @@ public partial class DownloadsPage : ContentPage
             case "deletefile":
                 var error = await Task.Run(() => _manager.Delete(id, deleteFile: true));
                 if (error != null)
-                    await DisplayAlert("文件删除失败", error, "确定");
+                    await AlertAsync("文件删除失败", error, "确定");
                 break;
         }
     }
@@ -75,7 +96,7 @@ public partial class DownloadsPage : ContentPage
         var isDir = Directory.Exists(path);
         if (!isDir && !File.Exists(path))
         {
-            await DisplayAlert("提示", "文件不存在或已被移动", "确定");
+            await AlertAsync("提示", "文件不存在或已被移动", "确定");
             return;
         }
 
@@ -92,7 +113,7 @@ public partial class DownloadsPage : ContentPage
             if (isDir)
             {
                 // Android 打开目录需文件管理器授权，直接提示路径（BT 种子目录）
-                await DisplayAlert("下载完成", $"文件已保存到：\n{path}", "确定");
+                await AlertAsync("下载完成", $"文件已保存到：\n{path}", "确定");
             }
             else
             {
@@ -106,7 +127,7 @@ public partial class DownloadsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlert("打开失败", ex.Message, "确定");
+            await AlertAsync("打开失败", ex.Message, "确定");
         }
     }
 
@@ -117,7 +138,7 @@ public partial class DownloadsPage : ContentPage
         var granted = await _permissionService.CheckManageStoragePermissionAsync();
         if (!granted)
         {
-            var goToSettings = await DisplayAlert(
+            var goToSettings = await AlertAsync(
                 "需要所有文件访问权限",
                 "更改下载位置需要授予「所有文件访问」权限（管理所有文件），请在系统设置中开启。",
                 "去设置", "仍要进入");
@@ -137,7 +158,7 @@ public partial class DownloadsPage : ContentPage
         }
         else
         {
-            await DisplayAlert("提示", "未能获取所选文件夹，请重试。", "确定");
+            await AlertAsync("提示", "未能获取所选文件夹，请重试。", "确定");
         }
 #endif
     }
