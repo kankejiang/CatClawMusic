@@ -57,13 +57,17 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return TempConfigOverride ?? _configProvider();
     }
 
-    /// <summary>获取所有可用的退回配置（启用了 FallbackEnabled 且 Enabled 的配置，按列表顺序）</summary>
+    /// <summary>获取所有可用的退回配置（启用了 FallbackEnabled 的配置，按列表顺序，不再要求 Enabled）</summary>
     private List<LlmConfig> GetFallbackConfigs()
     {
         if (_fallbackConfigsProvider == null) return new();
         var currentConfig = GetEffectiveConfig();
+        // 只要求「作为备用」开关开启，不要再用 Enabled 二次过滤：
+        // 用户勾了"作为备用"即明确意图；若同时要求 Enabled=true，编辑页里只勾备用、
+        // 未勾「启用」的模型会被静默排除，导致主/备用额度耗尽时完全不会退到它
+        //（实测：标为备用的最后一个模型从未被调用）。
         return _fallbackConfigsProvider()
-            .Where(c => c.FallbackEnabled && c.Enabled
+            .Where(c => c.FallbackEnabled
                 && !string.IsNullOrWhiteSpace(c.ApiUrl)
                 && !string.IsNullOrWhiteSpace(c.ApiKey)
                 && c.Name != currentConfig.Name)
@@ -150,26 +154,35 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <returns>LLM 响应</returns>
     private async Task<LlmResponse> ChatWithConfigAsync(LlmConfig config, List<ChatMessage> messages, List<ToolDefinition>? tools, Action<LlmStreamDelta>? onDelta, CancellationToken ct)
     {
-        var url = BuildChatUrl(config.ApiUrl);
-        var body = BuildRequestBody(messages, tools, config, stream: onDelta != null);
-
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
-        request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
-        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-
-        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-
-        if (!response.IsSuccessStatusCode)
+        // 网络请求统一在后台线程发起：.NET Android 的 HttpClient（AndroidMessageHandler）
+        // 底层 HttpURLConnection 在调用线程同步建立连接，若调用方是 UI 线程（如聊天发送
+        // 命令）会抛 NetworkOnMainThreadException——桌面无此限制所以只在手机上显现。
+        // Task.Run 确保 connect/请求体写出/响应读取都不占主线程；onDelta 回调仍从
+        // HTTP 读取线程触发（调用方自行 marshal 到 UI）。
+        return await Task.Run(async () =>
         {
-            var errorBody = await response.Content.ReadAsStringAsync(ct);
-            throw new InvalidOperationException($"API 请求失败 ({(int)response.StatusCode}): {Truncate(errorBody, 500)}");
-        }
+            var url = BuildChatUrl(config.ApiUrl);
+            var body = BuildRequestBody(messages, tools, config, stream: onDelta != null);
 
-        if (onDelta != null)
-            return await ReadStreamAsync(response, onDelta, ct);
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
-        return ParseResponse(responseBody);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                throw new InvalidOperationException($"API 请求失败 ({(int)response.StatusCode}): {Truncate(errorBody, 500)}");
+            }
+
+            if (onDelta != null)
+                return await ReadStreamAsync(response, onDelta, ct).ConfigureAwait(false);
+
+            var responseBody = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return ParseResponse(responseBody);
+        }, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -307,8 +320,13 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
             request.Content = new StringContent(JsonSerializer.Serialize(testBody, JsonOpts), Encoding.UTF8, "application/json");
 
-            using var response = await _httpClient.SendAsync(request);
-            return response.IsSuccessStatusCode;
+            // 与 ChatWithConfigAsync 同理：Android 上 HttpURLConnection 在调用线程同步
+            // 建连，UI 线程直发会抛 NetworkOnMainThreadException，切线程池发起
+            return await Task.Run(async () =>
+            {
+                using var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                return response.IsSuccessStatusCode;
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         catch { return false; }
     }
@@ -329,11 +347,14 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("Authorization", $"Bearer {config.ApiKey}");
 
-        using var response = await _httpClient.SendAsync(request);
-        var responseBody = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"获取模型列表失败 ({(int)response.StatusCode})");
+        // 与 ChatWithConfigAsync 同理：切线程池发起，避免 Android 主线程同步建连崩溃
+        var responseBody = await Task.Run(async () =>
+        {
+            using var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException($"获取模型列表失败 ({(int)response.StatusCode})");
+            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        }, CancellationToken.None).ConfigureAwait(false);
 
         return ParseModelsResponse(responseBody);
     }

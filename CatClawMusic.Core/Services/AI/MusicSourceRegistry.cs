@@ -201,11 +201,13 @@ public static class MusicSourceRegistry
     /// <summary>酷我模板：r.s 搜索（单引号 JSON 块）+ mobi.s convert_url_with_sign（surl 字段）</summary>
     private static class KuwoJsonp
     {
-        public static Task<List<SourceSong>> SearchAsync(MusicSourceConfig cfg, string keyword)
+        public static async Task<List<SourceSong>> SearchAsync(MusicSourceConfig cfg, string keyword)
         {
-            var text = HttpGetAsync(cfg.Search, new() { ["keyword"] = keyword }).GetAwaiter().GetResult();
-            if (string.IsNullOrEmpty(text)) return Task.FromResult(new List<SourceSong>());
-            return Task.FromResult(ParseBlocks(cfg, text));
+            // 必须 await，勿改回 GetAwaiter().GetResult()：同步阻塞网络在主线程会抛
+            // Android NetworkOnMainThreadException（StrictMode 拦截 UI 线程网络操作）
+            var text = await HttpGetAsync(cfg.Search, new() { ["keyword"] = keyword });
+            if (string.IsNullOrEmpty(text)) return new List<SourceSong>();
+            return ParseBlocks(cfg, text);
         }
 
         public static async Task<string?> GetUrlAsync(MusicSourceConfig cfg, SourceSong song, string quality)

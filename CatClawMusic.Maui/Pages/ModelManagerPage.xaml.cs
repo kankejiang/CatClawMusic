@@ -163,8 +163,8 @@ public partial class ModelManagerPage : ContentPage
                 if (config != null)
                 {
                     config.FallbackEnabled = !config.FallbackEnabled;
-                    // 设为备用即自动启用：回退机制要求备用模型 Enabled=true
-                    //（GetFallbackConfigs 会过滤未启用的配置），否则备用永远不会被使用
+                    // 设为备用即顺带启用：便于用户理解；退回候选不再要求 Enabled
+                    //（GetFallbackConfigs 已去除该过滤），此自动启用仅作体验优化
                     if (config.FallbackEnabled)
                         config.Enabled = true;
                     AgentService.SaveConfig(config);
