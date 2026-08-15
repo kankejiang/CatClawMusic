@@ -408,13 +408,17 @@ public class PluginManager : IPluginManager
     /// </list>
     /// </para>
     /// </summary>
-    /// <param name="repoUrl">GitHub 仓库地址，格式为 https://github.com/用户名/仓库名</param>
+    /// <param name="repoUrl">仓库地址，格式为 https://github.com/用户名/仓库名 或 https://gitee.com/用户名/仓库名</param>
     /// <param name="progress">进度报告器，报告 (描述文本, 百分比) 元组</param>
     /// <returns>安装成功返回 PluginInfo，失败返回 null</returns>
     public async Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null)
     {
         try
         {
+            // Gitee 仓库走 raw 文件约定（免认证）：仓库根目录放 plugin.ccp + plugin.json
+            if (repoUrl.Contains("gitee.com", StringComparison.OrdinalIgnoreCase))
+                return await InstallFromGiteeAsync(repoUrl, progress);
+
             progress?.Report(("正在解析仓库地址...", 5));
 
             // 解析 GitHub URL，提取 owner 和 repo
@@ -614,6 +618,55 @@ public class PluginManager : IPluginManager
     }
 
     /// <summary>
+    /// 从 Gitee 仓库安装插件（免认证 raw 文件约定）：
+    /// 仓库根目录需包含 plugin.json（可选 manifest）+ plugin.ccp（插件文件），
+    /// master/main 分支自动探测。
+    /// </summary>
+    public async Task<PluginInfo?> InstallFromGiteeAsync(string repoUrl, IProgress<(string, int)>? progress = null)
+    {
+        try
+        {
+            progress?.Report(("正在解析仓库地址...", 5));
+            if (!TryParseRepo(repoUrl, out var owner, out var repo))
+                throw new InvalidOperationException("无法解析 Gitee 仓库地址，请使用格式: https://gitee.com/用户名/仓库名");
+
+            // 读 manifest 拿文件名（缺省 plugin.ccp）
+            string fileName = "plugin.ccp";
+            var manifestUrl = await ResolveGiteeRawAsync(owner, repo, "plugin.json");
+            if (manifestUrl != null)
+            {
+                try
+                {
+                    var json = await _httpClient.GetStringAsync(manifestUrl);
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("file", out var f))
+                        fileName = f.GetString() ?? fileName;
+                }
+                catch { }
+            }
+
+            var fileUrl = await ResolveGiteeRawAsync(owner, repo, fileName);
+            if (fileUrl == null)
+                throw new InvalidOperationException(
+                    $"仓库 {owner}/{repo} 中未找到 {fileName}（master/main 分支），\n" +
+                    "请先将插件文件提交到仓库根目录。");
+
+            progress?.Report(("正在下载插件...", 30));
+            var destPath = Path.Combine(_pluginsDir, fileName);
+            if (File.Exists(destPath)) File.Delete(destPath);
+            await DownloadToFileAsync(fileUrl, destPath, progress);
+
+            progress?.Report(("正在加载插件...", 75));
+            return await LoadAndRegisterPluginAsync(destPath, repoUrl, progress);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManager", $"[PluginManager] Gitee 安装失败: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
     /// 使用两级匹配策略从程序集类型中创建插件实例。
     /// <para>
     /// 两级匹配策略：
@@ -792,37 +845,28 @@ public class PluginManager : IPluginManager
             // 1. 插件自带更新源（manifest JSON）
             var updateUrl = plugin.Plugin.UpdateUrl;
             if (!string.IsNullOrWhiteSpace(updateUrl))
+                return await ParseManifestAsync(updateUrl, plugin.InstallUrl, plugin.Version);
+
+            if (string.IsNullOrWhiteSpace(plugin.InstallUrl))
+                return null;
+
+            // 2. Gitee 约定：仓库 raw 文件 plugin.json（免认证；master/main 分支自动探测）
+            if (plugin.InstallUrl.Contains("gitee.com", StringComparison.OrdinalIgnoreCase))
             {
-                var json = await _httpClient.GetStringAsync(updateUrl);
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                var root = doc.RootElement;
-                var version = root.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
-                if (string.IsNullOrEmpty(version)) return null;
-                return new PluginUpdateInfo
-                {
-                    HasUpdate = IsNewerVersion(version, plugin.Version),
-                    LatestVersion = version,
-                    DownloadUrl = root.TryGetProperty("download_url", out var d) ? d.GetString() : null,
-                    ReleaseNotes = root.TryGetProperty("notes", out var n) ? n.GetString() : null,
-                    Homepage = plugin.InstallUrl
-                };
+                string giteeOwner, giteeRepo;
+                if (!TryParseRepo(plugin.InstallUrl, out giteeOwner, out giteeRepo)) return null;
+                var manifestUrl = await ResolveGiteeRawAsync(giteeOwner, giteeRepo, "plugin.json");
+                if (manifestUrl != null)
+                    return await ParseManifestAsync(manifestUrl, plugin.InstallUrl, plugin.Version);
+                return null;
             }
 
-            // 2. GitHub Releases 约定
-            if (string.IsNullOrWhiteSpace(plugin.InstallUrl)
-                || !plugin.InstallUrl.Contains("github.com", StringComparison.OrdinalIgnoreCase))
+            // 3. GitHub Releases 约定
+            if (!plugin.InstallUrl.Contains("github.com", StringComparison.OrdinalIgnoreCase))
                 return null;
 
             string owner, repo;
-            try
-            {
-                var uri = new Uri(plugin.InstallUrl);
-                var segs = uri.AbsolutePath.Trim('/').Split('/');
-                if (segs.Length < 2) return null;
-                owner = segs[0];
-                repo = segs[1];
-            }
-            catch { return null; }
+            if (!TryParseRepo(plugin.InstallUrl, out owner, out repo)) return null;
 
             using var request = new HttpRequestMessage(HttpMethod.Get,
                 $"https://api.github.com/repos/{owner}/{repo}/releases/latest");
@@ -874,6 +918,92 @@ public class PluginManager : IPluginManager
             && Version.TryParse(current.TrimStart('v', 'V'), out var cv))
             return lv > cv;
         return string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0;
+    }
+
+    /// <summary>解析 GitHub/Gitee 仓库地址 → (owner, repo)</summary>
+    private static bool TryParseRepo(string repoUrl, out string owner, out string repo)
+    {
+        owner = repo = "";
+        try
+        {
+            var uri = new Uri(repoUrl);
+            var segs = uri.AbsolutePath.Trim('/').Split('/');
+            if (segs.Length < 2) return false;
+            owner = segs[0];
+            repo = segs[1];
+            return !string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repo);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>解析插件 manifest（version/download_url/notes）并对比本地版本</summary>
+    private async Task<PluginUpdateInfo?> ParseManifestAsync(string manifestUrl, string? homepage, string currentVersion)
+    {
+        try
+        {
+            var json = await _httpClient.GetStringAsync(manifestUrl);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var version = root.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(version)) return null;
+            return new PluginUpdateInfo
+            {
+                HasUpdate = IsNewerVersion(version, currentVersion),
+                LatestVersion = version,
+                DownloadUrl = root.TryGetProperty("download_url", out var d) ? d.GetString() : null,
+                ReleaseNotes = root.TryGetProperty("notes", out var n) ? n.GetString() : null,
+                Homepage = homepage
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>解析 Gitee 仓库 raw 文件 URL（master/main 分支自动探测；raw 免认证）</summary>
+    private async Task<string?> ResolveGiteeRawAsync(string owner, string repo, string filePath)
+    {
+        foreach (var branch in new[] { "master", "main" })
+        {
+            var url = $"https://gitee.com/{owner}/{repo}/raw/{branch}/{filePath}";
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, url);
+                request.Headers.UserAgent.ParseAdd("CatClawMusic/1.0");
+                using var response = await _httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode) return url;
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    /// <summary>下载文件到目标路径（带进度回调，0~100）</summary>
+    private async Task<bool> DownloadToFileAsync(string url, string destPath, IProgress<(string, int)>? progress, int pctStart = 10, int pctEnd = 70)
+    {
+        using var downloadResponse = await _httpClient.GetAsync(url);
+        downloadResponse.EnsureSuccessStatusCode();
+        var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1;
+        await using var remoteStream = await downloadResponse.Content.ReadAsStreamAsync();
+        await using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write);
+        var buffer = new byte[8192];
+        long totalRead = 0;
+        int bytesRead;
+        while ((bytesRead = await remoteStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            await fileStream.WriteAsync(buffer, 0, bytesRead);
+            totalRead += bytesRead;
+            if (totalBytes > 0)
+            {
+                var pct = pctStart + (int)(totalRead * (pctEnd - pctStart) / totalBytes);
+                progress?.Report(($"正在下载... ({totalRead * 100 / totalBytes}%)", Math.Min(pct, pctEnd)));
+            }
+        }
+        return true;
     }
 
     /// <summary>
