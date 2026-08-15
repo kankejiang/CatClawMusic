@@ -329,6 +329,16 @@ public partial class App : Application
         }
         catch { }
 
+        // 封面/歌词预加载：上次播放歌曲的封面与歌词在启动页期间就绪，
+        // 进入主界面/歌词页时直接显示，避免「启动页结束但封面歌词还在加载」。
+        try
+        {
+            var nowPlayingVm = MauiProgram.Services.GetService<ViewModels.NowPlayingViewModel>();
+            if (nowPlayingVm != null)
+                await Task.WhenAny(nowPlayingVm.PreloadMediaAsync(), Task.Delay(StartupWaitTimeout));
+        }
+        catch { }
+
         // 等启动页真正渲染上屏（Loaded）后再计最短展示时长：
         // 若从 CreateWindow 起算，慢设备上首帧尚未渲染时预加载可能已完成，
         // 导致主界面在启动页亮相前就替换掉它，用户根本看不到启动页。

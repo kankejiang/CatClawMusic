@@ -17,7 +17,6 @@ public partial class NowPlayingViewModel
     {
         var song = _queue.CurrentSong;
         var oldSongId = _loadedSongId;
-
         // 换歌前先 flush 上一首的聆听时长（后台执行，不阻塞切歌）
         if (oldSongId > 0 && song != null && song.Id != oldSongId)
         {
@@ -276,6 +275,28 @@ public partial class NowPlayingViewModel
 
         // 保存队列状态（后台执行，不阻塞切歌）
         _ = Task.Run(SaveQueueState);
+    }
+
+    /// <summary>
+    /// 启动页预加载当前歌曲的封面与歌词（不触碰播放器，不自动播放）。
+    /// 主界面/歌词页进入时直接显示已就绪数据，消除「启动页结束但封面歌词
+    /// 还在加载」的空白/占位闪烁。幂等：重复调用只重载一次结果。
+    /// </summary>
+    public async Task PreloadMediaAsync()
+    {
+        var song = _queue.CurrentSong;
+        if (song == null) return;
+        try
+        {
+            var ct = CancellationToken.None;
+            await Task.WhenAll(
+                LoadCoverAsync(song, ct),
+                LoadLyricsAsync(song, ct));
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AppViewModels", $"[Preload] 封面/歌词预加载失败: {ex.Message}");
+        }
     }
 
     // === 队列状态持久化 ===
