@@ -304,8 +304,9 @@ public abstract class DiscoverPageBase : ContentPage
         };
     }
 
-    /// <summary>打开 IViewContributorPlugin 贡献的整页（CreateEntryPage → Push / 桌面嵌入）。</summary>
-    private async Task OpenPluginEntryAsync(IViewContributorPlugin contributor)
+    /// <summary>打开 IViewContributorPlugin 贡献的整页（CreateEntryPage → Push / 桌面嵌入）。
+    /// protected：供派生页（如快捷入口卡）调用。</summary>
+    protected async Task OpenPluginEntryAsync(IViewContributorPlugin contributor)
     {
         try
         {

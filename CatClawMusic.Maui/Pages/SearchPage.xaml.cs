@@ -476,6 +476,7 @@ public partial class SearchPage : DiscoverPageBase
     private static void TryAttachPagerGuard(object? sender)
     {
         if (sender is not CollectionView cv) return;
+#if ANDROID
         if (cv.Handler?.PlatformView != null)
         {
             CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
@@ -487,6 +488,7 @@ public partial class SearchPage : DiscoverPageBase
             if (cv.Handler?.PlatformView != null)
                 CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
         });
+#endif
     }
 
     // === AI 助手卡（Hero 网格第一张，对齐横屏布局） ===

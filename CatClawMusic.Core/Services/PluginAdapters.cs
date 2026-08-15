@@ -846,6 +846,63 @@ internal class ViewContributorAdapter : BasicPluginAdapter, IViewContributorPlug
     }
 
     /// <summary>
+    /// 快捷入口适配器：通过反射代理不同版本的 IQuickEntryPlugin 实现。
+    /// <para>
+    /// QuickEntries 按属性名（Id/Title/Icon/Subtitle/Color1/Color2）反射读取，
+    /// 兼容跨版本条目类型；ExecuteQuickEntry 反射调用目标方法（目标版本未实现时静默降级）。
+    /// </para>
+    /// </summary>
+internal class QuickEntryAdapter : BasicPluginAdapter, IQuickEntryPlugin
+    {
+        private readonly System.Reflection.MethodInfo? _executeQuickEntryMethod;
+
+        /// <summary>初始化快捷入口适配器</summary>
+        /// <param name="target">要代理的目标插件对象实例</param>
+        public QuickEntryAdapter(object target) : base(target)
+        {
+            _executeQuickEntryMethod = _targetType.GetMethod("ExecuteQuickEntry");
+        }
+
+        /// <summary>注册的快捷入口卡片列表（按属性名反射读取，跨版本安全）</summary>
+        public IReadOnlyList<QuickEntryInfo> QuickEntries
+        {
+            get
+            {
+                var result = new List<QuickEntryInfo>();
+                try
+                {
+                    var value = _targetType.GetProperty("QuickEntries")?.GetValue(_target);
+                    if (value is not System.Collections.IEnumerable enumerable) return result;
+                    foreach (var item in enumerable)
+                    {
+                        if (item == null) continue;
+                        var t = item.GetType();
+                        result.Add(new QuickEntryInfo
+                        {
+                            Id = t.GetProperty("Id")?.GetValue(item) as string ?? "",
+                            Title = t.GetProperty("Title")?.GetValue(item) as string ?? "",
+                            Icon = t.GetProperty("Icon")?.GetValue(item) as string ?? "",
+                            Subtitle = t.GetProperty("Subtitle")?.GetValue(item) as string ?? "",
+                            Color1 = t.GetProperty("Color1")?.GetValue(item) as string ?? "#667eea",
+                            Color2 = t.GetProperty("Color2")?.GetValue(item) as string ?? "#764ba2",
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("PluginAdapters", $"[QuickEntry] 读取快捷入口失败: {ex.Message}");
+                }
+                return result;
+            }
+        }
+
+        /// <summary>执行指定快捷入口动作</summary>
+        /// <param name="entryId">被点击的入口 Id</param>
+        public void ExecuteQuickEntry(string entryId)
+            => _executeQuickEntryMethod?.Invoke(_target, new object[] { entryId });
+    }
+
+    /// <summary>
     /// 主题提供者适配器：通过反射代理不同版本的 IThemeProviderPlugin 实现。
     /// <para>
     /// ThemeId/ThemeName/ThemeOrder 属性通过反射读取；GetThemeColorsAsync/GetThemeBackgroundAsync

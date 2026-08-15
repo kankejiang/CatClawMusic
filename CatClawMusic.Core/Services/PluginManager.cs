@@ -108,6 +108,11 @@ public class PluginManager : IPluginManager
     private static readonly string IViewContributorFullName = typeof(IViewContributorPlugin).FullName!;
 
     /// <summary>
+    /// IQuickEntryPlugin 接口的全限定名，用于反射匹配快捷入口插件（发现页 HeroTrack 卡片）
+    /// </summary>
+    private static readonly string IQuickEntryFullName = typeof(IQuickEntryPlugin).FullName!;
+
+    /// <summary>
     /// IThemeProviderPlugin 接口的全限定名，用于反射匹配主题提供者插件
     /// </summary>
     private static readonly string IThemeProviderFullName = typeof(IThemeProviderPlugin).FullName!;
@@ -760,6 +765,8 @@ public class PluginManager : IPluginManager
                     wrappers.Add(new OnlineMusicAdapter(rawInstance));
                 if (interfaceNames.Contains(IViewContributorFullName))
                     wrappers.Add(new ViewContributorAdapter(rawInstance));
+                if (interfaceNames.Contains(IQuickEntryFullName))
+                    wrappers.Add(new QuickEntryAdapter(rawInstance));
                 if (interfaceNames.Contains(IThemeProviderFullName))
                     wrappers.Add(new ThemeProviderAdapter(rawInstance));
                 if (interfaceNames.Contains(IPlayerPageFullName))

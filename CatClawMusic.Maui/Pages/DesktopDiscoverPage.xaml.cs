@@ -31,6 +31,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     private double _heroCardWidth;
     private const double HeroSpacing = 18;
 
+    /// <summary>英雄卡在 HeroTrack 中的起始下标（0=AI 卡，其后为插件快捷入口卡，英雄卡从 _heroStartIndex 开始）</summary>
+    private int _heroStartIndex = 1;
+
     /// <summary>初始化 <see cref="DesktopDiscoverPage"/> 并注入所需服务与视图模型。</summary>
     public DesktopDiscoverPage(MusicDatabase db, PlayQueue queue, SearchViewModel vm,
         IAudioPlayerService audioPlayer, IServiceProvider services, IThemeService? themeService,
@@ -170,7 +173,8 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     // === 英雄卡区（AI 助手卡 + 英雄卡，手动构建） ===
 
     /// <summary>
-    /// 重建英雄卡横滑队列：最左侧第一张固定为 AI 助手卡（进入聊天），其后为英雄卡。
+    /// 重建英雄卡横滑队列：最左侧第一张固定为 AI 助手卡（进入聊天），其后为插件快捷入口卡
+    /// （IQuickEntryPlugin 注册，如"私人漫游"），最后为英雄卡。
     /// 不能混用 BindableLayout——其 ItemsSource 变化时内部会 Clear 整个布局，
     /// 手动添加的 AI 卡会被删除导致聊天入口消失。
     /// </summary>
@@ -180,6 +184,30 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         {
             HeroTrack.Children.Clear();
             HeroTrack.Children.Add(CreateAiCardView());
+
+            // 插件快捷入口卡（通用机制：任何 IQuickEntryPlugin 都可注册，老插件无则自动不显示）
+            int quickEntryCount = 0;
+            if (Services.GetService(typeof(IPluginManager)) is IPluginManager pluginManager)
+            {
+                foreach (var plugin in pluginManager.GetEnabledPlugins<IQuickEntryPlugin>())
+                {
+                    foreach (var entry in plugin.QuickEntries)
+                    {
+                        try
+                        {
+                            HeroTrack.Children.Add(CreateQuickEntryCardView(plugin, entry));
+                            quickEntryCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 快捷入口卡构建失败(跳过): {ex.Message}");
+                        }
+                    }
+                }
+            }
+            // 英雄卡从第 (1 + quickEntryCount) 位开始，滚动/圆点定位用它做偏移
+            _heroStartIndex = 1 + quickEntryCount;
+
             foreach (var hero in _vm.HeroCards)
             {
                 try
@@ -197,6 +225,110 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         catch (Exception ex)
         {
             Log.Debug("DesktopDiscoverPage.xaml", $"[HeroTrack] 重建失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>构建插件快捷入口卡（方形渐变，结构同 AI 卡；点击 → ExecuteQuickEntry + 打开插件入口页）。</summary>
+    private View CreateQuickEntryCardView(IQuickEntryPlugin plugin, QuickEntryInfo entry)
+    {
+        var card = new Border
+        {
+            HeightRequest = 150,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            Background = new LinearGradientBrush(
+                new GradientStopCollection
+                {
+                    new GradientStop(Color.FromArgb(entry.Color1), 0),
+                    new GradientStop(Color.FromArgb(entry.Color2), 1),
+                },
+                new Point(0, 0), new Point(1, 1)),
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await OnQuickEntryTappedAsync(plugin, entry);
+        card.GestureRecognizers.Add(tap);
+
+        var grid = new Grid
+        {
+            Padding = new Thickness(18),
+            RowDefinitions =
+            {
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Star },
+                new RowDefinition { Height = GridLength.Auto },
+            },
+        };
+
+        var tagBorder = new Border
+        {
+            Padding = new Thickness(8, 3),
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 999 },
+            BackgroundColor = Color.FromArgb("#30FFFFFF"),
+            HorizontalOptions = LayoutOptions.Start,
+            Content = new Label { Text = string.IsNullOrEmpty(entry.Icon) ? entry.Title : entry.Icon, FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
+        };
+        grid.Children.Add(tagBorder);
+
+        var content = new VerticalStackLayout
+        {
+            VerticalOptions = LayoutOptions.Center,
+            Spacing = 4,
+        };
+        content.Children.Add(new Label
+        {
+            Text = entry.Title,
+            FontSize = 17,
+            FontFamily = "OpenSansSemibold",
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White,
+            MaxLines = 2,
+            Margin = new Thickness(0, 2, 16, 0),
+        });
+        content.Children.Add(new Label
+        {
+            Text = entry.Subtitle,
+            FontSize = 11,
+            TextColor = Color.FromArgb("#CCFFFFFF"),
+            MaxLines = 2,
+            Margin = new Thickness(0, 0, 16, 0),
+        });
+        Grid.SetRow(content, 1);
+        grid.Children.Add(content);
+
+        var arrow = new Border
+        {
+            WidthRequest = 42,
+            HeightRequest = 42,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 21 },
+            BackgroundColor = Color.FromArgb("#50FFFFFF"),
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.End,
+            Content = new Label { Text = "›", FontSize = 24, TextColor = Colors.White, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center },
+        };
+        Grid.SetRow(arrow, 2);
+        grid.Children.Add(arrow);
+
+        card.Content = grid;
+        return card;
+    }
+
+    /// <summary>点击快捷入口卡：通知插件执行动作，随后打开该插件入口页面（若实现 IViewContributorPlugin）。</summary>
+    private async Task OnQuickEntryTappedAsync(IQuickEntryPlugin plugin, QuickEntryInfo entry)
+    {
+        try
+        {
+            plugin.ExecuteQuickEntry(entry.Id);
+            if (Services.GetService(typeof(IPluginManager)) is not IPluginManager pm) return;
+            var contributor = pm.GetEnabledPlugins<IViewContributorPlugin>()
+                .FirstOrDefault(c => string.Equals(c.PluginId, plugin.PluginId, StringComparison.OrdinalIgnoreCase));
+            if (contributor != null)
+                await OpenPluginEntryAsync(contributor);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[QuickEntry] 打开快捷入口失败: {ex.Message}");
         }
     }
 
@@ -410,9 +542,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         index = ((index % count) + count) % count;
         _heroIndex = index;
 
-        // 轨道第 0 位是 AI 助手卡，英雄卡从索引 1 开始：滚动位置 = (index + 1) 张卡的偏移
+        // 轨道前部是 AI 卡 + 插件快捷入口卡，英雄卡从 _heroStartIndex 开始：滚动位置 = (index + _heroStartIndex) 张卡的偏移
         var step = _heroCardWidth > 0 ? _heroCardWidth + HeroSpacing : HeroScroll.Width / 2;
-        await HeroScroll.ScrollToAsync((index + 1) * step, 0, true);
+        await HeroScroll.ScrollToAsync((index + _heroStartIndex) * step, 0, true);
         HeroDots.Position = index;
     }
 
@@ -421,7 +553,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         if (_heroCardWidth <= 0) return;
         var count = _vm.HeroCards.Count;
         if (count == 0) return;
-        var idx = (int)Math.Round(e.ScrollX / (_heroCardWidth + HeroSpacing)) - 1;
+        var idx = (int)Math.Round(e.ScrollX / (_heroCardWidth + HeroSpacing)) - _heroStartIndex;
         idx = Math.Clamp(idx, 0, count - 1);
         if (idx != _heroIndex)
         {
