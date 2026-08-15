@@ -230,7 +230,9 @@ public class LocalScanService
                         {
                             try
                             {
-                                var song = TagReader.ReadSongInfo(path);
+                                // readDuration: false —— TagLib 读 duration 需全文件 IO（VBR/大 flac），
+                                // 1000 首会卡死；时长由播放器播放时回填
+                                var song = TagReader.ReadSongInfo(path, readDuration: false);
                                 if (song != null)
                                 {
                                     song.Source = SongSource.Local;

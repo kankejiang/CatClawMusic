@@ -69,6 +69,13 @@ public partial class MusicDatabase
         return await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
     }
 
+    /// <summary>回填歌曲时长（扫描时跳过 duration 提速，播放时由播放器拿到真实值后补写）</summary>
+    public Task UpdateSongDurationAsync(int songId, int durationSeconds)
+    {
+        if (songId <= 0 || durationSeconds <= 0) return Task.CompletedTask;
+        return _database.ExecuteAsync("UPDATE Song SET Duration = ? WHERE Id = ?", durationSeconds, songId);
+    }
+
     /// <summary>
     /// 获取网络歌曲总数（WebDAV + SMB + 缓存的网络歌曲）
     /// </summary>

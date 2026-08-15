@@ -86,14 +86,17 @@ public class TagReader
     /// <summary>
     /// 从音频文件读取歌曲信息
     /// </summary>
-    public static Song? ReadSongInfo(string filePath)
+    /// <param name="filePath">音频文件路径</param>
+    /// <param name="readDuration">是否读取时长。扫描大批量歌曲时传 false 可大幅提速——
+    /// TagLib 访问 Properties.Duration 需要全文件读取（VBR mp3 扫全文件、flac 流式全读），
+    /// 1000 首大文件会 IO 饱和卡死；只读标签仅需文件头部。</param>
+    public static Song? ReadSongInfo(string filePath, bool readDuration = true)
     {
         if (!IOFile.Exists(filePath)) return null;
 
         try
         {
             using var file = TagLib.File.Create(filePath);
-            var props = file.Properties;
             var tag = file.Tag;
             var fileInfo = new FileInfo(filePath);
 
@@ -108,13 +111,24 @@ public class TagReader
                     : Path.GetFileNameWithoutExtension(filePath),
                 Artist = artist,
                 Album = tag.Album ?? "未知专辑",
-                Duration = (int)props.Duration.TotalSeconds,
+                Duration = 0, // 扫描时不读（避免全文件 IO）；播放时由播放器回填
                 FileSize = fileInfo.Length,
-                Bitrate = props.AudioBitrate,
+                Bitrate = propsAudioBitrate(file),
                 FilePath = filePath,
                 LyricsPath = null, // 延迟到播放时查找，避免扫描时逐文件 I/O
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
+
+            if (readDuration)
+            {
+                try
+                {
+                    var props = file.Properties;
+                    song.Duration = (int)props.Duration.TotalSeconds;
+                    if (song.Bitrate == 0) song.Bitrate = props.AudioBitrate;
+                }
+                catch { }
+            }
 
             return song;
         }
@@ -140,7 +154,7 @@ public class TagReader
                                 : Path.GetFileNameWithoutExtension(filePath),
                             Artist = !string.IsNullOrWhiteSpace(meta.Artist) ? meta.Artist : "未知艺术家",
                             Album = !string.IsNullOrWhiteSpace(meta.Album) ? meta.Album : "未知专辑",
-                            Duration = meta.DurationSeconds,
+                            Duration = readDuration ? meta.DurationSeconds : 0,
                             FileSize = fileInfo.Length,
                             Bitrate = meta.Bitrate,
                             FilePath = filePath,
@@ -164,6 +178,19 @@ public class TagReader
                 FileSize = fileInfo.Length,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
+        }
+    }
+
+    /// <summary>读取音频比特率（读取 Properties 本身也轻量；仅 Duration 需要全文件）</summary>
+    private static int propsAudioBitrate(TagLib.File file)
+    {
+        try
+        {
+            return (int)file.Properties.AudioBitrate;
+        }
+        catch
+        {
+            return 0;
         }
     }
 

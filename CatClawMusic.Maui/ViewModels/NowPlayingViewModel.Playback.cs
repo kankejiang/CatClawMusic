@@ -79,6 +79,18 @@ public partial class NowPlayingViewModel
             Duration = duration;
             TotalTimeDisplay = FormatTime(Duration);
         }
+
+        // 本地歌时长回填：扫描时跳过 duration（避免全文件 IO 卡顿），
+        // 播放时拿到真实时长后补写 Song 与数据库，列表时长从 "--:--" 恢复
+        if (duration > 1 && _queue.CurrentSong is { Duration: 0, Source: SongSource.Local } song)
+        {
+            song.Duration = (int)duration;
+            _ = Task.Run(async () =>
+            {
+                try { await _db.UpdateSongDurationAsync(song.Id, (int)duration); }
+                catch (Exception ex) { Log.Debug("NowPlaying", $"[NowPlaying] 回填时长失败: {ex.Message}"); }
+            });
+        }
     }
 
     private void OnPositionChanged(object? sender, TimeSpan position)
