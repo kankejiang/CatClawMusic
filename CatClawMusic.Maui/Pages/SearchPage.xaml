@@ -194,11 +194,15 @@
                             <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
                         </Grid>
 
-                        <CarouselView x:Name="HeroCarousel" Margin="18,0,18,16" ItemsSource="{Binding HeroCards}" HeightRequest="188" IndicatorView="HeroIndicator" IsBounceEnabled="False">
+                        <CarouselView x:Name="HeroCarousel" Margin="18,0,18,12" ItemsSource="{Binding HeroCards}"
+                                      HeightRequest="216" IndicatorView="HeroIndicator" IsBounceEnabled="False"
+                                      PeekAreaInsets="44,0,44,0" HorizontalScrollBarVisibility="Never">
                             <CarouselView.Behaviors><controls:ScrollPerformanceBehavior /></CarouselView.Behaviors>
                             <CarouselView.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="18" StrokeThickness="0" StrokeShape="RoundRectangle 24">
+                                    <!-- 方形英雄卡（与横屏布局一致）：宽=高，部分可见轮播 -->
+                                    <Border WidthRequest="204" Padding="16" StrokeThickness="0" StrokeShape="RoundRectangle 22"
+                                            HorizontalOptions="Center" VerticalOptions="Center">
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnHeroCardTapped" />
                                         </Border.GestureRecognizers>
@@ -208,23 +212,23 @@
                                                 <GradientStop Color="{Binding GradientEnd}" Offset="1" />
                                             </LinearGradientBrush>
                                         </Border.Background>
-                                        <Grid>
-                                            <VerticalStackLayout VerticalOptions="Start" Spacing="6">
-                                                <Border Padding="10,4" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
-                                                    <Label Text="{Binding Tag}" FontSize="10" FontAttributes="Bold" TextColor="White" CharacterSpacing="2" />
-                                                </Border>
-                                                <Label Text="{Binding Title}" FontSize="22" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" Margin="0,4,80,0" />
-                                                <Label Text="{Binding Description}" FontSize="12" TextColor="#CCFFFFFF" MaxLines="2" Margin="0,2,80,0" />
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <Border Padding="9,3" StrokeThickness="0" StrokeShape="RoundRectangle 999" BackgroundColor="#30FFFFFF" HorizontalOptions="Start">
+                                                <Label Text="{Binding Tag}" FontSize="9" FontAttributes="Bold" TextColor="White" CharacterSpacing="1.5" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" Spacing="4">
+                                                <Label Text="{Binding Title}" FontSize="18" FontFamily="OpenSansSemibold" TextColor="White" MaxLines="2" />
+                                                <Label Text="{Binding Description}" FontSize="10.5" TextColor="#CCFFFFFF" MaxLines="2" />
                                             </VerticalStackLayout>
-                                            <Border WidthRequest="54" HeightRequest="54" StrokeShape="RoundRectangle 27" BackgroundColor="#50FFFFFF" HorizontalOptions="End" VerticalOptions="End">
-                                                <ImageButton Source="ic_play" WidthRequest="24" HeightRequest="24" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnHeroPlayTapped" />
+                                            <Border Grid.Row="2" WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 20" BackgroundColor="#50FFFFFF" HorizontalOptions="End">
+                                                <ImageButton Source="ic_play" WidthRequest="20" HeightRequest="20" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnHeroPlayTapped" />
                                             </Border>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
                             </CarouselView.ItemTemplate>
                         </CarouselView>
-                        <IndicatorView x:Name="HeroIndicator" Margin="0,0,0,16" IndicatorColor="#50FFFFFF" SelectedIndicatorColor="White" IndicatorsShape="Circle" HorizontalOptions="Center" />
+                        <IndicatorView x:Name="HeroIndicator" Margin="0,0,0,14" IndicatorColor="#50FFFFFF" SelectedIndicatorColor="White" IndicatorsShape="Circle" HorizontalOptions="Center" />
 
                         <!-- AI 助手入口卡：位于轮播卡片下方，点击进入 AI 聊天模式 -->
                         <Border x:Name="AiEntryCard"

@@ -180,7 +180,7 @@
                                                 Command="{Binding UpdateCommand}"
                                                 CommandParameter="{Binding .}"
                                                 IsVisible="{Binding UpdateAvailable}"
-                                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBoolConverter}}" />
+                                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InvertedBoolConverter}}" />
                                         <Border IsVisible="{Binding CanConfigure}"
                                                 Padding="9,4"
                                                 StrokeThickness="0"
