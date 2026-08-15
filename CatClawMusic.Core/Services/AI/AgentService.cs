@@ -1,9 +1,8 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
-
-using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services.AI;
 
@@ -257,8 +256,9 @@ public class AgentService : IAgentService
         _player = player;
         _currentAgentId = LoadCurrentAgentId();
         // 工具集合在构造后固定：定义与查找表缓存一次，避免每条消息/每个工具轮次重复构建
+        // 查找表忽略大小写（repairToolCall 思路：模型偶发 Web_Search / WebSearch 大小写变体也能命中）
         _toolDefs = _tools.Select(t => t.GetDefinition()).ToList();
-        _toolMap = _tools.ToDictionary(t => t.Name);
+        _toolMap = new Dictionary<string, IAgentTool>(_tools.ToDictionary(t => t.Name), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>工具函数定义（构造时缓存）</summary>
@@ -533,48 +533,99 @@ public class AgentService : IAgentService
                 return loopMsg;
             }
 
+            // ── 工具分派（复刻 opencode 执行管线）──
+            // 1) 只读查询工具并行执行（Task.WhenAll，网络等待重叠提速，对齐 opencode
+            //    AI SDK 的并行 tool dispatch）；写入/控制类工具按顺序串行保证状态安全
+            // 2) 执行前按参数 schema 校验必填项（InvalidArgumentsError 思路）：缺参/类型
+            //    不符返回明确错误，引导模型重写参数而非静默取默认值
+            // 3) 工具名忽略大小写匹配（repairToolCall 思路），未知工具返回可用工具清单
+            // 4) 结果统一截断（truncate 思路）：行数+字节双限，头部保留 + 截断标记
+            var callInfos = new List<(ToolCall Call, IAgentTool? Tool, bool ReadOnly)>();
             foreach (var toolCall in response.ToolCalls)
             {
+                if (toolMap.TryGetValue(toolCall.Function.Name, out var tool))
+                    callInfos.Add((toolCall, tool, tool.IsReadOnly));
+                else
+                    callInfos.Add((toolCall, null, false));
+            }
+
+            var toolResults = new ConcurrentDictionary<string, (string Result, List<Song>? Songs)>();
+
+            async Task ExecuteToolAsync((ToolCall Call, IAgentTool? Tool, bool ReadOnly) info)
+            {
+                var call = info.Call;
                 string toolResult;
                 List<Song>? songs = null;
-                if (toolMap.TryGetValue(toolCall.Function.Name, out var tool))
+                if (info.Tool == null)
                 {
-                    try
+                    toolResult = JsonSerializer.Serialize(new
                     {
-                        toolResult = await tool.ExecuteAsync(toolCall.Function.Arguments);
-                        _logService.Info("Agent", $"Agent 工具 {toolCall.Function.Name} 执行成功");
-
-                        if (toolCall.Function.Name == "search_music" && _musicLibrary != null)
-                        {
-                            try
-                            {
-                                var keyword = ArgHelper.ExtractStringArgFallback(toolCall.Function.Arguments, "keyword");
-                                if (!string.IsNullOrWhiteSpace(keyword))
-                                    songs = await _musicLibrary.SearchAsync(keyword);
-                            }
-                            catch { }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        toolResult = JsonSerializer.Serialize(new { error = $"工具执行失败: {ex.Message}" });
-                        _logService.Warn("Agent", $"Agent 工具 {toolCall.Function.Name} 执行失败: {ex.Message}");
-                    }
+                        error = $"未知工具: {call.Function.Name}",
+                        hint = $"可用工具: {string.Join(", ", toolMap.Keys)}。请使用正确的工具名重新调用"
+                    });
+                    _logService.Warn("Agent", $"Agent 调用了未知工具 {call.Function.Name}");
                 }
                 else
                 {
-                    toolResult = JsonSerializer.Serialize(new { error = $"未知工具: {toolCall.Function.Name}" });
+                    var tool = info.Tool;
+                    var validationError = AgentToolDispatch.ValidateArguments(tool, call.Function.Arguments);
+                    if (validationError != null)
+                    {
+                        toolResult = validationError;
+                        _logService.Warn("Agent", $"Agent 工具 {tool.Name} 参数校验失败");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            toolResult = await tool.ExecuteAsync(call.Function.Arguments);
+                            _logService.Info("Agent", $"Agent 工具 {tool.Name} 执行成功");
+
+                            if (tool.Name == "search_music" && _musicLibrary != null)
+                            {
+                                try
+                                {
+                                    var keyword = ArgHelper.ExtractStringArgFallback(call.Function.Arguments, "keyword");
+                                    if (!string.IsNullOrWhiteSpace(keyword))
+                                        songs = await _musicLibrary.SearchAsync(keyword);
+                                }
+                                catch { }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            toolResult = JsonSerializer.Serialize(new { error = $"工具执行失败: {ex.Message}" });
+                            _logService.Warn("Agent", $"Agent 工具 {tool.Name} 执行失败: {ex.Message}");
+                        }
+                    }
                 }
+                toolResults[call.Id] = (AgentToolDispatch.TruncateResult(toolResult), songs);
+            }
 
-                if (toolResult.Length > 1000)
-                    toolResult = toolResult[..1000] + "..(截断)";
+            var readOnlyTasks = new List<Task>();
+            foreach (var info in callInfos)
+            {
+                if (!info.ReadOnly) continue;
+                readOnlyTasks.Add(ExecuteToolAsync(info));
+            }
+            if (readOnlyTasks.Count > 0)
+                await Task.WhenAll(readOnlyTasks);
 
+            foreach (var info in callInfos)
+            {
+                if (info.ReadOnly) continue;
+                await ExecuteToolAsync(info);
+            }
+
+            foreach (var info in callInfos)
+            {
+                var (toolResult, songs) = toolResults[info.Call.Id];
                 var toolResultMsg = new ChatMessage
                 {
                     Role = "tool",
                     Content = toolResult,
-                    ToolCallId = toolCall.Id,
-                    Name = toolCall.Function.Name,
+                    ToolCallId = info.Call.Id,
+                    Name = info.Call.Function.Name,
                     Songs = songs
                 };
                 _conversationHistory.Add(toolResultMsg);

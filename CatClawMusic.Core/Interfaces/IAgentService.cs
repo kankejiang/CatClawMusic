@@ -42,6 +42,9 @@ public interface IAgentTool
     /// <summary>工具功能描述（提供给 LLM 用于判断何时调用）</summary>
     string Description { get; }
 
+    /// <summary>是否为只读查询工具（只读工具可并行执行；写入/控制类工具必须串行保证顺序）</summary>
+    bool IsReadOnly => false;
+
     /// <summary>获取工具的参数定义，用于 LLM Function Calling 协议</summary>
     ToolDefinition GetDefinition();
 

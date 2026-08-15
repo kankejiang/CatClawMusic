@@ -17,6 +17,7 @@ public class SearchMusicTool : IAgentTool
     public string Name => "search_music";
     /// <summary>工具描述，提供给 LLM 用于判断何时调用该工具</summary>
     public string Description => "搜索音乐库中的歌曲，支持按歌名、艺术家、专辑关键词搜索";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 SearchMusicTool 实例
@@ -229,6 +230,7 @@ public class ListPlaylistsTool : IAgentTool
     public string Name => "list_playlists";
     /// <summary>工具描述</summary>
     public string Description => "获取用户所有播放列表（歌单）";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 ListPlaylistsTool 实例
@@ -270,6 +272,7 @@ public class GetPlaylistSongsTool : IAgentTool
     public string Name => "get_playlist_songs";
     /// <summary>工具描述</summary>
     public string Description => "获取指定歌单中的歌曲列表";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 GetPlaylistSongsTool 实例
@@ -371,6 +374,7 @@ public class GetFavoriteSongsTool : IAgentTool
     public string Name => "get_favorite_songs";
     /// <summary>工具描述</summary>
     public string Description => "获取收藏的歌曲列表";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 GetFavoriteSongsTool 实例
@@ -431,6 +435,7 @@ public class GetRecentSongsTool : IAgentTool
     public string Name => "get_recent_songs";
     /// <summary>工具描述</summary>
     public string Description => "获取最近播放的歌曲列表";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 GetRecentSongsTool 实例
@@ -490,6 +495,7 @@ public class GetListeningStatsTool : IAgentTool
     /// <summary>工具名称</summary>
     public string Name => "get_listening_stats";
     /// <summary>工具描述</summary>
+    public bool IsReadOnly => true;
     public string Description => "获取播放统计数据，包括播放次数最多的歌曲排行";
 
     /// <summary>

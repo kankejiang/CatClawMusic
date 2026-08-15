@@ -23,6 +23,7 @@ public class BrowserOpenTool : IAgentTool
 {
     public string Name => "browser_open";
     public string Description => "打开内置浏览器加载指定网页，并读取页面渲染后的正文内容。当 fetch_web_page 无法获取内容（动态渲染页面、需要执行 JavaScript 的站点、天气/实时数据等）时使用此工具。输入要打开的 URL。";
+    public bool IsReadOnly => true;
 
     public ToolDefinition GetDefinition() => new()
     {

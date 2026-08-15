@@ -189,6 +189,7 @@ public class GetCurrentSongTool : IAgentTool
     public string Name => "get_current_song";
     /// <summary>工具描述</summary>
     public string Description => "获取当前正在播放的歌曲信息，包括歌名、艺术家、专辑、播放进度等";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 GetCurrentSongTool 实例
@@ -246,6 +247,7 @@ public class GetPlayQueueTool : IAgentTool
     public string Name => "get_play_queue";
     /// <summary>工具描述</summary>
     public string Description => "获取当前播放队列信息，包括播放模式、队列中的歌曲和即将播放的歌曲";
+    public bool IsReadOnly => true;
 
     /// <summary>
     /// 构造 GetPlayQueueTool 实例

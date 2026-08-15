@@ -33,6 +33,7 @@ public class FetchWebPageTool : IAgentTool
 
     public string Name => "fetch_web_page";
     public string Description => "抓取指定网页的正文内容（输入 URL），返回页面标题与可读文本。当搜索结果只给了链接和摘要、需要了解具体内容时使用此工具深入阅读页面。";
+    public bool IsReadOnly => true;
 
     public FetchWebPageTool()
     {
