@@ -294,18 +294,21 @@
                             </CollectionView>
                         </VerticalStackLayout>
 
-                        <!-- 推荐专辑（对齐横屏布局：AI 歌单下方，竖屏 2 列网格） -->
+                        <!-- 推荐专辑（两行横滑：每屏 2 行 × 多列，横向滚动） -->
                         <Grid Margin="20,0,20,8" ColumnDefinitions="*,Auto">
                             <Label Text="推荐专辑" Style="{StaticResource SectionTitleStyle}" />
                             <Button Grid.Column="1" Text="查看全部 ›" FontSize="12" HeightRequest="34" CornerRadius="16" BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnViewAllAlbumsClicked" />
                         </Grid>
-                        <CollectionView x:Name="RecommendAlbumGrid" Margin="18,0,18,16" ItemsSource="{Binding RecommendAlbums}"
+                        <CollectionView x:Name="RecommendAlbumGrid" Margin="18,0,18,16" HeightRequest="432"
+                                        ItemsSource="{Binding RecommendAlbums}"
                                         SelectionMode="Single" SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
-                            <CollectionView.ItemsLayout><GridItemsLayout Orientation="Vertical" Span="2" VerticalItemSpacing="12" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
+                            <CollectionView.ItemsLayout>
+                                <GridItemsLayout Orientation="Horizontal" Span="2" VerticalItemSpacing="12" HorizontalItemSpacing="12" />
+                            </CollectionView.ItemsLayout>
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
-                                    <VerticalStackLayout Spacing="6">
+                                    <VerticalStackLayout WidthRequest="160" Spacing="6">
                                         <Border StrokeShape="RoundRectangle 24" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
                                             <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill">
                                                 <Image.Behaviors><controls:SquareBehavior /></Image.Behaviors>
