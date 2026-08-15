@@ -66,6 +66,15 @@ public partial class DownloadsPage : ContentPage
         return DisplayAlert(title, message, cancel);
     }
 
+    /// <summary>弹选择框（确认/取消双按钮）：同上，Windows 嵌入模式用窗口根页面</summary>
+    private Task<bool> AlertAsync(string title, string message, string accept, string cancel)
+    {
+        var root = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root != null && root != this)
+            return root.DisplayAlert(title, message, accept, cancel);
+        return DisplayAlert(title, message, accept, cancel);
+    }
+
     /// <summary>任务操作按钮统一入口（ClassId 标记动作，Windows 嵌入模式不依赖绑定树）</summary>
     private async void OnTaskActionClicked(object? sender, EventArgs e)
     {
