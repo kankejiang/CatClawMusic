@@ -216,7 +216,9 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             {
                 using var doc = JsonDocument.Parse(data);
                 var root = doc.RootElement;
-                if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                if (!root.TryGetProperty("choices", out var choices)
+                    || choices.ValueKind != JsonValueKind.Array
+                    || choices.GetArrayLength() == 0)
                     continue;
                 var choice = choices[0];
 

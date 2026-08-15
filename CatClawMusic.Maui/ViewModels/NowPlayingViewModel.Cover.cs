@@ -314,15 +314,17 @@ public partial class NowPlayingViewModel
                     ? bucketed
                     : coverPath;
                 if (finalPath == bucketed && coverPath != bucketed)
-                {
-                    try { File.Delete(coverPath); } catch { }
-                }
+                    Services.CoverHelper.TryDeleteSource(coverPath);
             }
             else
             {
                 var resolved = Services.CoverHelper.ResolveSingleCover(song, Services.CoverHelper.NowPlayingSize);
                 finalPath = resolved ?? coverPath;
             }
+
+            // 并发解析可能删除了临时提取文件：显示前兜底，文件缺失时用默认封面，避免 Glide ENOENT 黑图
+            if (!File.Exists(finalPath))
+                finalPath = DefaultCoverService.GetDefaultCoverPath();
 
             CurrentCoverPath = finalPath;
             await MainThread.InvokeOnMainThreadAsync(() =>

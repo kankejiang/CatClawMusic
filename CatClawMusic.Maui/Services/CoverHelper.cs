@@ -472,15 +472,24 @@ public static class CoverHelper
         }
     }
 
-    /// <summary>安全删除源文件（忽略失败）</summary>
-    private static void TryDeleteSource(string path)
+    /// <summary>
+    /// 安全删除源文件（忽略失败）。延迟 15 秒执行：并发封面解析（如 play_song 触发播放页
+    /// 提取 + 列表批量解析）可能刚把该临时路径交给 ImageView（FileImageSource 尚未解码），
+    /// 立即删除会导致 Glide/BitmapFactory 加载 ENOENT 黑图（日志特征：
+    /// "Unable to decode stream: FileNotFoundException ... _cover.jpg" + Glide failed to load image）。
+    /// </summary>
+    public static void TryDeleteSource(string path)
     {
-        try
+        if (string.IsNullOrEmpty(path)) return;
+        _ = Task.Run(async () =>
         {
-            if (!string.IsNullOrEmpty(path) && File.Exists(path))
-                File.Delete(path);
-        }
-        catch { /* 忽略删除失败 */ }
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(15));
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch { /* 忽略删除失败 */ }
+        });
     }
 
     /// <summary>快速读取图片最大边长（像素），用于判断是否需要重新提取更高分辨率源。</summary>
