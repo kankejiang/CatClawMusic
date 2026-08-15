@@ -196,7 +196,7 @@
 
                         <!-- Hero 卡片横向并排（横屏同款：一行方形卡横滑，不自动轮播）。
                              数据源由 code-behind 赋值：AI 助手卡 + HeroCards -->
-                        <CollectionView x:Name="HeroGrid" Margin="18,0,18,14"
+                        <CollectionView x:Name="HeroGrid" Margin="18,0,18,14" HeightRequest="170"
                                         SelectionMode="None" ItemsUpdatingScrollMode="KeepItemsInView">
                             <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                             <CollectionView.ItemsLayout>
