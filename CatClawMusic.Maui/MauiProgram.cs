@@ -302,6 +302,7 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, BrowserOpenTool>();
         services.AddSingleton<IAgentTool, DownloadFileTool>();
         services.AddSingleton<IAgentTool, NetEaseMusicDownloadTool>();
+        services.AddSingleton<IAgentTool, KuwoMusicDownloadTool>();
         // Agent 下载：download_file 工具复用应用内置下载管理器（任务出现在下载中心）
         services.AddSingleton<Services.DownloadManager>(sp =>
         {
