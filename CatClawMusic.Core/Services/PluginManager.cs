@@ -780,6 +780,155 @@ public class PluginManager : IPluginManager
     }
 
     /// <summary>
+    /// 检查插件是否有新版本。更新源优先级：
+    /// 1) 插件实现 <see cref="IPlugin.UpdateUrl"/>（返回 manifest JSON：version/download_url/notes）
+    /// 2) GitHub 约定：安装时记录的仓库地址 → releases/latest 的 tag_name 对比本地版本
+    /// 检查失败（网络/无 Release/无更新）返回 null 或 HasUpdate=false，不抛异常。
+    /// </summary>
+    public async Task<PluginUpdateInfo?> CheckPluginUpdateAsync(PluginInfo plugin)
+    {
+        try
+        {
+            // 1. 插件自带更新源（manifest JSON）
+            var updateUrl = plugin.Plugin.UpdateUrl;
+            if (!string.IsNullOrWhiteSpace(updateUrl))
+            {
+                var json = await _httpClient.GetStringAsync(updateUrl);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                var version = root.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+                if (string.IsNullOrEmpty(version)) return null;
+                return new PluginUpdateInfo
+                {
+                    HasUpdate = IsNewerVersion(version, plugin.Version),
+                    LatestVersion = version,
+                    DownloadUrl = root.TryGetProperty("download_url", out var d) ? d.GetString() : null,
+                    ReleaseNotes = root.TryGetProperty("notes", out var n) ? n.GetString() : null,
+                    Homepage = plugin.InstallUrl
+                };
+            }
+
+            // 2. GitHub Releases 约定
+            if (string.IsNullOrWhiteSpace(plugin.InstallUrl)
+                || !plugin.InstallUrl.Contains("github.com", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string owner, repo;
+            try
+            {
+                var uri = new Uri(plugin.InstallUrl);
+                var segs = uri.AbsolutePath.Trim('/').Split('/');
+                if (segs.Length < 2) return null;
+                owner = segs[0];
+                repo = segs[1];
+            }
+            catch { return null; }
+
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://api.github.com/repos/{owner}/{repo}/releases/latest");
+            request.Headers.UserAgent.ParseAdd("CatClawMusic/1.0");
+            request.Headers.Accept.ParseAdd("application/vnd.github.v3+json");
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return null; // 404 = 无 Release
+            var releasesJson = await response.Content.ReadAsStringAsync();
+
+            using var doc2 = System.Text.Json.JsonDocument.Parse(releasesJson);
+            var root2 = doc2.RootElement;
+            var tag = root2.TryGetProperty("tag_name", out var t) ? (t.GetString() ?? "").TrimStart('v', 'V') : "";
+            if (string.IsNullOrEmpty(tag)) return null;
+
+            // 找 .ccp 附件作为下载源
+            string? downloadUrl = null;
+            if (root2.TryGetProperty("assets", out var assets) && assets.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    var name = asset.TryGetProperty("name", out var n2) ? n2.GetString() ?? "" : "";
+                    if (name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        downloadUrl = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() : null;
+                        break;
+                    }
+                }
+            }
+
+            return new PluginUpdateInfo
+            {
+                HasUpdate = IsNewerVersion(tag, plugin.Version),
+                LatestVersion = tag,
+                DownloadUrl = downloadUrl,
+                ReleaseNotes = root2.TryGetProperty("body", out var b) ? (b.GetString() ?? "").Trim() : null,
+                Homepage = plugin.InstallUrl
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>语义化版本对比（支持 v 前缀；解析失败回退字符串比较）</summary>
+    private static bool IsNewerVersion(string latest, string current)
+    {
+        if (Version.TryParse(latest.TrimStart('v', 'V'), out var lv)
+            && Version.TryParse(current.TrimStart('v', 'V'), out var cv))
+            return lv > cv;
+        return string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0;
+    }
+
+    /// <summary>
+    /// 更新插件：下载新版本文件 → 卸载旧实例 → 安装新文件 → 重新加载注册。
+    /// 返回更新后的 PluginInfo；失败返回 null（不破坏旧插件）。
+    /// </summary>
+    public async Task<PluginInfo?> UpdatePluginAsync(PluginInfo plugin, IProgress<(string, int)>? progress = null)
+    {
+        var update = await CheckPluginUpdateAsync(plugin);
+        if (update?.HasUpdate != true || string.IsNullOrEmpty(update.DownloadUrl))
+            return null;
+
+        var tempPath = plugin.AssemblyPath + ".update.tmp";
+        try
+        {
+            progress?.Report(("正在下载新版本...", 10));
+            using var downloadResponse = await _httpClient.GetAsync(update.DownloadUrl);
+            downloadResponse.EnsureSuccessStatusCode();
+            var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1;
+            await using var remoteStream = await downloadResponse.Content.ReadAsStreamAsync();
+            await using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write);
+            var buffer = new byte[8192];
+            long totalRead = 0;
+            int bytesRead;
+            while ((bytesRead = await remoteStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+                if (totalBytes > 0)
+                    progress?.Report(($"正在下载新版本... ({totalRead * 100 / totalBytes}%)", 10 + (int)(totalRead * 40 / totalBytes)));
+            }
+
+            // 下载成功后：卸载旧实例（Assembly.LoadFrom 不锁文件，删除安全）
+            await UninstallPluginAsync(plugin.PluginTypeId);
+
+            // 新文件名用 asset 名，避免与旧文件冲突；放入插件目录
+            var newName = Path.GetFileName(new Uri(update.DownloadUrl).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(newName) || !newName.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase))
+                newName = $"plugin-{update.LatestVersion}.ccp";
+            var destPath = Path.Combine(_pluginsDir, newName);
+            if (File.Exists(destPath)) File.Delete(destPath);
+            File.Move(tempPath, destPath);
+
+            progress?.Report(("正在加载新版本...", 80));
+            return await LoadAndRegisterPluginAsync(destPath, plugin.InstallUrl, progress);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManager", $"[PluginManager] 更新插件失败: {ex.Message}");
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 将已安装插件索引持久化到 installed.json 文件。
     /// <para>
     /// 仅保存可卸载的插件（CanUninstall 为 true），即动态安装的插件。

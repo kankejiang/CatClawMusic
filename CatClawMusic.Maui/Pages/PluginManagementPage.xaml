@@ -130,6 +130,11 @@
                                                 <Label Text="{Binding Version, StringFormat='v{0}'}"
                                                        FontSize="10"
                                                        TextColor="{DynamicResource TextHintColor}" />
+                                                <Label Text="{Binding UpdateVersion, StringFormat='↑ 有新版本 v{0}'}"
+                                                       FontSize="10"
+                                                       FontFamily="OpenSansSemibold"
+                                                       TextColor="#4CAF50"
+                                                       IsVisible="{Binding UpdateAvailable}" />
                                                 <Label Text="{Binding Author, StringFormat='by {0}'}"
                                                        FontSize="10"
                                                        TextColor="{DynamicResource TextHintColor}"
@@ -167,6 +172,15 @@
                                                    TextColor="#FF6B6B"
                                                    HorizontalOptions="Center" />
                                         </Border>
+                                        <Button Text="🔄 更新"
+                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
+                                                BackgroundColor="{DynamicResource PrimaryColor}"
+                                                TextColor="White"
+                                                VerticalOptions="Center"
+                                                Command="{Binding UpdateCommand}"
+                                                CommandParameter="{Binding .}"
+                                                IsVisible="{Binding UpdateAvailable}"
+                                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBoolConverter}}" />
                                         <Border IsVisible="{Binding CanConfigure}"
                                                 Padding="9,4"
                                                 StrokeThickness="0"

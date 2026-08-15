@@ -11,7 +11,7 @@ namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
 /// 插件管理页 ViewModel：展示已安装插件列表、启用/禁用开关、状态标签，并支持两种方式添加插件：
-/// 本地安装（FilePicker 选 .dll/.ccp）与网络安装（GitHub 仓库地址自动拉取最新 Release 附件，或直接输入直链）。
+/// 本地安装（FilePicker 选 .dll/.ccp）与网络安装（GitHub/Gitee 仓库地址自动拉取最新 Release 附件，或直接输入直链）。
 /// （在线插件商店已于 2026-08-06 移除：多市场源/联网拉取在国内网络不可靠，改为按需网络安装。）
 /// </summary>
 public partial class PluginManagementViewModel : ObservableObject
@@ -89,7 +89,8 @@ public partial class PluginManagementViewModel : ObservableObject
                 {
                     UninstallCommand = UninstallPluginCommand,
                     ConfigureCommand = ConfigurePluginCommand,
-                    ToggleCommand = ToggleEnabledCommand
+                    ToggleCommand = ToggleEnabledCommand,
+                    UpdateCommand = UpdatePluginCommand
                 });
             }
 
@@ -106,6 +107,56 @@ public partial class PluginManagementViewModel : ObservableObject
         finally
         {
             IsRefreshing = false;
+        }
+    }
+
+    /// <summary>并行检查所有已安装插件的更新（失败/无 Release 静默，不打扰）</summary>
+    public async Task CheckAllUpdatesAsync()
+    {
+        var candidates = Plugins.Where(p => p.CanCheckUpdate && !p.UpdateAvailable).ToList();
+        if (candidates.Count == 0) return;
+
+        await Task.WhenAll(candidates.Select(async item =>
+        {
+            try
+            {
+                var update = await _pluginManager.CheckPluginUpdateAsync(item.Info);
+                if (update?.HasUpdate == true)
+                {
+                    item.UpdateAvailable = true;
+                    item.UpdateVersion = update.LatestVersion;
+                }
+            }
+            catch { }
+        }));
+    }
+
+    /// <summary>更新指定插件：下载新版本 → 替换 → 重载</summary>
+    [RelayCommand]
+    public async Task UpdatePluginAsync(PluginItemView? item)
+    {
+        if (item == null || item.IsUpdating) return;
+        item.IsUpdating = true;
+        try
+        {
+            var progress = new Progress<(string, int)>(t => { });
+            var result = await _pluginManager.UpdatePluginAsync(item.Info, progress);
+            if (result == null)
+            {
+                await ShowAlertAsync("插件", $"「{item.DisplayName}」更新失败，请稍后重试");
+                return;
+            }
+            await ShowAlertAsync("插件", $"「{item.DisplayName}」已更新到 v{item.UpdateVersion}，重新加载完成");
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementViewModel", $"[PluginManagement] 更新插件失败: {ex.Message}");
+            await ShowAlertAsync("插件", $"更新失败：{ex.Message}");
+        }
+        finally
+        {
+            item.IsUpdating = false;
         }
     }
 
@@ -166,9 +217,9 @@ public partial class PluginManagementViewModel : ObservableObject
             if (page == null) return;
             var input = await page.DisplayPromptAsync(
                 "网络安装插件",
-                "输入 GitHub 仓库地址，自动拉取最新 Release 中的插件包（.ccp）；\n也可直接粘贴插件包下载直链：\n\n仓库示例：https://github.com/owner/repo\n直链示例：https://.../xxx.ccp",
+                "输入 GitHub/Gitee 仓库地址，自动拉取最新 Release 中的插件包（.ccp）；\n也可直接粘贴插件包下载直链：\n\n仓库示例：https://github.com/owner/repo 或 https://gitee.com/owner/repo\n直链示例：https://.../xxx.ccp",
                 "下一步", "取消",
-                placeholder: "https://github.com/owner/repo",
+                placeholder: "https://gitee.com/owner/repo",
                 keyboard: Keyboard.Url);
             if (string.IsNullOrWhiteSpace(input)) return;
             input = input.Trim();
@@ -205,13 +256,23 @@ public partial class PluginManagementViewModel : ObservableObject
         }
     }
 
-    /// <summary>解析用户输入为候选下载地址列表（仓库地址 → 查 Release API 找附件；否则视为直链）</summary>
+    /// <summary>解析用户输入为候选下载地址列表（仓库地址 → 查 Release API 找附件；否则视为直链）。
+    /// 支持 GitHub / Gitee 仓库地址。</summary>
     private static async Task<List<string>> ResolveDownloadUrlsAsync(string input)
     {
-        var m = Regex.Match(input, @"github\.com/([^/]+)/([^/?#]+)(?:/releases/tag/([^/?#]+))?",
+        var trimmed = input.Trim();
+
+        // Gitee 仓库：查 Gitee v5 API 拉取最新 Release 附件（国内直连，无需镜像）
+        var mg = Regex.Match(trimmed, @"gitee\.com/([^/]+)/([^/?#]+)(?:/releases/tag/([^/?#]+))?",
+            RegexOptions.IgnoreCase);
+        if (mg.Success)
+            return await ResolveGiteeReleaseUrlsAsync(mg.Groups[1].Value, mg.Groups[2].Value.TrimEnd('/'),
+                mg.Groups[3].Success ? mg.Groups[3].Value : null);
+
+        var m = Regex.Match(trimmed, @"github\.com/([^/]+)/([^/?#]+)(?:/releases/tag/([^/?#]+))?",
             RegexOptions.IgnoreCase);
         if (!m.Success)
-            return new List<string> { input.Trim() };
+            return new List<string> { trimmed };
 
         var owner = m.Groups[1].Value;
         var repo = m.Groups[2].Value.TrimEnd('/');
@@ -367,6 +428,80 @@ public partial class PluginManagementViewModel : ObservableObject
             catch { }
         }
         return "";
+    }
+
+    /// <summary>解析 Gitee 仓库最新 Release 的 .ccp 附件直链（API 优先，HTML 兜底）</summary>
+    private static async Task<List<string>> ResolveGiteeReleaseUrlsAsync(string owner, string repo, string? tag)
+    {
+        var apiBase = $"https://gitee.com/api/v5/repos/{owner}/{repo}/releases";
+        var apiUrl = tag != null
+            ? $"{apiBase}/tags/{Uri.EscapeDataString(tag)}"
+            : $"{apiBase}/latest";
+
+        string json;
+        try
+        {
+            json = await s_http.GetStringAsync(apiUrl);
+        }
+        catch (Exception ex)
+        {
+            // API 失败（未公开/限流）→ 尝试从 release 页面 HTML 解析 .ccp 直链
+            json = await ResolveGiteeReleaseFromHtmlAsync(owner, repo, tag);
+            if (string.IsNullOrWhiteSpace(json))
+                throw new Exception($"无法访问 Gitee 发布信息：{ex.GetType().Name}");
+        }
+
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        var urls = new List<string>();
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (!asset.TryGetProperty("name", out var nameEl)) continue;
+            var name = nameEl.GetString() ?? "";
+            if (!name.EndsWith(".ccp", StringComparison.OrdinalIgnoreCase)) continue;
+            if (asset.TryGetProperty("browser_download_url", out var urlEl))
+            {
+                var url = urlEl.GetString();
+                if (!string.IsNullOrWhiteSpace(url)) urls.Add(url.Trim());
+            }
+        }
+        return urls;
+    }
+
+    /// <summary>当 Gitee API 不可用时，从 release 页面 HTML 解析 .ccp 资源直链并返回伪 JSON</summary>
+    private static async Task<string> ResolveGiteeReleaseFromHtmlAsync(string owner, string repo, string? tag)
+    {
+        var releasePage = tag != null
+            ? $"https://gitee.com/{owner}/{repo}/releases/tag/{Uri.EscapeDataString(tag)}"
+            : $"https://gitee.com/{owner}/{repo}/releases";
+        try
+        {
+            var html = await s_http.GetStringAsync(releasePage);
+            var pattern = $"href=\"/{Regex.Escape(owner)}/{Regex.Escape(repo)}/releases/download/([^\"]+?)/([^\"]+?\\.ccp)\"";
+            var matches = Regex.Matches(html, pattern, RegexOptions.IgnoreCase);
+            if (matches.Count == 0) return "";
+
+            var sb = new StringBuilder();
+            sb.Append("{\"assets\":[");
+            for (int i = 0; i < matches.Count; i++)
+            {
+                var mm = matches[i];
+                var assetTag = mm.Groups[1].Value;
+                var assetName = mm.Groups[2].Value;
+                var url = $"https://gitee.com/{owner}/{repo}/releases/download/{assetTag}/{assetName}";
+                if (i > 0) sb.Append(',');
+                sb.Append("{\"name\":\"").Append(JsonEncodedText.Encode(assetName)).Append("\",");
+                sb.Append("\"browser_download_url\":\"").Append(JsonEncodedText.Encode(url)).Append("\"}");
+            }
+            sb.Append("]}");
+            return sb.ToString();
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     /// <summary>从下载 URL 提取稳定文件名（无扩展名时回退 plugin_{guid}.ccp）</summary>
@@ -594,12 +729,34 @@ public partial class PluginItemView : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusColor))]
     private bool _isEnabled;
 
+    /// <summary>是否有可用更新（检查后填充）</summary>
+    [ObservableProperty]
+    private bool _updateAvailable;
+
+    /// <summary>最新版本号（有更新时填充）</summary>
+    [ObservableProperty]
+    private string _updateVersion = "";
+
+    /// <summary>正在检查更新</summary>
+    [ObservableProperty]
+    private bool _isCheckingUpdate;
+
+    /// <summary>正在执行更新</summary>
+    [ObservableProperty]
+    private bool _isUpdating;
+
+    /// <summary>是否有更新源可查（已安装且带 GitHub 仓库地址或自带 UpdateUrl）</summary>
+    public bool CanCheckUpdate => Info.Source == PluginSource.Installed
+        && (!string.IsNullOrWhiteSpace(Info.InstallUrl) || !string.IsNullOrWhiteSpace(Info.Plugin.UpdateUrl));
+
     /// <summary>卸载命令（由页面 VM 注入；嵌入模式视觉树无 ContentPage 祖先，不能依赖 RelativeSource）</summary>
     public System.Windows.Input.ICommand? UninstallCommand { get; init; }
     /// <summary>配置命令（同上）</summary>
     public System.Windows.Input.ICommand? ConfigureCommand { get; init; }
     /// <summary>启用切换命令（同上）</summary>
     public System.Windows.Input.ICommand? ToggleCommand { get; init; }
+    /// <summary>更新命令（同上）</summary>
+    public System.Windows.Input.ICommand? UpdateCommand { get; init; }
 
     /// <summary>状态展示文本（已启用 / 已禁用）</summary>
     public string StatusText => IsEnabled ? "已启用" : "已禁用";

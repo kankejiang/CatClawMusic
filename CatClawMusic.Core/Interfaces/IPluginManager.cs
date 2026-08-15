@@ -25,4 +25,23 @@ public interface IPluginManager
     Task<PluginInfo?> InstallFromGitHubAsync(string repoUrl, IProgress<(string, int)>? progress = null);
     /// <summary>卸载指定插件</summary>
     Task<bool> UninstallPluginAsync(string pluginTypeId);
+    /// <summary>检查插件是否有新版本（UpdateUrl manifest 或 GitHub releases/latest 对比）</summary>
+    Task<PluginUpdateInfo?> CheckPluginUpdateAsync(PluginInfo plugin);
+    /// <summary>更新插件：下载新版本 → 替换 → 重载，返回更新后的 PluginInfo</summary>
+    Task<PluginInfo?> UpdatePluginAsync(PluginInfo plugin, IProgress<(string, int)>? progress = null);
+}
+
+/// <summary>插件更新信息（CheckPluginUpdateAsync 的返回结果）</summary>
+public class PluginUpdateInfo
+{
+    /// <summary>是否存在新版本</summary>
+    public bool HasUpdate { get; set; }
+    /// <summary>最新版本号</summary>
+    public string LatestVersion { get; set; } = "";
+    /// <summary>新版本下载地址</summary>
+    public string? DownloadUrl { get; set; }
+    /// <summary>更新说明（Release notes 或 manifest notes）</summary>
+    public string? ReleaseNotes { get; set; }
+    /// <summary>项目主页（GitHub 仓库地址等）</summary>
+    public string? Homepage { get; set; }
 }

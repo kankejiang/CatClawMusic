@@ -23,6 +23,13 @@ public interface IPlugin
     Task InitializeAsync();
     /// <summary>关闭插件</summary>
     Task ShutdownAsync();
+
+    /// <summary>
+    /// 更新源地址（可选）。为空时走 GitHub 约定：用安装时记录的仓库地址查 releases/latest
+    /// 的 tag 对比版本。非 GitHub 托管的插件可返回 manifest JSON 地址，格式：
+    /// {"version":"1.2.0","download_url":"https://...","notes":"更新说明"}。
+    /// </summary>
+    string UpdateUrl => "";
 }
 
 /// <summary>

@@ -23,6 +23,12 @@ public partial class PluginManagementPage : ContentPage
         base.OnAppearing();
         try { await _vm.OnAppearingAsync(); }
         catch (Exception ex) { Log.Debug("PluginManagementPage.xaml", $"[PluginPage] OnAppearing: {ex.Message}"); }
+        // 后台检查已安装插件的更新（失败静默，不阻塞页面）
+        _ = Task.Run(async () =>
+        {
+            try { await _vm.CheckAllUpdatesAsync(); }
+            catch (Exception ex) { Log.Debug("PluginManagementPage.xaml", $"[PluginPage] 检查更新: {ex.Message}"); }
+        });
     }
 
     /// <summary>插件启用开关拨动：按 e.Value 直接设置（不取反，避免与其它入口双触发翻转）。</summary>
