@@ -513,6 +513,14 @@ public partial class SearchPage : DiscoverPageBase
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e) => _vm.ShuffleDailyCommand.Execute(null);
 
+    /// <summary>点击 AI 歌单卡片：播放歌单全部歌曲</summary>
+    private async void OnAiPlaylistTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as BindableObject)?.BindingContext is not AiPlaylist playlist) return;
+        if (playlist.Songs.Count == 0) return;
+        await PlaySongAsync(playlist.Songs[0], playlist.Songs);
+    }
+
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {
         if (_vm.IsLoading) return;

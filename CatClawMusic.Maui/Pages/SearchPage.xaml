@@ -230,6 +230,67 @@
                         </CarouselView>
                         <IndicatorView x:Name="HeroIndicator" Margin="0,0,0,14" IndicatorColor="#50FFFFFF" SelectedIndicatorColor="White" IndicatorsShape="Circle" HorizontalOptions="Center" />
 
+                        <!-- AI 歌单（开启智能推荐且有数据/正在生成时显示；由 AI 每天生成一次） -->
+                        <VerticalStackLayout Spacing="0" IsVisible="{Binding IsAiPlaylistsSectionVisible}">
+                            <Grid Margin="20,0,20,10" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#667eea" Offset="0" />
+                                            <GradientStop Color="#f093fb" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="AI 歌单" Style="{StaticResource SectionTitleStyle}" />
+                                    <Label Text="每天由 AI 根据你的口味定制" FontSize="10.5" TextColor="{DynamicResource TextHintColor}"
+                                           IsVisible="{Binding IsAiPlaylistsLoading, Converter={StaticResource InvertedBoolConverter}}" />
+                                    <Label Text="AI 正在分析你的口味生成歌单…" FontSize="10.5" TextColor="{DynamicResource PrimaryColor}"
+                                           IsVisible="{Binding IsAiPlaylistsLoading}" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <!-- 生成中：加载指示 -->
+                            <Grid HeightRequest="150" IsVisible="{Binding IsAiPlaylistsLoading}">
+                                <ActivityIndicator IsRunning="{Binding IsAiPlaylistsLoading}" IsVisible="{Binding IsAiPlaylistsLoading}"
+                                                   Color="{DynamicResource PrimaryColor}" WidthRequest="28" HeightRequest="28"
+                                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Grid>
+
+                            <CollectionView x:Name="AiPlaylistRow" Margin="18,0,18,14" HeightRequest="292"
+                                            ItemsSource="{Binding AiPlaylists}" SelectionMode="None"
+                                            IsVisible="{Binding IsAiPlaylistsLoading, Converter={StaticResource InvertedBoolConverter}}">
+                                <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                                <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" /></CollectionView.ItemsLayout>
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- 竖屏方形卡片：宽 210 封面方形 + 底部文字 -->
+                                        <Border WidthRequest="210" StrokeShape="RoundRectangle 16" StrokeThickness="1"
+                                                Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnAiPlaylistTapped" />
+                                            </Border.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="0">
+                                                <Border StrokeShape="RoundRectangle 16 16 0 0" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                    <Image Source="{Binding CoverPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill">
+                                                        <Image.Behaviors>
+                                                            <controls:SquareBehavior />
+                                                        </Image.Behaviors>
+                                                    </Image>
+                                                </Border>
+                                                <VerticalStackLayout Padding="11,9,11,11" Spacing="3">
+                                                    <Label Text="{Binding Name}" FontSize="13.5" FontFamily="OpenSansSemibold"
+                                                           TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                                    <Label Text="{Binding Reason}" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="2" />
+                                                    <Label Text="{Binding Subtitle}" FontSize="10" TextColor="{DynamicResource PrimaryColor}" MaxLines="1" />
+                                                </VerticalStackLayout>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </VerticalStackLayout>
+
                         <!-- AI 助手入口卡：位于轮播卡片下方，点击进入 AI 聊天模式 -->
                         <Border x:Name="AiEntryCard"
                                 Margin="18,0,18,16"
