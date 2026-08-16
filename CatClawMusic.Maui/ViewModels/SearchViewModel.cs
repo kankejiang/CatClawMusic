@@ -366,6 +366,10 @@ public partial class SearchViewModel : ObservableObject
         IsSearchOpen = true;
     }
 
+    /// <summary>是否正在手动刷新（发现页右上角刷新按钮的加载反馈）</summary>
+    [ObservableProperty]
+    private bool _isRefreshing;
+
     private void SwitchTab(int index)
     {
         CurrentTabIndex = index;

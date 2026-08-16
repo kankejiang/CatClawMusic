@@ -603,9 +603,11 @@ public partial class SearchPage : DiscoverPageBase
         await PlaySongAsync(playlist.Songs[0], playlist.Songs);
     }
 
-    private async void OnRefreshClicked(object? sender, EventArgs e)
+    private void OnRefreshClicked(object? sender, EventArgs e)
     {
-        if (_vm.IsLoading) return;
+        // 刷新中重复点击忽略（按钮已切换为转圈反馈）；不再用 IsLoading 拦截——
+        // 加载中点击也要有反馈（转圈），否则"点了没反应"
+        if (_vm.IsRefreshing) return;
         _ = _vm.RefreshCommand.ExecuteAsync(null);
     }
 

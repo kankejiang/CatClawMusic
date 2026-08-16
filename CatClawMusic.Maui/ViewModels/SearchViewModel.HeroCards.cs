@@ -164,6 +164,8 @@ public partial class SearchViewModel
 
     private async Task RefreshAsync()
     {
+        if (IsRefreshing) return;
+        IsRefreshing = true;
         try
         {
             _exploreDataService.InvalidateDailyRecommendCache();
@@ -187,6 +189,10 @@ public partial class SearchViewModel
         catch (Exception ex)
         {
             Log.Debug("SearchViewModel", $"[SearchVM] RefreshAsync failed: {ex.Message}");
+        }
+        finally
+        {
+            IsRefreshing = false;
         }
     }
 

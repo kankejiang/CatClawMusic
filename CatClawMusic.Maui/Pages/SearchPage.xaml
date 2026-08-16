@@ -32,7 +32,13 @@
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
-                                <ImageButton Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked" />
+                                <Grid>
+                                    <ImageButton Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked"
+                                                 IsVisible="{Binding IsRefreshing, Converter={StaticResource InvertedBoolConverter}}" />
+                                    <ActivityIndicator IsRunning="{Binding IsRefreshing}" IsVisible="{Binding IsRefreshing}"
+                                                       Color="{DynamicResource PrimaryColor}" WidthRequest="18" HeightRequest="18"
+                                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Grid>
                             </Border>
                             <!-- 在线音乐入口已移除：由 IViewContributorPlugin 插件提供入口（见下方 ViewContributors 列表） -->
                             <Border Style="{StaticResource GlassIconContainerStyle}">
