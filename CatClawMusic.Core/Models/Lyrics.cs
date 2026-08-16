@@ -16,14 +16,14 @@ public class LrcLyrics
     public List<LrcLyricLine> Lines { get; set; } = new();
 
     /// <summary>
-    /// 罗马音歌词流（lx-music 扩展格式 [awlrc:...] 中的 rlrc 段）。
-    /// 解析时已按时间戳并入各行 Roma 字段，此处保留原始流供 UI 按需使用。
+    /// 罗马音歌词流（外部流，如网易云三流歌词的 romalrc）。
+    /// 由调用方设置，解析后按时间戳并入各行 Roma 字段。
     /// </summary>
     public List<LrcLyricLine>? RomaLines { get; set; }
 
     /// <summary>
-    /// 译文歌词流（lx-music 扩展格式 [awlrc:...] 中的 tlrc 段）。
-    /// 解析时已按时间戳并入各行 Translation 字段，此处保留原始流供 UI 按需使用。
+    /// 译文歌词流（外部流，如网易云三流歌词的 tlyric）。
+    /// 由调用方设置，解析后按时间戳并入各行 Translation 字段。
     /// </summary>
     public List<LrcLyricLine>? TranslationLines { get; set; }
 

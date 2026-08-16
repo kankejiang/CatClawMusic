@@ -11,63 +11,15 @@ public partial class LyricsService
 {
     public LrcLyrics? ParseLrc(string lrcContent)
     {
-        // lx-music 扩展歌词格式：[awlrc:lrc:base64,tlrc:base64,rlrc:base64]
-        // 一个标签块内逗号分隔多段，每段 流名:base64；正文为原文 LRC。
-        // 译文(tlrc)/罗马音(rlrc)/逐字(awlrc) 是独立歌词流，按时间戳并入主行。
-        // 兼容部分源单独发 [tlrc:...] / [rlrc:...] 标签的情况。
-        if (lrcContent != null)
-        {
-            var body = lrcContent;
-            string? tlrcRaw = null, rlrcRaw = null, lrcRaw = null;
-
-            var extTag = System.Text.RegularExpressions.Regex.Match(body,
-                @"(?:^|\n\s*)\[awlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (extTag.Success)
-            {
-                body = body.Remove(extTag.Index, extTag.Length);
-                foreach (var seg in extTag.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    var colon = seg.IndexOf(':');
-                    if (colon <= 0) continue;
-                    var name = seg[..colon].Trim().ToLowerInvariant();
-                    var data = seg[(colon + 1)..].Trim();
-                    if (data.Length == 0) continue;
-                    switch (name)
-                    {
-                        case "tlrc": tlrcRaw = DecodeBase64Utf8(data); break;
-                        case "rlrc": rlrcRaw = DecodeBase64Utf8(data); break;
-                        case "lrc": lrcRaw = DecodeBase64Utf8(data); break;
-                    }
-                }
-            }
-            else
-            {
-                var tlrcTag = System.Text.RegularExpressions.Regex.Match(body,
-                    @"(?:^|\n\s*)\[tlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (tlrcTag.Success) { tlrcRaw = DecodeBase64Utf8(tlrcTag.Groups[1].Value); body = body.Remove(tlrcTag.Index, tlrcTag.Length); }
-                var rlrcTag = System.Text.RegularExpressions.Regex.Match(body,
-                    @"(?:^|\n\s*)\[rlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (rlrcTag.Success) { rlrcRaw = DecodeBase64Utf8(rlrcTag.Groups[1].Value); body = body.Remove(rlrcTag.Index, rlrcTag.Length); }
-            }
-
-            var lyrics = ParseLrcCore(body);
-            if (lyrics == null && !string.IsNullOrEmpty(lrcRaw))
-                lyrics = ParseLrcCore(lrcRaw);
-            if (lyrics != null)
-            {
-                lyrics.TranslationLines = string.IsNullOrEmpty(tlrcRaw) ? null : ParseLrcCore(tlrcRaw)?.Lines;
-                lyrics.RomaLines = string.IsNullOrEmpty(rlrcRaw) ? null : ParseLrcCore(rlrcRaw)?.Lines;
-                MergeExtendedLines(lyrics);
-            }
-            return lyrics;
-        }
-        return null;
-    }
-
-    private static string? DecodeBase64Utf8(string data)
-    {
-        try { return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(data)).Trim(); }
-        catch { return null; }
+        // 标准 LRC 解析（本地音乐播放器语义）：
+        // - [ti:][ar:] 等元数据标签 → Metadata
+        // - [mm:ss(.xxx)] 一个或多个 → 歌词行（多时间戳逐字行 → WordTimestamps）
+        // - 无时间戳行直接忽略（署名行/杂项行不显示）
+        // - 译文：同时间戳双行配对（MergeTranslationLines）
+        // - 罗马音/译文外部流（网易云三流）由调用方经 TranslationLines/RomaLines 并入
+        // 不做行内"原文/译文"猜测拆分，不解析 lx-music 扩展标签（[awlrc:] 等在线生态格式）。
+        if (string.IsNullOrEmpty(lrcContent)) return null;
+        return ParseLrcCore(lrcContent);
     }
 
     /// <summary>把译文流/罗马音流按时间戳并入主行（容差 300ms），并保持到原始流字段。</summary>
@@ -138,13 +90,13 @@ public partial class LyricsService
             if (timeMatches.Count == 0) continue;
 
             // ── 逐字方括号格式适配：[00:00.000]起[00:00.211]风[00:00.422]了[00:00.633] ...
-            // 特征：一行内多个时间戳、最后一个 ] 之后无文本、且时间戳之间夹着非空文本。
+            // 特征：一行内多个时间戳、时间戳之间夹着非空文本（词间时间戳）。
             // 早期实现把每个时间戳拆成独立行，且文本提取（取最后一个 ] 之后）恒为空，
             // 导致整首歌被解析成 N 个空文本行（如《起风了》903 行全空）→ 歌词区域空白。
             // 正确处理：整行合并为一行，字词时间戳写入 WordTimestamps（逐字卡拉OK填充）。
-            var lastBracketIndex = line.LastIndexOf(']');
-            var trailingText = lastBracketIndex >= 0 ? line.Substring(lastBracketIndex + 1).Trim() : "";
-            if (timeMatches.Count >= 2 && trailingText.Length == 0)
+            // 注意：末尾时间戳后的文本（如 "了"）也要并入最后一个字词——尾文本非空
+            // 不能作为排除条件，否则 [00:00.000]起[00:00.211]风[00:00.422]了 会被拆成 3 行 "了"。
+            if (timeMatches.Count >= 2)
             {
                 bool hasInterstitial = false;
                 for (int m = 0; m < timeMatches.Count - 1; m++)
@@ -211,6 +163,7 @@ public partial class LyricsService
             }
 
             // 提取歌词文本（最后一个 ] 之后的内容）
+            var lastBracketIndex = line.LastIndexOf(']');
             var text = lastBracketIndex >= 0
                 ? line.Substring(lastBracketIndex + 1).Trim()
                 : "";
@@ -234,14 +187,12 @@ public partial class LyricsService
 
                 var wordTimestamps = ParseWordTimestamps(text, timestamp);
                 var lineText = wordTimestamps != null ? string.Join("", wordTimestamps.Select(w => w.Word)) : text;
-                // 有逐字时间戳时不做 SplitBilingual（翻译行会通过 MergeTranslationLines 合并）
-                var (orig, trans) = wordTimestamps != null ? (lineText, (string?)null) : SplitBilingual(lineText);
-
+                // 行内不做"原文/译文"猜测拆分（译文由 MergeTranslationLines 同时间戳配对产生，
+                // 罗马音由外部流并入）；原文完整保留，避免 "作词 aimer" 等署名行被误拆
                 lyrics.Lines.Add(new LrcLyricLine
                 {
                     Timestamp = timestamp,
-                    Text = orig,
-                    Translation = trans,
+                    Text = lineText,
                     WordTimestamps = wordTimestamps
                 });
             }
@@ -261,7 +212,8 @@ public partial class LyricsService
 
     /// <summary>
     /// 合并同时间戳的翻译行到原文行
-    /// <para>判断条件：两行时间戳相同，且其中一行没有逐字时间戳（或文本明显是翻译）</para>
+    /// <para>判断条件：两行时间戳相同（容差 300ms，兼容毫秒精度差异），
+    /// 且其中一行没有逐字时间戳（或文本是不同语言的翻译）</para>
     /// </summary>
     private static void MergeTranslationLines(LrcLyrics lyrics)
     {
@@ -273,9 +225,10 @@ public partial class LyricsService
         {
             var current = lyrics.Lines[i];
 
-            // 查找后续同时间戳的行
+            // 查找后续同时间戳（容差 300ms）的行
             var j = i + 1;
-            while (j < lyrics.Lines.Count && lyrics.Lines[j].Timestamp == current.Timestamp)
+            while (j < lyrics.Lines.Count
+                && Math.Abs((lyrics.Lines[j].Timestamp - current.Timestamp).TotalMilliseconds) < 300)
             {
                 var next = lyrics.Lines[j];
 
@@ -302,7 +255,7 @@ public partial class LyricsService
                     goto AddCurrent;
                 }
 
-                // 两行都没有逐字时间戳，用 SplitBilingual 的结果判断
+                // 两行都没有逐字时间戳：不同文字系统（如韩文 vs 中文）视为译文
                 // 如果当前行已有翻译，或者 next 的文本看起来是翻译（更短、不同语言）
                 if (string.IsNullOrEmpty(current.Translation) && !string.IsNullOrEmpty(next.Text))
                 {
@@ -451,6 +404,21 @@ public partial class LyricsService
         return (ch >= 0xAC00 && ch <= 0xD7AF) ||   // 韩文音节
                (ch >= 0x1100 && ch <= 0x11FF) ||   // 韩文字母 Jamo
                (ch >= 0x3130 && ch <= 0x318F);     // 韩文兼容字母
+    }
+
+    /// <summary>判断字符是否为 CJK 中日韩统一表意文字（含兼容区与全角符号）</summary>
+    private static bool IsCjk(char ch)
+    {
+        return (ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) ||
+               (ch >= 0x2E80 && ch <= 0x2EFF) || (ch >= 0x3000 && ch <= 0x303F) ||
+               (ch >= 0xFF00 && ch <= 0xFFEF);
+    }
+
+    /// <summary>判断字符是否为日文假名（平假名/片假名/半角片假名）</summary>
+    private static bool IsJapanese(char ch)
+    {
+        return (ch >= 0x3040 && ch <= 0x309F) || (ch >= 0x30A0 && ch <= 0x30FF) ||
+               (ch >= 0x31F0 && ch <= 0x31FF) || (ch >= 0xFF65 && ch <= 0xFF9F);
     }
 
     /// <summary>

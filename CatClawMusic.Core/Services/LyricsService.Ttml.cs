@@ -128,8 +128,8 @@ public partial class LyricsService
                     continue;
                 }
 
-                // 检查是否是翻译行（通过检查是否包含多种文字）
-                var (orig, trans) = SplitBilingual(text);
+                // 行内不做"原文/译文"猜测拆分（与 LRC 一致；译文由 MergeTranslationLines 同时间戳配对）
+                var orig = text;
 
                 // 解析对齐方式与和声标记：ttm:agent > itunes:role > role > tts:textAlign
                 var (alignment, isBacking) = ParseTtmlAlignment(p, ttml, itunes1, itunes2, agentAlignment, agentIsBackingVocal);
@@ -146,7 +146,6 @@ public partial class LyricsService
                 {
                     Timestamp = timestamp.Value,
                     Text = orig,
-                    Translation = trans,
                     WordTimestamps = wordTimestamps,
                     Alignment = alignment,
                     IsBackingVocal = isBacking,

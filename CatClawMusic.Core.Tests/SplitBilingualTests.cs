@@ -5,104 +5,115 @@ using Xunit;
 namespace CatClawMusic.Core.Tests;
 
 /// <summary>
-/// 双语歌词行拆分（SplitBilingual）回归测试：
-/// 覆盖显式分隔符（/ ｜ - 等）与空格两种方向的中英/中日/日韩拆分，
-/// 以及数字、同脚本连字符、纯中文等不应误拆的场景。
+/// LRC 解析器语义回归测试（本地音乐播放器标准语义）：
+/// - 标准行解析、元数据标签、无时间戳行忽略
+/// - 行内不做"原文/译文"猜测拆分（署名行如 "作词 aimer" 保持完整单行）
+/// - 同时间戳双行译文配对（含毫秒容差）
+/// - 多时间戳逐字行 → WordTimestamps
 /// </summary>
 public class SplitBilingualTests
 {
     private static LrcLyrics? Parse(string lrc) => new LyricsService().ParseLrc(lrc);
 
     [Fact]
-    public void SlashSeparator_SplitsJapaneseChinese()
+    public void StandardLine_ParsesText()
     {
+        var parsed = Parse("[00:12.50]第一句歌词\n[00:17.20]第二句歌词\n");
+        Assert.NotNull(parsed);
+        Assert.Equal(2, parsed.Lines.Count);
+        Assert.Equal("第一句歌词", parsed.Lines[0].Text);
+        Assert.Equal(new TimeSpan(0, 0, 0, 12, 500), parsed.Lines[0].Timestamp);
+    }
+
+    [Fact]
+    public void MetadataTags_ParsedToMetadata()
+    {
+        var parsed = Parse("[ti:起风了]\n[ar:买辣椒也用券]\n[00:12.50]歌词\n");
+        Assert.NotNull(parsed);
+        Assert.Equal("起风了", parsed.Metadata.Title);
+        Assert.Equal("买辣椒也用券", parsed.Metadata.Artist);
+    }
+
+    [Fact]
+    public void NoTimestampLine_Ignored()
+    {
+        // 无时间戳的署名行/杂项行不显示（标准 LRC 语义）
+        var parsed = Parse("作词：aimer\n作曲：泽野弘之\n[00:12.50]歌词\n");
+        Assert.NotNull(parsed);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("歌词", parsed.Lines[0].Text);
+    }
+
+    [Fact]
+    public void CreditsLine_NotSplitInLine()
+    {
+        // 行内不做原文/译文猜测拆分："作词 aimer" 保持完整单行
+        var parsed = Parse("[00:00.00]作词 aimer\n");
+        Assert.NotNull(parsed);
+        Assert.Equal("作词 aimer", parsed.Lines[0].Text);
+        Assert.Null(parsed.Lines[0].Translation);
+    }
+
+    [Fact]
+    public void MixedScriptLine_NotSplitInLine()
+    {
+        // "你好 Hello"、"君の名は / 你的名字" 等行内混排不再猜测拆分，原文完整保留
         var parsed = Parse("[00:00.00]君の名は / 你的名字\n");
         Assert.NotNull(parsed);
-        Assert.Equal("君の名は", parsed.Lines[0].Text);
-        Assert.Equal("你的名字", parsed.Lines[0].Translation);
+        Assert.Equal("君の名は / 你的名字", parsed.Lines[0].Text);
+        Assert.Null(parsed.Lines[0].Translation);
     }
 
     [Fact]
-    public void SlashSeparator_SplitsEnglishChinese()
+    public void SameTimestampTranslation_Paired()
     {
-        var parsed = Parse("[00:00.00]Love you / 我爱你\n");
+        // 同时间戳双行：第一行原文，第二行译文 → Translation 字段（译文行被吸收，剩一行）
+        var parsed = Parse("[00:12.50]风起之时\n[00:12.50]When the wind rises\n");
         Assert.NotNull(parsed);
-        Assert.Equal("Love you", parsed.Lines[0].Text);
-        Assert.Equal("我爱你", parsed.Lines[0].Translation);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("风起之时", parsed.Lines[0].Text);
+        Assert.Equal("When the wind rises", parsed.Lines[0].Translation);
     }
 
     [Fact]
-    public void FullWidthPipe_SplitsJapaneseChinese()
+    public void NearTimestampTranslation_PairedWithTolerance()
     {
-        var parsed = Parse("[00:00.00]君の名は｜你的名字\n");
+        // 译文时间戳与原文差几毫秒（300ms 容差内）也能配对
+        var parsed = Parse("[00:12.500]风起之时\n[00:12.640]When the wind rises\n");
         Assert.NotNull(parsed);
-        Assert.Equal("君の名は", parsed.Lines[0].Text);
-        Assert.Equal("你的名字", parsed.Lines[0].Translation);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("风起之时", parsed.Lines[0].Text);
+        Assert.Equal("When the wind rises", parsed.Lines[0].Translation);
     }
 
     [Fact]
-    public void DashSeparator_SplitsChineseEnglish()
+    public void WordTimestampLine_KeepsWordTimestamps()
     {
-        var parsed = Parse("[00:00.00]起风了 - Qi Feng Liao\n");
+        // 网易云逐字格式：[00:00.000]起[00:00.211]风[00:00.422]了
+        var parsed = Parse("[00:00.000]起[00:00.211]风[00:00.422]了\n");
         Assert.NotNull(parsed);
+        Assert.Single(parsed.Lines);
         Assert.Equal("起风了", parsed.Lines[0].Text);
-        Assert.Equal("Qi Feng Liao", parsed.Lines[0].Translation);
+        Assert.NotNull(parsed.Lines[0].WordTimestamps);
+        Assert.Equal(3, parsed.Lines[0].WordTimestamps.Count);
     }
 
     [Fact]
-    public void SpaceSeparator_CjkThenLatin_Splits()
+    public void MultipleTimestampsOneLine_ExpandsRows()
     {
-        // 中文原文 + 空格 + 英文译文（原策略只支持英文在前的方向）
-        var parsed = Parse("[00:00.00]你好 Hello\n");
+        // 一行多时间戳 [01:00][02:00]重复句 → 展开为两行
+        var parsed = Parse("[00:10.00][00:20.00]重复的歌词\n");
         Assert.NotNull(parsed);
-        Assert.Equal("你好", parsed.Lines[0].Text);
-        Assert.Equal("Hello", parsed.Lines[0].Translation);
+        Assert.Equal(2, parsed.Lines.Count);
+        Assert.All(parsed.Lines, l => Assert.Equal("重复的歌词", l.Text));
     }
 
     [Fact]
-    public void SpaceSeparator_LatinThenCjk_Splits()
+    public void PureInstrumental_MarkedAsEmpty()
     {
-        // 英文原文 + 空格 + 中文译文（回归：原策略2 已支持的方向）
-        var parsed = Parse("[00:00.00]Hello 你好\n");
+        var parsed = Parse("[00:00.00]纯音乐，请欣赏\n");
         Assert.NotNull(parsed);
-        Assert.Equal("Hello", parsed.Lines[0].Text);
-        Assert.Equal("你好", parsed.Lines[0].Translation);
-    }
-
-    [Fact]
-    public void SameScriptSeparator_NotSplit()
-    {
-        // 两侧同为中文：不拆（无法可靠区分原文/译文）
-        var parsed = Parse("[00:00.00]一途 / 一途\n");
-        Assert.NotNull(parsed);
-        Assert.Equal("一途 / 一途", parsed.Lines[0].Text);
-        Assert.Null(parsed.Lines[0].Translation);
-    }
-
-    [Fact]
-    public void DigitFraction_NotSplit()
-    {
-        var parsed = Parse("[00:00.00]1/2\n");
-        Assert.NotNull(parsed);
-        Assert.Equal("1/2", parsed.Lines[0].Text);
-        Assert.Null(parsed.Lines[0].Translation);
-    }
-
-    [Fact]
-    public void LatinHyphenWord_NotSplit()
-    {
-        var parsed = Parse("[00:00.00]a-ha\n");
-        Assert.NotNull(parsed);
-        Assert.Equal("a-ha", parsed.Lines[0].Text);
-        Assert.Null(parsed.Lines[0].Translation);
-    }
-
-    [Fact]
-    public void PureChineseLine_NotSplit()
-    {
-        var parsed = Parse("[00:00.00]第一句歌词\n");
-        Assert.NotNull(parsed);
-        Assert.Equal("第一句歌词", parsed.Lines[0].Text);
-        Assert.Null(parsed.Lines[0].Translation);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("", parsed.Lines[0].Text);
     }
 }
