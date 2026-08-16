@@ -16,6 +16,18 @@ public class LrcLyrics
     public List<LrcLyricLine> Lines { get; set; } = new();
 
     /// <summary>
+    /// 罗马音歌词流（lx-music 扩展格式 [awlrc:...] 中的 rlrc 段）。
+    /// 解析时已按时间戳并入各行 Roma 字段，此处保留原始流供 UI 按需使用。
+    /// </summary>
+    public List<LrcLyricLine>? RomaLines { get; set; }
+
+    /// <summary>
+    /// 译文歌词流（lx-music 扩展格式 [awlrc:...] 中的 tlrc 段）。
+    /// 解析时已按时间戳并入各行 Translation 字段，此处保留原始流供 UI 按需使用。
+    /// </summary>
+    public List<LrcLyricLine>? TranslationLines { get; set; }
+
+    /// <summary>
     /// 是否有按行对齐方式（TTML/AMLL 的 role 属性决定）
     /// 如果为 true，UI 层应使用每行的 Alignment 字段；
     /// 如果为 false，UI 层应使用全局 _lyricAlignment 设置。
@@ -72,6 +84,9 @@ public class LrcLyricLine
 
     /// <summary>翻译文本（可选）</summary>
     public string? Translation { get; set; }
+
+    /// <summary>罗马音文本（可选，lx-music 扩展歌词的 rlrc 流按时间戳并入）</summary>
+    public string? Roma { get; set; }
 
     /// <summary>逐字时间戳列表，用于卡拉OK效果（可选）</summary>
     public List<WordTimestamp>? WordTimestamps { get; set; }

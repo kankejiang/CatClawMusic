@@ -190,47 +190,97 @@ public partial class FullLyricsPage
             };
             border.Content = host;
 
-            if (!string.IsNullOrEmpty(line.Translation))
+            var hasTranslation = !string.IsNullOrEmpty(line.Translation) && _settings.ShowTranslation;
+            var hasRoma = !string.IsNullOrEmpty(line.Roma) && _settings.ShowRoma;
+
+            if (hasTranslation || hasRoma)
             {
                 var vStack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 vStack.Children.Add(border);
 
-                var transLabel = new KaraokeLabel
+                // 罗马音行（lx-music 扩展歌词 rlrc 流）：原文与译文之间，与主行同步高亮/模糊
+                if (hasRoma)
                 {
-                    Text = line.Translation,
-                    FontSize = transSize,
-                    FontFamily = "OpenSansSemibold",
-                    FontAttributes = FontAttributes.Bold,
-                    TextColor = Colors.White,
-                    OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
-                    StrokeWidth = 1.5,
-                    FillProgress = 0,
-                    HorizontalTextAlignment = _settings.ToTextAlignment(),
-                    HorizontalOptions = _settings.ToLayoutOptions(),
-                    LineBreakMode = LineBreakMode.WordWrap,
-                    Opacity = 0.2,
-                    Padding = new Thickness(4, 6, 4, 6) // 译文左右描边也留空间
-                };
-                transLabel.AnchorX = align == LayoutAlignment.Center ? 0.5 : (align == LayoutAlignment.End ? 1.0 : 0.0);
-                transLabel.AnchorY = 0.5;
-                var transBorder = new Border
+                    var romaLabel = new KaraokeLabel
+                    {
+                        Text = line.Roma,
+                        FontSize = transSize,
+                        FontFamily = "OpenSansSemibold",
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = Colors.White,
+                        OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+                        StrokeWidth = 1.5,
+                        FillProgress = 0,
+                        HorizontalTextAlignment = _settings.ToTextAlignment(),
+                        HorizontalOptions = _settings.ToLayoutOptions(),
+                        LineBreakMode = LineBreakMode.WordWrap,
+                        Opacity = 0.2,
+                        Padding = new Thickness(4, 6, 4, 6)
+                    };
+                    romaLabel.AnchorX = align == LayoutAlignment.Center ? 0.5 : (align == LayoutAlignment.End ? 1.0 : 0.0);
+                    romaLabel.AnchorY = 0.5;
+                    var romaBorder = new Border
+                    {
+                        StrokeThickness = 0,
+                        BackgroundColor = Colors.Transparent,
+                        Padding = new Thickness(0),
+                        HorizontalOptions = LayoutOptions.Fill
+                    };
+                    var romaHost = new ContentView { Content = romaLabel, HorizontalOptions = LayoutOptions.Fill, Margin = hostMargin };
+                    romaHost.LayoutChanged += (s, _) =>
+                    {
+                        if (s is View v && v.Width > 0)
+                            romaLabel.WidthRequest = WrappedLabelWidth(v.Width);
+                    };
+                    romaBorder.Content = romaHost;
+                    vStack.Children.Add(romaBorder);
+                    labelList.Add(romaLabel); // 与主行同步高亮/模糊/宽度角色
+                }
+
+                if (hasTranslation)
                 {
-                    StrokeThickness = 0,
-                    BackgroundColor = Colors.Transparent,
-                    Padding = new Thickness(0),
-                    HorizontalOptions = LayoutOptions.Fill
-                };
-                var transHost = new ContentView { Content = transLabel, HorizontalOptions = LayoutOptions.Fill, Margin = hostMargin };
-                transHost.LayoutChanged += (s, _) =>
+                    var transLabel = new KaraokeLabel
+                    {
+                        Text = line.Translation,
+                        FontSize = transSize,
+                        FontFamily = "OpenSansSemibold",
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = Colors.White,
+                        OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+                        StrokeWidth = 1.5,
+                        FillProgress = 0,
+                        HorizontalTextAlignment = _settings.ToTextAlignment(),
+                        HorizontalOptions = _settings.ToLayoutOptions(),
+                        LineBreakMode = LineBreakMode.WordWrap,
+                        Opacity = 0.2,
+                        Padding = new Thickness(4, 6, 4, 6) // 译文左右描边也留空间
+                    };
+                    transLabel.AnchorX = align == LayoutAlignment.Center ? 0.5 : (align == LayoutAlignment.End ? 1.0 : 0.0);
+                    transLabel.AnchorY = 0.5;
+                    var transBorder = new Border
+                    {
+                        StrokeThickness = 0,
+                        BackgroundColor = Colors.Transparent,
+                        Padding = new Thickness(0),
+                        HorizontalOptions = LayoutOptions.Fill
+                    };
+                    var transHost = new ContentView { Content = transLabel, HorizontalOptions = LayoutOptions.Fill, Margin = hostMargin };
+                    transHost.LayoutChanged += (s, _) =>
+                    {
+                        if (s is View v && v.Width > 0)
+                            transLabel.WidthRequest = WrappedLabelWidth(v.Width);
+                    };
+                    transBorder.Content = transHost;
+                    vStack.Children.Add(transBorder);
+                    transLabelList.Add(transLabel);
+                }
+                else
                 {
-                    if (s is View v && v.Width > 0)
-                        transLabel.WidthRequest = WrappedLabelWidth(v.Width);
-                };
-                transBorder.Content = transHost;
-                vStack.Children.Add(transBorder);
+                    transLabelList.Add(null); // 索引对齐，无译文行占位
+                }
+
                 stack.Children.Add(vStack);
                 rowViews.Add(vStack);
-                transLabelList.Add(transLabel);
             }
             else
             {

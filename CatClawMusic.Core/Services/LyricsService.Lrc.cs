@@ -11,6 +11,100 @@ public partial class LyricsService
 {
     public LrcLyrics? ParseLrc(string lrcContent)
     {
+        // lx-music 扩展歌词格式：[awlrc:lrc:base64,tlrc:base64,rlrc:base64]
+        // 一个标签块内逗号分隔多段，每段 流名:base64；正文为原文 LRC。
+        // 译文(tlrc)/罗马音(rlrc)/逐字(awlrc) 是独立歌词流，按时间戳并入主行。
+        // 兼容部分源单独发 [tlrc:...] / [rlrc:...] 标签的情况。
+        if (lrcContent != null)
+        {
+            var body = lrcContent;
+            string? tlrcRaw = null, rlrcRaw = null, lrcRaw = null;
+
+            var extTag = System.Text.RegularExpressions.Regex.Match(body,
+                @"(?:^|\n\s*)\[awlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (extTag.Success)
+            {
+                body = body.Remove(extTag.Index, extTag.Length);
+                foreach (var seg in extTag.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    var colon = seg.IndexOf(':');
+                    if (colon <= 0) continue;
+                    var name = seg[..colon].Trim().ToLowerInvariant();
+                    var data = seg[(colon + 1)..].Trim();
+                    if (data.Length == 0) continue;
+                    switch (name)
+                    {
+                        case "tlrc": tlrcRaw = DecodeBase64Utf8(data); break;
+                        case "rlrc": rlrcRaw = DecodeBase64Utf8(data); break;
+                        case "lrc": lrcRaw = DecodeBase64Utf8(data); break;
+                    }
+                }
+            }
+            else
+            {
+                var tlrcTag = System.Text.RegularExpressions.Regex.Match(body,
+                    @"(?:^|\n\s*)\[tlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (tlrcTag.Success) { tlrcRaw = DecodeBase64Utf8(tlrcTag.Groups[1].Value); body = body.Remove(tlrcTag.Index, tlrcTag.Length); }
+                var rlrcTag = System.Text.RegularExpressions.Regex.Match(body,
+                    @"(?:^|\n\s*)\[rlrc:([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (rlrcTag.Success) { rlrcRaw = DecodeBase64Utf8(rlrcTag.Groups[1].Value); body = body.Remove(rlrcTag.Index, rlrcTag.Length); }
+            }
+
+            var lyrics = ParseLrcCore(body);
+            if (lyrics == null && !string.IsNullOrEmpty(lrcRaw))
+                lyrics = ParseLrcCore(lrcRaw);
+            if (lyrics != null)
+            {
+                lyrics.TranslationLines = string.IsNullOrEmpty(tlrcRaw) ? null : ParseLrcCore(tlrcRaw)?.Lines;
+                lyrics.RomaLines = string.IsNullOrEmpty(rlrcRaw) ? null : ParseLrcCore(rlrcRaw)?.Lines;
+                MergeExtendedLines(lyrics);
+            }
+            return lyrics;
+        }
+        return null;
+    }
+
+    private static string? DecodeBase64Utf8(string data)
+    {
+        try { return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(data)).Trim(); }
+        catch { return null; }
+    }
+
+    /// <summary>把译文流/罗马音流按时间戳并入主行（容差 300ms），并保持到原始流字段。</summary>
+    private static void MergeExtendedLines(LrcLyrics lyrics)
+    {
+        if (lyrics.TranslationLines != null)
+        {
+            foreach (var t in lyrics.TranslationLines)
+            {
+                var target = FindLineAt(lyrics, t.Timestamp);
+                if (target != null && string.IsNullOrEmpty(target.Translation))
+                    target.Translation = t.Text;
+            }
+        }
+        if (lyrics.RomaLines != null)
+        {
+            foreach (var r in lyrics.RomaLines)
+            {
+                var target = FindLineAt(lyrics, r.Timestamp);
+                if (target != null && string.IsNullOrEmpty(target.Roma))
+                    target.Roma = r.Text;
+            }
+        }
+    }
+
+    private static LrcLyricLine? FindLineAt(LrcLyrics lyrics, TimeSpan ts)
+    {
+        foreach (var l in lyrics.Lines)
+        {
+            if (Math.Abs((l.Timestamp - ts).TotalMilliseconds) < 300)
+                return l;
+        }
+        return null;
+    }
+
+    private LrcLyrics? ParseLrcCore(string lrcContent)
+    {
         var lyrics = new LrcLyrics();
 
         lrcContent = lrcContent.Replace("\r\n", "\n").Replace("\r", "\n");

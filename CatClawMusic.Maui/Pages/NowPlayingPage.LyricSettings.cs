@@ -60,6 +60,27 @@ public partial class NowPlayingPage
                     RebuildWindowsLyricsView();
                 },
                 primaryColor, textSecondary, textHint));
+
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("扩展歌词（lx-music 格式）", textHint));
+            LyricsSettingsPopup.AddContent(BuildToggleSwitch(
+                "显示歌词译文",
+                _settings.ShowTranslation,
+                value =>
+                {
+                    _settings.ShowTranslation = value;
+                    RebuildWindowsLyricsView();
+                },
+                primaryColor, textSecondary, textHint));
+            LyricsSettingsPopup.AddContent(BuildToggleSwitch(
+                "显示罗马音",
+                _settings.ShowRoma,
+                value =>
+                {
+                    _settings.ShowRoma = value;
+                    RebuildWindowsLyricsView();
+                },
+                primaryColor, textSecondary, textHint));
         }
 
         LyricsSettingsPopup.Open();

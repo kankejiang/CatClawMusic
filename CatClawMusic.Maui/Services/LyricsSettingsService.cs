@@ -30,6 +30,8 @@ public class LyricsSettingsService
     private const string KeyFontSize = "lyrics_font_size";
     private const string KeyRemoveEmptyLines = "lyrics_remove_empty_lines";
     private const string KeyAlignmentMigrated = "lyrics_alignment_migrated_v2";
+    private const string KeyShowTranslation = "lyrics_show_translation";
+    private const string KeyShowRoma = "lyrics_show_roma";
 
     // 桌面歌词设置键
     private const string KeyDesktopEnabled = "desktop_lyric_enabled";
@@ -97,6 +99,20 @@ public class LyricsSettingsService
     {
         get => Preferences.Get(KeyRemoveEmptyLines, true);
         set => Preferences.Set(KeyRemoveEmptyLines, value);
+    }
+
+    /// <summary>是否显示歌词译文（lx-music 扩展歌词 tlrc 流 / 行内译文）</summary>
+    public bool ShowTranslation
+    {
+        get => Preferences.Get(KeyShowTranslation, true);
+        set => Preferences.Set(KeyShowTranslation, value);
+    }
+
+    /// <summary>是否显示歌词罗马音（lx-music 扩展歌词 rlrc 流）</summary>
+    public bool ShowRoma
+    {
+        get => Preferences.Get(KeyShowRoma, true);
+        set => Preferences.Set(KeyShowRoma, value);
     }
 
     // ═══════════════════════════════════════

@@ -70,10 +70,14 @@ public partial class NowPlayingPage
             };
             border.Content = host;
 
-            if (!string.IsNullOrEmpty(line.Translation))
+            if (!string.IsNullOrEmpty(line.Translation) && _settings.ShowTranslation)
             {
                 var stack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);
+
+                // 罗马音行（lx-music 扩展歌词 rlrc 流）：显示在原文与译文之间
+                if (!string.IsNullOrEmpty(line.Roma) && _settings.ShowRoma)
+                    stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin, _lyricLabels, stack));
 
                 var transLabel = new KaraokeLabel
                 {
@@ -108,6 +112,15 @@ public partial class NowPlayingPage
                 };
                 transBorder.Content = transHost;
                 stack.Children.Add(transBorder);
+                LyricStack.Children.Add(stack);
+                _lyricRowViews.Add(stack);
+            }
+            else if (!string.IsNullOrEmpty(line.Roma) && _settings.ShowRoma)
+            {
+                // 无译文但有罗马音：罗马音并入副行结构
+                var stack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
+                stack.Children.Add(border);
+                stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin, _lyricLabels, stack));
                 LyricStack.Children.Add(stack);
                 _lyricRowViews.Add(stack);
             }
@@ -149,6 +162,45 @@ public partial class NowPlayingPage
         MeasureLyricRows();
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
         ScrollToLine(idx);
+    }
+
+    /// <summary>构建副歌词行（罗马音/译文，与主歌词同款 Border+ContentView 结构，分行宽度一致）</summary>
+    private View BuildSubLyricRow(string text, double fontSize, LayoutAlignment align, Thickness hostMargin,
+        List<KaraokeLabel> labels, VerticalStackLayout stack)
+    {
+        var subLabel = new KaraokeLabel
+        {
+            Text = text,
+            FontSize = fontSize,
+            FontFamily = "OpenSansSemibold",
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White,
+            OutlineColor = Color.FromRgba(1f, 1f, 1f, 0.5f),
+            StrokeWidth = 1.5,
+            FillProgress = 0,
+            HorizontalTextAlignment = _settings.ToTextAlignment(),
+            HorizontalOptions = _settings.ToLayoutOptions(),
+            LineBreakMode = LineBreakMode.WordWrap,
+            Padding = new Thickness(4, 4, 4, 4)
+        };
+        subLabel.AnchorX = align == LayoutAlignment.Center ? 0.5 : (align == LayoutAlignment.End ? 1.0 : 0.0);
+        subLabel.AnchorY = 0.5;
+        var subBorder = new Border
+        {
+            StrokeThickness = 0,
+            BackgroundColor = Colors.Transparent,
+            Padding = new Thickness(0),
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        var subHost = new ContentView { Content = subLabel, HorizontalOptions = LayoutOptions.Fill, Margin = hostMargin };
+        subHost.LayoutChanged += (s, _) =>
+        {
+            if (s is View v && v.Width > 0)
+                subLabel.WidthRequest = Math.Max(40, v.Width - 1);
+        };
+        subBorder.Content = subHost;
+        labels.Add(subLabel);
+        return subBorder;
     }
 
     /// <summary>
