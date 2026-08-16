@@ -447,6 +447,16 @@ public partial class NowPlayingPage
         // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
         ApplyWinRowGap(index, animate: true);
 
+        // 当前行容器高度补偿（放大溢出）后，行高/锚点需重测：布局异步更新，延迟一帧
+        _winMeasureRetries = 0;
+        _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_winRows.Count == 0 || WinLyricClip.Handler == null) return;
+            MeasureWinRows();
+            ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
+                ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
+        }));
+
         ScrollToWindowsLine(index, animate: true);
         WinLog($"Highlight idx={index}/{_winRows.Count}");
     }
@@ -496,6 +506,17 @@ public partial class NowPlayingPage
             // 不再用 XAML Scale（会与绘制层 Transform 双重放大，且 XAML 变换不改分行）。
             row.Main.Scale = 1.0;
             row.Main.FillScale = i == index ? WinLyricCurrentScale : 1.0;
+        }
+
+        // 当前行放大（绘制层 1.25）后文本视觉高 = 1.25×行高 → 行容器补放大溢出高度：
+        // mainHost 底部 padding = mainH×(scale-1)，放大后的文本落在 padding 空间内，
+        // 不再溢出覆盖下一行（与 Android 动态行高同构；非当前行恢复 0）。
+        if (row.Main.Parent is ContentView host)
+        {
+            var mainH = row.Main.DesiredSize.Height;
+            host.Padding = i == index && mainH > 0
+                ? new Thickness(0, 0, 0, mainH * (WinLyricCurrentScale - 1.0))
+                : new Thickness(0);
         }
     }
 
