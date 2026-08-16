@@ -96,7 +96,8 @@ public partial class SearchViewModel
                 return;
             }
 
-            // 调用 AI 生成当天歌单（每天仅一次）
+            // 调用 AI 生成当天歌单（每天仅一次）。逐张生成已实时上屏（Fetch 内部 Add），
+            // 这里只负责存缓存；整批为空时区块自然隐藏。
             IsAiPlaylistsLoading = true;
             AiPlaylistsThinking = "";
             var batch = await FetchAiPlaylistsAsync();
@@ -104,7 +105,6 @@ public partial class SearchViewModel
             _aiPlaylistsAttemptDate = today;
             if (batch.Count > 0)
             {
-                ApplyAiPlaylists(batch, today);
                 await SaveAiPlaylistsCacheAsync(today, batch);
             }
         }
@@ -152,9 +152,8 @@ public partial class SearchViewModel
     /// <summary>向 AI 请求当天歌单：候选歌曲（含 ID）交给 AI，生成 5 个主题歌单（每歌单 20 首 + 推荐理由），
     /// 返回严格 JSON，随后按 ID 匹配回本地曲库，避免 AI 编造不存在的歌曲。
     /// 主题规则：①星期/周末 ②节日/节气/季节 + 当前时间段 ③常听偏好 ④音乐类型风格 ⑤自由发挥。
-    /// 性能：拆分为 5 次「单歌单生成」（每次仅 1 个歌单 20 首）——
-    /// 一次生成 5×20 首的完整 JSON 极易被 max_tokens 截断（推理模型 reasoning 占额度）导致整批失败；
-    /// 拆分后单响应小、失败隔离（坏 1 张不影响其他）、可并行（总耗时 ≈ 原单次）。</summary>
+    /// 生成策略：串行逐张生成（一次只生成一张，完成后立即上屏，用户可实时看到进度）；
+    /// 后续歌单会被告知前面已生成的歌单名，避免产出雷同歌单。</summary>
     private async Task<List<AiPlaylist>> FetchAiPlaylistsAsync()
     {
         // 候选池截断：推理模型会逐首分析候选歌曲（reasoning 占用大量 token）
@@ -207,39 +206,40 @@ public partial class SearchViewModel
         };
         var dateContext = $"今天是 {now:yyyy年M月d日}（{weekDay}，{isWeekend}），当前季节：{season}，当前时间段：{period}。";
 
-        // 并发生成：信号量限制并发避免触发服务商限流（burst rate），总耗时 ≈ 单次生成
-        using var gate = new SemaphoreSlim(2, 2);
-        var tasks = themes.Select(async theme =>
+        // 串行逐张生成：一次只生成一张，完成后立即上屏
+        var generated = new List<AiPlaylist>();
+        foreach (var theme in themes)
         {
-            await gate.WaitAsync();
-            try
+            // 告知前面已生成的歌单名，避免雷同
+            var prevSummary = generated.Count > 0
+                ? string.Join("、", generated.Select(p => $"「{p.Name}」"))
+                : "还没有";
+            var playlist = await GenerateOnePlaylistAsync(dateContext, theme, prevSummary, sb.ToString(), pool);
+            if (playlist != null)
             {
-                return await GenerateOnePlaylistAsync(dateContext, theme, sb.ToString(), pool);
+                generated.Add(playlist);
+                // 生成一张显示一张：立即加入 UI 集合
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    AiPlaylists.Add(playlist);
+                    OnPropertyChanged(nameof(IsAiPlaylistsVisible));
+                    OnPropertyChanged(nameof(IsAiPlaylistsSectionVisible));
+                });
             }
-            catch (Exception ex)
-            {
-                Log.Debug("SearchViewModel", $"[SearchVM] AI 歌单单张生成失败: {ex.Message}");
-                return null;
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
-
-        var results = await Task.WhenAll(tasks);
-        return results.Where(r => r != null).Cast<AiPlaylist>().ToList();
+        }
+        return generated;
     }
 
     /// <summary>生成单张 AI 歌单（1 个歌单 20 首 + 名字 + 理由），返回严格 JSON 对象。
     /// 流式：推理内容实时更新 <see cref="AiPlaylistsThinking"/>（截取尾部，UI 显示生成进度）。</summary>
-    private async Task<AiPlaylist?> GenerateOnePlaylistAsync(string dateContext, string theme, string candidateList, List<Song> pool)
+    private async Task<AiPlaylist?> GenerateOnePlaylistAsync(string dateContext, string theme, string prevSummary, string candidateList, List<Song> pool)
     {
         var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
         var userPrompt =
             $"{dateContext}\n" +
             $"下面是用户曲库里的候选歌曲（每行格式：ID. 歌名 - 艺术家）：\n{candidateList}\n" +
             $"请创建 1 个歌单：\n{theme}\n" +
+            $"目前已生成的歌单：{prevSummary}。请确保本次歌单与已生成的歌单主题明显不同，不要重复。\n" +
             "歌单包含 20 首歌曲、一个歌单名和一句推荐理由（理由不超过20字，不要加引号）。\n" +
             "歌曲必须从上面的候选列表中选择，song_ids 里填歌曲 ID（数字）。\n" +
             "重要：不要做任何逐步分析、解释或逐首歌点评，直接快速挑选并输出结果。\n" +
