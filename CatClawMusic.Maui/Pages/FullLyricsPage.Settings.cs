@@ -17,23 +17,6 @@ public partial class FullLyricsPage
             var textSecondary = (Color)Application.Current.Resources["TextSecondaryColor"];
             var textHint = (Color)Application.Current.Resources["TextHintColor"];
 
-            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词来源", textHint));
-            LyricsSettingsPopup.AddContent(BuildSegmentedControl(
-                ("在线", Core.Services.LyricSourceMode.Online),
-                ("自动", Core.Services.LyricSourceMode.LocalAuto),
-                ("内嵌", Core.Services.LyricSourceMode.LocalEmbedded),
-                ("外挂", Core.Services.LyricSourceMode.LocalExternal),
-                _settings.LyricSource,
-                value =>
-                {
-                    _settings.LyricSource = value;
-                    _viewModel.RefreshFilteredLines();
-                    _ = _viewModel.ReloadLyricsAsync();
-                    RebuildLyricsView();
-                },
-                primaryColor, inactiveColor, Colors.White, textSecondary));
-
-            LyricsSettingsPopup.AddContent(BuildSpacer(16));
             LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词模式", textHint));
             LyricsSettingsPopup.AddContent(BuildSegmentedControl(
                 ("逐行", LyricsSettingsService.Mode.Line),

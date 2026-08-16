@@ -32,7 +32,6 @@ public class LyricsSettingsService
     private const string KeyAlignmentMigrated = "lyrics_alignment_migrated_v2";
     private const string KeyShowTranslation = "lyrics_show_translation";
     private const string KeyShowRoma = "lyrics_show_roma";
-    private const string KeySource = "lyrics_source";
 
     // 桌面歌词设置键
     private const string KeyDesktopEnabled = "desktop_lyric_enabled";
@@ -109,29 +108,11 @@ public class LyricsSettingsService
         set => Preferences.Set(KeyShowTranslation, value);
     }
 
-    /// <summary>是否显示歌词罗马音（lx-music 扩展歌词 rlrc 流）</summary>
+    /// <summary>是否显示歌词罗马音（网易云 romalrc 流）</summary>
     public bool ShowRoma
     {
         get => Preferences.Get(KeyShowRoma, true);
         set => Preferences.Set(KeyShowRoma, value);
-    }
-
-    /// <summary>歌词来源：在线 / 本地（自动/内嵌/外挂）。
-    /// 在线模式启用网易云三流歌词（译文/罗马音由 ShowTranslation/ShowRoma 控制）；
-    /// 本地模式译文/罗马音由歌词文件本身决定。切换时同步到 Core 的 LyricsService.LyricSourceMode。</summary>
-    public Core.Services.LyricSourceMode LyricSource
-    {
-        get
-        {
-            var mode = (Core.Services.LyricSourceMode)Preferences.Get(KeySource, (int)Core.Services.LyricSourceMode.Online);
-            Core.Services.LyricsService.LyricSourceMode = mode; // 同步到 Core（读取时也校正一次）
-            return mode;
-        }
-        set
-        {
-            Preferences.Set(KeySource, (int)value);
-            Core.Services.LyricsService.LyricSourceMode = value;
-        }
     }
 
     // ═══════════════════════════════════════

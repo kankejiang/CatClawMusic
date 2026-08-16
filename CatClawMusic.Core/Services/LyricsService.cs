@@ -8,23 +8,11 @@ using System.Text.Json;
 
 namespace CatClawMusic.Core.Services;
 
-/// <summary>歌词来源模式（歌词设置中可选，由 UI 层同步到 <see cref="LyricsService.LyricSourceMode"/>）</summary>
-public enum LyricSourceMode
-{
-    /// <summary>在线：优先在线匹配（网易云三流歌词等），失败回退本地歌词</summary>
-    Online = 0,
-    /// <summary>本地自动：同名外挂 .lrc 优先，无则读内嵌歌词</summary>
-    LocalAuto = 1,
-    /// <summary>本地内嵌：只读音频文件内嵌歌词</summary>
-    LocalEmbedded = 2,
-    /// <summary>本地外挂：只读同名 .lrc/.ttml 文件</summary>
-    LocalExternal = 3
-}
-
 /// <summary>
 /// 歌词服务实现（LRC/TTML/AMLL 解析 + 多源查找 + KTV 索引）。
 /// 解析器按格式拆分在 LyricsService.*.cs partial 文件：
-/// FileReader（编码检测/content://）/ Lrc / Ttml / Splitter（双语）/ Amll。
+/// FileReader（编码检测/content://）/ Lrc / Ttml / Amll。
+/// 歌词优先级：同名外挂 .lrc → 在线歌词缓存 → 内嵌歌词 → 网易云匹配 → 插件。
 /// </summary>
 public partial class LyricsService : ILyricsService
 {
@@ -34,8 +22,12 @@ public partial class LyricsService : ILyricsService
     /// <summary>网络音乐服务工厂（可选，由 UI 层设置，用于 Navidrome 等远程歌词获取）</summary>
     public Func<INetworkMusicService?>? NetworkMusicServiceFactory { get; set; }
 
-    /// <summary>当前歌词来源模式（默认在线）。由歌词设置页切换并持久化。</summary>
-    public static LyricSourceMode LyricSourceMode { get; set; } = LyricSourceMode.Online;
+    /// <summary>
+    /// 在线歌词缓存目录（由 UI 层设置，如 CacheDirectory/lyrics）。
+    /// 在线匹配到的歌词会缓存为 .lrc（原文 + 同时间戳译文行），
+    /// 之后读取走本地歌词路线（GetLocalLyricsAsync 命中缓存），离线可用。
+    /// </summary>
+    public static string? LyricCacheDir { get; set; }
 
     /// <summary>时间戳正则 [mm:ss.xx]</summary>
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
@@ -67,18 +59,6 @@ public partial class LyricsService : ILyricsService
         else
             fpPreview = song.FilePath.Length <= 40 ? song.FilePath : song.FilePath[..40];
         Log.Debug("LyricsService", $"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
-
-        // 本地模式：只从本地文件取歌词（自动/内嵌/外挂），不发起任何联网请求
-        if (LyricSourceMode != LyricSourceMode.Online)
-        {
-            var local = await GetLocalLyricsAsync(song,
-                skipEmbedded: LyricSourceMode == LyricSourceMode.LocalExternal,
-                preferEmbedded: LyricSourceMode == LyricSourceMode.LocalEmbedded,
-                skipExternal: LyricSourceMode == LyricSourceMode.LocalEmbedded);
-            if (local != null)
-                Log.Debug("LyricsService", $"[Lyrics] 本地模式({LyricSourceMode})命中 {local.Lines.Count} 行");
-            return local;
-        }
 
         // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
         if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
@@ -125,6 +105,7 @@ public partial class LyricsService : ILyricsService
                     if (hostLyrics != null && hostLyrics.Lines.Count > 0)
                     {
                         Log.Debug("LyricsService", $"[Lyrics] 网易云直连歌词成功: {hostLyrics.Lines.Count} 行");
+                        CacheOnlineLyrics(song, hostLyrics);
                         return hostLyrics;
                     }
                 }
@@ -158,6 +139,7 @@ public partial class LyricsService : ILyricsService
                                     parsed.RomaLines = await Task.Run(() =>
                                         TryParseLyrics(onlineLyrics.Value.RLrc)?.Lines);
                                 MergeExtendedLines(parsed);
+                                CacheOnlineLyrics(song, parsed);
                                 return parsed;
                             }
                         }
@@ -182,6 +164,7 @@ public partial class LyricsService : ILyricsService
                 if (netease != null && netease.Lines.Count > 0)
                 {
                     Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词成功: {song.Title} ({netease.Lines.Count} 行)");
+                    CacheOnlineLyrics(song, netease);
                     return netease;
                 }
             }
@@ -409,6 +392,17 @@ public partial class LyricsService : ILyricsService
             }
         }
 
+        // 在线歌词缓存（在线匹配过的歌词已缓存为 .lrc，走本地路线、离线可用）
+        if (!skipExternal)
+        {
+            var cached = await TryReadCachedLyricsAsync(song);
+            if (cached != null)
+            {
+                Log.Debug("LyricsService", $"[Lyrics] 命中在线歌词缓存: {cached.Lines.Count} 行");
+                return cached;
+            }
+        }
+
         if (!skipEmbedded)
         {
             var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri));
@@ -506,6 +500,52 @@ public partial class LyricsService : ILyricsService
         }
 
         return null;
+    }
+
+    /// <summary>把在线获取的歌词缓存为本地 .lrc（原文 + 同时间戳译文行），下次读取走本地路线、离线可用。</summary>
+    private static void CacheOnlineLyrics(Song song, LrcLyrics lyrics)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(LyricCacheDir) || lyrics.Lines.Count == 0) return;
+            var cachePath = GetCachePath(song);
+            if (cachePath == null) return;
+            System.IO.Directory.CreateDirectory(LyricCacheDir!);
+            var sb = new StringBuilder();
+            foreach (var l in lyrics.Lines)
+            {
+                sb.Append('[').Append(FormatTs(l.Timestamp)).Append(']').AppendLine(l.Text);
+                if (!string.IsNullOrEmpty(l.Translation))
+                    sb.Append('[').Append(FormatTs(l.Timestamp)).Append(']').AppendLine(l.Translation);
+            }
+            System.IO.File.WriteAllText(cachePath, sb.ToString(), Encoding.UTF8);
+        }
+        catch { /* 缓存失败不影响歌词展示 */ }
+    }
+
+    private static string FormatTs(TimeSpan ts)
+        => $"{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
+
+    private static string? GetCachePath(Song song)
+    {
+        if (string.IsNullOrEmpty(LyricCacheDir)) return null;
+        var key = $"{song.Title ?? ""}|{song.Artist ?? ""}";
+        if (string.IsNullOrWhiteSpace(key)) return null;
+        var hash = Convert.ToHexString(System.Security.Cryptography.MD5.HashData(Encoding.UTF8.GetBytes(key)));
+        return System.IO.Path.Combine(LyricCacheDir, $"lyric_{hash}.lrc");
+    }
+
+    /// <summary>读取在线歌词缓存（命中返回解析结果）。</summary>
+    private async Task<LrcLyrics?> TryReadCachedLyricsAsync(Song song)
+    {
+        try
+        {
+            var cachePath = GetCachePath(song);
+            if (cachePath == null || !System.IO.File.Exists(cachePath)) return null;
+            var content = await System.IO.File.ReadAllTextAsync(cachePath);
+            return await Task.Run(() => TryParseLyrics(content));
+        }
+        catch { return null; }
     }
 
     private static string GetFileNameFromUrl(string url)

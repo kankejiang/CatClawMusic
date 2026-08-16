@@ -101,6 +101,13 @@ public partial class App : Application
             lyricsService.PluginManager = MauiProgram.Services.GetRequiredService<IPluginManager>();
             lyricsService.NetworkMusicServiceFactory = () => MauiProgram.Services.GetService<INetworkMusicService>();
         }
+        // 在线歌词缓存目录：在线匹配到的歌词缓存为 .lrc，之后走本地歌词路线（离线可用）
+        try
+        {
+            Core.Services.LyricsService.LyricCacheDir = System.IO.Path.Combine(FileSystem.CacheDirectory, "lyrics");
+            System.IO.Directory.CreateDirectory(Core.Services.LyricsService.LyricCacheDir);
+        }
+        catch { }
 
         // 急切实例化 DownloadManager 单例：其构造函数会赋值 DownloadAgentBridge.EnqueueDownload。
         // 该桥接是 Agent 下载工具（kuwo_download/netease_download/download_file）的入口，
