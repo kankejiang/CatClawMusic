@@ -667,9 +667,8 @@ public partial class SearchPage : DiscoverPageBase
 
     private void UpdateReasoningEffortSheet()
     {
-        if (EffortOptAuto == null) return; // Loaded 前
+        if (EffortOptDisabled == null) return; // Loaded 前
         var current = CatClawMusic.Core.Services.AI.AgentService.GetReasoningEffort();
-        EffortOptAutoCheck.IsVisible = current == "auto";
         EffortOptDisabledCheck.IsVisible = current == "disabled";
         EffortOptLowCheck.IsVisible = current == "low";
         EffortOptHighCheck.IsVisible = current == "high";

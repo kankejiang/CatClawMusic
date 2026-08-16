@@ -668,61 +668,49 @@
                                       Margin="12,8,12,0"
                                       ZIndex="50" />
 
-        <!-- 推理力度上拉菜单（底部面板，点击"推理"按钮弹出） -->
+        <!-- 推理力度上拉菜单（悬浮在输入框上方，点击遮罩关闭） -->
         <Grid x:Name="EffortSheetOverlay"
               IsVisible="False"
               ZIndex="120">
-            <BoxView Color="Black" Opacity="0.35">
+            <BoxView Color="Black" Opacity="0.25">
                 <BoxView.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnEffortSheetBackdropTapped" />
                 </BoxView.GestureRecognizers>
             </BoxView>
-            <Border x:Name="EffortSheet" VerticalOptions="End" Margin="16,0,16,16"
+            <!-- 推理力度菜单：悬浮在输入框上方（底部留出输入框高度的 Margin），点击遮罩关闭 -->
+            <Border x:Name="EffortSheet" VerticalOptions="End" Margin="16,0,16,72"
                     BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                     Stroke="{DynamicResource GlassStrokeStrongColor}"
                     StrokeThickness="1"
-                    StrokeShape="RoundRectangle 20"
-                    WidthRequest="360"
+                    StrokeShape="RoundRectangle 16"
+                    WidthRequest="260"
                     HorizontalOptions="Start">
-                <VerticalStackLayout Spacing="0" Padding="0,14,0,8">
-                    <Label Text="推理力度" FontSize="16" FontFamily="OpenSansSemibold"
-                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" Margin="0,0,0,2" />
-                    <Label Text="控制模型推理深度，仅推理模型生效" FontSize="11"
-                           TextColor="{DynamicResource TextHintColor}" HorizontalOptions="Center" Margin="0,0,0,10" />
+                <VerticalStackLayout Spacing="0" Padding="0,10,0,6">
+                    <Label Text="推理力度" FontSize="14" FontFamily="OpenSansSemibold"
+                           TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" Margin="0,0,0,8" />
 
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,0" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="12,0" />
 
-                    <Grid x:Name="EffortOptAuto" Padding="20,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                        <Grid.GestureRecognizers><TapGestureRecognizer CommandParameter="auto" Tapped="OnReasoningEffortOptionTapped" /></Grid.GestureRecognizers>
-                        <Label x:Name="EffortOptAutoLabel" Text="自动" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Grid.Column="1" x:Name="EffortOptAutoCheck" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
-                    </Grid>
-                    <Grid x:Name="EffortOptDisabled" Padding="20,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Grid x:Name="EffortOptDisabled" Padding="16,10" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Grid.GestureRecognizers><TapGestureRecognizer CommandParameter="disabled" Tapped="OnReasoningEffortOptionTapped" /></Grid.GestureRecognizers>
-                        <Label x:Name="EffortOptDisabledLabel" Text="关闭" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Grid.Column="1" x:Name="EffortOptDisabledCheck" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
+                        <Label x:Name="EffortOptDisabledLabel" Text="关闭" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Grid.Column="1" x:Name="EffortOptDisabledCheck" Text="✓" FontSize="13" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
                     </Grid>
-                    <Grid x:Name="EffortOptLow" Padding="20,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Grid x:Name="EffortOptLow" Padding="16,10" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Grid.GestureRecognizers><TapGestureRecognizer CommandParameter="low" Tapped="OnReasoningEffortOptionTapped" /></Grid.GestureRecognizers>
-                        <Label x:Name="EffortOptLowLabel" Text="低" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Grid.Column="1" x:Name="EffortOptLowCheck" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
+                        <Label x:Name="EffortOptLowLabel" Text="低" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Grid.Column="1" x:Name="EffortOptLowCheck" Text="✓" FontSize="13" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
                     </Grid>
-                    <Grid x:Name="EffortOptHigh" Padding="20,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Grid x:Name="EffortOptHigh" Padding="16,10" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Grid.GestureRecognizers><TapGestureRecognizer CommandParameter="high" Tapped="OnReasoningEffortOptionTapped" /></Grid.GestureRecognizers>
-                        <Label x:Name="EffortOptHighLabel" Text="高" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Grid.Column="1" x:Name="EffortOptHighCheck" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
+                        <Label x:Name="EffortOptHighLabel" Text="高" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Grid.Column="1" x:Name="EffortOptHighCheck" Text="✓" FontSize="13" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
                     </Grid>
-                    <Grid x:Name="EffortOptMax" Padding="20,12" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <Grid x:Name="EffortOptMax" Padding="16,10" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Grid.GestureRecognizers><TapGestureRecognizer CommandParameter="max" Tapped="OnReasoningEffortOptionTapped" /></Grid.GestureRecognizers>
-                        <Label x:Name="EffortOptMaxLabel" Text="最强" FontSize="14" TextColor="{DynamicResource TextPrimaryColor}" />
-                        <Label Grid.Column="1" x:Name="EffortOptMaxCheck" Text="✓" FontSize="14" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
+                        <Label x:Name="EffortOptMaxLabel" Text="最强" FontSize="13" TextColor="{DynamicResource TextPrimaryColor}" />
+                        <Label Grid.Column="1" x:Name="EffortOptMaxCheck" Text="✓" FontSize="13" TextColor="{DynamicResource PrimaryColor}" IsVisible="False" />
                     </Grid>
-
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,0" />
-                    <Label Text="取消" FontSize="14" TextColor="{DynamicResource TextSecondaryColor}"
-                           HorizontalOptions="Center" Padding="0,12,0,6">
-                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnEffortSheetBackdropTapped" /></Label.GestureRecognizers>
-                    </Label>
                 </VerticalStackLayout>
             </Border>
         </Grid>
