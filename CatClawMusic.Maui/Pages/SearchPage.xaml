@@ -797,11 +797,21 @@
                     <Border Grid.Column="2"
                             Style="{StaticResource GlassIconContainerStyle}"
                             BackgroundColor="{DynamicResource ChipActiveColor}">
-                        <ImageButton Source="ic_send"
-                                     WidthRequest="40" HeightRequest="40"
-                                     BackgroundColor="Transparent"
-                                     Padding="9"
-                                     Clicked="OnSendClicked" />
+                        <Grid>
+                            <!-- 空闲时显示发送按钮；AI 思考/回复中变为中断按钮 -->
+                            <ImageButton Source="ic_send"
+                                         IsVisible="{Binding IsSendVisible}"
+                                         WidthRequest="40" HeightRequest="40"
+                                         BackgroundColor="Transparent"
+                                         Padding="9"
+                                         Clicked="OnSendClicked" />
+                            <ImageButton Source="ic_close"
+                                         IsVisible="{Binding IsStopVisible}"
+                                         WidthRequest="40" HeightRequest="40"
+                                         BackgroundColor="Transparent"
+                                         Padding="9"
+                                         Clicked="OnStopClicked" />
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>

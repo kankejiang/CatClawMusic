@@ -662,7 +662,10 @@
                     <Entry Grid.Column="1" x:Name="ChatInputBox" Text="{Binding ChatInput, Mode=TwoWay}"
                            Placeholder="输入消息..." ReturnType="Send" Completed="OnChatInputCompleted" />
                     <Border Grid.Column="2" Style="{StaticResource GlassIconContainerStyle}" BackgroundColor="{DynamicResource ChipActiveColor}">
-                        <ImageButton Source="{helpers:ThemedIcon Name=ic_send, Original=True}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
+                        <Grid>
+                            <ImageButton Source="{helpers:ThemedIcon Name=ic_send, Original=True}" IsVisible="{Binding IsSendVisible}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
+                            <ImageButton Source="{helpers:ThemedIcon Name=ic_close, Original=True}" IsVisible="{Binding IsStopVisible}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnStopClicked" />
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>

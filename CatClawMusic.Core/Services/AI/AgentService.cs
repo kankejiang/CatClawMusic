@@ -484,6 +484,11 @@ public class AgentService : IAgentService
                     reasoningBuilder.Append(response.ReasoningContent);
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // 用户主动中断：不当作失败，向上抛出由 UI 层处理
+                throw;
+            }
             catch (Exception ex)
             {
                 _logService.Warn("Agent", $"Agent LLM 请求失败: {ex.Message}");
@@ -664,26 +669,138 @@ public class AgentService : IAgentService
             return total;
         }
 
-        // 上下文预算：Agent 工具循环会累积大量 tool 消息，4500 只够几轮就会把
-        // 早期工具结果/历史裁光 → 决策链断裂。新模型（DeepSeek V4 / GLM-5.2 /
-        // Kimi K3 等）上下文 128K~1M，预算提到 32000（128K 的 1/4，安全余量），
-        // 保留 3 条消息底线防止 system 也被裁掉。
+        // 上下文预算：Agent 工具循环会累积大量 tool 消息，预算提高到 32000。
+        // 关键修复：按"段"裁剪而不是按条，保证带 tool_calls 的 assistant 与其对应 tool
+        // 消息始终一起移除，不会出现孤立 tool/tool_calls 导致 400 invalid_request_error。
+        var segmentBounds = BuildSegmentBounds(messages);
         while (messages.Count > 3 && CalculateEstimatedTokens() > 32000)
         {
-            int removeIdx = -1;
-            for (int i = 1; i < messages.Count; i++)
+            // 找到第一个非 system 的可裁剪段（跳过 system 消息本身）
+            int removeStart = -1;
+            int removeEnd = -1;
+            for (int i = 0; i < segmentBounds.Count; i++)
             {
-                if (messages[i].Role != "system")
-                {
-                    removeIdx = i;
-                    break;
-                }
+                var (s, e) = segmentBounds[i];
+                // 段首条就是 system → 跳过不删
+                if (messages[s].Role == "system") continue;
+                removeStart = s;
+                removeEnd = e;
+                break;
             }
-            if (removeIdx < 0) break;
-            messages.RemoveAt(removeIdx);
+            if (removeStart < 0) break;
+            // 从列表末尾向前删除，避免索引错乱
+            for (int i = removeEnd; i >= removeStart; i--)
+                messages.RemoveAt(i);
+            // 重建段边界（裁剪后索引变动）
+            segmentBounds = BuildSegmentBounds(messages);
         }
 
+        // 最后的一致性校验：tool 消息前必须有对应 tool_calls 的 assistant 消息；
+        // 未闭合的 assistant(tool_calls) 必须补齐或移除。
+        SanitizeToolMessagePairs(messages);
+
         return messages;
+    }
+
+    /// <summary>把 messages 划分成"可整体裁剪"的段边界（inclusive start/end）。
+    /// 段规则：
+    ///   1. 每个 system 消息单独一段（绝不与非 system 一起裁剪）。
+    ///   2. user / 普通 assistant 各自一段。
+    ///   3. 带 tool_calls 的 assistant + 紧随其后的所有对应 tool 消息合并为一段，
+    ///      必须整体裁掉才不会破坏配对关系。</summary>
+    private static List<(int Start, int End)> BuildSegmentBounds(List<ChatMessage> messages)
+    {
+        var bounds = new List<(int, int)>(messages.Count);
+        int i = 0;
+        while (i < messages.Count)
+        {
+            var m = messages[i];
+            if (m.Role == "system")
+            {
+                bounds.Add((i, i));
+                i++;
+                continue;
+            }
+
+            if (m.Role == "assistant" && m.ToolCalls is { Count: > 0 })
+            {
+                var callIds = new HashSet<string>(m.ToolCalls.Select(tc => tc.Id));
+                int end = i;
+                // 向后收集所有 ToolCallId 属于当前 assistant.tool_calls 的 tool 消息
+                int j = i + 1;
+                while (j < messages.Count && messages[j].Role == "tool"
+                       && !string.IsNullOrEmpty(messages[j].ToolCallId)
+                       && callIds.Contains(messages[j].ToolCallId!))
+                {
+                    end = j;
+                    j++;
+                }
+                bounds.Add((i, end));
+                i = end + 1;
+                continue;
+            }
+
+            // user / 不含 tool_calls 的 assistant / 其他独立消息
+            bounds.Add((i, i));
+            i++;
+        }
+        return bounds;
+    }
+
+    /// <summary>修复 tool_calls 与 tool 消息的配对一致性，避免 API 端返回 400 invalid_request_error。</summary>
+    private static void SanitizeToolMessagePairs(List<ChatMessage> messages)
+    {
+        // 1) 检查每个 tool 消息：在它之前最近一条非 tool 消息必须是 assistant 且 tool_calls 包含对应 id。
+        //    如果找不到匹配，删除该 tool 消息。
+        for (int i = messages.Count - 1; i >= 0; i--)
+        {
+            var m = messages[i];
+            if (m.Role != "tool" || string.IsNullOrEmpty(m.ToolCallId)) continue;
+
+            bool matched = false;
+            for (int j = i - 1; j >= 0; j--)
+            {
+                var prev = messages[j];
+                if (prev.Role == "tool") continue;
+                if (prev.Role == "assistant" && prev.ToolCalls is { Count: > 0 }
+                    && prev.ToolCalls.Any(tc => tc.Id == m.ToolCallId))
+                {
+                    matched = true;
+                }
+                break; // 只看最近一条非 tool 的相邻消息
+            }
+            if (!matched)
+                messages.RemoveAt(i);
+        }
+
+        // 2) 检查每条 assistant(tool_calls)：其后必须紧挨着对应 tool 消息，且 id 全部被响应。
+        //    若不满足（说明工具消息在裁剪中丢失），则移除这条 assistant.tool_calls 消息本身，
+        //    避免 API 报告 "insufficient tool messages following tool_calls message"。
+        for (int i = messages.Count - 1; i >= 0; i--)
+        {
+            var m = messages[i];
+            if (m.Role != "assistant" || m.ToolCalls is not { Count: > 0 }) continue;
+
+            var expected = new HashSet<string>(m.ToolCalls.Select(tc => tc.Id));
+            var got = new HashSet<string>();
+            int j = i + 1;
+            while (j < messages.Count && messages[j].Role == "tool")
+            {
+                if (!string.IsNullOrEmpty(messages[j].ToolCallId)
+                    && expected.Contains(messages[j].ToolCallId!))
+                {
+                    got.Add(messages[j].ToolCallId!);
+                }
+                j++;
+            }
+            if (expected.Any(id => !got.Contains(id)))
+            {
+                // tool 响应不完整 → 移除 assistant.tool_calls 消息及已挂在其后的孤立 tool 消息
+                int end = j - 1;
+                for (int k = end; k >= i; k--)
+                    messages.RemoveAt(k);
+            }
+        }
     }
 
     /// <summary>清空当前对话历史</summary>
@@ -693,23 +810,38 @@ public class AgentService : IAgentService
     }
 
     /// <summary>
-    /// 裁剪对话历史：保留 system 消息 + 最近 N 轮对话，防止 token 超限。
-    /// Agent 工具循环一轮包含 user+assistant+多条 tool 消息，保留 24 条
-    /// （约 12 轮工具循环），远高于旧值 10 条，避免多轮工具调用中途丢上下文。
+    /// 裁剪对话历史：保留 system 消息 + 最近若干完整段，防止 token 超限。
+    /// ⚠ 关键修复：以"段"为单位裁剪（assistant.tool_calls + 对应 tool 消息是一段），
+    /// 绝不把它们拆散，否则会触发 API 端 400 invalid_request_error：
+    ///   - "tool must be a response to a preceding message with tool_calls"
+    ///   - "insufficient tool messages following tool_calls message"
+    /// 同时保证移除段后，history 中不出现无配对的 tool 或 tool_calls 消息。
     /// </summary>
     private void TrimConversationHistory()
     {
         if (_conversationHistory.Count <= 24) return;
 
         var systemMsgs = _conversationHistory.Where(m => m.Role == "system").ToList();
-        var recent = _conversationHistory
-            .Where(m => m.Role != "system")
-            .TakeLast(20)
-            .ToList();
+        var nonSystem = _conversationHistory.Where(m => m.Role != "system").ToList();
+
+        // 构建非 system 部分段边界（每段：user 一条 / assistant 一条 / tool_calls组一组）
+        var segmentBounds = BuildSegmentBounds(nonSystem);
+
+        // 从最旧段向前删除，直到段数量 ≤ 12（约合 6~12 轮工具循环）；
+        // 避免工具消息数量导致的 TakeLast(20) 只截了一半而拆散配对。
+        int targetSegments = Math.Min(12, segmentBounds.Count);
+        int keepFrom = segmentBounds.Count - targetSegments;
+        if (keepFrom < 0) keepFrom = 0;
+        int startIdx = keepFrom < segmentBounds.Count ? segmentBounds[keepFrom].Start : 0;
+
+        var trimmedRecent = nonSystem.Count <= startIdx ? new List<ChatMessage>() : nonSystem.GetRange(startIdx, nonSystem.Count - startIdx);
 
         _conversationHistory.Clear();
         _conversationHistory.AddRange(systemMsgs);
-        _conversationHistory.AddRange(recent);
+        _conversationHistory.AddRange(trimmedRecent);
+
+        // 裁剪后再做一次一致性兜底，彻底去掉所有不配对的 tool/tool_calls
+        SanitizeToolMessagePairs(_conversationHistory);
     }
 
     /// <summary>

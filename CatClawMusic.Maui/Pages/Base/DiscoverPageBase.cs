@@ -544,6 +544,11 @@ public abstract class DiscoverPageBase : ContentPage
         _ = Vm.SendMessageCommand.ExecuteAsync(null);
     }
 
+    protected void OnStopClicked(object? sender, EventArgs e)
+    {
+        Vm.StopAgent();
+    }
+
     protected void OnChatHistoryLoaded(object? sender, ChatHistoryLoadedEventArgs e)
     {
         // 倒序模式下：首次加载滚到 index 0（最新消息，翻转后视觉在底部）

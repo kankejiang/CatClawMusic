@@ -11,6 +11,28 @@ namespace CatClawMusic.Maui.ViewModels;
 /// <summary>聊天域：聊天历史加载 / AI 对话发送 / 消息裁剪与记忆提取。</summary>
 public partial class SearchViewModel
 {
+    /// <summary>当前正在执行的 AI 请求取消令牌源；为 null 表示空闲（仅聊天域使用）</summary>
+    private CancellationTokenSource? _agentCts;
+
+    /// <summary>发送按钮是否可见（AI 空闲时显示发送）</summary>
+    public bool IsSendVisible => !IsAgentThinking;
+
+    /// <summary>中断按钮是否可见（AI 思考/回复中显示停止）</summary>
+    public bool IsStopVisible => IsAgentThinking;
+
+    /// <summary>IsAgentThinking 变化时同步两个按钮的显隐</summary>
+    partial void OnIsAgentThinkingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsSendVisible));
+        OnPropertyChanged(nameof(IsStopVisible));
+    }
+
+    /// <summary>中断当前正在进行的 AI 回复（思考或生成中调用），无请求时忽略</summary>
+    public void StopAgent()
+    {
+        _agentCts?.Cancel();
+    }
+
     private async Task LoadRecentChatHistoryAsync()
     {
         try
@@ -202,7 +224,10 @@ public partial class SearchViewModel
 
         try
         {
-            var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage);
+            _agentCts?.Cancel();
+            _agentCts?.Dispose();
+            _agentCts = new CancellationTokenSource();
+            var response = await _agentService.SendMessageAsync(userMessage, OnPartialMessage, _agentCts.Token);
 
             // 思考完成：填充回复内容、移除占位步骤。
             // 推理过程保持展开（用户要求展开在对话里），发送新消息时才自动折叠上一条
@@ -219,8 +244,23 @@ public partial class SearchViewModel
 
             _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(assistantMsg);
-            IsAgentThinking = false;
             _ = TriggerMemoryExtractionAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户点击中断按钮：保留已生成的部分内容并提示已停止
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                assistantMsg.Content = string.IsNullOrWhiteSpace(assistantMsg.Content)
+                    ? "已停止回复喵。"
+                    : assistantMsg.Content + "\n\n（已停止回复）";
+                assistantMsg.IsThinking = false;
+                if (assistantMsg.ThinkingSteps.Count > 0 && assistantMsg.ThinkingSteps[0].StartsWith("💭"))
+                    assistantMsg.ThinkingSteps.RemoveAt(0);
+                assistantMsg.IsThinkingExpanded = false;
+            });
+            _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
+            _chatMemoryService.RecordMessage(assistantMsg);
         }
         catch (Exception ex)
         {
@@ -234,8 +274,13 @@ public partial class SearchViewModel
             });
             _ = SaveChatMessageSafeAsync(new ChatMessageRecord { Role = "assistant", Content = assistantMsg.Content, Timestamp = DateTime.UtcNow });
             _chatMemoryService.RecordMessage(assistantMsg);
-            IsAgentThinking = false;
             _ = TriggerMemoryExtractionAsync();
+        }
+        finally
+        {
+            IsAgentThinking = false;
+            _agentCts?.Dispose();
+            _agentCts = null;
         }
     }
 
