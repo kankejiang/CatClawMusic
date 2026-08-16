@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services;
 
@@ -41,9 +42,9 @@ public static class NetEaseLyricsService
             "NMTID=00OZLp2VVgq9QdwokUgq3XNfOddQyIAAAF_6i8eJg; ntes_kaola_ad=1");
     }
 
-    /// <summary>获取网易云歌曲歌词三流（原文/译文/罗马音），失败返回 null。</summary>
+    /// <summary>获取网易云歌曲歌词（原文行 + 逐字时间戳 + 译文/罗马音已并入），失败返回 null。</summary>
     /// <param name="songId">网易云歌曲 ID</param>
-    public static async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(long songId)
+    public static async Task<LrcLyrics?> GetLyricsAsync(long songId)
     {
         try
         {
@@ -93,11 +94,17 @@ public static class NetEaseLyricsService
             }
 
             // 正文歌词优先取 yrc（网易云新版把正文放逐字流 yrc，lrc 只含署名行）；
-            // yrc 缺失时回退 lrc。译文/罗马音分别取 tlyric/romalrc。
+            // yrc 缺失时回退 lrc 增强 JSON。译文/罗马音分别是标准 LRC 文本流。
+            // 直接解析成行（不经过 LRC 文本中间态），译文/罗马音按时间戳并入。
             var yrc = GetRawLyric("yrc");
-            var lrcText = yrc != null ? ConvertYrcToLrc(yrc) : ToLrcText(GetRawLyric("lrc"));
-            if (string.IsNullOrEmpty(lrcText)) return null;
-            return (lrcText, ToLrcText(GetRawLyric("tlyric")), ToLrcText(GetRawLyric("romalrc")));
+            var lrcLines = yrc != null ? ParseYrcLines(yrc) : ParseEnhancedJsonLines(GetRawLyric("lrc"));
+            if (lrcLines == null || lrcLines.Count == 0) return null;
+
+            var lyrics = new LrcLyrics { Lines = lrcLines };
+            lyrics.TranslationLines = ParseSimpleLrcText(GetRawLyric("tlyric"));
+            lyrics.RomaLines = ParseSimpleLrcText(GetRawLyric("romalrc"));
+            MergeExternalLines(lyrics);
+            return lyrics;
         }
         catch
         {
@@ -106,22 +113,23 @@ public static class NetEaseLyricsService
     }
 
     /// <summary>
-    /// 网易云 yrc 逐字歌词格式 → 标准 LRC 逐字行。
+    /// 网易云 yrc 逐字歌词格式 → 歌词行（含逐字时间戳，无需 LRC 文本中间态）。
     /// 格式：[行起始ms,行时长ms](字起始ms,字时长ms,0)字(字起始ms,字时长ms,0)字 ...
-    /// 输出：[mm:ss.xxx]字[mm:ss.xxx]字... （每字一个绝对时间戳，宿主逐字分支自动生成 WordTimestamps）
     /// </summary>
-    private static string? ConvertYrcToLrc(string yrc)
+    private static List<LrcLyricLine> ParseYrcLines(string yrc)
     {
-        var sb = new StringBuilder(yrc.Length);
+        var lines = new List<LrcLyricLine>();
         foreach (var rawLine in yrc.Replace("\r\n", "\n").Split('\n'))
         {
             var line = rawLine.Trim();
             if (line.Length == 0) continue;
             var lineMatch = System.Text.RegularExpressions.Regex.Match(line, @"^\[(\d+),(\d+)\]");
             if (!lineMatch.Success) continue;
+            var lineStartMs = long.Parse(lineMatch.Groups[1].Value);
 
             var wordMatches = System.Text.RegularExpressions.Regex.Matches(line, @"\((\d+),(\d+),\d+\)");
-            var row = new StringBuilder();
+            var text = new StringBuilder();
+            var words = new List<WordTimestamp>();
             foreach (System.Text.RegularExpressions.Match wm in wordMatches)
             {
                 var wordStart = wm.Index + wm.Length;
@@ -130,16 +138,129 @@ public static class NetEaseLyricsService
                 var word = line.Substring(wordStart, wordEnd - wordStart).Trim();
                 if (word.Length == 0) continue;
 
-                var ms = long.Parse(wm.Groups[1].Value);
-                var ts = TimeSpan.FromMilliseconds(ms);
-                row.Append('[').Append(ts.Minutes.ToString("D2")).Append(':')
-                   .Append(ts.Seconds.ToString("D2")).Append('.').Append(ts.Milliseconds.ToString("D3"))
-                   .Append(']').Append(word);
+                var startMs = long.Parse(wm.Groups[1].Value);
+                var durMs = long.Parse(wm.Groups[2].Value);
+                words.Add(new WordTimestamp
+                {
+                    Word = word,
+                    Start = TimeSpan.FromMilliseconds(startMs),
+                    Duration = TimeSpan.FromMilliseconds(durMs)
+                });
+                text.Append(word);
             }
-            if (row.Length == 0) continue;
-            sb.AppendLine(row.ToString());
+            if (text.Length == 0) continue;
+
+            lines.Add(new LrcLyricLine
+            {
+                Timestamp = TimeSpan.FromMilliseconds(lineStartMs),
+                Text = text.ToString(),
+                WordTimestamps = words.Count > 0 ? words : null
+            });
         }
-        return sb.Length > 0 ? sb.ToString() : null;
+        return lines;
+    }
+
+    /// <summary>
+    /// 网易云增强歌词 JSON（逐行 {"t":毫秒,"c":[{"tx":片段}]}）→ 歌词行。
+    /// </summary>
+    private static List<LrcLyricLine> ParseEnhancedJsonLines(string? json)
+    {
+        var lines = new List<LrcLyricLine>();
+        if (string.IsNullOrWhiteSpace(json) || !json.Contains("\"t\":")) return lines;
+        foreach (var rawLine in json.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("t", out var tProp)) continue;
+                var ms = tProp.GetInt64();
+                var text = new StringBuilder();
+                if (root.TryGetProperty("c", out var c) && c.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var seg in c.EnumerateArray())
+                    {
+                        if (seg.TryGetProperty("tx", out var tx) && tx.ValueKind == JsonValueKind.String)
+                            text.Append(tx.GetString());
+                    }
+                }
+                if (text.Length == 0) continue;
+                lines.Add(new LrcLyricLine
+                {
+                    Timestamp = TimeSpan.FromMilliseconds(ms),
+                    Text = text.ToString()
+                });
+            }
+            catch { }
+        }
+        return lines;
+    }
+
+    /// <summary>
+    /// 标准 LRC 文本流（译文 tlyric / 罗马音 romalrc）→ 行列表（仅取 [mm:ss(.xxx)]文本 行）。
+    /// </summary>
+    private static List<LrcLyricLine>? ParseSimpleLrcText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        // 增强 JSON 流（部分源译文也用 JSON）
+        if (text.Contains("\"t\":"))
+            return ParseEnhancedJsonLines(text);
+
+        var lines = new List<LrcLyricLine>();
+        foreach (var rawLine in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = rawLine.Trim();
+            var m = System.Text.RegularExpressions.Regex.Match(line, @"^\[(\d+):(\d+)(?:\.(\d+))?\]");
+            if (!m.Success) continue;
+            var minutes = int.Parse(m.Groups[1].Value);
+            var seconds = int.Parse(m.Groups[2].Value);
+            var millis = m.Groups[3].Success
+                ? int.Parse(m.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                : 0;
+            var lyric = line.Substring(m.Index + m.Length).Trim();
+            if (lyric.Length == 0) continue;
+            lines.Add(new LrcLyricLine
+            {
+                Timestamp = new TimeSpan(0, 0, minutes, seconds, millis),
+                Text = lyric
+            });
+        }
+        return lines.Count > 0 ? lines : null;
+    }
+
+    /// <summary>把译文流/罗马音流按时间戳（容差 300ms）并入主行。</summary>
+    private static void MergeExternalLines(LrcLyrics lyrics)
+    {
+        if (lyrics.TranslationLines != null)
+        {
+            foreach (var t in lyrics.TranslationLines)
+            {
+                var target = FindLineAt(lyrics.Lines, t.Timestamp);
+                if (target != null && string.IsNullOrEmpty(target.Translation))
+                    target.Translation = t.Text;
+            }
+        }
+        if (lyrics.RomaLines != null)
+        {
+            foreach (var r in lyrics.RomaLines)
+            {
+                var target = FindLineAt(lyrics.Lines, r.Timestamp);
+                if (target != null && string.IsNullOrEmpty(target.Roma))
+                    target.Roma = r.Text;
+            }
+        }
+    }
+
+    private static LrcLyricLine? FindLineAt(List<LrcLyricLine> lines, TimeSpan ts)
+    {
+        foreach (var l in lines)
+        {
+            if (Math.Abs((l.Timestamp - ts).TotalMilliseconds) < 300)
+                return l;
+        }
+        return null;
     }
 
     private sealed class NeteaseSearchSong
@@ -185,8 +306,8 @@ public static class NetEaseLyricsService
         }
     }
 
-    /// <summary>按本地歌曲标题/歌手匹配网易云歌词：搜索 → 排序（标题/歌手匹配优先）→ 取歌词三流。</summary>
-    public static async Task<(string? Lrc, string? TLrc, string? RLrc)?> MatchLocalSongAsync(string title, string? artist)
+    /// <summary>按本地歌曲标题/歌手匹配网易云歌词：搜索 → 排序（标题/歌手匹配优先）→ 取歌词。</summary>
+    public static async Task<LrcLyrics?> MatchLocalSongAsync(string title, string? artist)
     {
         if (string.IsNullOrWhiteSpace(title)) return null;
 
@@ -217,7 +338,7 @@ public static class NetEaseLyricsService
         foreach (var cand in ordered.Take(3))
         {
             var lyrics = await GetLyricsAsync(cand.Id);
-            if (lyrics != null && !string.IsNullOrWhiteSpace(lyrics.Value.Lrc))
+            if (lyrics != null && lyrics.Lines.Count > 0)
                 return lyrics;
         }
         return null;
@@ -231,47 +352,6 @@ public static class NetEaseLyricsService
             return Encoding.UTF8.GetString(raw);
         try { return AesEcbDecrypt(raw); }
         catch { return null; }
-    }
-
-    /// <summary>
-    /// 网易云新版歌词为逐行 JSON 格式（每行一个对象 {"t":毫秒,"c":[{"tx":片段}]}），
-    /// 转成标准 LRC 文本；纯 LRC 文本原样返回。
-    /// </summary>
-    private static string? ToLrcText(string? lyric)
-    {
-        if (string.IsNullOrWhiteSpace(lyric)) return null;
-        if (!lyric.Contains("\"t\":"))
-            return lyric;
-
-        var sb = new StringBuilder(lyric.Length);
-        foreach (var rawLine in lyric.Replace("\r\n", "\n").Split('\n'))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0) continue;
-            try
-            {
-                using var doc = JsonDocument.Parse(line);
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("t", out var tProp)) continue;
-                var ms = tProp.GetInt64();
-                var text = new StringBuilder();
-                if (root.TryGetProperty("c", out var c) && c.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var seg in c.EnumerateArray())
-                    {
-                        if (seg.TryGetProperty("tx", out var tx) && tx.ValueKind == JsonValueKind.String)
-                            text.Append(tx.GetString());
-                    }
-                }
-                if (text.Length == 0) continue;
-                var ts = TimeSpan.FromMilliseconds(ms);
-                sb.Append('[').Append(ts.Minutes.ToString("D2")).Append(':')
-                  .Append(ts.Seconds.ToString("D2")).Append('.').Append(ts.Milliseconds.ToString("D3"))
-                  .Append(']').AppendLine(text.ToString());
-            }
-            catch { /* 忽略无法解析的行 */ }
-        }
-        return sb.Length > 0 ? sb.ToString() : null;
     }
 
     private static string AesEcbEncryptHex(string text)

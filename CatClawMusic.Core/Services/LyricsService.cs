@@ -116,26 +116,16 @@ public partial class LyricsService : ILyricsService
             var onlineId = parts.Length > 1 ? parts[1] : null;
             if (!string.IsNullOrEmpty(onlineId))
             {
-                // 网易云：宿主直连歌词（原文+译文+罗马音三流，lx-music 同款），不依赖插件；
-                // 失败时静默回退插件路径（保持原有能力）。
+                // 网易云：宿主直连歌词（原文+译文+罗马音，yrc/lrc/tlyric/romalrc 直接解析并入），
+                // 不依赖插件；失败时静默回退插件路径（保持原有能力）。
                 if (string.Equals(platform, "netease", StringComparison.OrdinalIgnoreCase)
                     && long.TryParse(onlineId, out var neteaseSongId))
                 {
                     var hostLyrics = await NetEaseLyricsService.GetLyricsAsync(neteaseSongId);
-                    if (hostLyrics != null && !string.IsNullOrWhiteSpace(hostLyrics.Value.Lrc))
+                    if (hostLyrics != null && hostLyrics.Lines.Count > 0)
                     {
-                        var parsed = await Task.Run(() => TryParseLyrics(hostLyrics.Value.Lrc));
-                        if (parsed != null)
-                        {
-                            if (!string.IsNullOrWhiteSpace(hostLyrics.Value.TLrc))
-                                parsed.TranslationLines = await Task.Run(() =>
-                                    TryParseLyrics(hostLyrics.Value.TLrc)?.Lines);
-                            if (!string.IsNullOrWhiteSpace(hostLyrics.Value.RLrc))
-                                parsed.RomaLines = await Task.Run(() =>
-                                    TryParseLyrics(hostLyrics.Value.RLrc)?.Lines);
-                            MergeExtendedLines(parsed);
-                            return parsed;
-                        }
+                        Log.Debug("LyricsService", $"[Lyrics] 网易云直连歌词成功: {hostLyrics.Lines.Count} 行");
+                        return hostLyrics;
                     }
                 }
 
@@ -183,27 +173,16 @@ public partial class LyricsService : ILyricsService
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 
-        // 在线模式：本地无歌词时按标题+歌手去网易云匹配歌词（宿主直连，含译文/罗马音三流）
+        // 在线模式：本地无歌词时按标题+歌手去网易云匹配歌词（宿主直连，原文+译文/罗马音已并入）
         if (!string.IsNullOrWhiteSpace(song.Title))
         {
             try
             {
                 var netease = await NetEaseLyricsService.MatchLocalSongAsync(song.Title, song.Artist);
-                if (netease != null && !string.IsNullOrWhiteSpace(netease.Value.Lrc))
+                if (netease != null && netease.Lines.Count > 0)
                 {
-                    var parsed = await Task.Run(() => TryParseLyrics(netease.Value.Lrc));
-                    if (parsed != null)
-                    {
-                        if (!string.IsNullOrWhiteSpace(netease.Value.TLrc))
-                            parsed.TranslationLines = await Task.Run(() =>
-                                TryParseLyrics(netease.Value.TLrc)?.Lines);
-                        if (!string.IsNullOrWhiteSpace(netease.Value.RLrc))
-                            parsed.RomaLines = await Task.Run(() =>
-                                TryParseLyrics(netease.Value.RLrc)?.Lines);
-                        MergeExtendedLines(parsed);
-                        Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词成功: {song.Title} ({parsed.Lines.Count} 行)");
-                        return parsed;
-                    }
+                    Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词成功: {song.Title} ({netease.Lines.Count} 行)");
+                    return netease;
                 }
             }
             catch (Exception ex)
