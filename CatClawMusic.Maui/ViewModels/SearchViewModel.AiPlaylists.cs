@@ -161,9 +161,14 @@ public partial class SearchViewModel
         if (pool.Count == 0) return new();
 
         var sb = new StringBuilder();
-        foreach (var s in pool)
+        // 候选行用连续序号（1-25）而不是数据库主键 ID：大数字 ID 模型极易写错/编造，
+        // 解析时全部过滤导致歌单只剩 1 首歌。序号对模型友好，按序号映射回真实歌曲。
+        for (int i = 0; i < pool.Count; i++)
+        {
+            var s = pool[i];
             // 语言标注 + 专辑名：帮助 AI 判断风格/类型（否则日语歌可能被塞进国风歌单）
-            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）〔{s.Album ?? "未知专辑"}〕");
+            sb.AppendLine($"{i + 1}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）〔{s.Album ?? "未知专辑"}〕");
+        }
 
         // 当前时间上下文：星期/周末、季节、时间段（随当前时刻变化）
         var now = DateTime.Now;
@@ -276,7 +281,7 @@ public partial class SearchViewModel
         return ParseSingleAiPlaylist(raw, pool);
     }
 
-    /// <summary>解析单张 AI 歌单 JSON 对象：按 ID 匹配候选池真实歌曲，空歌单返回 null。</summary>
+    /// <summary>解析单张 AI 歌单 JSON 对象：song_ids 为候选序号（1-25），按序号映射回真实歌曲；空歌单返回 null。</summary>
     private static AiPlaylist? ParseSingleAiPlaylist(string raw, List<Song> pool)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
@@ -314,17 +319,16 @@ public partial class SearchViewModel
             if (string.IsNullOrEmpty(name)) return null;
             if (reason.Length > 40) reason = reason.Substring(0, 40);
 
-            // 按 ID 映射真实歌曲，去重
-            var validIds = pool.Select(s => s.Id).ToHashSet();
-            var idToSong = pool.ToDictionary(s => s.Id);
+            // 按候选序号映射真实歌曲（1-25 → pool 索引），去重
             var songs = new List<Song>();
             var used = new HashSet<int>();
             foreach (var id in item.SongIds)
             {
                 if (used.Contains(id)) continue;
                 used.Add(id);
-                if (validIds.Contains(id) && idToSong.TryGetValue(id, out var song))
-                    songs.Add(song);
+                var idx = id - 1; // 候选行是 1-based 序号
+                if (idx >= 0 && idx < pool.Count)
+                    songs.Add(pool[idx]);
             }
             if (songs.Count == 0) return null; // 空歌单丢弃
 

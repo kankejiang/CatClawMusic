@@ -109,15 +109,19 @@ public partial class SearchViewModel
         if (pool.Count == 0) return new();
 
         var sb = new StringBuilder();
-        foreach (var s in pool)
-            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）");
+        // 候选行用连续序号（1-N）而非数据库主键 ID：大数字 ID 模型易写错，解析时按序号映射
+        for (int i = 0; i < pool.Count; i++)
+        {
+            var s = pool[i];
+            sb.AppendLine($"{i + 1}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）");
+        }
 
         var count = Math.Min(8, pool.Count);
         var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
         var userPrompt =
-            $"下面是用户曲库里的候选歌曲（每行格式：ID. 歌名 - 艺术家）：\n{sb}\n" +
+            $"下面是用户曲库里的候选歌曲（每行格式：序号. 歌名 - 艺术家）：\n{sb}\n" +
             $"请从这些候选里挑选 {count} 首你最想推荐给用户的歌，为每首写一句温柔的推荐理由（不超过18字，不要加引号）。\n" +
-            "只返回严格的 JSON 数组，不要任何多余文字或代码块标记，格式：[{\"id\":数字,\"reason\":\"理由\"}]";
+            "只返回严格的 JSON 数组，不要任何多余文字或代码块标记，格式：[{\"id\":序号,\"reason\":\"理由\"}]";
 
         var raw = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
         return ParseAiBatch(raw, pool);
@@ -133,7 +137,7 @@ public partial class SearchViewModel
         return candidates.GroupBy(s => s.Id).Select(g => g.First()).ToList();
     }
 
-    /// <summary>解析 AI 返回的 JSON 推荐数组，仅保留候选池中真实存在的歌曲 ID</summary>
+    /// <summary>解析 AI 返回的 JSON 推荐数组，仅保留候选池中真实存在的歌曲（id 为候选序号 1-N）</summary>
     private static List<AiRecItem> ParseAiBatch(string raw, List<Song> pool)
     {
         var result = new List<AiRecItem>();
@@ -149,14 +153,15 @@ public partial class SearchViewModel
                 new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (items == null) return result;
 
-            var validIds = pool.Select(s => s.Id).ToHashSet();
+            var usedIndex = new HashSet<int>();
             foreach (var it in items)
             {
-                if (!validIds.Contains(it.SongId)) continue;
+                var idx = it.SongId - 1; // 候选序号 1-based
+                if (idx < 0 || idx >= pool.Count) continue;
+                if (!usedIndex.Add(idx)) continue; // 去重
                 var reason = it.Reason?.Trim()?.Trim('"', '「', '」', '\n', '\r') ?? "";
                 if (reason.Length > 40) reason = reason.Substring(0, 40);
-                result.Add(new AiRecItem { SongId = it.SongId, Reason = reason });
-                validIds.Remove(it.SongId); // 去重
+                result.Add(new AiRecItem { SongId = idx + 1, Reason = reason });
             }
         }
         catch (Exception ex)
@@ -166,12 +171,13 @@ public partial class SearchViewModel
         return result;
     }
 
-    /// <summary>按歌曲 ID 从已加载的内存池（常听/收藏/每日推荐）解析出 Song 对象</summary>
-    private Song? ResolveSongById(int id)
+    /// <summary>按候选序号（1-based）从候选池解析出 Song 对象</summary>
+    private Song? ResolveSongById(int seq)
     {
-        return _allTopPlayedSongs.FirstOrDefault(s => s.Id == id)
-            ?? FavoriteSongs.FirstOrDefault(s => s.Id == id)
-            ?? _allDailyRecommendSongs.FirstOrDefault(s => s.Id == id);
+        var idx = seq - 1;
+        if (idx < 0) return null;
+        var pool = BuildAiCandidatePool();
+        return idx < pool.Count ? pool[idx] : null;
     }
 
     /// <summary>从磁盘读取当天的 AI 推荐缓存；日期不匹配或为空时返回 null</summary>
