@@ -639,8 +639,8 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
             return result as string;
         }
 
-        /// <summary>异步获取歌词（LRC 原文 + 翻译 + 罗马音，旧插件仅返回前两者）</summary>
-        public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(OnlineSong song)
+        /// <summary>异步获取歌词（LRC 原文 + 翻译）</summary>
+        public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
         {
             var method = _targetType.GetMethod("GetLyricsAsync");
             if (method == null) return null;
@@ -655,28 +655,58 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
             var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetLyricsAsync", invokeArgs);
             if (result == null) return null;
 
-            string? lrc = null, tlrc = null, rlrc = null;
+            string? lrc = null, tlrrc = null;
             var type = result.GetType();
             if (type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
-                // Nullable<ValueTuple>：读取 Value 属性
+                // Nullable<ValueTuple<string,string>>：读取 Value 属性
                 var hasValue = type.GetProperty("HasValue")?.GetValue(result) as bool? ?? true;
                 if (!hasValue) return null;
                 var valueObj = type.GetProperty("Value")?.GetValue(result);
                 if (valueObj != null)
                 {
                     lrc = valueObj.GetType().GetField("Item1")?.GetValue(valueObj) as string;
-                    tlrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
-                    rlrc = valueObj.GetType().GetField("Item3")?.GetValue(valueObj) as string; // 旧插件无 Item3，反射返回 null
+                    tlrrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
                 }
             }
             else
             {
-                // 直接是 ValueTuple
+                // 直接是 ValueTuple<string,string>
                 lrc = type.GetField("Item1")?.GetValue(result) as string;
-                tlrc = type.GetField("Item2")?.GetValue(result) as string;
-                rlrc = type.GetField("Item3")?.GetValue(result) as string;
+                tlrrc = type.GetField("Item2")?.GetValue(result) as string;
             }
+            return (lrc, tlrrc);
+        }
+
+        /// <summary>异步获取歌词（含罗马音）。目标插件未实现 GetLyricsWithRomaAsync 时返回 null。</summary>
+        public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsWithRomaAsync(OnlineSong song)
+        {
+            var method = _targetType.GetMethod("GetLyricsWithRomaAsync");
+            if (method == null) return null; // 旧插件无此方法：返回 null，宿主回退 GetLyricsAsync
+
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[]? invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
+                invokeArgs = new[] { PluginAdapterReflection.ConvertType(song, paramType) };
+            else
+                invokeArgs = new object?[] { song };
+
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetLyricsWithRomaAsync", invokeArgs);
+            if (result == null) return null;
+
+            string? lrc = null, tlrc = null, rlrc = null;
+            var type = result.GetType();
+            object? valueObj = result;
+            if (type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                var hasValue = type.GetProperty("HasValue")?.GetValue(result) as bool? ?? true;
+                if (!hasValue) return null;
+                valueObj = type.GetProperty("Value")?.GetValue(result);
+                if (valueObj == null) return null;
+            }
+            lrc = valueObj.GetType().GetField("Item1")?.GetValue(valueObj) as string;
+            tlrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
+            rlrc = valueObj.GetType().GetField("Item3")?.GetValue(valueObj) as string;
             return (lrc, tlrc, rlrc);
         }
 

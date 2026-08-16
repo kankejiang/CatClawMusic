@@ -101,7 +101,7 @@ public partial class LyricsService : ILyricsService
                             Artist = song.Artist,
                             Album = song.Album
                         };
-                        var onlineLyrics = await provider.GetLyricsAsync(onlineSong);
+                        var onlineLyrics = await provider.GetLyricsWithRomaAsync(onlineSong);
                         if (onlineLyrics != null && !string.IsNullOrWhiteSpace(onlineLyrics.Value.Lrc))
                         {
                             // 原文/译文/罗马音三流分别解析后按时间戳合并（lx-music 音源同款：

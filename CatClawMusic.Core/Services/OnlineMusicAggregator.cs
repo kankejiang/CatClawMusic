@@ -79,8 +79,8 @@ public class OnlineMusicAggregator
         return null;
     }
 
-    /// <summary>获取歌词（LRC 原文 + 翻译 + 罗马音），路由到对应平台插件</summary>
-    public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(OnlineSong song)
+    /// <summary>获取歌词（LRC 原文 + 翻译），路由到对应平台插件</summary>
+    public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
     {
         foreach (var p in GetProviders())
         {
@@ -90,6 +90,27 @@ public class OnlineMusicAggregator
             {
                 var r = await p.GetLyricsAsync(song).ConfigureAwait(false);
                 if (r != null && !string.IsNullOrWhiteSpace(r.Value.Lrc)) return r;
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    /// <summary>获取歌词（原文 + 翻译 + 罗马音）：优先走支持罗马音的插件方法，旧插件回退二元组</summary>
+    public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsWithRomaAsync(OnlineSong song)
+    {
+        foreach (var p in GetProviders())
+        {
+            if (!string.Equals(p.PlatformName, song.Platform, StringComparison.OrdinalIgnoreCase))
+                continue;
+            try
+            {
+                var r = await p.GetLyricsWithRomaAsync(song).ConfigureAwait(false);
+                if (r != null && !string.IsNullOrWhiteSpace(r.Value.Lrc)) return r;
+                // 旧插件未实现新方法：回退二元组，罗马音置空
+                var basic = await p.GetLyricsAsync(song).ConfigureAwait(false);
+                if (basic != null && !string.IsNullOrWhiteSpace(basic.Value.Lrc))
+                    return (basic.Value.Lrc, basic.Value.TLrc, null);
             }
             catch { }
         }
