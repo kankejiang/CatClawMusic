@@ -308,7 +308,10 @@ public partial class NowPlayingPage
             {
                 if (s is View v && v.Width > 0)
                 {
-                    var w = Math.Max(40, v.Width - 1);
+                    // 当前行（已放大）宽度同步缩小到 1/倍率 → 放大后视觉 = 满宽，不溢出窗口；
+                    // 非当前行保持满宽。与 Android ApplyLabelWidthRole 同构。
+                    var isCurrent = main.Scale > 1.01;
+                    var w = Math.Max(40, (isCurrent ? v.Width / WinLyricCurrentScale : v.Width) - 1);
                     // 幂等钳制：仅在值变化时设置，避免无限缩小循环
                     if (Math.Abs(main.WidthRequest - w) > 0.5)
                         main.WidthRequest = w;
@@ -493,6 +496,16 @@ public partial class NowPlayingPage
         {
             row.Main.AbortAnimation("ScaleTo");
             row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
+        }
+
+        // 当前行宽度缩小到 1/倍率（放大后视觉 = 满宽，不溢出窗口）；非当前行恢复满宽。
+        // 与 Android ApplyLabelWidthRole 同构；LayoutChanged 中的钳制按 Scale 状态保持一致。
+        if (row.Main.Parent is ContentView host && host.Width > 0)
+        {
+            var isCurrent = i == index;
+            var w = Math.Max(40, (isCurrent ? host.Width / WinLyricCurrentScale : host.Width) - 1);
+            if (Math.Abs(row.Main.WidthRequest - w) > 0.5)
+                row.Main.WidthRequest = w;
         }
     }
 

@@ -208,7 +208,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
                 float y = padTop;
                 foreach (var lineM in layout.LineMetrics)
                 {
-                    var lineLen = Math.Max(1, lineM.Length);
+                    var lineLen = Math.Max(1, lineM.CharacterCount);
                     var lineFilled = Math.Clamp(filledChars, 0, lineLen);
                     if (lineFilled > 0.01f)
                     {
