@@ -89,8 +89,8 @@ public class AiRecCache
     public List<AiRecItem> Items { get; set; } = new();
 }
 
-/// <summary>AI 生成的主题歌单（每个含若干歌曲与推荐理由，由 AI 每天生成一次）。</summary>
-public class AiPlaylist
+/// <summary>AI 歌单模型（含封面 INPC：第一首歌封面后台解析完成后自动刷新卡片封面）</summary>
+public class AiPlaylist : INotifyPropertyChanged
 {
     /// <summary>歌单名</summary>
     [System.Text.Json.Serialization.JsonPropertyName("name")]
@@ -104,17 +104,44 @@ public class AiPlaylist
     [System.Text.Json.Serialization.JsonPropertyName("song_ids")]
     public List<int> SongIds { get; set; } = new();
 
-    /// <summary>解析后映射的本地歌曲（UI 使用，不落盘）</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public List<Song> Songs { get; set; } = new();
+    private List<Song>? _songs;
 
-    /// <summary>歌单封面：取第一首歌封面</summary>
+    /// <summary>解析后映射的本地歌曲（UI 使用，不落盘）。
+    /// 赋值时订阅第一首歌的 CoverArtPath 变化 → 触发 CoverPath 通知（封面后台解析完成后自动刷新）。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<Song> Songs
+    {
+        get => _songs ?? new();
+        set
+        {
+            if (_songs is { Count: > 0 })
+                _songs[0].PropertyChanged -= OnSongPropertyChanged;
+            _songs = value;
+            if (_songs is { Count: > 0 })
+                _songs[0].PropertyChanged += OnSongPropertyChanged;
+            OnPropertyChanged(nameof(CoverPath));
+            OnPropertyChanged(nameof(Subtitle));
+        }
+    }
+
+    /// <summary>歌单封面：取第一首歌封面（封面后台解析完成后经 INPC 自动刷新）</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string CoverPath => Songs.FirstOrDefault()?.CoverArtPath ?? "";
 
     /// <summary>副标题（卡片展示：歌曲数）</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string Subtitle => $"{Songs.Count} 首 · AI 主题歌单";
+
+    private void OnSongPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Song.CoverArtPath))
+            OnPropertyChanged(nameof(CoverPath));
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged(string name)
+        => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
 }
 
 /// <summary>AI 歌单磁盘缓存（每天一份）</summary>
