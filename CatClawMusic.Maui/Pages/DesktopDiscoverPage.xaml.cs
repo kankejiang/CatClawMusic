@@ -51,8 +51,6 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
         // 将听歌统计视图添加到"统计"面板
         PanelStats.Children.Add(_statsView);
-        // 后台预热统计数据，避免首次切到统计 Tab 时长时间加载
-        _ = _statsView.LoadAsync();
 
         // 用 ImageSourceHelper 在代码后台设图标源（WinUI 上 XAML 字面量 Source="ic_xxx" 不渲染）
         HeroPrev.Source = Helpers.ImageSourceHelper.FromNameOriginal("ic_arrow_left");

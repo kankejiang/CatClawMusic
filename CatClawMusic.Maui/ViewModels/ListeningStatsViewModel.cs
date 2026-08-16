@@ -142,6 +142,15 @@ public partial class ListeningStatsViewModel : ObservableObject
     public async Task LoadAsync()
     {
         if (IsLoading) return;
+
+        // 同一时间范围已算过：直接复用结果，秒开统计页/切换范围
+        if (_rangeCache.TryGetValue(_currentRange, out var cached))
+        {
+            _lastSessions = _rangeSessionsCache[_currentRange];
+            await MainThread.InvokeOnMainThreadAsync(() => ApplyResult(cached)).ConfigureAwait(false);
+            return;
+        }
+
         IsLoading = true;
         StatusText = "加载中…";
         try
@@ -183,6 +192,10 @@ public partial class ListeningStatsViewModel : ObservableObject
                 r.StatusText = r.HasData ? "" : "还没有听歌记录，去发现页听听吧";
                 return r;
             }).ConfigureAwait(false);
+
+            // 缓存本次结果，后续切换回同一范围不再重算
+            _rangeCache[_currentRange] = result;
+            _rangeSessionsCache[_currentRange] = sessions;
 
             // —— 一次性回 UI 线程赋值（触发绑定刷新 / CollectionView 重绑）——
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -382,6 +395,9 @@ public partial class ListeningStatsViewModel : ObservableObject
     }
 
     private List<PlaySession>? _lastSessions;
+    // 按时间范围缓存统计结果与会话，避免切换范围时重复跑全量 DB + LINQ
+    private readonly Dictionary<int, StatsResult> _rangeCache = new();
+    private readonly Dictionary<int, List<PlaySession>> _rangeSessionsCache = new();
 
     /// <summary>按日聚合：返回最近 N 天每天的播放次数与时长。
     /// 标签规则：7 天显示"月/日"（全部显示）；30 天显示"日"（每 5 天一个标签，对齐原型 1/6/11/16/21/26）。</summary>
