@@ -236,11 +236,14 @@
                         </Border>
                     </Grid>
 
-                    <!-- 生成中：加载指示 -->
+                    <!-- 生成中：加载指示 + 实时思考过程 -->
                     <Grid HeightRequest="150" IsVisible="{Binding IsAiPlaylistsLoading}">
                         <ActivityIndicator IsRunning="{Binding IsAiPlaylistsLoading}" IsVisible="{Binding IsAiPlaylistsLoading}"
                                            Color="{DynamicResource PrimaryColor}" WidthRequest="28" HeightRequest="28"
-                                           HorizontalOptions="Center" VerticalOptions="Center" />
+                                           HorizontalOptions="Center" VerticalOptions="Start" Margin="0,20,0,0" />
+                        <Label Text="{Binding AiPlaylistsThinking}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}"
+                               LineBreakMode="WordWrap" MaxLines="5" HorizontalOptions="Center" VerticalOptions="End"
+                               Margin="24,0,24,12" />
                     </Grid>
 
                     <CollectionView x:Name="AiPlaylistRow" Margin="0,0,40,16" HeightRequest="366"
