@@ -276,31 +276,27 @@
                                        Margin="24,0,24,12" />
                             </Grid>
 
-                            <CollectionView x:Name="AiPlaylistRow" Margin="14,0,14,12" HeightRequest="248"
+                            <CollectionView x:Name="AiPlaylistRow" Margin="14,0,14,12" HeightRequest="156"
                                             ItemsSource="{Binding AiPlaylists}" SelectionMode="None"
                                             IsVisible="{Binding IsAiPlaylistsLoading, Converter={StaticResource InvertedBoolConverter}}">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
-                                <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="10" /></CollectionView.ItemsLayout>
+                                <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="8" /></CollectionView.ItemsLayout>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
-                                        <!-- 紧凑方形卡片：宽 176 封面方形 + 底部文字 -->
-                                        <Border WidthRequest="176" StrokeShape="RoundRectangle 14" StrokeThickness="1"
+                                        <!-- 与每日推荐卡片同尺寸：宽 104 封面方形 + 紧凑文字 -->
+                                        <Border WidthRequest="104" StrokeShape="RoundRectangle 14" StrokeThickness="1"
                                                 Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
                                             <Border.GestureRecognizers>
                                                 <TapGestureRecognizer Tapped="OnAiPlaylistTapped" />
                                             </Border.GestureRecognizers>
                                             <VerticalStackLayout Spacing="0">
-                                                <Border StrokeShape="RoundRectangle 14 14 0 0" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
-                                                    <Image Source="{Binding CoverPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill">
-                                                        <Image.Behaviors>
-                                                            <controls:SquareBehavior />
-                                                        </Image.Behaviors>
-                                                    </Image>
+                                                <Border WidthRequest="104" HeightRequest="104" StrokeShape="RoundRectangle 14 14 0 0" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                                    <Image Source="{Binding CoverPath, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="104" HeightRequest="104" />
                                                 </Border>
-                                                <VerticalStackLayout Padding="9,7,9,9" Spacing="2">
-                                                    <Label Text="{Binding Name}" FontSize="12" FontFamily="OpenSansSemibold"
+                                                <VerticalStackLayout Padding="8,6,8,8" Spacing="2">
+                                                    <Label Text="{Binding Name}" FontSize="11" FontFamily="OpenSansSemibold"
                                                            TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
-                                                    <Label Text="{Binding Reason}" FontSize="9.5" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="2" />
+                                                    <Label Text="{Binding Reason}" FontSize="9" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
                                                     <Label Text="{Binding Subtitle}" FontSize="9" TextColor="{DynamicResource PrimaryColor}" MaxLines="1" />
                                                 </VerticalStackLayout>
                                             </VerticalStackLayout>
