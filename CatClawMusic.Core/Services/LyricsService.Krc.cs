@@ -102,7 +102,8 @@ public partial class LyricsService
             catch { }
         }
 
-        // 正文：每行 [行起始ms,行时长ms]<字起始ms,字时长ms,0>字（酷狗逐字格式，与网易云 yrc 同构）
+        // 正文：酷狗格式——一行文本可能含多个 [行起始ms,行时长ms] 块，块内为
+        // 逐字词 <字起始ms,字时长ms,0>字（字起始为相对行起始的偏移，需加行起始得绝对时间戳）
         var lines = new List<LrcLyricLine>();
         var lineIndex = 0;
         foreach (var rawLine in text.Split('\n'))
@@ -112,52 +113,60 @@ public partial class LyricsService
             if (line.StartsWith("[id:")) continue;          // [id:$xxx] 头部
             if (line.StartsWith("[language:")) continue;    // 语言块已处理
 
-            var lineMatch = Regex.Match(line, @"^\[(\d+),(\d+)\]");
-            if (!lineMatch.Success) continue;
-            var lineStartMs = long.Parse(lineMatch.Groups[1].Value);
+            // 全局匹配本行内所有 [行起始,行时长] 块（酷狗一行可能多块）
+            var blockMatches = Regex.Matches(line, @"\[(\d+),(\d+)\]");
+            if (blockMatches.Count == 0) continue;
 
-            var wordMatches = Regex.Matches(line, @"<(\d+),(\d+)(?:,\d+)?>([^<]*)");
-            var textBuilder = new StringBuilder();
-            var words = new List<WordTimestamp>();
-            if (wordMatches.Count > 0)
+            for (int b = 0; b < blockMatches.Count; b++)
             {
-                foreach (Match wm in wordMatches)
+                var lineStartMs = long.Parse(blockMatches[b].Groups[1].Value);
+
+                // 块内文本：块尾到下一个块（或行尾）
+                var blockEnd = b + 1 < blockMatches.Count ? blockMatches[b + 1].Index : line.Length;
+                var blockText = line.Substring(blockMatches[b].Index + blockMatches[b].Length, blockEnd - (blockMatches[b].Index + blockMatches[b].Length));
+
+                var wordMatches = Regex.Matches(blockText, @"<(\d+),(\d+)(?:,\d+)?>([^<]*)");
+                var textBuilder = new StringBuilder();
+                var words = new List<WordTimestamp>();
+                if (wordMatches.Count > 0)
                 {
-                    var word = wm.Groups[3].Value.Trim();
-                    if (word.Length == 0) continue;
-                    var startMs = long.Parse(wm.Groups[1].Value);
-                    var durMs = long.Parse(wm.Groups[2].Value);
-                    words.Add(new WordTimestamp
+                    foreach (Match wm in wordMatches)
                     {
-                        Word = word,
-                        Start = TimeSpan.FromMilliseconds(startMs),
-                        Duration = TimeSpan.FromMilliseconds(durMs)
-                    });
-                    textBuilder.Append(word);
+                        var word = wm.Groups[3].Value.Trim();
+                        if (word.Length == 0) continue;
+                        var relStartMs = long.Parse(wm.Groups[1].Value);
+                        var durMs = long.Parse(wm.Groups[2].Value);
+                        words.Add(new WordTimestamp
+                        {
+                            Word = word,
+                            Start = TimeSpan.FromMilliseconds(lineStartMs + relStartMs),
+                            Duration = TimeSpan.FromMilliseconds(durMs)
+                        });
+                        textBuilder.Append(word);
+                    }
                 }
-            }
-            else
-            {
-                // 无逐字：整行文本（最后一个 > 之后）
-                var textStart = line.IndexOf('>');
-                textBuilder.Append(textStart >= 0 ? line[(textStart + 1)..].Trim() : "");
-            }
-            if (textBuilder.Length == 0) continue;
+                else
+                {
+                    // 无逐字：块内剩余文本
+                    textBuilder.Append(blockText.Trim());
+                }
+                if (textBuilder.Length == 0) continue;
 
-            var lyricLine = new LrcLyricLine
-            {
-                Timestamp = TimeSpan.FromMilliseconds(lineStartMs),
-                Text = textBuilder.ToString(),
-                WordTimestamps = words.Count > 0 ? words : null
-            };
-            // 酷狗协议：译文/罗马音数组与正文行按索引对齐
-            if (transByIndex != null && lineIndex < transByIndex.Count && !string.IsNullOrEmpty(transByIndex[lineIndex]))
-                lyricLine.Translation = transByIndex[lineIndex];
-            if (romaByIndex != null && lineIndex < romaByIndex.Count && !string.IsNullOrEmpty(romaByIndex[lineIndex]))
-                lyricLine.Roma = romaByIndex[lineIndex];
-            lineIndex++;
+                var lyricLine = new LrcLyricLine
+                {
+                    Timestamp = TimeSpan.FromMilliseconds(lineStartMs),
+                    Text = textBuilder.ToString(),
+                    WordTimestamps = words.Count > 0 ? words : null
+                };
+                // 酷狗协议：译文/罗马音数组与正文行按索引对齐
+                if (transByIndex != null && lineIndex < transByIndex.Count && !string.IsNullOrEmpty(transByIndex[lineIndex]))
+                    lyricLine.Translation = transByIndex[lineIndex];
+                if (romaByIndex != null && lineIndex < romaByIndex.Count && !string.IsNullOrEmpty(romaByIndex[lineIndex]))
+                    lyricLine.Roma = romaByIndex[lineIndex];
+                lineIndex++;
 
-            lines.Add(lyricLine);
+                lines.Add(lyricLine);
+            }
         }
 
         if (lines.Count == 0) return null;
