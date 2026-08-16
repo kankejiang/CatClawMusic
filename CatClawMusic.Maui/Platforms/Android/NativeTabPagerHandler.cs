@@ -44,7 +44,11 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
             // IsClippedToBounds 的 pagerHost（Grid.Row=0），越界绘制被裁剪，不会覆盖 Row 1 迷你播放器。
             LayoutParameters = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
-                ViewGroup.LayoutParams.MatchParent)
+                ViewGroup.LayoutParams.MatchParent),
+            // 禁用触摸滑动切换 tab：只允许点击 TabBar 切换（命令式 SetCurrentItem 不受影响）。
+            // 同时彻底消除内层横向卡片列表与外层 ViewPager2 的手势冲突——
+            // 卡片区域滑动永远只滚卡片，不会误切 tab。
+            UserInputEnabled = false
         };
         return vp;
     }
