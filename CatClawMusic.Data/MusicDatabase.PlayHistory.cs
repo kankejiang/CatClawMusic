@@ -64,6 +64,7 @@ public partial class MusicDatabase
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var session = new PlaySession { SongId = songId, PlayedAt = now, DurationMs = Math.Max(0, durationMs) };
             await _database.InsertAsync(session);
+            await IncrementDailyStatsAsync(songId, now, 1, Math.Max(0, durationMs));
             await TrimPlaySessionAsync(2000);
             return session.Id;
         }
@@ -87,15 +88,125 @@ public partial class MusicDatabase
         {
             await EnsureMaintenanceCompletedAsync();
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var old = await _database.Table<PlaySession>().Where(s => s.Id == sessionId).FirstOrDefaultAsync();
+            var newDuration = Math.Max(0, durationMs);
             await _database.ExecuteAsync(
                 "UPDATE PlaySession SET DurationMs = ?, PlayedAt = ? WHERE Id = ?",
-                Math.Max(0, durationMs), now, sessionId);
+                newDuration, now, sessionId);
+            if (old != null)
+            {
+                var delta = newDuration - Math.Max(0, old.DurationMs);
+                if (delta != 0)
+                    await IncrementDailyStatsAsync(old.SongId, old.PlayedAt, 0, delta);
+            }
         }
         catch (Exception ex)
         {
             Log.Debug("MusicDatabase", $"[CatClaw] UpdateListenSessionAsync 失败: {ex.Message}");
         }
     }
+
+    /// <summary>增量更新按天/小时/歌曲汇总统计。</summary>
+    private async Task IncrementDailyStatsAsync(int songId, long playedAtUnix, int playDelta, long durationDelta)
+    {
+        try
+        {
+            var local = DateTimeOffset.FromUnixTimeSeconds(playedAtUnix).LocalDateTime;
+            var date = local.ToString("yyyy-MM-dd");
+            var hour = local.Hour;
+            var isNight = hour >= 21 || hour < 5;
+            var nightDelta = isNight ? playDelta : 0;
+
+            await _database.ExecuteAsync(
+                "INSERT INTO DailyPlayStat(Date, PlayCount, TotalDurationMs, NightPlayCount) VALUES (?, ?, ?, ?) " +
+                "ON CONFLICT(Date) DO UPDATE SET " +
+                "PlayCount = PlayCount + excluded.PlayCount, " +
+                "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs, " +
+                "NightPlayCount = NightPlayCount + excluded.NightPlayCount",
+                date, playDelta, durationDelta, nightDelta);
+
+            var dateHour = $"{date} {hour:D2}";
+            await _database.ExecuteAsync(
+                "INSERT INTO HourlyPlayStat(DateHour, Date, Hour, PlayCount, TotalDurationMs) VALUES (?, ?, ?, ?, ?) " +
+                "ON CONFLICT(DateHour) DO UPDATE SET " +
+                "PlayCount = PlayCount + excluded.PlayCount, " +
+                "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs",
+                dateHour, date, hour, playDelta, durationDelta);
+
+            var dateSong = $"{date}|{songId}";
+            await _database.ExecuteAsync(
+                "INSERT INTO DailySongStat(DateSong, Date, SongId, PlayCount, TotalDurationMs) VALUES (?, ?, ?, ?, ?) " +
+                "ON CONFLICT(DateSong) DO UPDATE SET " +
+                "PlayCount = PlayCount + excluded.PlayCount, " +
+                "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs",
+                dateSong, date, songId, playDelta, durationDelta);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MusicDatabase", $"[CatClaw] IncrementDailyStatsAsync 失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>获取指定本地日期范围内的按天汇总统计。</summary>
+    public async Task<List<DailyPlayStat>> GetDailyPlayStatsAsync(string startDate, string endDate)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        if (string.IsNullOrEmpty(startDate) && string.IsNullOrEmpty(endDate))
+            return await _database.Table<DailyPlayStat>().ToListAsync();
+        return await _database.QueryAsync<DailyPlayStat>(
+            "SELECT * FROM DailyPlayStat WHERE Date >= ? AND Date <= ? ORDER BY Date",
+            startDate, endDate);
+    }
+
+    /// <summary>获取指定本地日期范围内的小时汇总统计。</summary>
+    public async Task<List<HourlyPlayStat>> GetHourlyPlayStatsAsync(string startDate, string endDate)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        if (string.IsNullOrEmpty(startDate) && string.IsNullOrEmpty(endDate))
+            return await _database.Table<HourlyPlayStat>().ToListAsync();
+        return await _database.QueryAsync<HourlyPlayStat>(
+            "SELECT * FROM HourlyPlayStat WHERE Date >= ? AND Date <= ? ORDER BY Date, Hour",
+            startDate, endDate);
+    }
+
+    /// <summary>获取指定本地日期范围内的按天+歌曲汇总统计。</summary>
+    public async Task<List<DailySongStat>> GetDailySongStatsAsync(string startDate, string endDate)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        if (string.IsNullOrEmpty(startDate) && string.IsNullOrEmpty(endDate))
+            return await _database.Table<DailySongStat>().ToListAsync();
+        return await _database.QueryAsync<DailySongStat>(
+            "SELECT * FROM DailySongStat WHERE Date >= ? AND Date <= ? ORDER BY Date",
+            startDate, endDate);
+    }
+
+    /// <summary>如果汇总表为空但存在历史会话，则从 PlaySession 重建汇总，兼容旧版本升级。</summary>
+    public async Task RebuildDailyStatsIfNeededAsync()
+    {
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var sessionCount = await _database.Table<PlaySession>().CountAsync();
+            if (sessionCount == 0) return;
+            var summaryPlays = await _database.ExecuteScalarAsync<int>(
+                "SELECT COALESCE(SUM(PlayCount), 0) FROM DailyPlayStat");
+            if (summaryPlays >= sessionCount) return;
+
+            await _database.ExecuteAsync("DELETE FROM DailyPlayStat");
+            await _database.ExecuteAsync("DELETE FROM HourlyPlayStat");
+            await _database.ExecuteAsync("DELETE FROM DailySongStat");
+
+            var sessions = await _database.Table<PlaySession>().ToListAsync();
+            foreach (var s in sessions)
+                await IncrementDailyStatsAsync(s.SongId, s.PlayedAt, 1, s.DurationMs);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MusicDatabase", $"[CatClaw] RebuildDailyStatsIfNeededAsync 失败: {ex.Message}");
+        }
+    }
+
+
 
     /// <summary>
     /// 一次性校准历史播放计数：旧版本每 30 秒 flush 都会给 PlayHistory.PlayCount +1 并多插一条 PlaySession，
@@ -218,9 +329,16 @@ public partial class MusicDatabase
         {
             var count = await _database.Table<PlaySession>().CountAsync();
             if (count <= keepCount) return;
+            var removeCount = count - keepCount;
+            var removing = await _database.QueryAsync<PlaySession>(
+                "SELECT * FROM PlaySession ORDER BY PlayedAt ASC LIMIT ?", removeCount);
+            foreach (var row in removing)
+            {
+                await IncrementDailyStatsAsync(row.SongId, row.PlayedAt, -1, -row.DurationMs);
+            }
             await _database.ExecuteAsync(
                 "DELETE FROM PlaySession WHERE Id IN (SELECT Id FROM PlaySession ORDER BY PlayedAt ASC LIMIT ?)",
-                count - keepCount);
+                removeCount);
         }
         catch { }
     }

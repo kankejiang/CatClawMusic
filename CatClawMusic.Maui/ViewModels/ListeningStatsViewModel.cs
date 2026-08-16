@@ -123,9 +123,9 @@ public partial class ListeningStatsViewModel : ObservableObject
     public async Task SwitchMetricAsync(bool isCount)
     {
         IsCountMetric = isCount; // 命令起始于 UI 线程，指标 chip 颜色即时切换
-        var sessions = _lastSessions;
-        if (sessions == null) return;
-        var (bars, cap) = await Task.Run(() => BuildTrendBars(sessions, isCount, _currentRange))
+        var dailyStats = _lastDailyStats;
+        if (dailyStats == null) return;
+        var (bars, cap) = await Task.Run(() => BuildTrendBarsFromDailyStats(dailyStats, isCount, _currentRange))
             .ConfigureAwait(false);
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
@@ -146,7 +146,6 @@ public partial class ListeningStatsViewModel : ObservableObject
         // 同一时间范围已算过：直接复用结果，秒开统计页/切换范围
         if (_rangeCache.TryGetValue(_currentRange, out var cached))
         {
-            _lastSessions = _rangeSessionsCache[_currentRange];
             await MainThread.InvokeOnMainThreadAsync(() => ApplyResult(cached)).ConfigureAwait(false);
             return;
         }
@@ -155,33 +154,46 @@ public partial class ListeningStatsViewModel : ObservableObject
         StatusText = "加载中…";
         try
         {
+            var (startDate, endDate) = GetDateRange(_currentRange);
+
+            // 旧版本没有汇总表：首次打开时从 PlaySession 重建一次，之后增量维护
+            await _db.RebuildDailyStatsIfNeededAsync();
+
             // 并行拉取所有需要的数据（DB 查询本身在后台线程）
             var recentPlaysTask = _db.GetRecentPlaysAsync(200);
             var topSongsTask = _db.GetTopPlayedSongsAsync(10);
             var recentSongsTask = _db.GetRecentSongsAsync();
             var topArtistsTask = _db.GetTopPlayedArtistsAsync(5);
-            var sessionsTask = LoadSessionsForCurrentRangeAsync();
+            var dailyStatsTask = _db.GetDailyPlayStatsAsync(startDate, endDate);
+            var hourlyStatsTask = _db.GetHourlyPlayStatsAsync(startDate, endDate);
+            var songStatsTask = _db.GetDailySongStatsAsync(startDate, endDate);
 
-            await Task.WhenAll(recentPlaysTask, topSongsTask, recentSongsTask, topArtistsTask, sessionsTask)
+            await Task.WhenAll(recentPlaysTask, topSongsTask, recentSongsTask, topArtistsTask,
+                    dailyStatsTask, hourlyStatsTask, songStatsTask)
                 .ConfigureAwait(false);
 
             var recentPlays = recentPlaysTask.Result;
             var topSongs = topSongsTask.Result;
             var recentSongs = recentSongsTask.Result;
             var topArtists = topArtistsTask.Result;
-            var sessions = sessionsTask.Result;
+            var dailyStats = dailyStatsTask.Result;
+            var hourlyStats = hourlyStatsTask.Result;
+            var songStats = songStatsTask.Result;
 
-            // —— 所有 CPU 密集聚合在后台线程完成 ——
+            _lastDailyStats = dailyStats;
+            _lastHourlyStats = hourlyStats;
+
+            // —— 所有 CPU 密集聚合在后台线程完成，只读汇总小表，不再全表拉取 PlaySession ——
             var result = await Task.Run(async () =>
             {
                 var r = new StatsResult();
-                r.HasData = recentPlays.Count > 0;
+                r.HasData = dailyStats.Count > 0 || recentPlays.Count > 0;
 
-                ComputeSummary(r, sessions, topSongs, recentSongs);
-                RenderTrendChart(r, sessions);
-                RenderTimeSlots(r, sessions);
-                ComputeStreak(r, sessions);
-                await RenderCompareAsync(r, sessions);
+                ComputeSummaryFromStats(r, dailyStats, songStats, topSongs, recentSongs);
+                RenderTrendChartFromStats(r, dailyStats);
+                RenderTimeSlotsFromStats(r, hourlyStats);
+                ComputeStreakFromStats(r, dailyStats);
+                await RenderCompareFromStatsAsync(r, dailyStats, _currentRange);
 
                 var maxPlays = topSongs.Count > 0 ? topSongs.Max(s => s.PlayCount) : 1;
                 r.TopSongMax = Math.Max(1, maxPlays);
@@ -195,7 +207,6 @@ public partial class ListeningStatsViewModel : ObservableObject
 
             // 缓存本次结果，后续切换回同一范围不再重算
             _rangeCache[_currentRange] = result;
-            _rangeSessionsCache[_currentRange] = sessions;
 
             // —— 一次性回 UI 线程赋值（触发绑定刷新 / CollectionView 重绑）——
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -275,6 +286,262 @@ public partial class ListeningStatsViewModel : ObservableObject
         HasData = r.HasData;
         StatusText = r.StatusText;
     }
+
+    /// <summary>把时间范围转为本地日期区间；0 表示全部（空字符串不过滤）。</summary>
+    private static (string StartDate, string EndDate) GetDateRange(int range)
+    {
+        if (range <= 0) return ("", "");
+        var start = DateTime.Today.AddDays(-(range - 1));
+        return (start.ToString("yyyy-MM-dd"), DateTime.Today.ToString("yyyy-MM-dd"));
+    }
+
+    /// <summary>基于汇总表计算顶部统计卡 + 听歌时长大卡。</summary>
+    private static void ComputeSummaryFromStats(StatsResult r, List<DailyPlayStat> dailyStats,
+        List<DailySongStat> songStats, List<Song> topSongs, List<Song> recentSongs)
+    {
+        var totalPlays = dailyStats.Sum(d => d.PlayCount);
+        var songsHeard = songStats.Select(s => s.SongId).Distinct().Count();
+        var listeningDays = dailyStats.Count(d => d.PlayCount > 0);
+        var totalMs = dailyStats.Sum(d => d.TotalDurationMs);
+        var nightCount = dailyStats.Sum(d => d.NightPlayCount);
+
+        var now = DateTimeOffset.Now.ToUnixTimeSeconds();
+        var companionDays = (int)Math.Max(1, Math.Round((now - _epoch) / 86400.0));
+
+        r.TotalPlaysText = totalPlays.ToString("N0");
+        r.SongsHeardText = songsHeard.ToString("N0");
+        r.ListeningDaysText = listeningDays.ToString("N0");
+        r.CompanionDaysText = companionDays.ToString("N0");
+
+        var totalMinutes = totalMs / 60000.0;
+        r.TotalDurationText = FormatDuration(totalMinutes);
+        r.AvgDurationText = listeningDays > 0 ? Math.Round(totalMinutes / listeningDays).ToString("N0") : "0";
+
+        var songById = new Dictionary<int, Song>();
+        foreach (var s in topSongs) songById[s.Id] = s;
+        foreach (var s in recentSongs) songById.TryAdd(s.Id, s);
+        int maxDurationSec = 0;
+        string longestDisplay = "--:--";
+        foreach (var s in songById.Values)
+        {
+            var sec = s.Duration / 1000;
+            if (sec > maxDurationSec)
+            {
+                maxDurationSec = sec;
+                longestDisplay = $"{sec / 60}:{sec % 60:D2}";
+            }
+        }
+        r.LongestSongText = longestDisplay;
+        r.TopSongTitle = topSongs.Count > 0 ? topSongs[0].Title : "—";
+
+        var nightPct = totalPlays > 0 ? (int)Math.Round(nightCount * 100.0 / totalPlays) : 0;
+        r.NightPercentText = nightPct.ToString();
+    }
+
+    /// <summary>基于每日汇总表构建趋势图。</summary>
+    private static (List<TrendBar> Bars, string CapText) BuildTrendBarsFromDailyStats(
+        List<DailyPlayStat> dailyStats, bool isCount, int range)
+    {
+        var bars = new List<TrendBar>();
+        if (dailyStats.Count == 0)
+            return (bars, "当前范围暂无播放记录");
+
+        var byDate = dailyStats.ToDictionary(
+            d => DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Date,
+            d => d);
+
+        var buckets = new List<(string Label, int Count, long Ms)>();
+        if (range == 7 || range == 30)
+        {
+            var today = DateTime.Today;
+            for (int i = range - 1; i >= 0; i--)
+            {
+                var date = today.AddDays(-i);
+                byDate.TryGetValue(date, out var stat);
+                string label;
+                if (range == 7)
+                    label = $"{date.Month}/{date.Day}";
+                else
+                    label = (date.Day % 5 == 1) ? $"{date.Day}" : "";
+                buckets.Add((label, stat?.PlayCount ?? 0, stat?.TotalDurationMs ?? 0));
+            }
+        }
+        else
+        {
+            var byMonth = dailyStats
+                .GroupBy(d => DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Date.AddDays(1 - DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Day))
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => (Count: g.Sum(x => x.PlayCount), Ms: g.Sum(x => x.TotalDurationMs)));
+            if (byMonth.Count == 0) return (bars, "当前范围暂无播放记录");
+            var start = byMonth.Keys.Min();
+            var end = byMonth.Keys.Max();
+            var cur = start;
+            while (cur <= end)
+            {
+                byMonth.TryGetValue(cur, out var v);
+                buckets.Add(($"{cur.Month}月", v.Count, v.Ms));
+                cur = cur.AddMonths(1);
+            }
+        }
+
+        var maxCount = buckets.Max(b => b.Count);
+        var maxMs = buckets.Max(b => b.Ms);
+        var maxVal = isCount ? Math.Max(1, maxCount) : Math.Max(1L, maxMs);
+        var activeDays = buckets.Count(b => b.Count > 0);
+
+        foreach (var b in buckets)
+        {
+            var rawVal = isCount ? b.Count : b.Ms;
+            var ratio = maxVal > 0 ? (double)rawVal / maxVal : 0;
+            var display = isCount
+                ? (b.Count > 0 ? b.Count.ToString() : "")
+                : (b.Ms > 0 ? FormatDuration(b.Ms / 60000.0) : "");
+            bars.Add(new TrendBar(b.Label, ratio, display));
+        }
+
+        var cap = isCount
+            ? $"{(range == 7 ? "近 7 天" : range == 30 ? "近 30 天" : "全部时间")} · 有 {activeDays} 天在听歌"
+            : $"{(range == 7 ? "近 7 天" : range == 30 ? "近 30 天" : "全部时间")} · 共 {FormatDuration(dailyStats.Sum(d => d.TotalDurationMs) / 60000.0)}";
+        return (bars, cap);
+    }
+
+    /// <summary>为 LoadAsync 填充趋势结果（汇总表版）。</summary>
+    private void RenderTrendChartFromStats(StatsResult r, List<DailyPlayStat> dailyStats)
+    {
+        var (bars, cap) = BuildTrendBarsFromDailyStats(dailyStats, IsCountMetric, _currentRange);
+        r.TrendBars = bars;
+        r.TrendCapText = cap;
+    }
+
+    /// <summary>基于小时汇总表渲染时段分布。</summary>
+    private static void RenderTimeSlotsFromStats(StatsResult r, List<HourlyPlayStat> hourlyStats)
+    {
+        if (hourlyStats.Count == 0)
+        {
+            r.TimeSlots = new List<TimeSlotItem>();
+            r.NightNoteText = "";
+            return;
+        }
+
+        var slots = new[]
+        {
+            ("清晨 5–9", 5, 9),
+            ("上午 9–12", 9, 12),
+            ("午后 12–17", 12, 17),
+            ("傍晚 17–21", 17, 21),
+            ("夜晚 21–24", 21, 24),
+            ("凌晨 0–5", 0, 5),
+        };
+
+        var total = hourlyStats.Sum(h => h.PlayCount);
+        var counts = new int[slots.Length];
+        foreach (var h in hourlyStats)
+        {
+            for (int i = 0; i < slots.Length; i++)
+            {
+                if (h.Hour >= slots[i].Item2 && h.Hour < slots[i].Item3)
+                {
+                    counts[i] += h.PlayCount;
+                    break;
+                }
+            }
+        }
+
+        var maxCount = counts.Max();
+        var items = new List<TimeSlotItem>(slots.Length);
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var pct = total > 0 ? (int)Math.Round(counts[i] * 100.0 / total) : 0;
+            var ratio = maxCount > 0 ? (double)counts[i] / maxCount : 0;
+            items.Add(new TimeSlotItem(slots[i].Item1, pct, ratio));
+        }
+        r.TimeSlots = items;
+
+        var nightPct = total > 0 ? (int)Math.Round((counts[4] + counts[5]) * 100.0 / total) : 0;
+        r.NightNoteText = nightPct >= 30
+            ? $"🌙 深夜 + 凌晨共占 {nightPct}%，你是个不折不扣的夜猫子"
+            : nightPct >= 15
+                ? $"🌙 深夜 + 凌晨共占 {nightPct}%，偶尔也会熬夜听歌"
+                : $"☀️ 深夜 + 凌晨共占 {nightPct}%，你的作息很健康";
+    }
+
+    /// <summary>基于每日汇总表计算连续听歌。</summary>
+    private static void ComputeStreakFromStats(StatsResult r, List<DailyPlayStat> dailyStats)
+    {
+        if (dailyStats.Count == 0)
+        {
+            r.StreakCurrentText = "0";
+            r.StreakBestText = "0";
+            r.StreakCapText = "还未开始听歌";
+            return;
+        }
+
+        var dates = dailyStats
+            .Where(d => d.PlayCount > 0)
+            .Select(d => DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Date)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
+        var today = DateTime.Today;
+        var cur = 0;
+        if (dates.Contains(today))
+        {
+            cur = 1;
+            var d = today.AddDays(-1);
+            while (dates.Contains(d)) { cur++; d = d.AddDays(-1); }
+        }
+        else if (dates.Contains(today.AddDays(-1)))
+        {
+            cur = 1;
+            var d = today.AddDays(-2);
+            while (dates.Contains(d)) { cur++; d = d.AddDays(-1); }
+        }
+
+        var best = 1;
+        var run = 1;
+        for (int i = 1; i < dates.Count; i++)
+        {
+            if (dates[i] == dates[i - 1].AddDays(1)) run++;
+            else run = 1;
+            if (run > best) best = run;
+        }
+
+        r.StreakCurrentText = cur.ToString();
+        r.StreakBestText = best.ToString();
+        r.StreakCapText = cur > 0 ? $"已坚持 {cur} 天" : "今天还没听歌";
+    }
+
+    /// <summary>基于每日汇总表计算环比对比（当前范围 vs 上一周期）。</summary>
+    private async Task RenderCompareFromStatsAsync(StatsResult r, List<DailyPlayStat> dailyStats, int range)
+    {
+        r.CompareItems = new List<CompareItem>();
+        if (range == 0)
+        {
+            r.HasCompare = false;
+            r.CompareCapText = "全部时间 · 无对比";
+            return;
+        }
+        r.HasCompare = true;
+        r.CompareCapText = $"近 {range} 天 vs 前 {range} 天";
+
+        var prevEnd = DateTime.Today.AddDays(-range);
+        var prevStart = DateTime.Today.AddDays(-range * 2 + 1);
+        var prevDaily = await _db.GetDailyPlayStatsAsync(
+            prevStart.ToString("yyyy-MM-dd"), prevEnd.ToString("yyyy-MM-dd"));
+
+        var curPlays = dailyStats.Sum(d => d.PlayCount);
+        var prevPlays = prevDaily.Sum(d => d.PlayCount);
+        var curDays = dailyStats.Count(d => d.PlayCount > 0);
+        var prevDays = prevDaily.Count(d => d.PlayCount > 0);
+        var curMs = dailyStats.Sum(d => d.TotalDurationMs);
+        var prevMs = prevDaily.Sum(d => d.TotalDurationMs);
+
+        r.CompareItems.Add(new CompareItem("播放次数", curPlays.ToString("N0"), DeltaPct(curPlays, prevPlays)));
+        r.CompareItems.Add(new CompareItem("听歌时长", FormatDuration(curMs / 60000.0), DeltaPct(curMs, prevMs)));
+        r.CompareItems.Add(new CompareItem("听歌天数", curDays.ToString(), DeltaPct(curDays, prevDays)));
+    }
+
 
     /// <summary>根据当前时间范围拉取播放会话列表。</summary>
     private async Task<List<PlaySession>> LoadSessionsForCurrentRangeAsync()
@@ -394,10 +661,12 @@ public partial class ListeningStatsViewModel : ObservableObject
         r.TrendCapText = cap;
     }
 
+
     private List<PlaySession>? _lastSessions;
-    // 按时间范围缓存统计结果与会话，避免切换范围时重复跑全量 DB + LINQ
+    private List<DailyPlayStat>? _lastDailyStats;
+    private List<HourlyPlayStat>? _lastHourlyStats;
+    // 按时间范围缓存统计结果，避免切换范围时重复跑全量 DB + LINQ
     private readonly Dictionary<int, StatsResult> _rangeCache = new();
-    private readonly Dictionary<int, List<PlaySession>> _rangeSessionsCache = new();
 
     /// <summary>按日聚合：返回最近 N 天每天的播放次数与时长。
     /// 标签规则：7 天显示"月/日"（全部显示）；30 天显示"日"（每 5 天一个标签，对齐原型 1/6/11/16/21/26）。</summary>

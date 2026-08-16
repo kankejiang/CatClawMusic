@@ -113,6 +113,9 @@ public partial class MusicDatabase
             await MigratePlayHistoryTableAsync();
             await _database.CreateTableAsync<PlayHistory>();
             await _database.CreateTableAsync<PlaySession>();
+            await _database.CreateTableAsync<DailyPlayStat>();
+            await _database.CreateTableAsync<HourlyPlayStat>();
+            await _database.CreateTableAsync<DailySongStat>();
             await _database.CreateTableAsync<Favorite>();
             await _database.CreateTableAsync<Lyric>();
             await _database.CreateTableAsync<ConnectionProfile>();
