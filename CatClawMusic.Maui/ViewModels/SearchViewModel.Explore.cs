@@ -15,6 +15,10 @@ public partial class SearchViewModel
         // 只让第一个真正执行，避免重复整库加载与万级历史聚合叠加拖垮主线程。
         if (System.Threading.Interlocked.CompareExchange(ref _loadInProgress, 1, 0) != 0)
             return;
+
+        // 启动时可能先于 LibraryViewModel 构造，这里主动把“发现页来源”同步到 ExploreDataService，
+        // 避免重启后首次加载用了默认 all，导致本地/网络过滤失灵。
+        await ApplyDiscoverSourceFilterAsync();
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         var savedDate = Preferences.Default.Get("explore_last_load_date", "");
         var isSameDay = savedDate == today;
@@ -170,6 +174,35 @@ public partial class SearchViewModel
             System.Threading.Interlocked.Exchange(ref _loadInProgress, 0);
         }
     }
+
+    /// <summary>把音乐库“发现页来源”设置同步到 ExploreDataService，确保探索页/AI 候选都按当前来源过滤。</summary>
+    private async Task ApplyDiscoverSourceFilterAsync()
+    {
+        try
+        {
+            var preference = Preferences.Default.Get("discover_source", "auto");
+            string effective;
+            if (preference != "auto")
+            {
+                effective = preference;
+            }
+            else
+            {
+                var enabledProtocols = await _database.GetEnabledProtocolsAsync();
+                var hasNetworkProtocols = enabledProtocols.Count > 0;
+                var localCount = await _database.GetLocalSongCountAsync();
+                var hasLocalMusic = localCount > 0;
+                effective = hasNetworkProtocols && !hasLocalMusic ? "network" : "local";
+            }
+
+            _exploreDataService.SetSourceFilter(effective);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchViewModel", $"[SearchVM] 应用发现页来源筛选失败: {ex.Message}");
+        }
+    }
+
 
     /// <summary>加载探索数据（与 <see cref="LoadDataAsync"/> 等价）</summary>
     public async Task LoadExploreDataAsync()

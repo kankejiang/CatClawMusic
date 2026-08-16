@@ -232,6 +232,9 @@
                         </VerticalStackLayout>
                         <Border Grid.Column="2" Padding="8,3" StrokeThickness="0" StrokeShape="RoundRectangle 999"
                                 BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
+                              <Border.GestureRecognizers>
+                                  <TapGestureRecognizer Tapped="OnAiPlaylistRegenerateTapped" />
+                              </Border.GestureRecognizers>
                             <Label Text="AI 生成" FontSize="9.5" FontAttributes="Bold" TextColor="White" />
                         </Border>
                     </Grid>

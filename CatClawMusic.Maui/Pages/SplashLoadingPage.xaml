@@ -8,19 +8,23 @@
     <Grid>
         <VerticalStackLayout VerticalOptions="Center"
                              HorizontalOptions="Center"
-                             Spacing="40">
-            <!-- 应用 Logo：玻璃拟态圆角容器，与主题背景无缝衔接 -->
-            <Border StrokeThickness="1"
-                    Stroke="{DynamicResource GlassStrokeColor}"
-                    BackgroundColor="{DynamicResource GlassButtonColor}"
-                    Padding="20"
-                    StrokeShape="RoundRectangle 30"
-                    HorizontalOptions="Center">
-                <Image Source="splash_logo.png"
-                       WidthRequest="112"
-                       HeightRequest="112"
-                       Aspect="AspectFit" />
-            </Border>
+                             Spacing="24">
+            <!-- 可爱的中英文标题 -->
+            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                <Label Text="🐾 猫爪音乐"
+                       FontSize="30"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimaryColor}"
+                       HorizontalOptions="Center" />
+                <Label Text="CatClaw Music"
+                       FontSize="16"
+                       TextColor="{DynamicResource TextSecondaryColor}"
+                       HorizontalOptions="Center" />
+                <Label Text="正在为你准备音乐喵～"
+                       FontSize="13"
+                       TextColor="{DynamicResource TextHintColor}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
 
             <!-- 加载指示：关键服务初始化完成后由 App 移除本页 -->
             <ActivityIndicator IsRunning="True"

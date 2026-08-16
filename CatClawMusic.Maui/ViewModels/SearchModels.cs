@@ -100,7 +100,7 @@ public class AiPlaylist : INotifyPropertyChanged
     [System.Text.Json.Serialization.JsonPropertyName("reason")]
     public string Reason { get; set; } = "";
 
-    /// <summary>歌单内歌曲 ID（AI 返回，解析时按 ID 匹配本地曲库）</summary>
+    /// <summary>歌单内歌曲 ID（解析后为本地曲库真实数据库 ID，磁盘缓存按此恢复）</summary>
     [System.Text.Json.Serialization.JsonPropertyName("song_ids")]
     public List<int> SongIds { get; set; } = new();
 
@@ -149,6 +149,8 @@ public class AiPlaylistsCache
 {
     /// <summary>缓存日期 "yyyy-MM-dd"</summary>
     public string Date { get; set; } = "";
+    /// <summary>缓存格式版本：2 表示 SongIds 存真实数据库 ID；1 为旧版候选序号（已废弃）</summary>
+    public int Version { get; set; } = 2;
     /// <summary>当天歌单列表</summary>
     public List<AiPlaylist> Playlists { get; set; } = new();
 }

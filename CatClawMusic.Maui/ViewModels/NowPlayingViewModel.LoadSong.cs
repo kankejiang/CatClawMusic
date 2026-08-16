@@ -285,6 +285,28 @@ public partial class NowPlayingViewModel
     public async Task PreloadMediaAsync()
     {
         var song = _queue.CurrentSong;
+
+        // 启动时队列可能尚未从 Preferences 恢复，这里先恢复，否则封面/歌词预加载会空跑。
+        if (song == null)
+        {
+            try
+            {
+                await _db.EnsureInitializedAsync();
+                var (restoredSongs, restoredIndex, restoredMode) = await RestoreQueueStateAsync();
+                if (restoredSongs.Count > 0 && restoredIndex >= 0)
+                {
+                    _queue.RestorePersisted(restoredSongs, restoredIndex, restoredMode);
+                    song = _queue.CurrentSong;
+                    // 标记启动恢复，避免进入播放页后自动播放
+                    _isStartupRestore = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("AppViewModels", $"[Preload] 恢复播放队列失败: {ex.Message}");
+            }
+        }
+
         if (song == null) return;
         try
         {

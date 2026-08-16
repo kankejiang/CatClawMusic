@@ -67,6 +67,9 @@ public class ExploreDataService
         }
     }
 
+    /// <summary>当前生效的来源筛选：all / local / network</summary>
+    public string CurrentSourceFilter => _sourceFilter;
+
     /// <summary>
     /// 使每日推荐缓存失效：清除内存缓存和磁盘缓存。
     /// 在音乐库扫描完成、歌曲发生变化后调用，确保探索页展示最新数据。

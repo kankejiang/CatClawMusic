@@ -403,7 +403,7 @@ public partial class MainPage : ContentPage
     /// 音乐库(3)：预加载其数据，避免启动页为音乐库时的首屏空白
     /// （LibraryPage.OnAppearing 首次会自加载，无 Count 守卫，预加载收益被兜底覆盖但遮罩
     /// 在数据就绪后才隐藏，空白窗口消除）。
-    /// 其余目标（0/1）：预加载发现页——SearchPage.OnAppearing 有 Count 守卫会跳过重复加载。</summary>
+    /// 播放(0)：预加载封面/歌词；发现(1)：预加载发现页——SearchPage.OnAppearing 有 Count 守卫会跳过重复加载。</summary>
     private async Task PreloadTabDataAsync(int targetTabIdx)
     {
         LoadingOverlay.IsVisible = true;
@@ -415,6 +415,8 @@ public partial class MainPage : ContentPage
 
             if (targetTabIdx == 3)
                 await libraryVm.LoadLocalAsync();
+            else if (targetTabIdx == 0)
+                await _nowPlayingVm.PreloadMediaAsync();
             else
                 await searchVm.LoadExploreDataAsync();
 

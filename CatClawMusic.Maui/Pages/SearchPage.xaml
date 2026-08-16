@@ -241,7 +241,7 @@
 
                         <!-- AI 歌单（开启智能推荐且有数据/正在生成时显示；由 AI 每天生成一次） -->
                         <VerticalStackLayout Spacing="0" IsVisible="{Binding IsAiPlaylistsSectionVisible}">
-                            <Grid Margin="20,0,20,10" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Grid Margin="20,0,20,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                 <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -257,6 +257,13 @@
                                     <Label Text="AI 正在分析你的口味生成歌单…" FontSize="10.5" TextColor="{DynamicResource PrimaryColor}"
                                            IsVisible="{Binding IsAiPlaylistsLoading}" />
                                 </VerticalStackLayout>
+                                <Border Grid.Column="2" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 999"
+                                        BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" VerticalOptions="Center">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnAiPlaylistRegenerateTapped" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="重新生成" FontSize="9.5" FontAttributes="Bold" TextColor="White" />
+                                </Border>
                             </Grid>
 
                             <!-- 生成中：加载指示 + 实时思考过程 -->

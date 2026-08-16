@@ -997,6 +997,12 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         await PlaySongAsync(first, playlist.Songs);
     }
 
+    /// <summary>手动重新生成 AI 歌单（清缓存后强制调用 AI）</summary>
+    private async void OnAiPlaylistRegenerateTapped(object? sender, TappedEventArgs e)
+    {
+        await _vm.RegenerateAiPlaylistsAsync();
+    }
+
     // === 搜索结果中的歌曲播放 ===
 
     private async void OnSearchSongSelected(object? sender, SelectionChangedEventArgs e)

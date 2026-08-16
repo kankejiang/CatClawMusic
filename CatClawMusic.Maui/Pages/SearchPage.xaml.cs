@@ -606,6 +606,12 @@ public partial class SearchPage : DiscoverPageBase
         await PlaySongAsync(playlist.Songs[0], playlist.Songs);
     }
 
+    /// <summary>手动重新生成 AI 歌单（清缓存后强制调用 AI）</summary>
+    private async void OnAiPlaylistRegenerateTapped(object? sender, TappedEventArgs e)
+    {
+        await _vm.RegenerateAiPlaylistsAsync();
+    }
+
     private void OnRefreshClicked(object? sender, EventArgs e)
     {
         // 刷新中重复点击忽略（按钮已切换为转圈反馈）；不再用 IsLoading 拦截——
