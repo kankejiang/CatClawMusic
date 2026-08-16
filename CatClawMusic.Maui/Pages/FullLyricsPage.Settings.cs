@@ -17,6 +17,23 @@ public partial class FullLyricsPage
             var textSecondary = (Color)Application.Current.Resources["TextSecondaryColor"];
             var textHint = (Color)Application.Current.Resources["TextHintColor"];
 
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词来源", textHint));
+            LyricsSettingsPopup.AddContent(BuildSegmentedControl(
+                ("在线", Core.Services.LyricSourceMode.Online),
+                ("自动", Core.Services.LyricSourceMode.LocalAuto),
+                ("内嵌", Core.Services.LyricSourceMode.LocalEmbedded),
+                ("外挂", Core.Services.LyricSourceMode.LocalExternal),
+                _settings.LyricSource,
+                value =>
+                {
+                    _settings.LyricSource = value;
+                    _viewModel.RefreshFilteredLines();
+                    _ = _viewModel.ReloadLyricsAsync();
+                    RebuildLyricsView();
+                },
+                primaryColor, inactiveColor, Colors.White, textSecondary));
+
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
             LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词模式", textHint));
             LyricsSettingsPopup.AddContent(BuildSegmentedControl(
                 ("逐行", LyricsSettingsService.Mode.Line),
@@ -133,6 +150,19 @@ public partial class FullLyricsPage
         Color activeTextColor, Color inactiveTextColor) where T : Enum
     {
         return BuildSegmentedControlCore(new[] { option1, option2, option3 }, currentValue, onSelected, activeColor, inactiveColor, activeTextColor, inactiveTextColor);
+    }
+
+    private View BuildSegmentedControl<T>(
+        (string Label, T Value) option1,
+        (string Label, T Value) option2,
+        (string Label, T Value) option3,
+        (string Label, T Value) option4,
+        T currentValue,
+        Action<T> onSelected,
+        Color activeColor, Color inactiveColor,
+        Color activeTextColor, Color inactiveTextColor) where T : Enum
+    {
+        return BuildSegmentedControlCore(new[] { option1, option2, option3, option4 }, currentValue, onSelected, activeColor, inactiveColor, activeTextColor, inactiveTextColor);
     }
 
     private View BuildSegmentedControlCore<T>(

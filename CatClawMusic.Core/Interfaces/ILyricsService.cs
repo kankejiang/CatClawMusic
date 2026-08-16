@@ -13,9 +13,13 @@ public interface ILyricsService
     Task<LrcLyrics?> GetLyricsAsync(Song song);
     
     /// <summary>
-    /// 从本地文件获取歌词
+    /// 从本地文件获取歌词（外挂 .lrc/.ttml 优先，内嵌兜底）
     /// </summary>
-    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false);
+    /// <param name="song">歌曲信息</param>
+    /// <param name="skipEmbedded">仅外挂模式：跳过内嵌歌词</param>
+    /// <param name="preferEmbedded">内嵌优先（内嵌模式）</param>
+    /// <param name="skipExternal">仅内嵌模式：跳过外挂歌词查找</param>
+    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false);
     
     /// <summary>
     /// 解析 LRC 格式字符串

@@ -11,6 +11,15 @@ namespace CatClawMusic.Maui.ViewModels;
 /// <summary>正在播放 ViewModel —— partial 分域文件。</summary>
 public partial class NowPlayingViewModel
 {
+    /// <summary>按当前歌词来源设置重新加载当前歌曲的歌词（歌词设置切换来源后调用）</summary>
+    public async Task ReloadLyricsAsync()
+    {
+        var song = _queue.CurrentSong;
+        if (song == null) return;
+        _currentLyricIndex = -1;
+        await LoadLyricsAsync(song, CancellationToken.None);
+    }
+
     private async Task LoadLyricsAsync(Song song, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

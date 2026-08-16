@@ -8,6 +8,19 @@ using System.Text.Json;
 
 namespace CatClawMusic.Core.Services;
 
+/// <summary>歌词来源模式（歌词设置中可选，由 UI 层同步到 <see cref="LyricsService.LyricSourceMode"/>）</summary>
+public enum LyricSourceMode
+{
+    /// <summary>在线：优先在线匹配（网易云三流歌词等），失败回退本地歌词</summary>
+    Online = 0,
+    /// <summary>本地自动：同名外挂 .lrc 优先，无则读内嵌歌词</summary>
+    LocalAuto = 1,
+    /// <summary>本地内嵌：只读音频文件内嵌歌词</summary>
+    LocalEmbedded = 2,
+    /// <summary>本地外挂：只读同名 .lrc/.ttml 文件</summary>
+    LocalExternal = 3
+}
+
 /// <summary>
 /// 歌词服务实现（LRC/TTML/AMLL 解析 + 多源查找 + KTV 索引）。
 /// 解析器按格式拆分在 LyricsService.*.cs partial 文件：
@@ -20,6 +33,9 @@ public partial class LyricsService : ILyricsService
 
     /// <summary>网络音乐服务工厂（可选，由 UI 层设置，用于 Navidrome 等远程歌词获取）</summary>
     public Func<INetworkMusicService?>? NetworkMusicServiceFactory { get; set; }
+
+    /// <summary>当前歌词来源模式（默认在线）。由歌词设置页切换并持久化。</summary>
+    public static LyricSourceMode LyricSourceMode { get; set; } = LyricSourceMode.Online;
 
     /// <summary>时间戳正则 [mm:ss.xx]</summary>
     private static readonly Regex TimeRegex = new(@"\[(\d+):(\d+)(?:\.(\d+))?\]", RegexOptions.Compiled);
@@ -51,6 +67,18 @@ public partial class LyricsService : ILyricsService
         else
             fpPreview = song.FilePath.Length <= 40 ? song.FilePath : song.FilePath[..40];
         Log.Debug("LyricsService", $"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
+
+        // 本地模式：只从本地文件取歌词（自动/内嵌/外挂），不发起任何联网请求
+        if (LyricSourceMode != LyricSourceMode.Online)
+        {
+            var local = await GetLocalLyricsAsync(song,
+                skipEmbedded: LyricSourceMode == LyricSourceMode.LocalExternal,
+                preferEmbedded: LyricSourceMode == LyricSourceMode.LocalEmbedded,
+                skipExternal: LyricSourceMode == LyricSourceMode.LocalEmbedded);
+            if (local != null)
+                Log.Debug("LyricsService", $"[Lyrics] 本地模式({LyricSourceMode})命中 {local.Lines.Count} 行");
+            return local;
+        }
 
         // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
         if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
@@ -155,6 +183,35 @@ public partial class LyricsService : ILyricsService
         var lyrics = await GetLocalLyricsAsync(song);
         if (lyrics != null) return lyrics;
 
+        // 在线模式：本地无歌词时按标题+歌手去网易云匹配歌词（宿主直连，含译文/罗马音三流）
+        if (!string.IsNullOrWhiteSpace(song.Title))
+        {
+            try
+            {
+                var netease = await NetEaseLyricsService.MatchLocalSongAsync(song.Title, song.Artist);
+                if (netease != null && !string.IsNullOrWhiteSpace(netease.Value.Lrc))
+                {
+                    var parsed = await Task.Run(() => TryParseLyrics(netease.Value.Lrc));
+                    if (parsed != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(netease.Value.TLrc))
+                            parsed.TranslationLines = await Task.Run(() =>
+                                TryParseLyrics(netease.Value.TLrc)?.Lines);
+                        if (!string.IsNullOrWhiteSpace(netease.Value.RLrc))
+                            parsed.RomaLines = await Task.Run(() =>
+                                TryParseLyrics(netease.Value.RLrc)?.Lines);
+                        MergeExtendedLines(parsed);
+                        Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词成功: {song.Title} ({parsed.Lines.Count} 行)");
+                        return parsed;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词失败: {ex.Message}");
+            }
+        }
+
         if (PluginManager != null)
         {
             var providers = PluginManager.GetEnabledPlugins<ILyricsProviderPlugin>();
@@ -179,8 +236,10 @@ public partial class LyricsService : ILyricsService
     /// 从本地获取歌词（同名 .lrc 文件 > 嵌入歌词）
     /// </summary>
     /// <param name="song">歌曲信息</param>
-    /// <param name="skipEmbedded">是否跳过嵌入歌词</param>
-    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false)
+    /// <param name="skipEmbedded">是否跳过嵌入歌词（仅外挂模式）</param>
+    /// <param name="preferEmbedded">是否内嵌优先（内嵌模式）</param>
+    /// <param name="skipExternal">是否跳过外挂歌词查找（仅内嵌模式）</param>
+    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false)
     {
         var songPath = song.FilePath;
 
@@ -214,7 +273,7 @@ public partial class LyricsService : ILyricsService
         }
 
         // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
-        if (!string.IsNullOrEmpty(song.LyricsPath))
+        if (!skipExternal && !string.IsNullOrEmpty(song.LyricsPath))
         {
             if (song.LyricsPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
@@ -260,6 +319,9 @@ public partial class LyricsService : ILyricsService
                 if (scanned != null) return scanned;
             }
 
+            // 内嵌模式（skipExternal）：外挂歌词查找整体跳过
+            if (skipExternal) return null;
+
             if (isContentUri)
             {
                 var lrcUri = ConstructLrcUri(songPath);
@@ -304,52 +366,58 @@ public partial class LyricsService : ILyricsService
 
         if (isContentUri)
         {
-            // 方式1：从 content:// URI 构造同名歌词文件的 content:// URI
-            // 尝试 .lrc
-            var lrcUri = ConstructLyricsUri(songPath, ".lrc");
-            if (lrcUri != null)
+            if (!skipExternal)
             {
-                var content = await ReadContentUriAsync(lrcUri);
-                if (content != null)
+                // 方式1：从 content:// URI 构造同名歌词文件的 content:// URI
+                // 尝试 .lrc
+                var lrcUri = ConstructLyricsUri(songPath, ".lrc");
+                if (lrcUri != null)
                 {
-                    var parsed = ParseLrc(content);
-                    if (parsed != null) return parsed;
+                    var content = await ReadContentUriAsync(lrcUri);
+                    if (content != null)
+                    {
+                        var parsed = ParseLrc(content);
+                        if (parsed != null) return parsed;
+                    }
                 }
-            }
-            
-            // 尝试 .ttml
-            var ttmlUri = ConstructLyricsUri(songPath, ".ttml");
-            if (ttmlUri != null)
-            {
-                var content = await ReadContentUriAsync(ttmlUri);
-                if (content != null)
+
+                // 尝试 .ttml
+                var ttmlUri = ConstructLyricsUri(songPath, ".ttml");
+                if (ttmlUri != null)
                 {
-                    var parsed = await Task.Run(() => ParseTtml(content));
-                    if (parsed != null) return parsed;
+                    var content = await ReadContentUriAsync(ttmlUri);
+                    if (content != null)
+                    {
+                        var parsed = await Task.Run(() => ParseTtml(content));
+                        if (parsed != null) return parsed;
+                    }
                 }
-            }
-            
-            // 尝试 .xml（可能是 TTML）
-            var xmlUri = ConstructLyricsUri(songPath, ".xml");
-            if (xmlUri != null)
-            {
-                var content = await ReadContentUriAsync(xmlUri);
-                if (content != null && (content.Contains("<tt") || content.Contains("xmlns=\"http://www.w3.org/ns/ttml")))
+
+                // 尝试 .xml（可能是 TTML）
+                var xmlUri = ConstructLyricsUri(songPath, ".xml");
+                if (xmlUri != null)
                 {
-                    var parsed = await Task.Run(() => ParseTtml(content));
-                    if (parsed != null) return parsed;
+                    var content = await ReadContentUriAsync(xmlUri);
+                    if (content != null && (content.Contains("<tt") || content.Contains("xmlns=\"http://www.w3.org/ns/ttml")))
+                    {
+                        var parsed = await Task.Run(() => ParseTtml(content));
+                        if (parsed != null) return parsed;
+                    }
                 }
             }
 
             // 方式2：从 SAF document URI 提取真实文件路径，再用文件系统查找歌词
-            var realPath = TryConvertContentUriToPath(songPath);
-            if (!string.IsNullOrEmpty(realPath))
+            if (!skipExternal)
             {
-                var lrcLyrics = await TryReadLrcFileAsync(realPath);
-                if (lrcLyrics != null) return lrcLyrics;
+                var realPath = TryConvertContentUriToPath(songPath);
+                if (!string.IsNullOrEmpty(realPath))
+                {
+                    var lrcLyrics = await TryReadLrcFileAsync(realPath);
+                    if (lrcLyrics != null) return lrcLyrics;
+                }
             }
         }
-        else if (!string.IsNullOrEmpty(songPath))
+        else if (!string.IsNullOrEmpty(songPath) && !skipExternal)
         {
             var lrcLyrics = await TryReadLrcFileAsync(songPath);
             if (lrcLyrics != null) return lrcLyrics;

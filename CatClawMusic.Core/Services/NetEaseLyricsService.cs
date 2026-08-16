@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CatClawMusic.Core.Services;
 
@@ -98,6 +99,87 @@ public static class NetEaseLyricsService
         {
             return null;
         }
+    }
+
+    private sealed class NeteaseSearchSong
+    {
+        [JsonPropertyName("id")] public long Id { get; set; }
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("artists")] public List<NeteaseArtist>? Artists { get; set; }
+    }
+
+    private sealed class NeteaseArtist
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+    }
+
+    private sealed class NeteaseSearchRoot
+    {
+        [JsonPropertyName("result")] public NeteaseSearchResult? Result { get; set; }
+    }
+
+    private sealed class NeteaseSearchResult
+    {
+        [JsonPropertyName("songs")] public List<NeteaseSearchSong>? Songs { get; set; }
+    }
+
+    /// <summary>按关键词搜索网易云歌曲（免登录接口），返回最多 8 条</summary>
+    public static async Task<List<(long Id, string Name, string Artists)>?> SearchAsync(string keyword)
+    {
+        try
+        {
+            var url = "https://music.163.com/api/search/get/web?csrf_token=&type=1&s="
+                      + Uri.EscapeDataString(keyword) + "&limit=8";
+            using var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+            var body = await response.Content.ReadAsStringAsync();
+            var root = JsonSerializer.Deserialize<NeteaseSearchRoot>(body);
+            return root?.Result?.Songs?
+                .Select(s => (s.Id, s.Name, string.Join(", ", s.Artists?.Select(a => a.Name) ?? new List<string>())))
+                .ToList();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>按本地歌曲标题/歌手匹配网易云歌词：搜索 → 排序（标题/歌手匹配优先）→ 取歌词三流。</summary>
+    public static async Task<(string? Lrc, string? TLrc, string? RLrc)?> MatchLocalSongAsync(string title, string? artist)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return null;
+
+        var keyword = string.IsNullOrWhiteSpace(artist)
+            ? title
+            : $"{title} {artist}";
+        var results = await SearchAsync(keyword);
+        if (results == null || results.Count == 0) return null;
+
+        // 排序：歌手匹配优先，其次标题精确/包含匹配
+        List<(long Id, string Name, string Artists)> ordered;
+        if (!string.IsNullOrWhiteSpace(artist))
+        {
+            ordered = results
+                .OrderByDescending(r => r.Artists.Contains(artist, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(r => r.Name.Equals(title, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        else
+        {
+            ordered = results
+                .OrderByDescending(r => r.Name.Equals(title, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(r => r.Name.Contains(title, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // 前 3 个候选尝试取歌词（防标题撞车），第一个成功即返回
+        foreach (var cand in ordered.Take(3))
+        {
+            var lyrics = await GetLyricsAsync(cand.Id);
+            if (lyrics != null && !string.IsNullOrWhiteSpace(lyrics.Value.Lrc))
+                return lyrics;
+        }
+        return null;
     }
 
     /// <summary>响应解码：兼容明文与 eapi 密文两种返回</summary>
