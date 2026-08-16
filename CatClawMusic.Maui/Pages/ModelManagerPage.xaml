@@ -94,20 +94,6 @@
                                    TextChanged="OnMaxPlanRoundsChanged"
                                    ReturnType="Done" />
                         </VerticalStackLayout>
-
-                        <!-- 推理力度 -->
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="推理力度"
-                                   FontSize="13"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="控制模型推理深度，disabled 表示不启用"
-                                   FontSize="11"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   LineBreakMode="WordWrap" />
-                            <Picker x:Name="ReasoningEffortPicker"
-                                    Title="选择推理力度"
-                                    SelectedIndexChanged="OnReasoningEffortChanged" />
-                        </VerticalStackLayout>
                     </VerticalStackLayout>
                 </Border>
 

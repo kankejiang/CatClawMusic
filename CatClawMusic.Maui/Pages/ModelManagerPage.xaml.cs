@@ -19,10 +19,6 @@ public partial class ModelManagerPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
-
-        // 填充推理力度选项
-        foreach (var opt in AgentRunSettings.ReasoningEffortOptions)
-            ReasoningEffortPicker.Items.Add(opt);
     }
 
     /// <summary>页面显示时重新加载配置列表，刷新主模型标识。</summary>
@@ -39,10 +35,6 @@ public partial class ModelManagerPage : ContentPage
     {
         MaxToolRoundsEntry.Text = AgentService.GetMaxToolRounds().ToString();
         MaxPlanRoundsEntry.Text = AgentService.GetMaxPlanRounds().ToString();
-
-        var effort = AgentService.GetReasoningEffort();
-        var idx = Array.IndexOf(AgentRunSettings.ReasoningEffortOptions, effort);
-        ReasoningEffortPicker.SelectedIndex = idx >= 0 ? idx : 1; // 默认 disabled
     }
 
     /// <summary>执行轮数上限变更：即时保存。</summary>
@@ -59,14 +51,6 @@ public partial class ModelManagerPage : ContentPage
         if (!IsLoaded) return;
         if (int.TryParse(MaxPlanRoundsEntry.Text?.Trim() ?? "", out var val) && val >= 0)
             AgentService.SetMaxPlanRounds(val);
-    }
-
-    /// <summary>推理力度变更：即时保存。</summary>
-    private void OnReasoningEffortChanged(object? sender, EventArgs e)
-    {
-        if (!IsLoaded) return;
-        if (ReasoningEffortPicker.SelectedItem is string effort)
-            AgentService.SetReasoningEffort(effort);
     }
 
     private void LoadConfigs()

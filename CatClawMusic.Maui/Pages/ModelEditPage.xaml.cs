@@ -54,14 +54,6 @@ public partial class ModelEditPage : ContentPage
             Providers.Add(p);
 
         ProviderPicker.ItemsSource = Providers;
-
-        // 推理力度选项
-        ReasoningEffortPicker.ItemsSource = new List<string> { "auto", "disabled", "high", "max" };
-        ReasoningEffortPicker.SelectedIndex = 1; // 默认 disabled
-
-        // 响应格式选项
-        ResponseFormatPicker.ItemsSource = new List<string> { "text", "json_object" };
-        ResponseFormatPicker.SelectedIndex = 0; // 默认 text
     }
 
     /// <summary>页面显示时根据是否带 id 加载现有配置或准备新建。</summary>
@@ -111,21 +103,11 @@ public partial class ModelEditPage : ContentPage
             EnabledSwitch.IsToggled = config.Enabled;
             FallbackSwitch.IsToggled = config.FallbackEnabled;
 
-            // 高级参数
-            SetPickerSelection(ReasoningEffortPicker, config.ReasoningEffort, "disabled");
-            SetPickerSelection(ResponseFormatPicker, config.ResponseFormat, "text");
-            TopPSlider.Value = config.TopP;
-            FrequencyPenaltySlider.Value = config.FrequencyPenalty;
-            PresencePenaltySlider.Value = config.PresencePenalty;
-            MaxCompletionTokensEntry.Text = config.MaxCompletionTokens.ToString();
-            ContextCachingSwitch.IsToggled = config.ContextCaching;
-
             var provider = Providers.FirstOrDefault(p => p.Id == config.Provider)
                            ?? Providers.FirstOrDefault(p => p.Id == "deepseek")
                            ?? Providers[0];
             ProviderPicker.SelectedItem = provider;
             RefreshPresetModels(provider);
-            UpdateSliderLabels();
         }
         catch (Exception ex)
         {
@@ -143,19 +125,9 @@ public partial class ModelEditPage : ContentPage
         EnabledSwitch.IsToggled = true;
         FallbackSwitch.IsToggled = false;
 
-        // 高级参数默认值
-        SetPickerSelection(ReasoningEffortPicker, "disabled", "disabled");
-        SetPickerSelection(ResponseFormatPicker, "text", "text");
-        TopPSlider.Value = 1.0;
-        FrequencyPenaltySlider.Value = 0;
-        PresencePenaltySlider.Value = 0;
-        MaxCompletionTokensEntry.Text = "0";
-        ContextCachingSwitch.IsToggled = true;
-
         var provider = Providers.FirstOrDefault(p => p.Id == "deepseek") ?? Providers[0];
         ProviderPicker.SelectedItem = provider;
         RefreshPresetModels(provider);
-        UpdateSliderLabels();
     }
 
     /// <summary>设置 Picker 的选中项，找不到时回退到默认值</summary>
@@ -209,49 +181,6 @@ public partial class ModelEditPage : ContentPage
         var model = ModelEntry.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(model)) return;
         NameEntry.Text = $"{provider.Name}-{model}";
-    }
-
-    private void OnTopPValueChanged(object? sender, ValueChangedEventArgs e)
-    {
-        TopPValueLabel.Text = TopPSlider.Value.ToString("F2");
-    }
-
-    private void OnFrequencyPenaltyValueChanged(object? sender, ValueChangedEventArgs e)
-    {
-        FrequencyPenaltyValueLabel.Text = FrequencyPenaltySlider.Value.ToString("F1");
-    }
-
-    private void OnPresencePenaltyValueChanged(object? sender, ValueChangedEventArgs e)
-    {
-        PresencePenaltyValueLabel.Text = PresencePenaltySlider.Value.ToString("F1");
-    }
-
-    /// <summary>批量刷新所有滑块数值标签</summary>
-    private void UpdateSliderLabels()
-    {
-        TopPValueLabel.Text = TopPSlider.Value.ToString("F2");
-        FrequencyPenaltyValueLabel.Text = FrequencyPenaltySlider.Value.ToString("F1");
-        PresencePenaltyValueLabel.Text = PresencePenaltySlider.Value.ToString("F1");
-    }
-
-    /// <summary>点击预设模型标签，填入模型输入框。</summary>
-    private void OnPresetModelTapped(object? sender, TappedEventArgs e)
-    {
-        if (e.Parameter is string modelName && !string.IsNullOrWhiteSpace(modelName))
-        {
-            ModelEntry.Text = modelName;
-            AutoFillConfigName();
-        }
-    }
-
-    /// <summary>点击从 API 获取的模型标签，填入模型输入框。</summary>
-    private void OnFetchedModelTapped(object? sender, TappedEventArgs e)
-    {
-        if (e.Parameter is string modelName && !string.IsNullOrWhiteSpace(modelName))
-        {
-            ModelEntry.Text = modelName;
-            AutoFillConfigName();
-        }
     }
 
     /// <summary>点击「获取模型列表」按钮，临时保存配置后调用 LLM 客户端获取可用模型。</summary>
@@ -342,16 +271,12 @@ public partial class ModelEditPage : ContentPage
             return;
         }
 
-        if (!int.TryParse(MaxCompletionTokensEntry.Text?.Trim() ?? "0", out var maxCompletionTokens) || maxCompletionTokens < 0)
-        {
-            await DisplayAlert("提示", "最大输出 Tokens 必须为非负整数（0 表示使用默认）", "确定");
-            return;
-        }
-
         SaveButton.IsEnabled = false;
         try
         {
             var provider = ProviderPicker.SelectedItem as LlmProviderInfo;
+            // 高级参数不再在编辑页设置：推理力度由聊天页/全局控制（config.ReasoningEffort 留空
+            // 让 OpenAiCompatibleLlmClient 回退全局 GetReasoningEffort）；其余用默认值（不发送给 API）
             var config = new LlmConfig
             {
                 Name = name,
@@ -361,13 +286,7 @@ public partial class ModelEditPage : ContentPage
                 Model = ModelEntry.Text?.Trim() ?? "",
                 Enabled = EnabledSwitch.IsToggled,
                 FallbackEnabled = FallbackSwitch.IsToggled,
-                ReasoningEffort = ReasoningEffortPicker.SelectedItem as string ?? "disabled",
-                TopP = TopPSlider.Value,
-                FrequencyPenalty = FrequencyPenaltySlider.Value,
-                PresencePenalty = PresencePenaltySlider.Value,
-                ResponseFormat = ResponseFormatPicker.SelectedItem as string ?? "text",
-                MaxCompletionTokens = maxCompletionTokens,
-                ContextCaching = ContextCachingSwitch.IsToggled
+                ReasoningEffort = ""
             };
             AgentService.SaveConfig(config);
             // 若编辑的是当前主模型且改了名，主模型名跟随新名（SaveConfig 不再自动改主）
@@ -392,7 +311,6 @@ public partial class ModelEditPage : ContentPage
     private void ApplyTempConfigOverride()
     {
         var provider = ProviderPicker.SelectedItem as LlmProviderInfo;
-        int.TryParse(MaxCompletionTokensEntry.Text?.Trim() ?? "0", out var maxCompletionTokens);
         OpenAiCompatibleLlmClient client = (_llmClient as OpenAiCompatibleLlmClient)!;
         if (client == null) return;
         client.TempConfigOverride = new LlmConfig
@@ -404,13 +322,7 @@ public partial class ModelEditPage : ContentPage
             Model = ModelEntry.Text?.Trim() ?? "",
             Enabled = true,
             FallbackEnabled = FallbackSwitch.IsToggled,
-            ReasoningEffort = ReasoningEffortPicker.SelectedItem as string ?? "disabled",
-            TopP = TopPSlider.Value,
-            FrequencyPenalty = FrequencyPenaltySlider.Value,
-            PresencePenalty = PresencePenaltySlider.Value,
-            ResponseFormat = ResponseFormatPicker.SelectedItem as string ?? "text",
-            MaxCompletionTokens = maxCompletionTokens > 0 ? maxCompletionTokens : 0,
-            ContextCaching = ContextCachingSwitch.IsToggled
+            ReasoningEffort = ""
         };
     }
 }

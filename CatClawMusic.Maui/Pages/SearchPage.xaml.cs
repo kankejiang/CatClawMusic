@@ -47,6 +47,9 @@ public partial class SearchPage : DiscoverPageBase
         BindingContext = _vm;
         UpdateTabVisualState(0);
 
+        // 聊天对话框推理力度 chips：进入页面时按全局设置同步高亮
+        Loaded += (_, _) => UpdateReasoningEffortChips();
+
         // Android：外层 ViewPager2 与内层横向卡片列表的手势仲裁——
         // 卡片横向滑动时不误切 tab（Hero/AI 歌单/推荐专辑/每日推荐/艺人）
 #if ANDROID
@@ -609,6 +612,41 @@ public partial class SearchPage : DiscoverPageBase
         // 加载中点击也要有反馈（转圈），否则"点了没反应"
         if (_vm.IsRefreshing) return;
         _ = _vm.RefreshCommand.ExecuteAsync(null);
+    }
+
+    // === 聊天对话框推理力度（opencode 同款：对话框内切换推理深度） ===
+
+    private void OnReasoningEffortChipTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is string effort)
+        {
+            CatClawMusic.Core.Services.AI.AgentService.SetReasoningEffort(effort);
+            UpdateReasoningEffortChips();
+        }
+    }
+
+    /// <summary>按当前全局推理力度刷新 chips 高亮（进入聊天页时与点击后调用）</summary>
+    private void UpdateReasoningEffortChips()
+    {
+        var current = CatClawMusic.Core.Services.AI.AgentService.GetReasoningEffort();
+        var active = (Color)(Application.Current?.Resources?["ChipActiveColor"] ?? Colors.Transparent);
+        var inactive = (Color)(Application.Current?.Resources?["ChipInactiveColor"] ?? Colors.Transparent);
+        var activeText = Colors.White;
+        var inactiveText = (Color)(Application.Current?.Resources?["TextSecondaryColor"] ?? Colors.Gray);
+
+        var chips = new (Border? B, string V)[]
+        {
+            (EffortChipAuto, "auto"), (EffortChipDisabled, "disabled"),
+            (EffortChipLow, "low"), (EffortChipHigh, "high"), (EffortChipMax, "max")
+        };
+        foreach (var (b, v) in chips)
+        {
+            if (b == null) continue;
+            var isActive = v == current;
+            b.BackgroundColor = isActive ? active : inactive;
+            if (b.Content is Label l)
+                l.TextColor = isActive ? activeText : inactiveText;
+        }
     }
 
     // === 设置抽屉（竖屏专属：从左侧滑出的毛玻璃面板） ===
