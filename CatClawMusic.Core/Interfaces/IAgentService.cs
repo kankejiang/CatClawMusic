@@ -83,6 +83,13 @@ public interface IAgentService
     /// <summary>获取当前正在使用的内置智能体</summary>
     BuiltinAgent GetCurrentAgent();
 
+    /// <summary>一次性快速问答（流式）：独立临时对话，推理内容增量实时回调</summary>
+    /// <param name="systemPrompt">系统提示</param>
+    /// <param name="userPrompt">用户提示</param>
+    /// <param name="onReasoning">推理内容增量回调（后台线程触发，调用方自行 marshal）</param>
+    /// <param name="ct">取消令牌</param>
+    Task<string> QuickAskStreamAsync(string systemPrompt, string userPrompt, Action<string>? onReasoning = null, CancellationToken ct = default);
+
     /// <summary>切换当前智能体</summary>
     /// <param name="agentId">智能体唯一标识</param>
     void SetCurrentAgent(string agentId);

@@ -713,6 +713,34 @@ public class AgentService : IAgentService
     }
 
     /// <summary>
+    /// 一次性快速问答（流式）：使用独立临时对话，不污染主对话历史，也不注入音乐库/记忆上下文。
+    /// 推理内容（reasoning_content）增量实时回调 onReasoning（后台线程触发，调用方自行 marshal）。
+    /// </summary>
+    public async Task<string> QuickAskStreamAsync(string systemPrompt, string userPrompt,
+        Action<string>? onReasoning = null, CancellationToken ct = default)
+    {
+        var tempMessages = new List<ChatMessage>
+        {
+            new() { Role = "system", Content = systemPrompt },
+            new() { Role = "user", Content = userPrompt }
+        };
+
+        try
+        {
+            var response = await Task.Run(async () => await _llmClient.ChatStreamAsync(tempMessages, null, delta =>
+            {
+                if (onReasoning != null && !string.IsNullOrEmpty(delta.ReasoningContent))
+                    onReasoning(delta.ReasoningContent);
+            }, ct), ct);
+            return (response.Content ?? string.Empty).Trim();
+        }
+        catch (Exception ex)
+        {
+            _logService.Warn("Agent", $"QuickAsk 流式失败: {ex.Message}");
+            return string.Empty;
+        }
+    }
+    /// <summary>
     /// 一次性快速问答：使用独立临时对话，不污染主对话历史，也不注入音乐库/记忆上下文。
     /// 用于 AI 推荐理由等后台自动生成场景。
     /// </summary>

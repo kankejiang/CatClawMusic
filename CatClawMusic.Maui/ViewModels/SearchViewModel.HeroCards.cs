@@ -178,6 +178,10 @@ public partial class SearchViewModel
             _allRecentAddedSongs = [];
             ApplyFilters();
 
+            // 手动刷新：重新生成当天 AI 歌单（清内存+磁盘缓存 → Ensure 强制重新调用 AI）
+            InvalidateAiPlaylistsCache(clearDisk: true);
+            _ = EnsureDailyAiPlaylistsAsync();
+
             await LoadDataAsync();
         }
         catch (Exception ex)

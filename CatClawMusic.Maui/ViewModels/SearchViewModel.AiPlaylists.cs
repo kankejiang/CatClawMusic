@@ -20,6 +20,10 @@ public partial class SearchViewModel
     [ObservableProperty]
     private bool _isAiPlaylistsLoading;
 
+    /// <summary>AI 歌单生成中的实时思考过程（流式推理内容尾部，UI 展示让用户确认正在正确生成）</summary>
+    [ObservableProperty]
+    private string _aiPlaylistsThinking = "";
+
     /// <summary>AI 歌单区是否显示：开启智能推荐 且（有数据 或 正在生成）；模型未配置/生成失败时隐藏</summary>
     public bool IsAiPlaylistsVisible => IsAiRecommendationEnabled && AiPlaylists.Count > 0;
 
@@ -94,7 +98,9 @@ public partial class SearchViewModel
 
             // 调用 AI 生成当天歌单（每天仅一次）
             IsAiPlaylistsLoading = true;
+            AiPlaylistsThinking = "";
             var batch = await FetchAiPlaylistsAsync();
+            AiPlaylistsThinking = "";
             _aiPlaylistsAttemptDate = today;
             if (batch.Count > 0)
             {
@@ -205,7 +211,8 @@ public partial class SearchViewModel
         return results.Where(r => r != null).Cast<AiPlaylist>().ToList();
     }
 
-    /// <summary>生成单张 AI 歌单（1 个歌单 20 首 + 名字 + 理由），返回严格 JSON 对象。</summary>
+    /// <summary>生成单张 AI 歌单（1 个歌单 20 首 + 名字 + 理由），返回严格 JSON 对象。
+    /// 流式：推理内容实时更新 <see cref="AiPlaylistsThinking"/>（截取尾部，UI 显示生成进度）。</summary>
     private async Task<AiPlaylist?> GenerateOnePlaylistAsync(string dateContext, string theme, string candidateList, List<Song> pool)
     {
         var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
@@ -219,7 +226,32 @@ public partial class SearchViewModel
             "只返回严格的 JSON 对象，不要任何多余文字、代码块标记、换行或缩进（保持单行紧凑），格式：" +
             "{\"name\":\"歌单名\",\"reason\":\"推荐理由\",\"song_ids\":[数字,...]}";
 
-        var raw = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
+        // 流式思考过程：累积推理内容，UI 只展示尾部（模拟"正在思考"的滚动感）
+        var thinking = new StringBuilder();
+        var lastFlush = DateTime.UtcNow;
+        var raw = await _agentService.QuickAskStreamAsync(systemPrompt, userPrompt, reasoning =>
+        {
+            lock (thinking)
+            {
+                thinking.Append(reasoning);
+                // 节流：约每 250ms 刷新一次 UI（onDelta 每 token 触发，直接绑定会高频 PropertyChanged）
+                if ((DateTime.UtcNow - lastFlush).TotalMilliseconds >= 250)
+                {
+                    lastFlush = DateTime.UtcNow;
+                    var tail = thinking.Length > 120 ? thinking.ToString()[^120..] : thinking.ToString();
+                    MainThread.BeginInvokeOnMainThread(() => AiPlaylistsThinking = tail);
+                }
+            }
+        });
+        // 生成完成：最终刷新一次
+        lock (thinking)
+        {
+            if (thinking.Length > 0)
+            {
+                var tail = thinking.Length > 120 ? thinking.ToString()[^120..] : thinking.ToString();
+                MainThread.BeginInvokeOnMainThread(() => AiPlaylistsThinking = tail);
+            }
+        }
         return ParseSingleAiPlaylist(raw, pool);
     }
 
@@ -325,14 +357,20 @@ public partial class SearchViewModel
         }
     }
 
-    /// <summary>使 AI 歌单缓存失效（扫描后调用）：只重置内存标记，保留当天磁盘缓存
-    /// （Ensure 会先命中磁盘按当前曲库重新映射，避免扫描后重复调用 AI）。</summary>
-    private void InvalidateAiPlaylistsCache()
+    /// <summary>使 AI 歌单缓存失效（扫描后调用）：默认只重置内存标记，保留当天磁盘缓存
+    /// （Ensure 会先命中磁盘按当前曲库重新映射，避免扫描后重复调用 AI）。
+    /// 手动刷新时传 clearDisk=true 删除磁盘缓存，强制重新调用 AI 生成。</summary>
+    private void InvalidateAiPlaylistsCache(bool clearDisk = false)
     {
         _aiPlaylistsDate = null;
         _aiPlaylistsAttemptDate = null;
         _aiPlaylistsLoaded = false;
         AiPlaylists.Clear();
+        if (clearDisk)
+        {
+            try { if (File.Exists(_aiPlaylistsCacheFilePath)) File.Delete(_aiPlaylistsCacheFilePath); }
+            catch { }
+        }
         OnPropertyChanged(nameof(IsAiPlaylistsVisible));
         OnPropertyChanged(nameof(IsAiPlaylistsSectionVisible));
     }
