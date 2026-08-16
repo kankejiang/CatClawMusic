@@ -683,7 +683,7 @@
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 20"
                     WidthRequest="360"
-                    HorizontalOptions="End">
+                    HorizontalOptions="Start">
                 <VerticalStackLayout Spacing="0" Padding="0,14,0,8">
                     <Label Text="推理力度" FontSize="16" FontFamily="OpenSansSemibold"
                            TextColor="{DynamicResource TextPrimaryColor}" HorizontalOptions="Center" Margin="0,0,0,2" />
