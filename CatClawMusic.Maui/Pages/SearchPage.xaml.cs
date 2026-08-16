@@ -620,10 +620,20 @@ public partial class SearchPage : DiscoverPageBase
     {
         UpdateReasoningEffortSheet();
         EffortSheetOverlay.IsVisible = true;
+        // 从底部滑入（上拉菜单动效）：面板先下移一屏，再动画回到原位
+        EffortSheet.TranslationY = EffortSheet.Height > 0 ? EffortSheet.Height : 500;
+        _ = EffortSheet.TranslateTo(0, 0, 220, Easing.CubicOut);
     }
 
     private void OnEffortSheetBackdropTapped(object? sender, TappedEventArgs e)
     {
+        _ = CloseEffortSheetAsync();
+    }
+
+    private async Task CloseEffortSheetAsync()
+    {
+        if (!EffortSheetOverlay.IsVisible) return;
+        await EffortSheet.TranslateTo(0, EffortSheet.Height, 160, Easing.CubicIn);
         EffortSheetOverlay.IsVisible = false;
     }
 
@@ -632,7 +642,7 @@ public partial class SearchPage : DiscoverPageBase
         if (e.Parameter is string effort)
         {
             CatClawMusic.Core.Services.AI.AgentService.SetReasoningEffort(effort);
-            EffortSheetOverlay.IsVisible = false;
+            _ = CloseEffortSheetAsync();
             UpdateReasoningEffortChips();
         }
     }

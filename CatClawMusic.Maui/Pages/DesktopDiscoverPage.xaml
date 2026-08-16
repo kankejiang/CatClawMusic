@@ -677,7 +677,7 @@
                     <TapGestureRecognizer Tapped="OnEffortSheetBackdropTapped" />
                 </BoxView.GestureRecognizers>
             </BoxView>
-            <Border VerticalOptions="End" Margin="16,0,16,16"
+            <Border x:Name="EffortSheet" VerticalOptions="End" Margin="16,0,16,16"
                     BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                     Stroke="{DynamicResource GlassStrokeStrongColor}"
                     StrokeThickness="1"
