@@ -226,7 +226,8 @@ public partial class SearchViewModel
             "只返回严格的 JSON 对象，不要任何多余文字、代码块标记、换行或缩进（保持单行紧凑），格式：" +
             "{\"name\":\"歌单名\",\"reason\":\"推荐理由\",\"song_ids\":[数字,...]}";
 
-        // 流式思考过程：累积推理内容，UI 只展示尾部（模拟"正在思考"的滚动感）
+        // 流式思考过程：累积推理内容，UI 只展示尾部（模拟"正在思考"的滚动感）。
+        // 推理力度固定 low：歌单生成是简单挑选任务，不需要高推理深度（更快更省）。
         var thinking = new StringBuilder();
         var lastFlush = DateTime.UtcNow;
         var raw = await _agentService.QuickAskStreamAsync(systemPrompt, userPrompt, reasoning =>
@@ -242,7 +243,7 @@ public partial class SearchViewModel
                     MainThread.BeginInvokeOnMainThread(() => AiPlaylistsThinking = tail);
                 }
             }
-        });
+        }, "low");
         // 生成完成：最终刷新一次
         lock (thinking)
         {

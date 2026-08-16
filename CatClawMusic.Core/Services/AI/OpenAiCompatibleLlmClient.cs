@@ -57,6 +57,27 @@ public class OpenAiCompatibleLlmClient : ILlmClient
         return TempConfigOverride ?? _configProvider();
     }
 
+    /// <summary>克隆配置并覆盖推理力度（避免修改共享配置实例，保证并发请求互不干扰）</summary>
+    private static LlmConfig CloneWithEffort(LlmConfig c, string effort) => new()
+    {
+        Name = c.Name,
+        Provider = c.Provider,
+        ApiUrl = c.ApiUrl,
+        ApiKey = c.ApiKey,
+        Model = c.Model,
+        Temperature = c.Temperature,
+        MaxTokens = c.MaxTokens,
+        Enabled = c.Enabled,
+        FallbackEnabled = c.FallbackEnabled,
+        ReasoningEffort = effort,
+        TopP = c.TopP,
+        FrequencyPenalty = c.FrequencyPenalty,
+        PresencePenalty = c.PresencePenalty,
+        ResponseFormat = c.ResponseFormat,
+        MaxCompletionTokens = c.MaxCompletionTokens,
+        ContextCaching = c.ContextCaching
+    };
+
     /// <summary>获取所有可用的退回配置（启用了 FallbackEnabled 的配置，按列表顺序，不再要求 Enabled）</summary>
     private List<LlmConfig> GetFallbackConfigs()
     {
@@ -80,10 +101,11 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <param name="messages">对话消息列表</param>
     /// <param name="tools">可用工具定义列表（可选）</param>
     /// <param name="ct">取消令牌</param>
+    /// <param name="reasoningEffortOverride">请求级推理力度覆盖（如后台简单任务固定 low），null 表示跟随配置/全局</param>
     /// <returns>LLM 响应</returns>
     /// <exception cref="InvalidOperationException">API 未配置或所有退回均失败时抛出</exception>
-    public Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default)
-        => ChatWithFallbackAsync(messages, tools, null, ct);
+    public Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default, string? reasoningEffortOverride = null)
+        => ChatWithFallbackAsync(messages, tools, null, ct, reasoningEffortOverride);
 
     /// <summary>
     /// 流式对话请求：SSE 实时回调正文/思考过程增量，返回最终完整响应。
@@ -93,18 +115,23 @@ public class OpenAiCompatibleLlmClient : ILlmClient
     /// <param name="tools">可用工具定义列表（可选）</param>
     /// <param name="onDelta">流式增量回调（每次收到 delta 调用一次，来自 HTTP 读取线程）</param>
     /// <param name="ct">取消令牌</param>
+    /// <param name="reasoningEffortOverride">请求级推理力度覆盖，null 表示跟随配置/全局</param>
     /// <returns>LLM 响应（Content/ReasoningContent 为流式累积的完整文本）</returns>
     public Task<LlmResponse> ChatStreamAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
-        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default)
-        => ChatWithFallbackAsync(messages, tools, onDelta, ct);
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default, string? reasoningEffortOverride = null)
+        => ChatWithFallbackAsync(messages, tools, onDelta, ct, reasoningEffortOverride);
 
     /// <summary>对话请求统一入口：主配置优先，失败时按序尝试备用配置（onDelta 非空走流式）。</summary>
     private async Task<LlmResponse> ChatWithFallbackAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
-        Action<LlmStreamDelta>? onDelta, CancellationToken ct)
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct, string? effortOverride = null)
     {
         var config = GetEffectiveConfig();
         if (string.IsNullOrWhiteSpace(config.ApiUrl) || string.IsNullOrWhiteSpace(config.ApiKey))
             throw new InvalidOperationException("AI 服务未配置，请先在设置中配置 API 信息");
+
+        // 请求级推理力度覆盖：克隆配置再改（不污染共享配置实例/全局设置，并发请求互不干扰）
+        if (!string.IsNullOrEmpty(effortOverride))
+            config = CloneWithEffort(config, effortOverride);
 
         // 尝试当前配置
         try

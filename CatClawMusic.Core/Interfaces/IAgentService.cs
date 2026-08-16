@@ -11,7 +11,8 @@ public interface ILlmClient
     /// <param name="messages">对话消息列表</param>
     /// <param name="tools">可选的工具定义列表</param>
     /// <param name="ct">取消令牌</param>
-    Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default);
+    /// <param name="reasoningEffortOverride">请求级推理力度覆盖（如后台简单任务固定 low），null 跟随配置/全局</param>
+    Task<LlmResponse> ChatAsync(List<ChatMessage> messages, List<ToolDefinition>? tools = null, CancellationToken ct = default, string? reasoningEffortOverride = null);
 
     /// <summary>
     /// 流式对话请求：SSE 实时回调正文/思考过程增量（onDelta），返回最终完整响应。
@@ -21,8 +22,9 @@ public interface ILlmClient
     /// <param name="tools">可选的工具定义列表</param>
     /// <param name="onDelta">流式增量回调（每次收到 delta 调用一次，来自 HTTP 读取线程）</param>
     /// <param name="ct">取消令牌</param>
+    /// <param name="reasoningEffortOverride">请求级推理力度覆盖（如后台简单任务固定 low），null 跟随配置/全局</param>
     Task<LlmResponse> ChatStreamAsync(List<ChatMessage> messages, List<ToolDefinition>? tools,
-        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default);
+        Action<LlmStreamDelta>? onDelta, CancellationToken ct = default, string? reasoningEffortOverride = null);
 
     /// <summary>测试与 LLM 服务的连接是否正常</summary>
     Task<bool> TestConnectionAsync();
@@ -87,8 +89,9 @@ public interface IAgentService
     /// <param name="systemPrompt">系统提示</param>
     /// <param name="userPrompt">用户提示</param>
     /// <param name="onReasoning">推理内容增量回调（后台线程触发，调用方自行 marshal）</param>
+    /// <param name="reasoningEffortOverride">请求级推理力度覆盖（如 AI 歌单固定 low），null 跟随配置/全局</param>
     /// <param name="ct">取消令牌</param>
-    Task<string> QuickAskStreamAsync(string systemPrompt, string userPrompt, Action<string>? onReasoning = null, CancellationToken ct = default);
+    Task<string> QuickAskStreamAsync(string systemPrompt, string userPrompt, Action<string>? onReasoning = null, string? reasoningEffortOverride = null, CancellationToken ct = default);
 
     /// <summary>切换当前智能体</summary>
     /// <param name="agentId">智能体唯一标识</param>
