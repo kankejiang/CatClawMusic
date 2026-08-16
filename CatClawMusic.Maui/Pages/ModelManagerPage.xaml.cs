@@ -110,7 +110,29 @@ public partial class ModelManagerPage : ContentPage
     /// <summary>点击右上角 + 按钮，导航到模型编辑页（新增模式，不带 id）。</summary>
     private void OnAddClicked(object? sender, EventArgs e)
     {
-        DesktopNavigation.GoOrEmbed("settings/modeledit", typeof(ModelEditPage));
+        try
+        {
+            var page = MauiProgram.Services.GetRequiredService<ModelEditPage>();
+            OpenEditPage(page);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("ModelManagerPage", $"[ModelManager] 打开新建页失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>打开模型编辑页：Shell 环境（Android/竖屏）直接 PushAsync 压栈（绕开相对路由
+    /// "settings/modeledit" 与导航栈中 settings 页的解析冲突导致的静默失败）；
+    /// 桌面无 Shell 时嵌入主区域并保留返回按钮。</summary>
+    private static void OpenEditPage(ModelEditPage page)
+    {
+        var shell = DesktopNavigation.TryGetShell();
+        if (shell != null)
+        {
+            _ = shell.Navigation.PushAsync(page);
+            return;
+        }
+        DesktopNavigation.OpenEmbedded(page, hideBack: false);
     }
 
     /// <summary>点击「设为主模型」按钮，将指定配置设为当前主模型。</summary>
@@ -167,17 +189,11 @@ public partial class ModelManagerPage : ContentPage
     {
         if (sender is Button btn && btn.CommandParameter is string name)
         {
-            // Shell 环境（Android）：带 id 导航，QueryProperty 注入配置名
-            if (DesktopNavigation.TryGoToShell($"settings/modeledit?id={Uri.EscapeDataString(name)}"))
-                return;
-
-            // 桌面无 Shell：GoOrEmbed 无法传递 query 参数（会丢 id 变成新建模式），
-            // 手动创建页面并直接注入 ConfigId（OnAppearing 时按 _originalName 加载现有配置）
             try
             {
                 var page = MauiProgram.Services.GetRequiredService<ModelEditPage>();
                 page.ConfigId = name;
-                DesktopNavigation.OpenEmbedded(page, hideBack: false);
+                OpenEditPage(page);
             }
             catch (Exception ex)
             {
