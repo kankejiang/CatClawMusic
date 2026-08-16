@@ -131,6 +131,9 @@ public class LlmProviderInfo
         new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen3.8-max", "qwen3.7-plus", "qwen3.7-flash" } },
         // 讯飞星火：spark 命名系列（lite/pro/max/4.0-ultra）
         new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "spark-4.0-ultra", "spark-max", "spark-pro", "spark-lite" } },
+        // OpenCode Go（opencode.ai/docs/go）：订阅制 OpenAI 兼容网关，13 个开源编码模型 + 免费模型。
+        // 官方 API 直连；也可指向本地 opencode-go-proxy（http://127.0.0.1:8787/v1）。
+        new LlmProviderInfo { Id = "opencodego", Name = "OpenCode Go", DefaultApiUrl = "https://opencode.ai/zen/go/v1", DefaultModel = "deepseek-v4-flash", PresetModels = new[] { "deepseek-v4-flash", "deepseek-v4-pro", "mimo-v2.5", "mimo-v2.5-pro", "glm-5.2", "glm-5.1", "kimi-k2.7-code", "kimi-k2.6", "minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle" } },
         new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
     };
 }
