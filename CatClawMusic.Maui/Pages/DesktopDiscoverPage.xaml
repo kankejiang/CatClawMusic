@@ -644,13 +644,39 @@
             </CollectionView>
 
             <Border Grid.Row="2" Margin="0,10,0,14" Style="{StaticResource GlassInputStyle}">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <Entry x:Name="ChatInputBox" Text="{Binding ChatInput, Mode=TwoWay}"
-                           Placeholder="输入消息..." ReturnType="Send" Completed="OnChatInputCompleted" />
-                    <Border Grid.Column="1" Style="{StaticResource GlassIconContainerStyle}" BackgroundColor="{DynamicResource ChipActiveColor}">
-                        <ImageButton Source="{helpers:ThemedIcon Name=ic_send, Original=True}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
-                    </Border>
-                </Grid>
+                <VerticalStackLayout Spacing="8">
+                    <!-- 推理力度（opencode 同款：对话框内切换推理深度，仅推理模型生效） -->
+                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                        <Label Text="推理" FontSize="10.5" TextColor="{DynamicResource TextHintColor}" VerticalOptions="Center" />
+                        <Border x:Name="EffortChipAuto" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ChipInactiveColor}">
+                            <Border.GestureRecognizers><TapGestureRecognizer CommandParameter="auto" Tapped="OnReasoningEffortChipTapped" /></Border.GestureRecognizers>
+                            <Label Text="自动" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" />
+                        </Border>
+                        <Border x:Name="EffortChipDisabled" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ChipInactiveColor}">
+                            <Border.GestureRecognizers><TapGestureRecognizer CommandParameter="disabled" Tapped="OnReasoningEffortChipTapped" /></Border.GestureRecognizers>
+                            <Label Text="关闭" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" />
+                        </Border>
+                        <Border x:Name="EffortChipLow" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ChipInactiveColor}">
+                            <Border.GestureRecognizers><TapGestureRecognizer CommandParameter="low" Tapped="OnReasoningEffortChipTapped" /></Border.GestureRecognizers>
+                            <Label Text="低" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" />
+                        </Border>
+                        <Border x:Name="EffortChipHigh" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ChipInactiveColor}">
+                            <Border.GestureRecognizers><TapGestureRecognizer CommandParameter="high" Tapped="OnReasoningEffortChipTapped" /></Border.GestureRecognizers>
+                            <Label Text="高" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" />
+                        </Border>
+                        <Border x:Name="EffortChipMax" Padding="10,3" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="{DynamicResource ChipInactiveColor}">
+                            <Border.GestureRecognizers><TapGestureRecognizer CommandParameter="max" Tapped="OnReasoningEffortChipTapped" /></Border.GestureRecognizers>
+                            <Label Text="最强" FontSize="10.5" TextColor="{DynamicResource TextSecondaryColor}" />
+                        </Border>
+                    </HorizontalStackLayout>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <Entry x:Name="ChatInputBox" Text="{Binding ChatInput, Mode=TwoWay}"
+                               Placeholder="输入消息..." ReturnType="Send" Completed="OnChatInputCompleted" />
+                        <Border Grid.Column="1" Style="{StaticResource GlassIconContainerStyle}" BackgroundColor="{DynamicResource ChipActiveColor}">
+                            <ImageButton Source="{helpers:ThemedIcon Name=ic_send, Original=True}" WidthRequest="40" HeightRequest="40" BackgroundColor="Transparent" Padding="9" Clicked="OnSendClicked" />
+                        </Border>
+                    </Grid>
+                </VerticalStackLayout>
             </Border>
         </Grid>
 

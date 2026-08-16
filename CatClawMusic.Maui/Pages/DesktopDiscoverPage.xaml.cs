@@ -64,6 +64,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         UpdateThemeIcon();
         SetupHeroTimer();
 
+        // 聊天对话框推理力度 chips：进入页面时按全局设置同步高亮
+        Loaded += (_, _) => UpdateReasoningEffortChips();
+
         // 用户交互（滚动列表等）期间暂停英雄卡自动轮播，与移动端发现页行为一致
         _interactionState = _services.GetService(typeof(Services.IInteractionStateService)) as Services.IInteractionStateService;
         if (_interactionState != null)
@@ -1060,6 +1063,41 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     }
 
     // === 刷新 ===
+
+    // === 聊天对话框推理力度（opencode 同款） ===
+
+    private void OnReasoningEffortChipTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is string effort)
+        {
+            CatClawMusic.Core.Services.AI.AgentService.SetReasoningEffort(effort);
+            UpdateReasoningEffortChips();
+        }
+    }
+
+    /// <summary>按当前全局推理力度刷新 chips 高亮</summary>
+    private void UpdateReasoningEffortChips()
+    {
+        var current = CatClawMusic.Core.Services.AI.AgentService.GetReasoningEffort();
+        var active = (Color)(Application.Current?.Resources?["ChipActiveColor"] ?? Colors.Transparent);
+        var inactive = (Color)(Application.Current?.Resources?["ChipInactiveColor"] ?? Colors.Transparent);
+        var activeText = Colors.White;
+        var inactiveText = (Color)(Application.Current?.Resources?["TextSecondaryColor"] ?? Colors.Gray);
+
+        var chips = new (Border? B, string V)[]
+        {
+            (EffortChipAuto, "auto"), (EffortChipDisabled, "disabled"),
+            (EffortChipLow, "low"), (EffortChipHigh, "high"), (EffortChipMax, "max")
+        };
+        foreach (var (b, v) in chips)
+        {
+            if (b == null) continue;
+            var isActive = v == current;
+            b.BackgroundColor = isActive ? active : inactive;
+            if (b.Content is Label l)
+                l.TextColor = isActive ? activeText : inactiveText;
+        }
+    }
 
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {
