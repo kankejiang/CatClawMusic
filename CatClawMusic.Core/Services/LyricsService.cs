@@ -88,6 +88,29 @@ public partial class LyricsService : ILyricsService
             var onlineId = parts.Length > 1 ? parts[1] : null;
             if (!string.IsNullOrEmpty(onlineId))
             {
+                // 网易云：宿主直连歌词（原文+译文+罗马音三流，lx-music 同款），不依赖插件；
+                // 失败时静默回退插件路径（保持原有能力）。
+                if (string.Equals(platform, "netease", StringComparison.OrdinalIgnoreCase)
+                    && long.TryParse(onlineId, out var neteaseSongId))
+                {
+                    var hostLyrics = await NetEaseLyricsService.GetLyricsAsync(neteaseSongId);
+                    if (hostLyrics != null && !string.IsNullOrWhiteSpace(hostLyrics.Value.Lrc))
+                    {
+                        var parsed = await Task.Run(() => TryParseLyrics(hostLyrics.Value.Lrc));
+                        if (parsed != null)
+                        {
+                            if (!string.IsNullOrWhiteSpace(hostLyrics.Value.TLrc))
+                                parsed.TranslationLines = await Task.Run(() =>
+                                    TryParseLyrics(hostLyrics.Value.TLrc)?.Lines);
+                            if (!string.IsNullOrWhiteSpace(hostLyrics.Value.RLrc))
+                                parsed.RomaLines = await Task.Run(() =>
+                                    TryParseLyrics(hostLyrics.Value.RLrc)?.Lines);
+                            MergeExtendedLines(parsed);
+                            return parsed;
+                        }
+                    }
+                }
+
                 foreach (var provider in PluginManager.GetEnabledPlugins<IOnlineMusicPlugin>())
                 {
                     if (!string.Equals(provider.PlatformName, platform, StringComparison.OrdinalIgnoreCase)) continue;
