@@ -197,18 +197,35 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             // 1. 未唱色整行
             ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(empty));
 
-            // 2. 已唱色按进度从左到右裁剪（与 Android ClipRect 同构）。
-            //    Win2D 1.3.2 裁剪用 CreateLayer(float, CanvasGeometry)：
-            //    矩形几何裁剪 + 活动层（using 结束自动恢复绘制状态）。
+            // 2. 已唱色按进度从左到右**逐行**裁剪（与 Android 逐行着色一致）：
+            //    长句换行成两行时，第一行先亮完、第二行才开始亮。
+            //    之前用「整块矩形（宽度=进度×总宽，高度=全部行高）」裁剪——
+            //    进度一半时第二行的左半也会被裁出已唱色，导致"第二行提前着色"。
             if (progress > 0.01f && layoutW > 0)
             {
-                var fillX = (float)Math.Min(progress * layoutW, layoutW);
-                using (var clipGeom = Microsoft.Graphics.Canvas.Geometry.CanvasGeometry.CreateRectangle(
-                    CanvasDevice.GetSharedDevice(),
-                    new global::Windows.Foundation.Rect(padLeft + textLeft, padTop, fillX, layoutH)))
-                using (var layer = ds.CreateLayer(1.0f, clipGeom))
+                var totalChars = Math.Max(1, text.Length);
+                var filledChars = progress * totalChars;
+                float y = padTop;
+                foreach (var lineM in layout.LineMetrics)
                 {
-                    ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(filled));
+                    var lineLen = Math.Max(1, lineM.Length);
+                    var lineFilled = Math.Clamp(filledChars, 0, lineLen);
+                    if (lineFilled > 0.01f)
+                    {
+                        // 该行填充宽度按行内字符比例（行宽近似 layoutW；短行仅轻微超前）
+                        var lineProgress = (float)(lineFilled / lineLen);
+                        var fillX = (float)Math.Min(lineProgress * layoutW, layoutW);
+                        using (var clipGeom = Microsoft.Graphics.Canvas.Geometry.CanvasGeometry.CreateRectangle(
+                            CanvasDevice.GetSharedDevice(),
+                            new global::Windows.Foundation.Rect(padLeft + textLeft, y, fillX, lineM.Height)))
+                        using (var layer = ds.CreateLayer(1.0f, clipGeom))
+                        {
+                            ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(filled));
+                        }
+                    }
+                    filledChars -= lineLen;
+                    if (filledChars <= 0) break;
+                    y += lineM.Height;
                 }
             }
         }
