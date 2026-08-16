@@ -127,14 +127,47 @@ public partial class SearchViewModel
         return ParseAiBatch(raw, pool);
     }
 
-    /// <summary>构建 AI 推荐候选池：合并常听、收藏、每日推荐并去重</summary>
+    /// <summary>
+    /// 构建 AI 推荐候选池：个性化（常听/收藏/每日推荐）+ 全库均匀采样，
+    /// 两者交替混合——避免无播放数据时 AI 只从收藏里挑歌，保证覆盖整个音乐库。
+    /// </summary>
     private List<Song> BuildAiCandidatePool()
     {
-        var candidates = new List<Song>();
-        if (_allTopPlayedSongs.Count > 0) candidates.AddRange(_allTopPlayedSongs.Take(15));
-        if (FavoriteSongs.Count > 0) candidates.AddRange(FavoriteSongs.Take(15));
-        if (_allDailyRecommendSongs.Count > 0) candidates.AddRange(_allDailyRecommendSongs.Take(20));
-        return candidates.GroupBy(s => s.Id).Select(g => g.First()).ToList();
+        var personalized = new List<Song>();
+        if (_allTopPlayedSongs.Count > 0) personalized.AddRange(_allTopPlayedSongs.Take(15));
+        if (FavoriteSongs.Count > 0) personalized.AddRange(FavoriteSongs.Take(15));
+        if (_allDailyRecommendSongs.Count > 0) personalized.AddRange(_allDailyRecommendSongs.Take(20));
+        personalized = personalized.GroupBy(s => s.Id).Select(g => g.First()).ToList();
+
+        // 全库均匀采样（本地+网络已过滤的全量列表；未加载完时跳过，仅个性化也够用）
+        var librarySample = new List<Song>();
+        try
+        {
+            var all = _allSongsForSearch;
+            if (all is { Count: > 0 })
+            {
+                var existingIds = personalized.Select(s => s.Id).ToHashSet();
+                var lib = all.Where(s => !existingIds.Contains(s.Id)).ToList();
+                var target = Math.Max(0, 60 - personalized.Count);
+                if (target > 0 && lib.Count > 0)
+                {
+                    var step = Math.Max(1, lib.Count / target);
+                    for (int i = 0; i < lib.Count && librarySample.Count < target; i += step)
+                        librarySample.Add(lib[i]);
+                }
+            }
+        }
+        catch { /* 全库采样失败不影响个性化候选 */ }
+
+        // 交替混合：个性化与全库采样间隔排列 → AI 歌单 Take(25) 时自然混合两类来源
+        var mixed = new List<Song>(60);
+        int pi = 0, li = 0;
+        while (mixed.Count < 60 && (pi < personalized.Count || li < librarySample.Count))
+        {
+            if (pi < personalized.Count) mixed.Add(personalized[pi++]);
+            if (li < librarySample.Count && mixed.Count < 60) mixed.Add(librarySample[li++]);
+        }
+        return mixed;
     }
 
     /// <summary>解析 AI 返回的 JSON 推荐数组，仅保留候选池中真实存在的歌曲（id 为候选序号 1-N）</summary>
