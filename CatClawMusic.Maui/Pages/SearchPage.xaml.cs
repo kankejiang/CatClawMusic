@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Maui.Controls;
@@ -62,8 +62,10 @@ public partial class SearchPage : DiscoverPageBase
         }
 #endif
 
-        // 将听歌统计视图添加到"报告"面板
+        // 将听歌统计视图添加到"统计"面板
         PanelStats.Children.Add(_statsView);
+        // 后台预热统计数据，避免首次切到统计 Tab 时长时间加载
+        _ = _statsView.LoadAsync();
 
         ChatBackButton.Clicked += OnChatBackClicked;
 

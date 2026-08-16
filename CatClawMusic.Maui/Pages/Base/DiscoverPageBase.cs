@@ -28,7 +28,7 @@ public abstract class DiscoverPageBase : ContentPage
     /// <summary>搜索框 Entry，用于 Focus/Unfocus/清空。</summary>
     protected abstract Entry SearchBoxControl { get; }
 
-    /// <summary>分类标签页控件数组（Border, Label），按 [推荐, 排行, 歌手, 专辑, 报告] 顺序。</summary>
+    /// <summary>分类标签页控件数组（Border, Label），按 [推荐, 排行, 歌手, 专辑, 统计] 顺序。</summary>
     protected abstract (Border border, Label label)[] TabControls { get; }
 
     /// <summary>宿主服务提供者（子类构造函数注入），插件创建视图/入口时用于解析服务。</summary>
@@ -56,7 +56,7 @@ public abstract class DiscoverPageBase : ContentPage
         {
             Vm.CurrentCategory = idx;
             UpdateTabVisualState(idx);
-            // 切换到"报告"Tab 时触发统计数据加载
+            // 切换到"统计"Tab 时触发统计数据加载
             if (idx == 4)
             {
                 _ = StatsView.LoadAsync();
@@ -134,7 +134,7 @@ public abstract class DiscoverPageBase : ContentPage
         // 按 TabOrder 升序、同序按标题排序
         tabs = tabs.OrderBy(t => t.order).ThenBy(t => t.title).ToList();
 
-        // 视觉列：推荐(0) 右侧依次插插件 tab(1..N)，固定 tab 排行/歌手/专辑/报告右移 N 列
+        // 视觉列：推荐(0) 右侧依次插插件 tab(1..N)，固定 tab 排行/歌手/专辑/统计右移 N 列
         int pluginCount = tabs.Count;
         for (int i = 0; i < pluginCount; i++)
             CategoryTabBarControl.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
