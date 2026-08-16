@@ -110,7 +110,7 @@ public partial class SearchViewModel
 
         var sb = new StringBuilder();
         foreach (var s in pool)
-            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}");
+            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）");
 
         var count = Math.Min(8, pool.Count);
         var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";

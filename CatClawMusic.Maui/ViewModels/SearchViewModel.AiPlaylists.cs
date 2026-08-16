@@ -130,6 +130,25 @@ public partial class SearchViewModel
         OnPropertyChanged(nameof(IsAiPlaylistsSectionVisible));
     }
 
+    /// <summary>按文字系统粗略判定歌曲语言（用于给 AI 候选列表标注，帮助风格/类型判断）</summary>
+    private static string GuessSongLanguage(Song s)
+    {
+        var text = $"{s.Title ?? ""} {s.Artist ?? ""}";
+        bool jp = false, ko = false, cjk = false, latin = false;
+        foreach (var ch in text)
+        {
+            if (ch >= 0x3040 && ch <= 0x30FF) jp = true;                       // 假名
+            else if (ch >= 0xAC00 && ch <= 0xD7AF) ko = true;                  // 谚文
+            else if (ch >= 0x4E00 && ch <= 0x9FFF) cjk = true;                 // 汉字
+            else if (char.IsLetter(ch) && ch <= 0x007F) latin = true;          // 拉丁
+        }
+        if (jp) return "日语";
+        if (ko) return "韩语";
+        if (cjk) return "中文";
+        if (latin) return "英语/其他拉丁";
+        return "未知";
+    }
+
     /// <summary>向 AI 请求当天歌单：候选歌曲（含 ID）交给 AI，生成 5 个主题歌单（每歌单 20 首 + 推荐理由），
     /// 返回严格 JSON，随后按 ID 匹配回本地曲库，避免 AI 编造不存在的歌曲。
     /// 主题规则：①星期/周末 ②节日/节气/季节 + 当前时间段 ③常听偏好 ④音乐类型风格 ⑤自由发挥。
@@ -144,7 +163,8 @@ public partial class SearchViewModel
 
         var sb = new StringBuilder();
         foreach (var s in pool)
-            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}");
+            // 语言标注 + 专辑名：帮助 AI 判断风格/类型（否则日语歌可能被塞进国风歌单）
+            sb.AppendLine($"{s.Id}. {s.Title ?? "未知"} - {s.Artist ?? "未知艺术家"}（{GuessSongLanguage(s)}）〔{s.Album ?? "未知专辑"}〕");
 
         // 当前时间上下文：星期/周末、季节、时间段（随当前时刻变化）
         var now = DateTime.Now;
@@ -182,7 +202,7 @@ public partial class SearchViewModel
             $"第一张：以今天是{weekDay}（{isWeekend}）为主题（如{isWeekend}的放松时光、{weekDay}的能量补给）。",
             $"第二张：先判断今天是否节日或节气（如有则以其为主题，没有则用当前季节），并紧密结合当前时间段（{period}）的听歌场景。",
             "第三张：基于用户常听的音乐偏好（从候选歌曲中推断最常见的口味/情绪/风格）。",
-            "第四张：基于明确的音乐类型或风格（如流行、民谣、古风、电子、摇滚等）。",
+            "第四张：基于明确的音乐类型或风格（如流行、民谣、古风、电子、摇滚等）。注意：必须严格根据候选歌曲的（语言）标注和专辑名判断实际风格——候选池里没有某风格的歌时，请选择最接近的已有风格，绝对不要硬凑（例如没有国风歌就不要把日语歌放进国风歌单）。",
             "第五张：自由发挥，创意不限。",
         };
         var dateContext = $"今天是 {now:yyyy年M月d日}（{weekDay}，{isWeekend}），当前季节：{season}，当前时间段：{period}。";
