@@ -534,7 +534,8 @@ public partial class LyricsService : ILyricsService
         var key = $"{song.Title ?? ""}|{song.Artist ?? ""}";
         if (string.IsNullOrWhiteSpace(key)) return null;
         var hash = Convert.ToHexString(System.Security.Cryptography.MD5.HashData(Encoding.UTF8.GetBytes(key)));
-        return System.IO.Path.Combine(LyricCacheDir, $"lyric_{hash}.lrc");
+        // v2：三行缓存（原文/译文/罗马音）。v1 两行缓存（无罗马音）作废，重新在线匹配生成。
+        return System.IO.Path.Combine(LyricCacheDir, $"lyric_{hash}_v2.lrc");
     }
 
     /// <summary>

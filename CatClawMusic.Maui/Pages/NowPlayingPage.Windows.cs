@@ -276,6 +276,7 @@ public partial class NowPlayingPage
                 {
                     new RowDefinition { Height = GridLength.Auto },
                     new RowDefinition { Height = GridLength.Auto },
+                    new RowDefinition { Height = GridLength.Auto },
                 },
             };
 
@@ -315,10 +316,37 @@ public partial class NowPlayingPage
             };
             Grid.SetRow(mainHost, 0); Grid.SetColumn(mainHost, 0);
 
-            // 译文常驻占位：无译文也占固定高度 → 所有行高一致 → 滚动锚点稳定
+            // 罗马音常驻占位（网易云 romalrc 流）：受"显示罗马音"开关控制
+            var roma = new Label
+            {
+                Text = _settings.ShowRoma ? (line.Roma ?? string.Empty) : string.Empty,
+                FontSize = transSize,
+                FontFamily = "OpenSansRegular",
+                TextColor = WinLyricNearColor,
+                Opacity = 0.7,
+                LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalTextAlignment = _settings.ToTextAlignment(),
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Center,
+                HeightRequest = transSize * 1.4,
+            };
+            var romaHost = new ContentView { Content = roma, HorizontalOptions = LayoutOptions.Fill };
+            romaHost.LayoutChanged += (s, _) =>
+            {
+                if (s is View v && v.Width > 0)
+                {
+                    var w = Math.Max(40, v.Width - 1);
+                    if (Math.Abs(roma.WidthRequest - w) > 0.5)
+                        roma.WidthRequest = w;
+                }
+            };
+            Grid.SetRow(romaHost, 1); Grid.SetColumn(romaHost, 0);
+
+            // 译文常驻占位：无译文也占固定高度 → 所有行高一致 → 滚动锚点稳定。
+            // 受"显示歌词译文"开关控制。
             var trans = new Label
             {
-                Text = line.Translation ?? string.Empty,
+                Text = _settings.ShowTranslation ? (line.Translation ?? string.Empty) : string.Empty,
                 FontSize = transSize,
                 FontFamily = "OpenSansRegular",
                 TextColor = WinLyricNearColor,
@@ -340,7 +368,7 @@ public partial class NowPlayingPage
                         trans.WidthRequest = w;
                 }
             };
-            Grid.SetRow(transHost, 1); Grid.SetColumn(transHost, 0);
+            Grid.SetRow(transHost, 2); Grid.SetColumn(transHost, 0);
 
             var dot = new Ellipse
             {
@@ -355,11 +383,12 @@ public partial class NowPlayingPage
             Grid.SetRow(dot, 0); Grid.SetColumn(dot, 1);
 
             row.Children.Add(mainHost);
+            row.Children.Add(romaHost);
             row.Children.Add(transHost);
             row.Children.Add(dot);
 
-            // 整行（正文 + 译文）一起失焦：模糊挂在行容器上，而不是逐个 Label，
-            // 这样译文与正文的模糊程度一致，不会出现"正文糊了译文还清晰"的割裂。
+            // 整行（正文 + 罗马音 + 译文）一起失焦：模糊挂在行容器上，而不是逐个 Label，
+            // 这样副行与正文的模糊程度一致，不会出现"正文糊了副行还清晰"的割裂。
             row.Effects.Add(new CatClawMusic.Maui.Effects.LyricBlurEffect());
 
             WinLyricStack.Children.Add(row);
