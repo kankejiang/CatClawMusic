@@ -49,31 +49,43 @@ public static class NetEaseLyricsService
     {
         try
         {
-            // 正文歌词：yrc 逐字流优先（有逐字时间戳）；yrc 缺失时回退老接口 lrc（纯 LRC 文本含正文，
-            // eapi 的 lrc 只有署名行）。译文/罗马音：eapi 的 tlyric/romalrc。
-            var (yrc, tlrcText, rlrcText) = await FetchEapiLyricsAsync(songId);
-            Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: yrc={(yrc != null ? yrc.Length + "B" : "null")}, tlyric={(tlrcText != null ? tlrcText.Length + "B" : "null")}, romalrc={(rlrcText != null ? rlrcText.Length + "B" : "null")}");
+            // 老接口一次返回三流（lrc 正文 + tlyric 译文 + romalrc 罗马音），时间戳同源零错位；
+            // eapi 提供 yrc 逐字正文（有则优先，带逐字时间戳）及译文/罗马音补充。
+            var legacy = await FetchLegacyLyricsAsync(songId);
+            var (yrc, eapiTlrc, eapiRlrc) = await FetchEapiLyricsAsync(songId);
+            Log.Debug("LyricsService",
+                $"[Lyrics] 网易云 id={songId}: legacy lrc={legacy.Lrc?.Length ?? 0}B tlyric={legacy.TLrc?.Length ?? 0}B romalrc={legacy.RLrc?.Length ?? 0}B, eapi yrc={(yrc?.Length ?? 0)}B");
 
+            // 正文：yrc 逐字优先，缺失用老接口 lrc（纯 LRC 含正文）
             List<LrcLyricLine> lrcLines;
             if (!string.IsNullOrEmpty(yrc))
-            {
                 lrcLines = ParseYrcLines(yrc);
-            }
             else
-            {
-                var legacyLrc = await FetchLegacyLrcAsync(songId);
-                Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: 老接口 lrc={(legacyLrc != null ? legacyLrc.Length + "B" : "null")}");
-                lrcLines = ParseSimpleLrcText(legacyLrc) ?? new List<LrcLyricLine>();
-            }
+                lrcLines = ParseSimpleLrcText(legacy.Lrc) ?? new List<LrcLyricLine>();
             if (lrcLines.Count == 0)
             {
                 Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: 正文行为空");
                 return null;
             }
 
+            // 译文/罗马音：与正文同源优先（正文=yrc 用 eapi，正文=legacy 用 legacy），
+            // 缺失时另一源补充——避免跨源时间戳错位导致译文/罗马音配不上（配不上的症状：
+            // 翻译行缺失、罗马字不显示）。
+            List<LrcLyricLine>? tlrc, rlrc;
+            if (!string.IsNullOrEmpty(yrc))
+            {
+                tlrc = ParseSimpleLrcText(eapiTlrc) ?? ParseSimpleLrcText(legacy.TLrc);
+                rlrc = ParseSimpleLrcText(eapiRlrc) ?? ParseSimpleLrcText(legacy.RLrc);
+            }
+            else
+            {
+                tlrc = ParseSimpleLrcText(legacy.TLrc) ?? ParseSimpleLrcText(eapiTlrc);
+                rlrc = ParseSimpleLrcText(legacy.RLrc) ?? ParseSimpleLrcText(eapiRlrc);
+            }
+
             var lyrics = new LrcLyrics { Lines = lrcLines };
-            lyrics.TranslationLines = ParseSimpleLrcText(tlrcText);
-            lyrics.RomaLines = ParseSimpleLrcText(rlrcText);
+            lyrics.TranslationLines = tlrc;
+            lyrics.RomaLines = rlrc;
             MergeExternalLines(lyrics);
             return lyrics;
         }
@@ -142,31 +154,37 @@ public static class NetEaseLyricsService
         }
     }
 
-    /// <summary>老接口（免登录）：lrc 为纯 LRC 文本且含完整正文（eapi 的 lrc 只有署名行）。</summary>
-    private static async Task<string?> FetchLegacyLrcAsync(long songId)
+    /// <summary>老接口（免登录）：一次返回三流（lrc 纯 LRC 含正文 + tlyric 译文 + romalrc 罗马音），时间戳同源。</summary>
+    private static async Task<(string? Lrc, string? TLrc, string? RLrc)> FetchLegacyLyricsAsync(long songId)
     {
         try
         {
             var url = $"https://music.163.com/api/song/lyric?id={songId}&lv=1&kv=1&tv=-1&rv=-1";
             using var response = await _http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode) return (null, null, null);
             var body = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(body);
             if (!doc.RootElement.TryGetProperty("code", out var codeProp) || codeProp.GetInt32() != 200)
-                return null;
-            if (doc.RootElement.TryGetProperty("lrc", out var lrcNode)
-                && lrcNode.ValueKind == JsonValueKind.Object
-                && lrcNode.TryGetProperty("lyric", out var lyric)
-                && lyric.ValueKind == JsonValueKind.String)
+                return (null, null, null);
+
+            string? GetLyric(string prop)
             {
-                var text = lyric.GetString() ?? "";
-                return string.IsNullOrWhiteSpace(text) ? null : text;
+                if (doc.RootElement.TryGetProperty(prop, out var node)
+                    && node.ValueKind == JsonValueKind.Object
+                    && node.TryGetProperty("lyric", out var lyric)
+                    && lyric.ValueKind == JsonValueKind.String)
+                {
+                    var text = lyric.GetString() ?? "";
+                    return string.IsNullOrWhiteSpace(text) ? null : text;
+                }
+                return null;
             }
-            return null;
+
+            return (GetLyric("lrc"), GetLyric("tlyric"), GetLyric("romalrc"));
         }
         catch
         {
-            return null;
+            return (null, null, null);
         }
     }
 
@@ -364,47 +382,55 @@ public static class NetEaseLyricsService
         }
     }
 
-    /// <summary>按本地歌曲标题/歌手匹配网易云歌词：搜索 → 排序（标题/歌手匹配优先）→ 取歌词。</summary>
+    /// <summary>
+    /// 按本地歌曲标题/歌手精确匹配网易云歌词。
+    /// 分别匹配：先按歌名单独搜索（最可靠），再用歌手精确验证候选；
+    /// 提供歌手时只采用歌手匹配的版本（避免同名翻唱/错歌的歌词）；
+    /// 没有可用的精确匹配则放弃在线匹配（上层回退本地歌词/无歌词）。
+    /// </summary>
     public static async Task<LrcLyrics?> MatchLocalSongAsync(string title, string? artist)
     {
         if (string.IsNullOrWhiteSpace(title)) return null;
 
-        var keyword = string.IsNullOrWhiteSpace(artist)
-            ? title
-            : $"{title} {artist}";
-        var results = await SearchAsync(keyword);
-        // 标题+歌手搜不到（歌手名解析差异/特殊字符）时，回退只按标题搜索
+        // 按歌名单独搜索（歌手信息用于验证，不参与拼接关键词——拼接在歌手名带空格/
+        // 特殊字符时会搜不到或召回错歌）
+        var results = await SearchAsync(title);
         if (results == null || results.Count == 0)
         {
-            if (!string.IsNullOrWhiteSpace(artist) && !title.Equals(keyword, StringComparison.Ordinal))
-                results = await SearchAsync(title);
-        }
-        if (results == null || results.Count == 0)
-        {
-            Log.Debug("LyricsService", $"[Lyrics] 网易云搜索无结果: '{keyword}'");
+            Log.Debug("LyricsService", $"[Lyrics] 网易云按歌名 '{title}' 搜索无结果");
             return null;
         }
-        Log.Debug("LyricsService", $"[Lyrics] 网易云搜索 '{keyword}' 命中 {results.Count} 个候选");
+        Log.Debug("LyricsService", $"[Lyrics] 网易云按歌名 '{title}' 命中 {results.Count} 个候选");
 
-        // 排序：歌手匹配优先，其次标题精确/包含匹配
-        List<(long Id, string Name, string Artists)> ordered;
-        if (!string.IsNullOrWhiteSpace(artist))
+        var hasArtist = !string.IsNullOrWhiteSpace(artist);
+
+        // 排序：歌手精确匹配 > 歌名精确 > 歌名包含
+        var ordered = results
+            .OrderByDescending(r => hasArtist && r.Artists.Contains(artist!, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(r => r.Name.Equals(title, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(r => r.Name.Contains(title, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // 歌手验证：提供歌手时只采用歌手匹配的候选；一个都没有则放弃（用本地歌词）
+        List<(long Id, string Name, string Artists)> candidates;
+        if (hasArtist)
         {
-            ordered = results
-                .OrderByDescending(r => r.Artists.Contains(artist, StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(r => r.Name.Equals(title, StringComparison.OrdinalIgnoreCase))
+            candidates = ordered
+                .Where(r => r.Artists.Contains(artist!, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            if (candidates.Count == 0)
+            {
+                Log.Debug("LyricsService", $"[Lyrics] 未找到歌手 '{artist}' 的版本，放弃在线匹配（使用本地歌词）");
+                return null;
+            }
         }
         else
         {
-            ordered = results
-                .OrderByDescending(r => r.Name.Equals(title, StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(r => r.Name.Contains(title, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            candidates = ordered;
         }
 
         // 前 3 个候选尝试取歌词（防标题撞车），第一个成功即返回
-        foreach (var cand in ordered.Take(3))
+        foreach (var cand in candidates.Take(3))
         {
             var lyrics = await GetLyricsAsync(cand.Id);
             Log.Debug("LyricsService", $"[Lyrics] 网易云候选 {cand.Id}({cand.Name}-{cand.Artists}) 歌词行数: {lyrics?.Lines.Count ?? 0}");

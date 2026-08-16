@@ -14,8 +14,8 @@ public partial class LyricsService
         var dir = Path.GetDirectoryName(songPath) ?? "";
         var nameNoExt = Path.GetFileNameWithoutExtension(songPath);
 
-        // 尝试读取歌词文件：.lrc → .ttml → .xml
-        // 每种扩展名先尝试 File.Exists + ReadAllBytes，失败则用 FileBytesReaderAsync 回退
+        // 文本格式：.lrc → .ttml → .xml（编码检测读取）
+        // 二进制加密格式：.krc（酷狗）/ .qrc（QQ），按字节读取后解密解析
         var extensions = new[] { ".lrc", ".ttml", ".xml" };
         foreach (var ext in extensions)
         {
@@ -80,6 +80,38 @@ public partial class LyricsService
                     var parsed = await Task.Run(() => ParseTtml(content));
                     if (parsed != null) return parsed;
                 }
+            }
+        }
+
+        // 二进制加密歌词：.krc（酷狗）/ .qrc（QQ）
+        foreach (var ext in new[] { ".krc", ".qrc" })
+        {
+            var filePath = Path.Combine(dir, nameNoExt + ext);
+            byte[]? bytes = null;
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    var fileInfo = new FileInfo(filePath);
+                    if (fileInfo.Length <= MaxLyricsFileSize)
+                        bytes = File.ReadAllBytes(filePath);
+                }
+            }
+            catch { }
+            if (bytes == null && FileBytesReaderAsync != null)
+            {
+                try { bytes = await FileBytesReaderAsync(filePath); }
+                catch { }
+            }
+            if (bytes == null || bytes.Length == 0) continue;
+
+            var parsed = ext == ".krc"
+                ? await Task.Run(() => ParseKrc(bytes))
+                : await Task.Run(() => ParseQrc(bytes));
+            if (parsed != null)
+            {
+                Log.Debug("LyricsService", $"[LyricsService] 解析 {ext} 歌词成功: {parsed.Lines.Count} 行");
+                return parsed;
             }
         }
 
