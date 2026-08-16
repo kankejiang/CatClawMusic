@@ -126,11 +126,13 @@ public partial class SearchViewModel
 
     /// <summary>向 AI 请求当天歌单：候选歌曲（含 ID）交给 AI，生成 5 个主题歌单（每歌单 20 首 + 推荐理由），
     /// 返回严格 JSON，随后按 ID 匹配回本地曲库，避免 AI 编造不存在的歌曲。
-    /// 主题规则：①星期/周末 ②节日/节气/季节 + 当前时间段 ③常听偏好 ④音乐类型风格 ⑤自由发挥。</summary>
+    /// 主题规则：①星期/周末 ②节日/节气/季节 + 当前时间段 ③常听偏好 ④音乐类型风格 ⑤自由发挥。
+    /// 性能：拆分为 5 次「单歌单生成」（每次仅 1 个歌单 20 首）——
+    /// 一次生成 5×20 首的完整 JSON 极易被 max_tokens 截断（推理模型 reasoning 占额度）导致整批失败；
+    /// 拆分后单响应小、失败隔离（坏 1 张不影响其他）、可并行（总耗时 ≈ 原单次）。</summary>
     private async Task<List<AiPlaylist>> FetchAiPlaylistsAsync()
     {
-        // 候选池截断：推理模型会逐首分析候选歌曲（reasoning 占用大量 token），
-        // 候选过多时 max_tokens 会在生成 content 前耗尽（finishReason=length、content 空）
+        // 候选池截断：推理模型会逐首分析候选歌曲（reasoning 占用大量 token）
         var pool = BuildAiCandidatePool().Take(25).ToList();
         if (pool.Count == 0) return new();
 
@@ -168,100 +170,118 @@ public partial class SearchViewModel
             _ => "夜晚",
         };
 
-        var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
-        var userPrompt =
-            $"今天是 {now:yyyy年M月d日}（{weekDay}，{isWeekend}），当前季节：{season}，当前时间段：{period}。\n" +
-            $"下面是用户曲库里的候选歌曲（每行格式：ID. 歌名 - 艺术家）：\n{sb}\n" +
-            "请按以下主题规则创建 5 个歌单：\n" +
-            $"1. 第一张：以今天是{weekDay}（{isWeekend}）为主题（如{isWeekend}的放松时光、{weekDay}的能量补给）。\n" +
-            "2. 第二张：先判断今天是否节日或节气（如有则以其为主题，没有则用当前季节），并紧密结合当前时间段（凌晨/早上/中午/下午/傍晚/夜晚）的听歌场景。\n" +
-            "3. 第三张：基于用户常听的音乐偏好（从候选歌曲中推断最常见的口味/情绪/风格）。\n" +
-            "4. 第四张：基于明确的音乐类型或风格（如流行、民谣、古风、电子、摇滚等）。\n" +
-            "5. 第五张：自由发挥，创意不限。\n" +
-            "每个歌单包含 20 首歌曲、一个歌单名和一句推荐理由（理由不超过20字，不要加引号）。\n" +
-            "歌曲必须从上面的候选列表中选择，song_ids 里填歌曲 ID，不同歌单可以重复使用同一首歌。\n" +
-            "重要：不要做任何逐步分析、解释或逐首歌点评，直接快速挑选并输出结果。\n" +
-            "只返回严格的 JSON 数组，不要任何多余文字、代码块标记、换行或缩进（保持单行紧凑），格式：" +
-            "[{\"name\":\"歌单名\",\"reason\":\"推荐理由\",\"song_ids\":[数字,...]}]";
-
-        var raw = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
-        return ParseAiPlaylists(raw, pool);
-    }
-
-    /// <summary>解析 AI 返回的 JSON 歌单数组：按 ID 匹配候选池真实歌曲，丢弃空歌单与非法项。</summary>
-    private static List<AiPlaylist> ParseAiPlaylists(string raw, List<Song> pool)
-    {
-        var result = new List<AiPlaylist>();
-        if (string.IsNullOrWhiteSpace(raw))
+        // 5 个主题 prompt（每个只生成 1 张歌单）
+        var themes = new[]
         {
-            return result;
-        }
-        try
-        {
-            var start = raw.IndexOf('[');
-            var end = raw.LastIndexOf(']');
-            if (start < 0 || end <= start)
-            {
-                return result;
-            }
-            var json = raw.Substring(start, end - start + 1);
+            $"第一张：以今天是{weekDay}（{isWeekend}）为主题（如{isWeekend}的放松时光、{weekDay}的能量补给）。",
+            $"第二张：先判断今天是否节日或节气（如有则以其为主题，没有则用当前季节），并紧密结合当前时间段（{period}）的听歌场景。",
+            "第三张：基于用户常听的音乐偏好（从候选歌曲中推断最常见的口味/情绪/风格）。",
+            "第四张：基于明确的音乐类型或风格（如流行、民谣、古风、电子、摇滚等）。",
+            "第五张：自由发挥，创意不限。",
+        };
+        var dateContext = $"今天是 {now:yyyy年M月d日}（{weekDay}，{isWeekend}），当前季节：{season}，当前时间段：{period}。";
 
-            // 反序列化（失败时尝试补全被截断的 JSON 尾部括号——模型输出超长时可能被 max_tokens 截断）
-            List<AiPlaylist>? items = null;
+        // 并发生成：信号量限制并发避免触发服务商限流（burst rate），总耗时 ≈ 单次生成
+        using var gate = new SemaphoreSlim(2, 2);
+        var tasks = themes.Select(async theme =>
+        {
+            await gate.WaitAsync();
             try
             {
-                items = System.Text.Json.JsonSerializer.Deserialize<List<AiPlaylist>>(json,
+                return await GenerateOnePlaylistAsync(dateContext, theme, sb.ToString(), pool);
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("SearchViewModel", $"[SearchVM] AI 歌单单张生成失败: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        var results = await Task.WhenAll(tasks);
+        return results.Where(r => r != null).Cast<AiPlaylist>().ToList();
+    }
+
+    /// <summary>生成单张 AI 歌单（1 个歌单 20 首 + 名字 + 理由），返回严格 JSON 对象。</summary>
+    private async Task<AiPlaylist?> GenerateOnePlaylistAsync(string dateContext, string theme, string candidateList, List<Song> pool)
+    {
+        var systemPrompt = "你是Yuki，猫爪音乐的AI音乐推荐助手，说话温柔可爱带点喵口癖。";
+        var userPrompt =
+            $"{dateContext}\n" +
+            $"下面是用户曲库里的候选歌曲（每行格式：ID. 歌名 - 艺术家）：\n{candidateList}\n" +
+            $"请创建 1 个歌单：\n{theme}\n" +
+            "歌单包含 20 首歌曲、一个歌单名和一句推荐理由（理由不超过20字，不要加引号）。\n" +
+            "歌曲必须从上面的候选列表中选择，song_ids 里填歌曲 ID（数字）。\n" +
+            "重要：不要做任何逐步分析、解释或逐首歌点评，直接快速挑选并输出结果。\n" +
+            "只返回严格的 JSON 对象，不要任何多余文字、代码块标记、换行或缩进（保持单行紧凑），格式：" +
+            "{\"name\":\"歌单名\",\"reason\":\"推荐理由\",\"song_ids\":[数字,...]}";
+
+        var raw = await _agentService.QuickAskAsync(systemPrompt, userPrompt);
+        return ParseSingleAiPlaylist(raw, pool);
+    }
+
+    /// <summary>解析单张 AI 歌单 JSON 对象：按 ID 匹配候选池真实歌曲，空歌单返回 null。</summary>
+    private static AiPlaylist? ParseSingleAiPlaylist(string raw, List<Song> pool)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try
+        {
+            var start = raw.IndexOf('{');
+            var end = raw.LastIndexOf('}');
+            if (start < 0 || end <= start) return null;
+            var json = raw.Substring(start, end - start + 1);
+
+            // 反序列化（失败时尝试补全被截断的 JSON 尾部括号）
+            AiPlaylist? item = null;
+            try
+            {
+                item = System.Text.Json.JsonSerializer.Deserialize<AiPlaylist>(json,
                     new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             }
             catch (System.Text.Json.JsonException)
             {
-                foreach (var suffix in new[] { "]", "}]", "}}]", "}}}]" })
+                foreach (var suffix in new[] { "}", "]}", "}]}" })
                 {
                     try
                     {
-                        items = System.Text.Json.JsonSerializer.Deserialize<List<AiPlaylist>>(json.TrimEnd() + suffix,
+                        item = System.Text.Json.JsonSerializer.Deserialize<AiPlaylist>(json.TrimEnd() + suffix,
                             new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                        if (items != null) break;
+                        if (item != null) break;
                     }
                     catch { }
                 }
             }
-            if (items == null)
-            {
-                return result;
-            }
+            if (item == null) return null;
 
+            var name = item.Name?.Trim() ?? "";
+            var reason = item.Reason?.Trim()?.Trim('"', '「', '」', '\n', '\r') ?? "";
+            if (string.IsNullOrEmpty(name)) return null;
+            if (reason.Length > 40) reason = reason.Substring(0, 40);
+
+            // 按 ID 映射真实歌曲，去重
             var validIds = pool.Select(s => s.Id).ToHashSet();
             var idToSong = pool.ToDictionary(s => s.Id);
-
-            foreach (var p in items)
+            var songs = new List<Song>();
+            var used = new HashSet<int>();
+            foreach (var id in item.SongIds)
             {
-                var name = p.Name?.Trim() ?? "";
-                var reason = p.Reason?.Trim()?.Trim('"', '「', '」', '\n', '\r') ?? "";
-                if (string.IsNullOrEmpty(name)) continue;
-                if (reason.Length > 40) reason = reason.Substring(0, 40);
-
-                // 按 ID 映射真实歌曲，去重
-                var songs = new List<Song>();
-                var used = new HashSet<int>();
-                foreach (var id in p.SongIds)
-                {
-                    if (used.Contains(id)) continue;
-                    used.Add(id);
-                    if (validIds.Contains(id) && idToSong.TryGetValue(id, out var song))
-                        songs.Add(song);
-                }
-                if (songs.Count == 0) continue; // 空歌单丢弃
-
-                result.Add(new AiPlaylist { Name = name, Reason = reason, SongIds = p.SongIds, Songs = songs });
-                if (result.Count >= 5) break; // 最多 5 张
+                if (used.Contains(id)) continue;
+                used.Add(id);
+                if (validIds.Contains(id) && idToSong.TryGetValue(id, out var song))
+                    songs.Add(song);
             }
+            if (songs.Count == 0) return null; // 空歌单丢弃
+
+            return new AiPlaylist { Name = name, Reason = reason, SongIds = item.SongIds, Songs = songs };
         }
         catch (Exception ex)
         {
-            Log.Debug("SearchViewModel", $"[SearchVM] AI 歌单解析失败: {ex.Message}");
+            Log.Debug("SearchViewModel", $"[SearchVM] AI 歌单单张解析失败: {ex.Message}");
+            return null;
         }
-        return result;
     }
 
     /// <summary>从磁盘读取当天的 AI 歌单缓存；日期不匹配或为空时返回 null</summary>
