@@ -198,7 +198,7 @@ public partial class FullLyricsPage
                 var vStack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 vStack.Children.Add(border);
 
-                // 罗马音行（lx-music 扩展歌词 rlrc 流）：原文与译文之间，与主行同步高亮/模糊
+                // 罗马音行（网易云 romalrc 流）：原文与译文之间，不加入 labelList（避免打乱行索引）
                 if (hasRoma)
                 {
                     var romaLabel = new KaraokeLabel
@@ -234,7 +234,6 @@ public partial class FullLyricsPage
                     };
                     romaBorder.Content = romaHost;
                     vStack.Children.Add(romaBorder);
-                    labelList.Add(romaLabel); // 与主行同步高亮/模糊/宽度角色
                 }
 
                 if (hasTranslation)

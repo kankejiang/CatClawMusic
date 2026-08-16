@@ -75,9 +75,9 @@ public partial class NowPlayingPage
                 var stack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);
 
-                // 罗马音行（lx-music 扩展歌词 rlrc 流）：显示在原文与译文之间
+                // 罗马音行（网易云 romalrc 流）：显示在原文与译文之间，不参与主行高亮/测量
                 if (!string.IsNullOrEmpty(line.Roma) && _settings.ShowRoma)
-                    stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin, _lyricLabels, stack));
+                    stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin));
 
                 var transLabel = new KaraokeLabel
                 {
@@ -120,7 +120,7 @@ public partial class NowPlayingPage
                 // 无译文但有罗马音：罗马音并入副行结构
                 var stack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);
-                stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin, _lyricLabels, stack));
+                stack.Children.Add(BuildSubLyricRow(line.Roma, 11, align, hostMargin));
                 LyricStack.Children.Add(stack);
                 _lyricRowViews.Add(stack);
             }
@@ -164,9 +164,9 @@ public partial class NowPlayingPage
         ScrollToLine(idx);
     }
 
-    /// <summary>构建副歌词行（罗马音/译文，与主歌词同款 Border+ContentView 结构，分行宽度一致）</summary>
-    private View BuildSubLyricRow(string text, double fontSize, LayoutAlignment align, Thickness hostMargin,
-        List<KaraokeLabel> labels, VerticalStackLayout stack)
+    /// <summary>构建副歌词行（罗马音/译文，与主歌词同款 Border+ContentView 结构，分行宽度一致）。
+    /// 不加入任何高亮/测量列表——副行跟随行容器显示，避免打乱主歌词行索引。</summary>
+    private View BuildSubLyricRow(string text, double fontSize, LayoutAlignment align, Thickness hostMargin)
     {
         var subLabel = new KaraokeLabel
         {
@@ -199,7 +199,6 @@ public partial class NowPlayingPage
                 subLabel.WidthRequest = Math.Max(40, v.Width - 1);
         };
         subBorder.Content = subHost;
-        labels.Add(subLabel);
         return subBorder;
     }
 

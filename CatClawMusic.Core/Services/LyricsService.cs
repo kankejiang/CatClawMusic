@@ -502,7 +502,7 @@ public partial class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>把在线获取的歌词缓存为本地 .lrc（原文 + 同时间戳译文行），下次读取走本地路线、离线可用。</summary>
+    /// <summary>把在线获取的歌词缓存为本地 .lrc（原文 + 同时间戳译文行 + 罗马音行），下次读取走本地路线、离线可用。</summary>
     private static void CacheOnlineLyrics(Song song, LrcLyrics lyrics)
     {
         try
@@ -517,6 +517,8 @@ public partial class LyricsService : ILyricsService
                 sb.Append('[').Append(FormatTs(l.Timestamp)).Append(']').AppendLine(l.Text);
                 if (!string.IsNullOrEmpty(l.Translation))
                     sb.Append('[').Append(FormatTs(l.Timestamp)).Append(']').AppendLine(l.Translation);
+                if (!string.IsNullOrEmpty(l.Roma))
+                    sb.Append('[').Append(FormatTs(l.Timestamp)).Append(']').AppendLine(l.Roma);
             }
             System.IO.File.WriteAllText(cachePath, sb.ToString(), Encoding.UTF8);
         }
@@ -535,7 +537,10 @@ public partial class LyricsService : ILyricsService
         return System.IO.Path.Combine(LyricCacheDir, $"lyric_{hash}.lrc");
     }
 
-    /// <summary>读取在线歌词缓存（命中返回解析结果）。</summary>
+    /// <summary>
+    /// 读取在线歌词缓存（命中返回解析结果）。
+    /// 缓存格式：同时间戳最多三行 = 原文 / 译文 / 罗马音（300ms 容差分组配对）。
+    /// </summary>
     private async Task<LrcLyrics?> TryReadCachedLyricsAsync(Song song)
     {
         try
@@ -543,7 +548,52 @@ public partial class LyricsService : ILyricsService
             var cachePath = GetCachePath(song);
             if (cachePath == null || !System.IO.File.Exists(cachePath)) return null;
             var content = await System.IO.File.ReadAllTextAsync(cachePath);
-            return await Task.Run(() => TryParseLyrics(content));
+
+            // 按时间戳分组配对：组内第 1 行原文，第 2 行译文，第 3 行罗马音。
+            // 不能用标准 MergeTranslationLines（它只吸收一行译文，第三行会变独立行）。
+            var groups = new List<(TimeSpan Ts, List<string> Texts)>();
+            foreach (var rawLine in content.Replace("\r\n", "\n").Split('\n'))
+            {
+                var line = rawLine.Trim();
+                var m = System.Text.RegularExpressions.Regex.Match(line, @"^\[(\d+):(\d+)(?:\.(\d+))?\]");
+                if (!m.Success) continue;
+                var minutes = int.Parse(m.Groups[1].Value);
+                var seconds = int.Parse(m.Groups[2].Value);
+                var millis = m.Groups[3].Success
+                    ? int.Parse(m.Groups[3].Value.PadRight(3, '0').Substring(0, 3))
+                    : 0;
+                var text = line.Substring(m.Index + m.Length).Trim();
+                if (text.Length == 0) continue;
+                var ts = new TimeSpan(0, 0, minutes, seconds, millis);
+
+                bool matched = false;
+                for (int i = groups.Count - 1; i >= 0; i--)
+                {
+                    if (Math.Abs((groups[i].Ts - ts).TotalMilliseconds) < 300)
+                    {
+                        groups[i].Texts.Add(text);
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched)
+                    groups.Add((ts, new List<string> { text }));
+            }
+
+            var lines = new List<LrcLyricLine>();
+            foreach (var g in groups)
+            {
+                if (g.Texts.Count == 0) continue;
+                lines.Add(new LrcLyricLine
+                {
+                    Timestamp = g.Ts,
+                    Text = g.Texts[0],
+                    Translation = g.Texts.Count > 1 ? g.Texts[1] : null,
+                    Roma = g.Texts.Count > 2 ? g.Texts[2] : null
+                });
+            }
+            if (lines.Count == 0) return null;
+            return new LrcLyrics { Lines = lines };
         }
         catch { return null; }
     }
