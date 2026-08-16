@@ -132,9 +132,11 @@ public class LlmProviderInfo
         // 讯飞星火：spark 命名系列（lite/pro/max/4.0-ultra）
         new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "spark-4.0-ultra", "spark-max", "spark-pro", "spark-lite" } },
         // OpenCode Go（opencode.ai/docs/go）：订阅制 OpenAI 兼容网关（$10/月，额度用尽后可继续用免费模型）。
-        // 仅收录走 /v1/chat/completions 的模型（MiniMax/Qwen 走 Anthropic /v1/messages、Grok/GPT 走
-        // /v1/responses，与 OpenAI 兼容客户端不兼容）。也可指向本地 opencode-go-proxy（http://127.0.0.1:8787/v1）。
-        new LlmProviderInfo { Id = "opencodego", Name = "OpenCode Go", DefaultApiUrl = "https://opencode.ai/zen/go/v1", DefaultModel = "deepseek-v4-flash", PresetModels = new[] { "glm-5.3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code", "kimi-k2.6", "deepseek-v4-flash", "deepseek-v4-pro", "mimo-v2.5", "mimo-v2.5-pro", "hy3", "deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle" } },
+        // 仅收录官方 /v1/chat/completions 兼容模型（实测官方 /v1/models 无 *-free slug——
+        // 免费模型是 opencode-go-proxy 本地代理的概念：把地址改 http://127.0.0.1:8787/v1 后手填
+        // deepseek-v4-flash-free / mimo-v2.5-free / big-pickle 即可；MiniMax/Qwen 走 Anthropic
+        // /v1/messages、Grok/GPT 走 /v1/responses，与 OpenAI 兼容客户端不兼容故未收录）。
+        new LlmProviderInfo { Id = "opencodego", Name = "OpenCode Go", DefaultApiUrl = "https://opencode.ai/zen/go/v1", DefaultModel = "deepseek-v4-flash", PresetModels = new[] { "glm-5.3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code", "kimi-k2.6", "deepseek-v4-flash", "deepseek-v4-pro", "mimo-v2.5", "mimo-v2.5-pro", "hy3" } },
         new LlmProviderInfo { Id = "custom", Name = "自定义 (OpenAI 兼容)", DefaultApiUrl = "", DefaultModel = "" },
     };
 }
