@@ -614,39 +614,56 @@ public partial class SearchPage : DiscoverPageBase
         _ = _vm.RefreshCommand.ExecuteAsync(null);
     }
 
-    // === 聊天对话框推理力度（opencode 同款：对话框内切换推理深度） ===
+    // === 聊天对话框推理力度（上拉菜单：点击"推理"按钮弹出底部面板选择） ===
 
-    private void OnReasoningEffortChipTapped(object? sender, TappedEventArgs e)
+    private void OnReasoningEffortButtonTapped(object? sender, TappedEventArgs e)
+    {
+        UpdateReasoningEffortSheet();
+        EffortSheetOverlay.IsVisible = true;
+    }
+
+    private void OnEffortSheetBackdropTapped(object? sender, TappedEventArgs e)
+    {
+        EffortSheetOverlay.IsVisible = false;
+    }
+
+    private void OnReasoningEffortOptionTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is string effort)
         {
             CatClawMusic.Core.Services.AI.AgentService.SetReasoningEffort(effort);
+            EffortSheetOverlay.IsVisible = false;
             UpdateReasoningEffortChips();
         }
     }
 
-    /// <summary>按当前全局推理力度刷新 chips 高亮（进入聊天页时与点击后调用）</summary>
+    /// <summary>刷新推理按钮文字与上拉菜单选中标记</summary>
     private void UpdateReasoningEffortChips()
     {
         var current = CatClawMusic.Core.Services.AI.AgentService.GetReasoningEffort();
-        var active = (Color)(Application.Current?.Resources?["ChipActiveColor"] ?? Colors.Transparent);
-        var inactive = (Color)(Application.Current?.Resources?["ChipInactiveColor"] ?? Colors.Transparent);
-        var activeText = Colors.White;
-        var inactiveText = (Color)(Application.Current?.Resources?["TextSecondaryColor"] ?? Colors.Gray);
+        EffortButtonLabel.Text = $"推理：{EffortDisplayName(current)}";
+        UpdateReasoningEffortSheet();
+    }
 
-        var chips = new (Border? B, string V)[]
-        {
-            (EffortChipAuto, "auto"), (EffortChipDisabled, "disabled"),
-            (EffortChipLow, "low"), (EffortChipHigh, "high"), (EffortChipMax, "max")
-        };
-        foreach (var (b, v) in chips)
-        {
-            if (b == null) continue;
-            var isActive = v == current;
-            b.BackgroundColor = isActive ? active : inactive;
-            if (b.Content is Label l)
-                l.TextColor = isActive ? activeText : inactiveText;
-        }
+    private static string EffortDisplayName(string effort) => effort switch
+    {
+        "auto" => "自动",
+        "disabled" => "关闭",
+        "low" => "低",
+        "high" => "高",
+        "max" => "最强",
+        _ => effort
+    };
+
+    private void UpdateReasoningEffortSheet()
+    {
+        if (EffortOptAuto == null) return; // Loaded 前
+        var current = CatClawMusic.Core.Services.AI.AgentService.GetReasoningEffort();
+        EffortOptAutoCheck.IsVisible = current == "auto";
+        EffortOptDisabledCheck.IsVisible = current == "disabled";
+        EffortOptLowCheck.IsVisible = current == "low";
+        EffortOptHighCheck.IsVisible = current == "high";
+        EffortOptMaxCheck.IsVisible = current == "max";
     }
 
     // === 设置抽屉（竖屏专属：从左侧滑出的毛玻璃面板） ===
