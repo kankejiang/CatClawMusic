@@ -79,8 +79,8 @@ public class OnlineMusicAggregator
         return null;
     }
 
-    /// <summary>获取歌词（LRC 原文 + 翻译），路由到对应平台插件</summary>
-    public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
+    /// <summary>获取歌词（LRC 原文 + 翻译 + 罗马音），路由到对应平台插件</summary>
+    public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(OnlineSong song)
     {
         foreach (var p in GetProviders())
         {

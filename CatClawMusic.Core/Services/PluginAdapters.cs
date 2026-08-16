@@ -639,8 +639,8 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
             return result as string;
         }
 
-        /// <summary>异步获取歌词（LRC 原文 + 翻译）</summary>
-        public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
+        /// <summary>异步获取歌词（LRC 原文 + 翻译 + 罗马音，旧插件仅返回前两者）</summary>
+        public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(OnlineSong song)
         {
             var method = _targetType.GetMethod("GetLyricsAsync");
             if (method == null) return null;
@@ -655,27 +655,29 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
             var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetLyricsAsync", invokeArgs);
             if (result == null) return null;
 
-            string? lrc = null, tlrrc = null;
+            string? lrc = null, tlrc = null, rlrc = null;
             var type = result.GetType();
             if (type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
-                // Nullable<ValueTuple<string,string>>：读取 Value 属性
+                // Nullable<ValueTuple>：读取 Value 属性
                 var hasValue = type.GetProperty("HasValue")?.GetValue(result) as bool? ?? true;
                 if (!hasValue) return null;
                 var valueObj = type.GetProperty("Value")?.GetValue(result);
                 if (valueObj != null)
                 {
                     lrc = valueObj.GetType().GetField("Item1")?.GetValue(valueObj) as string;
-                    tlrrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
+                    tlrc = valueObj.GetType().GetField("Item2")?.GetValue(valueObj) as string;
+                    rlrc = valueObj.GetType().GetField("Item3")?.GetValue(valueObj) as string; // 旧插件无 Item3，反射返回 null
                 }
             }
             else
             {
-                // 直接是 ValueTuple<string,string>
+                // 直接是 ValueTuple
                 lrc = type.GetField("Item1")?.GetValue(result) as string;
-                tlrrc = type.GetField("Item2")?.GetValue(result) as string;
+                tlrc = type.GetField("Item2")?.GetValue(result) as string;
+                rlrc = type.GetField("Item3")?.GetValue(result) as string;
             }
-            return (lrc, tlrrc);
+            return (lrc, tlrc, rlrc);
         }
 
         /// <summary>异步获取歌单列表</summary>

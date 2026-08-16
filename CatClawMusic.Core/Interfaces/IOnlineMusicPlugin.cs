@@ -32,10 +32,10 @@ public interface IOnlineMusicPlugin : IPlugin
     /// <returns>可播放的 URL；无法获取返回 null</returns>
     Task<string?> GetPlayUrlAsync(OnlineSong song, int quality = 0);
 
-    /// <summary>获取歌词（LRC 原文 + 翻译）</summary>
+    /// <summary>获取歌词（LRC 原文 + 翻译 + 罗马音，参考 lx-music 音源的 lrc/tlyric/romalrc 三流）</summary>
     /// <param name="song">搜索结果歌曲</param>
-    /// <returns>LRC 文本与翻译文本；无歌词或失败返回 null</returns>
-    Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song);
+    /// <returns>LRC/翻译/罗马音文本；无歌词或失败返回 null</returns>
+    Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsAsync(OnlineSong song);
 
     /// <summary>获取歌单列表（无歌单能力返回空列表）</summary>
     /// <param name="category">歌单分类（平台相关，可为 null 取默认/全部）</param>

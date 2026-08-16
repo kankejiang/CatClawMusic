@@ -104,11 +104,21 @@ public partial class LyricsService : ILyricsService
                         var onlineLyrics = await provider.GetLyricsAsync(onlineSong);
                         if (onlineLyrics != null && !string.IsNullOrWhiteSpace(onlineLyrics.Value.Lrc))
                         {
-                            var merged = onlineLyrics.Value.Lrc;
-                            if (!string.IsNullOrWhiteSpace(onlineLyrics.Value.TLrc))
-                                merged += "\n" + onlineLyrics.Value.TLrc;
-                            var parsed = await Task.Run(() => TryParseLyrics(merged));
-                            if (parsed != null) return parsed;
+                            // 原文/译文/罗马音三流分别解析后按时间戳合并（lx-music 音源同款：
+                            // lrc/tlyric/romalrc 独立歌词流）。字符串拼接依赖"时间戳精确相等"
+                            // 合并，译文时间戳与原文差几毫秒就合并失败 → 译文错位成独立行。
+                            var parsed = await Task.Run(() => TryParseLyrics(onlineLyrics.Value.Lrc));
+                            if (parsed != null)
+                            {
+                                if (!string.IsNullOrWhiteSpace(onlineLyrics.Value.TLrc))
+                                    parsed.TranslationLines = await Task.Run(() =>
+                                        TryParseLyrics(onlineLyrics.Value.TLrc)?.Lines);
+                                if (!string.IsNullOrWhiteSpace(onlineLyrics.Value.RLrc))
+                                    parsed.RomaLines = await Task.Run(() =>
+                                        TryParseLyrics(onlineLyrics.Value.RLrc)?.Lines);
+                                MergeExtendedLines(parsed);
+                                return parsed;
+                            }
                         }
                     }
                     catch (Exception ex)
