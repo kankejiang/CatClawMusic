@@ -153,7 +153,7 @@ public partial class ModelManagerPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlert("提示", $"设为主模型失败：{ex.Message}", "确定");
+                await AlertAsync("提示", $"设为主模型失败：{ex.Message}");
             }
         }
     }
@@ -179,7 +179,7 @@ public partial class ModelManagerPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlert("提示", $"切换回退失败：{ex.Message}", "确定");
+                await AlertAsync("提示", $"切换回退失败：{ex.Message}");
             }
         }
     }
@@ -207,7 +207,7 @@ public partial class ModelManagerPage : ContentPage
     {
         if (sender is Button btn && btn.CommandParameter is string name)
         {
-            var confirm = await DisplayAlert("确认删除", $"确定要删除配置「{name}」吗？此操作不可撤销。", "删除", "取消");
+            var confirm = await AlertAsync("确认删除", $"确定要删除配置「{name}」吗？此操作不可撤销。", "删除", "取消");
             if (!confirm) return;
 
             try
@@ -217,8 +217,27 @@ public partial class ModelManagerPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlert("提示", $"删除失败：{ex.Message}", "确定");
+                await AlertAsync("提示", $"删除失败：{ex.Message}");
             }
         }
+    }
+
+    /// <summary>弹提示框：Windows 桌面嵌入模式本页不在窗口视觉树（Page.Window 为 null），
+    /// DisplayAlert 会静默失败——改由窗口根页面调用（与下载管理同一修复模式）。</summary>
+    private Task AlertAsync(string title, string message, string cancel = "确定")
+    {
+        var root = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root != null && root != this)
+            return root.DisplayAlert(title, message, cancel);
+        return DisplayAlert(title, message, cancel);
+    }
+
+    /// <summary>弹选择框（确认/取消双按钮）：同上，Windows 嵌入模式用窗口根页面</summary>
+    private Task<bool> AlertAsync(string title, string message, string accept, string cancel)
+    {
+        var root = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root != null && root != this)
+            return root.DisplayAlert(title, message, accept, cancel);
+        return DisplayAlert(title, message, accept, cancel);
     }
 }
