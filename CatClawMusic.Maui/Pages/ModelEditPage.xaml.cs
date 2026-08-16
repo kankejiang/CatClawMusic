@@ -325,4 +325,19 @@ public partial class ModelEditPage : ContentPage
             ReasoningEffort = ""
         };
     }
+
+    /// <summary>点击预设模型标签：把模型名填入输入框。</summary>
+    private void OnPresetModelTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is string model)
+            ModelEntry.Text = model;
+    }
+
+    /// <summary>点击从 API 获取的模型标签：把模型名填入输入框。</summary>
+    private void OnFetchedModelTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Parameter is string model)
+            ModelEntry.Text = model;
+    }
+
 }
