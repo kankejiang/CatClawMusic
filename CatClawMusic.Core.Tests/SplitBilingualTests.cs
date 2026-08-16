@@ -87,6 +87,28 @@ public class SplitBilingualTests
     }
 
     [Fact]
+    public void SameLanguageTranslation_Paired()
+    {
+        // 原文与译文同语言（如中文原文+中文译文）也应配对——纯时间戳匹配，不做文字系统判断
+        var parsed = Parse("[00:12.50]风起之时\n[00:12.50]起风的时候\n");
+        Assert.NotNull(parsed);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("风起之时", parsed.Lines[0].Text);
+        Assert.Equal("起风的时候", parsed.Lines[0].Translation);
+    }
+
+    [Fact]
+    public void IdenticalDuplicateLine_NotPaired()
+    {
+        // 同时间戳同文本（重复句）不是译文：合并为一行，Translation 为空
+        var parsed = Parse("[01:00.00]重复的歌词\n[01:00.00]重复的歌词\n");
+        Assert.NotNull(parsed);
+        Assert.Single(parsed.Lines);
+        Assert.Equal("重复的歌词", parsed.Lines[0].Text);
+        Assert.Null(parsed.Lines[0].Translation);
+    }
+
+    [Fact]
     public void WordTimestampLine_KeepsWordTimestamps()
     {
         // 网易云逐字格式：[00:00.000]起[00:00.211]风[00:00.422]了

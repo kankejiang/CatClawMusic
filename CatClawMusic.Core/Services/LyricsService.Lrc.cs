@@ -212,8 +212,11 @@ public partial class LyricsService
 
     /// <summary>
     /// 合并同时间戳的翻译行到原文行
-    /// <para>判断条件：两行时间戳相同（容差 300ms，兼容毫秒精度差异），
-    /// 且其中一行没有逐字时间戳（或文本是不同语言的翻译）</para>
+    /// <para>判断条件：两行时间戳相同（容差 300ms，兼容毫秒精度差异）。
+    /// 组内配对：有逐字时间戳的行是原文；都没有逐字时第一行是原文；
+    /// 组内第一个文本与原文不同的行为译文（纯时间戳匹配，不做文字系统判断，
+    /// 参考 MusicFree——文字系统判断会漏配"原文/译文同语言"或"中英混合原文"的歌词）。
+    /// 组内其他行（重复句/无法判断的第三行）丢弃，避免残行错位显示。</para>
     /// </summary>
     private static void MergeTranslationLines(LrcLyrics lyrics)
     {
@@ -225,57 +228,44 @@ public partial class LyricsService
         {
             var current = lyrics.Lines[i];
 
-            // 查找后续同时间戳（容差 300ms）的行
+            // 收集同时间戳组（容差 300ms）
+            var group = new List<LrcLyricLine> { current };
             var j = i + 1;
             while (j < lyrics.Lines.Count
                 && Math.Abs((lyrics.Lines[j].Timestamp - current.Timestamp).TotalMilliseconds) < 300)
             {
-                var next = lyrics.Lines[j];
-
-                // 判断哪行是原文、哪行是翻译
-                // 规则：有逐字时间戳的是原文；都没有时，第一行是原文
-                if (current.WordTimestamps != null && current.WordTimestamps.Count > 0
-                    && (next.WordTimestamps == null || next.WordTimestamps.Count == 0))
-                {
-                    // 当前行有逐字时间戳（原文），next 是翻译
-                    if (string.IsNullOrEmpty(current.Translation))
-                        current.Translation = next.Text;
-                    i = j + 1;
-                    goto AddCurrent;
-                }
-
-                if ((next.WordTimestamps != null && next.WordTimestamps.Count > 0)
-                    && (current.WordTimestamps == null || current.WordTimestamps.Count == 0))
-                {
-                    // next 有逐字时间戳（原文），当前行是翻译
-                    if (string.IsNullOrEmpty(next.Translation))
-                        next.Translation = current.Text;
-                    current = next;
-                    i = j + 1;
-                    goto AddCurrent;
-                }
-
-                // 两行都没有逐字时间戳：不同文字系统（如韩文 vs 中文）视为译文
-                // 如果当前行已有翻译，或者 next 的文本看起来是翻译（更短、不同语言）
-                if (string.IsNullOrEmpty(current.Translation) && !string.IsNullOrEmpty(next.Text))
-                {
-                    // 检查是否是不同语言（如韩文+中文）
-                    if (IsDifferentScript(current.Text, next.Text))
-                    {
-                        current.Translation = next.Text;
-                        i = j + 1;
-                        goto AddCurrent;
-                    }
-                }
-
-                // 无法判断，保留两行
+                group.Add(lyrics.Lines[j]);
                 j++;
             }
 
-            i = j;
+            // 原文行：组内有逐字时间戳的行优先（无逐字时的第一行）
+            LrcLyricLine main = group[0];
+            foreach (var g in group)
+            {
+                if (g.WordTimestamps is { Count: > 0 })
+                {
+                    main = g;
+                    break;
+                }
+            }
 
-        AddCurrent:
-            merged.Add(current);
+            // 组内第一个与原文文本不同的行 = 译文
+            if (string.IsNullOrEmpty(main.Translation))
+            {
+                foreach (var g in group)
+                {
+                    if (ReferenceEquals(g, main)) continue;
+                    if (g.WordTimestamps is { Count: > 0 }) continue; // 逐字行不可能是译文
+                    if (!string.Equals(main.Text.Trim(), g.Text.Trim(), StringComparison.Ordinal))
+                    {
+                        main.Translation = g.Text;
+                        break;
+                    }
+                }
+            }
+
+            merged.Add(main);
+            i = j; // 整组已处理（非原文行已被吸收/丢弃）
         }
 
         lyrics.Lines = merged;
