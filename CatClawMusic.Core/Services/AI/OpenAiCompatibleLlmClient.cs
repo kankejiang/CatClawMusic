@@ -402,6 +402,9 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             return url + "/models";
         if (url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
             return url + "models";
+        // 其他版本段（智谱 /v4 等）：版本段后直接接 /models，不加 /v1
+        if (System.Text.RegularExpressions.Regex.IsMatch(url, @"/v\d+$"))
+            return url + "/models";
         return url + "/v1/models";
     }
 
@@ -449,6 +452,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             return url + "/chat/completions";
         if (url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
             return url + "chat/completions";
+        // 其他版本段（智谱 /v4 等）：版本段后直接接 /chat/completions，不加 /v1
+        //（否则智谱 v4 会被拼成 /v4/v1/chat/completions ❌）
+        if (System.Text.RegularExpressions.Regex.IsMatch(url, @"/v\d+$"))
+            return url + "/chat/completions";
         return url + "/v1/chat/completions";
     }
 
