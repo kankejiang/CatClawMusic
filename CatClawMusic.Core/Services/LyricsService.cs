@@ -551,7 +551,9 @@ public partial class LyricsService : ILyricsService
             var content = await System.IO.File.ReadAllTextAsync(cachePath);
 
             // 按时间戳分组配对：组内第 1 行原文，第 2 行译文，第 3 行罗马音。
-            // 不能用标准 MergeTranslationLines（它只吸收一行译文，第三行会变独立行）。
+            // 缓存是我们自己写入的，同组时间戳完全一致（写入用同一 l.Timestamp），
+            // 因此用精确相等配对——300ms 容差会把间隔 <300ms 的相邻句（快歌）误并成一组，
+            // 导致正文行丢失（"本地日语歌不显示歌词"的潜在根因之一）。
             var groups = new List<(TimeSpan Ts, List<string> Texts)>();
             foreach (var rawLine in content.Replace("\r\n", "\n").Split('\n'))
             {
@@ -570,7 +572,7 @@ public partial class LyricsService : ILyricsService
                 bool matched = false;
                 for (int i = groups.Count - 1; i >= 0; i--)
                 {
-                    if (Math.Abs((groups[i].Ts - ts).TotalMilliseconds) < 300)
+                    if (Math.Abs((groups[i].Ts - ts).TotalMilliseconds) < 1)
                     {
                         groups[i].Texts.Add(text);
                         matched = true;

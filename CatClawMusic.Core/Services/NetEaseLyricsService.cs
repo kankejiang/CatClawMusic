@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Core.Services;
@@ -51,6 +52,7 @@ public static class NetEaseLyricsService
             // 正文歌词：yrc 逐字流优先（有逐字时间戳）；yrc 缺失时回退老接口 lrc（纯 LRC 文本含正文，
             // eapi 的 lrc 只有署名行）。译文/罗马音：eapi 的 tlyric/romalrc。
             var (yrc, tlrcText, rlrcText) = await FetchEapiLyricsAsync(songId);
+            Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: yrc={(yrc != null ? yrc.Length + "B" : "null")}, tlyric={(tlrcText != null ? tlrcText.Length + "B" : "null")}, romalrc={(rlrcText != null ? rlrcText.Length + "B" : "null")}");
 
             List<LrcLyricLine> lrcLines;
             if (!string.IsNullOrEmpty(yrc))
@@ -60,9 +62,14 @@ public static class NetEaseLyricsService
             else
             {
                 var legacyLrc = await FetchLegacyLrcAsync(songId);
+                Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: 老接口 lrc={(legacyLrc != null ? legacyLrc.Length + "B" : "null")}");
                 lrcLines = ParseSimpleLrcText(legacyLrc) ?? new List<LrcLyricLine>();
             }
-            if (lrcLines.Count == 0) return null;
+            if (lrcLines.Count == 0)
+            {
+                Log.Debug("LyricsService", $"[Lyrics] 网易云 id={songId}: 正文行为空");
+                return null;
+            }
 
             var lyrics = new LrcLyrics { Lines = lrcLines };
             lyrics.TranslationLines = ParseSimpleLrcText(tlrcText);
@@ -70,8 +77,9 @@ public static class NetEaseLyricsService
             MergeExternalLines(lyrics);
             return lyrics;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug("LyricsService", $"[Lyrics] 网易云取歌词异常 id={songId}: {ex.Message}");
             return null;
         }
     }
@@ -365,7 +373,18 @@ public static class NetEaseLyricsService
             ? title
             : $"{title} {artist}";
         var results = await SearchAsync(keyword);
-        if (results == null || results.Count == 0) return null;
+        // 标题+歌手搜不到（歌手名解析差异/特殊字符）时，回退只按标题搜索
+        if (results == null || results.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(artist) && !title.Equals(keyword, StringComparison.Ordinal))
+                results = await SearchAsync(title);
+        }
+        if (results == null || results.Count == 0)
+        {
+            Log.Debug("LyricsService", $"[Lyrics] 网易云搜索无结果: '{keyword}'");
+            return null;
+        }
+        Log.Debug("LyricsService", $"[Lyrics] 网易云搜索 '{keyword}' 命中 {results.Count} 个候选");
 
         // 排序：歌手匹配优先，其次标题精确/包含匹配
         List<(long Id, string Name, string Artists)> ordered;
@@ -388,6 +407,7 @@ public static class NetEaseLyricsService
         foreach (var cand in ordered.Take(3))
         {
             var lyrics = await GetLyricsAsync(cand.Id);
+            Log.Debug("LyricsService", $"[Lyrics] 网易云候选 {cand.Id}({cand.Name}-{cand.Artists}) 歌词行数: {lyrics?.Lines.Count ?? 0}");
             if (lyrics != null && lyrics.Lines.Count > 0)
                 return lyrics;
         }
