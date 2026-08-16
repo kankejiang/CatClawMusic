@@ -355,11 +355,60 @@ public partial class NowPlayingPage : ContentPage
         try
         {
             if (ArtworkImage.Handler?.PlatformView is Android.Widget.ImageView v1)
+            {
                 v1.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+                v1.SetScaleType(Android.Widget.ImageView.ScaleType.CenterCrop);
+            }
             if (LandscapeCoverImage.Handler?.PlatformView is Android.Widget.ImageView v2)
+            {
                 v2.Tag = CatClawMusic.Maui.Platforms.Android.CachingFileImageSourceService.PlayerCoverTag;
+                v2.SetScaleType(Android.Widget.ImageView.ScaleType.CenterCrop);
+            }
         }
         catch { /* Handler 未就绪时忽略，下次 OnAppearing 再补 */ }
+#endif
+    }
+
+    /// <summary>
+    /// 对播放页封面强制设置 Android 原生 scaleType=CenterCrop，保证封面恒定以
+    /// 居中裁切铺满正方形容器（等价 AspectFill），彻底消除非方形封面上下/左右的
+    /// 黑条。在线封面（Stream/Uri）不经过 CachingFileImageSourceService，
+    /// 没有该服务内部的 CenterCrop 兜底，必须在此页面层统一强制。
+    /// </summary>
+    private static void EnforceCoverCenterCrop(Image image)
+    {
+#if ANDROID
+        try
+        {
+            if (image.Handler?.PlatformView is Android.Widget.ImageView iv)
+                iv.SetScaleType(Android.Widget.ImageView.ScaleType.CenterCrop);
+        }
+        catch { }
+#else
+        _ = image;
+#endif
+    }
+
+    /// <summary>
+    /// 封面图异步加载完成后 scaleType 可能被 MAUI 重置（尤其在线 URL 封面），
+    /// 切歌 / 重绑后分多次延迟强制 CenterCrop，覆盖加载时序，确保跨路径恒定铺满。
+    /// </summary>
+    private void ScheduleCoverCenterCrop()
+    {
+#if ANDROID
+        try
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                var delayMs = 120 * i;
+                Dispatcher?.DispatchDelayed(TimeSpan.FromMilliseconds(delayMs), () =>
+                {
+                    EnforceCoverCenterCrop(ArtworkImage);
+                    EnforceCoverCenterCrop(LandscapeCoverImage);
+                });
+            }
+        }
+        catch { }
 #endif
     }
 
@@ -389,6 +438,8 @@ public partial class NowPlayingPage : ContentPage
                     // ViewModel.CoverImage 的变化无法传播到 Image（绑定已断开）。
                     image.Source = null;
                     image.SetBinding(Image.SourceProperty, new Binding(nameof(NowPlayingViewModel.CoverImage)));
+                    // 重绑触发重新解码，同步强制 CenterCrop 覆盖在线封面路径
+                    ScheduleCoverCenterCrop();
                 }
                 catch (Exception ex)
                 {
@@ -649,6 +700,14 @@ public partial class NowPlayingPage : ContentPage
                     ProgressSlider.Value = progress;
                     LandscapeProgressSlider.Value = progress;
                 }
+            }
+
+            if (e.PropertyName == nameof(NowPlayingViewModel.CoverImage))
+            {
+                // 切歌时封面新图异步加载，在线封面（Clip/URI）无自定义服务的 CenterCrop
+                // 兜底，这里分多次延迟强制 CenterCrop，确保非方形封面不露黑条。
+                ScheduleCoverCenterCrop();
+                return;
             }
         }
         catch { /* 页面已销毁，忽略 */ }

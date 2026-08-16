@@ -181,9 +181,9 @@
                             <Label Grid.Column="3" Text="⋮" FontSize="16" VerticalOptions="Center"
                                    TextColor="{DynamicResource TextHintColor}"
                                    Padding="4,0">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnMoreTapped" CommandParameter="{Binding}" />
-                                </Label.GestureRecognizers>
+                                <Label.Behaviors>
+                                    <controls:SongContextMenuBehavior />
+                                </Label.Behaviors>
                             </Label>
                         </Grid>
                     </DataTemplate>
