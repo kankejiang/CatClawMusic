@@ -69,6 +69,15 @@ public class KaraokeLabel : View
         BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(KaraokeLabel), default(Thickness),
             propertyChanged: OnVisualPropChanged);
 
+    /// <summary>
+    /// 视觉放大倍率（当前行歌词用）：>1 时文本按「控件宽 / 倍率」提前分行，
+    /// 绘制时整行放大倍率（从左缘锚定）→ 放大后视觉宽 = 满宽，不溢出也不改布局/对齐。
+    /// 与 Android 的"宽度缩小 + Scale 放大"等价，但全部在绘制层完成，不触碰 XAML 布局。
+    /// </summary>
+    public static readonly BindableProperty FillScaleProperty =
+        BindableProperty.Create(nameof(FillScale), typeof(double), typeof(KaraokeLabel), 1.0,
+            propertyChanged: OnFillScaleChanged);
+
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
     public double FontSize { get => (double)GetValue(FontSizeProperty); set => SetValue(FontSizeProperty, value); }
     public string FontFamily { get => (string)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
@@ -80,6 +89,7 @@ public class KaraokeLabel : View
     public TextAlignment HorizontalTextAlignment { get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty); set => SetValue(HorizontalTextAlignmentProperty, value); }
     public LineBreakMode LineBreakMode { get => (LineBreakMode)GetValue(LineBreakModeProperty); set => SetValue(LineBreakModeProperty, value); }
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+    public double FillScale { get => (double)GetValue(FillScaleProperty); set => SetValue(FillScaleProperty, value); }
 
     /// <summary>文本/字体等属性变化：触发完整重测+重绘</summary>
     private static void OnVisualPropChanged(BindableObject bindable, object oldValue, object newValue)
@@ -93,5 +103,12 @@ public class KaraokeLabel : View
     {
         if (bindable is KaraokeLabel label)
             label.Handler?.UpdateValue(nameof(FillProgress));
+    }
+
+    /// <summary>放大倍率变化：分行宽度与绘制变换都依赖它 → 重测 + 重绘</summary>
+    private static void OnFillScaleChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        if (bindable is KaraokeLabel label)
+            label.Handler?.UpdateValue(nameof(FillScale));
     }
 }
