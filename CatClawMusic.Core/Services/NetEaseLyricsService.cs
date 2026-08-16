@@ -79,26 +79,67 @@ public static class NetEaseLyricsService
             if (!doc.RootElement.TryGetProperty("code", out var codeProp) || codeProp.GetInt32() != 200)
                 return null;
 
-            string? GetLyric(string prop)
+            string? GetRawLyric(string prop)
             {
                 if (doc.RootElement.TryGetProperty(prop, out var node)
                     && node.ValueKind == JsonValueKind.Object
                     && node.TryGetProperty("lyric", out var lyric)
                     && lyric.ValueKind == JsonValueKind.String)
                 {
-                    return ToLrcText(lyric.GetString());
+                    var text = lyric.GetString() ?? "";
+                    return string.IsNullOrWhiteSpace(text) ? null : text;
                 }
                 return null;
             }
 
-            var lrc = GetLyric("lrc");
-            if (string.IsNullOrEmpty(lrc)) return null;
-            return (lrc, GetLyric("tlyric"), GetLyric("romalrc"));
+            // 正文歌词优先取 yrc（网易云新版把正文放逐字流 yrc，lrc 只含署名行）；
+            // yrc 缺失时回退 lrc。译文/罗马音分别取 tlyric/romalrc。
+            var yrc = GetRawLyric("yrc");
+            var lrcText = yrc != null ? ConvertYrcToLrc(yrc) : ToLrcText(GetRawLyric("lrc"));
+            if (string.IsNullOrEmpty(lrcText)) return null;
+            return (lrcText, ToLrcText(GetRawLyric("tlyric")), ToLrcText(GetRawLyric("romalrc")));
         }
         catch
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 网易云 yrc 逐字歌词格式 → 标准 LRC 逐字行。
+    /// 格式：[行起始ms,行时长ms](字起始ms,字时长ms,0)字(字起始ms,字时长ms,0)字 ...
+    /// 输出：[mm:ss.xxx]字[mm:ss.xxx]字... （每字一个绝对时间戳，宿主逐字分支自动生成 WordTimestamps）
+    /// </summary>
+    private static string? ConvertYrcToLrc(string yrc)
+    {
+        var sb = new StringBuilder(yrc.Length);
+        foreach (var rawLine in yrc.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0) continue;
+            var lineMatch = System.Text.RegularExpressions.Regex.Match(line, @"^\[(\d+),(\d+)\]");
+            if (!lineMatch.Success) continue;
+
+            var wordMatches = System.Text.RegularExpressions.Regex.Matches(line, @"\((\d+),(\d+),\d+\)");
+            var row = new StringBuilder();
+            foreach (System.Text.RegularExpressions.Match wm in wordMatches)
+            {
+                var wordStart = wm.Index + wm.Length;
+                var next = wm.NextMatch();
+                var wordEnd = next.Success ? next.Index : line.Length;
+                var word = line.Substring(wordStart, wordEnd - wordStart).Trim();
+                if (word.Length == 0) continue;
+
+                var ms = long.Parse(wm.Groups[1].Value);
+                var ts = TimeSpan.FromMilliseconds(ms);
+                row.Append('[').Append(ts.Minutes.ToString("D2")).Append(':')
+                   .Append(ts.Seconds.ToString("D2")).Append('.').Append(ts.Milliseconds.ToString("D3"))
+                   .Append(']').Append(word);
+            }
+            if (row.Length == 0) continue;
+            sb.AppendLine(row.ToString());
+        }
+        return sb.Length > 0 ? sb.ToString() : null;
     }
 
     private sealed class NeteaseSearchSong
