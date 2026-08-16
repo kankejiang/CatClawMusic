@@ -393,6 +393,19 @@ public partial class NowPlayingPage
 
             WinLyricStack.Children.Add(row);
             _winRows.Add(new WinLyricRow { Container = row, Main = main, Trans = trans, Dot = dot });
+
+            // 行高变化（英文长句换行多，布局随宽度钳制微调 → 行高可能在测量后变化）时
+            // 重测锚点并重钉当前行，否则 _winRowTops 过期 → 滚动不跟随。滚动是渲染变换，
+            // 不会触发 SizeChanged，只有真实行高变化才触发，无性能负担。
+            row.SizeChanged += (s, _) =>
+            {
+                if (s is View v && v.Height > 0)
+                {
+                    MeasureWinRows();
+                    if (_viewModel.CurrentLyricIndexObservable >= 0)
+                        ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable, animate: false);
+                }
+            };
         }
 
         var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
@@ -439,23 +452,13 @@ public partial class NowPlayingPage
             ApplyWinLyricTierInstant(i, index, setScale: i != index && i != prev);
         _winLastHighlight = index;
 
-        // 新当前行放大、旧当前行恢复（绘制层 FillScale 切换，重分行+放大一次到位）
-        ApplyWinLyricTierInstant(index, index, setScale: true);
+        // 新当前行缓缓长大到 1.5，旧当前行缓缓缩回 1.0（与滚动同步的 380ms CubicInOut）
+        AnimateWinRowScale(index, WinLyricCurrentScale);
         if (prev >= 0 && prev != index)
-            ApplyWinLyricTierInstant(prev, index, setScale: true);
+            AnimateWinRowScale(prev, 1.0);
 
         // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
         ApplyWinRowGap(index, animate: true);
-
-        // 当前行容器高度补偿（放大溢出）后，行高/锚点需重测：布局异步更新，延迟一帧
-        _winMeasureRetries = 0;
-        _ = Task.Delay(60).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_winRows.Count == 0 || WinLyricClip.Handler == null) return;
-            MeasureWinRows();
-            ScrollToWindowsLine(_viewModel.CurrentLyricIndexObservable >= 0
-                ? _viewModel.CurrentLyricIndexObservable : 0, animate: false);
-        }));
 
         ScrollToWindowsLine(index, animate: true);
         WinLog($"Highlight idx={index}/{_winRows.Count}");
@@ -502,21 +505,7 @@ public partial class NowPlayingPage
         if (setScale)
         {
             row.Main.AbortAnimation("ScaleTo");
-            // 当前行放大改在 Win2D 绘制层完成（FillScale：按 1/倍率提前分行 + 整行放大），
-            // 不再用 XAML Scale（会与绘制层 Transform 双重放大，且 XAML 变换不改分行）。
-            row.Main.Scale = 1.0;
-            row.Main.FillScale = i == index ? WinLyricCurrentScale : 1.0;
-        }
-
-        // 当前行放大（绘制层 1.25）后文本视觉高 = 1.25×行高 → 行容器补放大溢出高度：
-        // mainHost 底部 padding = mainH×(scale-1)，放大后的文本落在 padding 空间内，
-        // 不再溢出覆盖下一行（与 Android 动态行高同构；非当前行恢复 0）。
-        if (row.Main.Parent is ContentView host)
-        {
-            var mainH = row.Main.DesiredSize.Height;
-            host.Padding = i == index && mainH > 0
-                ? new Thickness(0, 0, 0, mainH * (WinLyricCurrentScale - 1.0))
-                : new Thickness(0);
+            row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
         }
     }
 
