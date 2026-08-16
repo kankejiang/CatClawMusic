@@ -308,10 +308,7 @@ public partial class NowPlayingPage
             {
                 if (s is View v && v.Width > 0)
                 {
-                    // 当前行（已放大）宽度缩小到 1/倍率 → 放大后视觉 = 满宽，不溢出窗口；
-                    // 缩小宽度使文本按"放大后的行数"提前分行（与 Android ApplyLabelWidthRole 同构）。
-                    var isCurrent = main.Scale > 1.01;
-                    var w = Math.Max(40, (isCurrent ? v.Width / WinLyricCurrentScale : v.Width) - 1);
+                    var w = Math.Max(40, v.Width - 1);
                     // 幂等钳制：仅在值变化时设置，避免无限缩小循环
                     if (Math.Abs(main.WidthRequest - w) > 0.5)
                         main.WidthRequest = w;
@@ -442,10 +439,10 @@ public partial class NowPlayingPage
             ApplyWinLyricTierInstant(i, index, setScale: i != index && i != prev);
         _winLastHighlight = index;
 
-        // 新当前行缓缓长大到 1.5，旧当前行缓缓缩回 1.0（与滚动同步的 380ms CubicInOut）
-        AnimateWinRowScale(index, WinLyricCurrentScale);
+        // 新当前行放大、旧当前行恢复（绘制层 FillScale 切换，重分行+放大一次到位）
+        ApplyWinLyricTierInstant(index, index, setScale: true);
         if (prev >= 0 && prev != index)
-            AnimateWinRowScale(prev, 1.0);
+            ApplyWinLyricTierInstant(prev, index, setScale: true);
 
         // 当前行上下呼吸空间随之平滑迁移（同为 380ms，与放大/滚动三者同步）
         ApplyWinRowGap(index, animate: true);
@@ -495,18 +492,10 @@ public partial class NowPlayingPage
         if (setScale)
         {
             row.Main.AbortAnimation("ScaleTo");
-            row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
-        }
-
-        // 当前行宽度缩小到 1/倍率（放大后视觉 = 满宽，不溢出窗口），文本按放大后的行数
-        // 提前分行——与 Android ApplyLabelWidthRole 同构；-6 安全边距兜住放大后的描边/最后 3 字。
-        if (row.Main.Parent is ContentView host && host.Width > 0)
-        {
-            var isCurrent = i == index;
-            var w = Math.Max(40, (isCurrent ? host.Width / WinLyricCurrentScale : host.Width)
-                - (isCurrent ? 6 : 1));
-            if (Math.Abs(row.Main.WidthRequest - w) > 0.5)
-                row.Main.WidthRequest = w;
+            // 当前行放大改在 Win2D 绘制层完成（FillScale：按 1/倍率提前分行 + 整行放大），
+            // 不再用 XAML Scale（会与绘制层 Transform 双重放大，且 XAML 变换不改分行）。
+            row.Main.Scale = 1.0;
+            row.Main.FillScale = i == index ? WinLyricCurrentScale : 1.0;
         }
     }
 

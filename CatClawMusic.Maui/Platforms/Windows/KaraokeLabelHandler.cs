@@ -26,6 +26,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
     private bool _layoutBold;
     private CanvasHorizontalAlignment _layoutAlign = CanvasHorizontalAlignment.Left;
     private float _layoutMaxWidth = -1;
+    private double _layoutFillScale = -1;
     /// <summary>最近一次布局的宽度约束：OnDraw 必须与布局用同一换行宽度，
     /// 否则（ActualWidth 与约束的浮点差异）会把最后一个字 Wrap 到第二行被裁剪。</summary>
     private float _layoutConstraint = -1;
@@ -42,6 +43,7 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             [nameof(Controls.KaraokeLabel.StrokeWidth)] = MapAll,
             // FillProgress 单独处理：仅请求重绘，不触发布局重测
             [nameof(Controls.KaraokeLabel.FillProgress)] = MapFillProgress,
+            [nameof(Controls.KaraokeLabel.FillScale)] = MapAll,
             [nameof(Controls.KaraokeLabel.HorizontalTextAlignment)] = MapAll,
             [nameof(Controls.KaraokeLabel.LineBreakMode)] = MapAll,
             [nameof(Controls.KaraokeLabel.Padding)] = MapAll,
@@ -113,13 +115,17 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
     /// <summary>按文本/字号/粗体/对齐/最大宽度创建（或复用）文本布局。Win2D 坐标均为 DIP。
     /// 对齐由 CanvasTextLayout 内部完成（标签恒为满宽，layout maxWidth = 控件宽，坐标系一致）：
     /// 左/中/右对齐时 Win2D 在 layout 内按 maxWidth 对齐文本，与 Android StaticLayout 行为一致。
-    /// 已唱填充的裁剪起点用 LayoutBounds.X（文本实际左缘，含对齐偏移），见 OnDraw。</summary>
+    /// 已唱填充的裁剪起点用 LayoutBounds.X（文本实际左缘，含对齐偏移），见 OnDraw。
+    /// FillScale > 1（当前行放大）：maxWidth 除以倍率 → 文本按「放大后的行数」提前分行，
+    /// 绘制时整行放大（见 OnDraw 的 Transform），放大后视觉宽 = 满宽且不溢出。
+    /// </summary>
     private CanvasTextLayout EnsureLayout(float maxWidth)
     {
         var view = VirtualView;
         var text = view.Text ?? "";
         var size = (float)view.FontSize;
         var bold = view.FontAttributes.HasFlag(FontAttributes.Bold);
+        var scale = view.FillScale > 1.0 ? view.FillScale : 1.0;
         var align = view.HorizontalTextAlignment switch
         {
             TextAlignment.Start => CanvasHorizontalAlignment.Left,
@@ -129,7 +135,8 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
 
         if (_layout != null && _layoutText == text && Math.Abs(_layoutFontSize - size) < 0.01f
             && _layoutBold == bold && _layoutAlign == align
-            && Math.Abs(_layoutMaxWidth - maxWidth) < 0.5f)
+            && Math.Abs(_layoutMaxWidth - maxWidth) < 0.5f
+            && Math.Abs(_layoutFillScale - scale) < 0.01f)
             return _layout;
 
         _layout?.Dispose();
@@ -140,13 +147,16 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             WordWrapping = CanvasWordWrapping.Wrap,
             HorizontalAlignment = align,
         };
+        // 分行宽度 = 控件宽 / 倍率（放大后视觉行数与 Android 一致）
+        var wrapWidth = (float)(scale > 1.0 ? maxWidth / scale : maxWidth);
         _layout = new CanvasTextLayout(
-            CanvasDevice.GetSharedDevice(), text, format, maxWidth, 0);
+            CanvasDevice.GetSharedDevice(), text, format, wrapWidth, 0);
         _layoutText = text;
         _layoutFontSize = size;
         _layoutBold = bold;
         _layoutAlign = align;
         _layoutMaxWidth = maxWidth;
+        _layoutFillScale = scale;
         return _layout;
     }
 
@@ -193,6 +203,16 @@ public class KaraokeLabelHandler : ViewHandler<Controls.KaraokeLabel, CanvasCont
             // 文本实际左缘（相对 layout 原点）：左对齐=0；居中/居右时 Win2D 在 maxWidth
             // 内对齐文本 → LayoutBounds.X 给出对齐偏移。已唱填充与裁剪都从该左缘开始。
             var textLeft = (float)layout.LayoutBounds.X;
+            // 当前行放大：以文本左缘为锚整体放大 FillScale（文本已按 控件宽/倍率 分行，
+            // 放大后视觉宽 = 满宽、行数与 Android 一致；仅绘制层变换，布局/对齐不变）
+            var fillScale = view.FillScale > 1.0 ? view.FillScale : 1.0;
+            if (fillScale > 1.01)
+            {
+                // CreateScale(scale, centerPoint)：以锚点 (padLeft+textLeft, padTop) 为中心缩放
+                ds.Transform = System.Numerics.Matrix3x2.CreateScale(
+                    (float)fillScale, (float)fillScale,
+                    new System.Numerics.Vector2(padLeft + textLeft, padTop));
+            }
 
             // 1. 未唱色整行
             ds.DrawTextLayout(layout, padLeft, padTop, ToWColor(empty));
