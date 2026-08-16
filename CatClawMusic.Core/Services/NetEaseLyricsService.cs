@@ -48,6 +48,39 @@ public static class NetEaseLyricsService
     {
         try
         {
+            // 正文歌词：yrc 逐字流优先（有逐字时间戳）；yrc 缺失时回退老接口 lrc（纯 LRC 文本含正文，
+            // eapi 的 lrc 只有署名行）。译文/罗马音：eapi 的 tlyric/romalrc。
+            var (yrc, tlrcText, rlrcText) = await FetchEapiLyricsAsync(songId);
+
+            List<LrcLyricLine> lrcLines;
+            if (!string.IsNullOrEmpty(yrc))
+            {
+                lrcLines = ParseYrcLines(yrc);
+            }
+            else
+            {
+                var legacyLrc = await FetchLegacyLrcAsync(songId);
+                lrcLines = ParseSimpleLrcText(legacyLrc) ?? new List<LrcLyricLine>();
+            }
+            if (lrcLines.Count == 0) return null;
+
+            var lyrics = new LrcLyrics { Lines = lrcLines };
+            lyrics.TranslationLines = ParseSimpleLrcText(tlrcText);
+            lyrics.RomaLines = ParseSimpleLrcText(rlrcText);
+            MergeExternalLines(lyrics);
+            return lyrics;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>eapi 加密接口：取 yrc 逐字正文 + 译文(tlyric) + 罗马音(romalrc)。</summary>
+    private static async Task<(string? Yrc, string? TLrc, string? RLrc)> FetchEapiLyricsAsync(long songId)
+    {
+        try
+        {
             // eapi payload 中的 url 必须是 /api/song/lyric/v1（不带 eapi 前缀），md5 校验用
             const string payloadUrl = "/api/song/lyric/v1";
             var data = JsonSerializer.Serialize(new
@@ -71,14 +104,14 @@ public static class NetEaseLyricsService
             request.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["params"] = paramsHex });
 
             using var response = await _http.SendAsync(request);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode) return (null, null, null);
             var raw = await response.Content.ReadAsByteArrayAsync();
             var body = DecodeBody(raw);
-            if (string.IsNullOrWhiteSpace(body)) return null;
+            if (string.IsNullOrWhiteSpace(body)) return (null, null, null);
 
             using var doc = JsonDocument.Parse(body);
             if (!doc.RootElement.TryGetProperty("code", out var codeProp) || codeProp.GetInt32() != 200)
-                return null;
+                return (null, null, null);
 
             string? GetRawLyric(string prop)
             {
@@ -93,18 +126,35 @@ public static class NetEaseLyricsService
                 return null;
             }
 
-            // 正文歌词优先取 yrc（网易云新版把正文放逐字流 yrc，lrc 只含署名行）；
-            // yrc 缺失时回退 lrc 增强 JSON。译文/罗马音分别是标准 LRC 文本流。
-            // 直接解析成行（不经过 LRC 文本中间态），译文/罗马音按时间戳并入。
-            var yrc = GetRawLyric("yrc");
-            var lrcLines = yrc != null ? ParseYrcLines(yrc) : ParseEnhancedJsonLines(GetRawLyric("lrc"));
-            if (lrcLines == null || lrcLines.Count == 0) return null;
+            return (GetRawLyric("yrc"), GetRawLyric("tlyric"), GetRawLyric("romalrc"));
+        }
+        catch
+        {
+            return (null, null, null);
+        }
+    }
 
-            var lyrics = new LrcLyrics { Lines = lrcLines };
-            lyrics.TranslationLines = ParseSimpleLrcText(GetRawLyric("tlyric"));
-            lyrics.RomaLines = ParseSimpleLrcText(GetRawLyric("romalrc"));
-            MergeExternalLines(lyrics);
-            return lyrics;
+    /// <summary>老接口（免登录）：lrc 为纯 LRC 文本且含完整正文（eapi 的 lrc 只有署名行）。</summary>
+    private static async Task<string?> FetchLegacyLrcAsync(long songId)
+    {
+        try
+        {
+            var url = $"https://music.163.com/api/song/lyric?id={songId}&lv=1&kv=1&tv=-1&rv=-1";
+            using var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("code", out var codeProp) || codeProp.GetInt32() != 200)
+                return null;
+            if (doc.RootElement.TryGetProperty("lrc", out var lrcNode)
+                && lrcNode.ValueKind == JsonValueKind.Object
+                && lrcNode.TryGetProperty("lyric", out var lyric)
+                && lyric.ValueKind == JsonValueKind.String)
+            {
+                var text = lyric.GetString() ?? "";
+                return string.IsNullOrWhiteSpace(text) ? null : text;
+            }
+            return null;
         }
         catch
         {
