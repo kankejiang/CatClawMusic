@@ -1125,11 +1125,12 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         EffortOptMaxCheck.IsVisible = current == "max";
     }
 
-    private async void OnRefreshClicked(object? sender, EventArgs e)
+    private void OnRefreshClicked(object? sender, EventArgs e)
     {
-        if (_vm.IsLoading) return;
-        try { await _vm.LoadExploreDataAsync(); }
-        catch (Exception ex) { Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover refresh: {ex.Message}"); }
+        // 统一走 RefreshCommand（清探索缓存 + 重新生成 AI 歌单 + IsRefreshing 转圈反馈）；
+        // 不再用 IsLoading 无感拦截（加载中点击也要有反馈）
+        if (_vm.IsRefreshing) return;
+        _ = _vm.RefreshCommand.ExecuteAsync(null);
     }
 
     // === 查看全部入口（横屏专属：导航到 DesktopArtists/DesktopAlbums） ===
