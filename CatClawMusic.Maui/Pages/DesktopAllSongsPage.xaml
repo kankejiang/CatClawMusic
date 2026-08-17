@@ -135,6 +135,10 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
                         <Grid Padding="10,6,34,6" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                            <!-- 整行长按/右键弹菜单（Android 长按、Windows 右键） -->
+                            <Grid.Behaviors>
+                                <controls:SongContextMenuBehavior />
+                            </Grid.Behaviors>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -164,14 +168,10 @@
                                    TextColor="{DynamicResource TextHintColor}"
                                    Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
 
-                            <!-- 更多按钮 -->
+                            <!-- 更多按钮提示 -->
                             <Label Grid.Column="3" Text="⋮" FontSize="16" VerticalOptions="Center"
                                    TextColor="{DynamicResource TextHintColor}"
-                                   Padding="4,0">
-                                <Label.Behaviors>
-                                    <controls:SongContextMenuBehavior />
-                                </Label.Behaviors>
-                            </Label>
+                                   Padding="4,0" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
