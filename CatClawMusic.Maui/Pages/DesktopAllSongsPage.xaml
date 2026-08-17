@@ -132,40 +132,48 @@
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <!-- 行用 Button：自带按压高亮，且长按 Behaviour 可稳定接收触摸 -->
-                        <Button Padding="10,6,34,6"
-                                BackgroundColor="Transparent"
-                                BorderWidth="0"
-                                CornerRadius="0"
-                                Clicked="OnSongClicked">
-                            <Button.Behaviors>
-                                <controls:SongContextMenuBehavior />
-                            </Button.Behaviors>
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="Transparent" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="PointerOver">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Pressed">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Disabled">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="Transparent" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                        <!-- 行：底层 Button 提供原生按压高亮 + 点击播放 + 长按菜单（Button.Content 在 Android 不承载复杂布局，
+                             内容放到上层 InputTransparent 的 Grid 中仅展示，触摸仍落到 Button） -->
+                        <Grid>
+                            <Button BackgroundColor="Transparent"
+                                    BorderWidth="0"
+                                    CornerRadius="0"
+                                    Clicked="OnSongClicked"
+                                    HorizontalOptions="Fill"
+                                    VerticalOptions="Fill">
+                                <Button.Behaviors>
+                                    <controls:SongContextMenuBehavior />
+                                </Button.Behaviors>
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="Transparent" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="Transparent" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Button>
+
+                            <!-- 内容层：仅展示，不拦截触摸 -->
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8"
+                                  Padding="10,6,34,6"
+                                  InputTransparent="True">
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -199,8 +207,8 @@
                             <Label Grid.Column="3" Text="⋮" FontSize="16" VerticalOptions="Center"
                                    TextColor="{DynamicResource TextHintColor}"
                                    Padding="4,0" />
+                            </Grid>
                         </Grid>
-                        </Button>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
 

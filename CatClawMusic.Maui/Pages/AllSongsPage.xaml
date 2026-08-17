@@ -96,75 +96,83 @@
                             SelectionMode="None">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <!-- 行用 Button：自带按压高亮，且长按 Behaviour 可稳定接收触摸 -->
-                        <Button Padding="14,9,34,9"
-                                BackgroundColor="Transparent"
-                                BorderWidth="0"
-                                CornerRadius="0"
-                                Clicked="OnSongClicked">
-                            <Button.Behaviors>
-                                <controls:SongContextMenuBehavior />
-                            </Button.Behaviors>
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="Transparent" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="PointerOver">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Pressed">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="Disabled">
-                                        <VisualState.Setters>
-                                            <Setter Property="BackgroundColor" Value="Transparent" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                            <!-- 封面 -->
-                            <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
-                                    StrokeShape="RoundRectangle 10" StrokeThickness="0"
-                                    BackgroundColor="{DynamicResource InputBackgroundColor}">
-                                <Image Source="{Binding CoverArtPath}" Aspect="AspectFill"
-                                       WidthRequest="46" HeightRequest="46" />
-                            </Border>
+                        <!-- 行：底层 Button 提供原生按压高亮 + 点击播放 + 长按菜单（Button.Content 在 Android 不承载复杂布局，
+                             故内容放到上层 InputTransparent 的 Grid 中仅展示，触摸仍落到 Button） -->
+                        <Grid>
+                            <Button BackgroundColor="Transparent"
+                                    BorderWidth="0"
+                                    CornerRadius="0"
+                                    Clicked="OnSongClicked"
+                                    HorizontalOptions="Fill"
+                                    VerticalOptions="Fill">
+                                <Button.Behaviors>
+                                    <controls:SongContextMenuBehavior />
+                                </Button.Behaviors>
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="Transparent" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="Transparent" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Button>
 
-                            <!-- 标题 + 艺术家·专辑 -->
-                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
-                                <Label Text="{Binding Title}" FontSize="14.5" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimaryColor}"
-                                       LineBreakMode="TailTruncation" MaxLines="1" />
-                                <Label FontSize="12" LineBreakMode="TailTruncation" MaxLines="1"
-                                       TextColor="{DynamicResource TextHintColor}">
-                                    <Label.Text>
-                                        <MultiBinding StringFormat="{}{0} · {1}">
-                                            <Binding Path="Artist" />
-                                            <Binding Path="Album" />
-                                        </MultiBinding>
-                                    </Label.Text>
-                                </Label>
-                            </VerticalStackLayout>
+                            <!-- 内容层：仅展示，不拦截触摸 -->
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12"
+                                  Padding="14,9,34,9"
+                                  InputTransparent="True">
+                                <!-- 封面 -->
+                                <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
+                                        StrokeShape="RoundRectangle 10" StrokeThickness="0"
+                                        BackgroundColor="{DynamicResource InputBackgroundColor}">
+                                    <Image Source="{Binding CoverArtPath}" Aspect="AspectFill"
+                                           WidthRequest="46" HeightRequest="46" />
+                                </Border>
 
-                            <!-- 时长 -->
-                            <Label Grid.Column="2" FontSize="12" VerticalOptions="Center"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
+                                <!-- 标题 + 艺术家·专辑 -->
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                    <Label Text="{Binding Title}" FontSize="14.5" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           LineBreakMode="TailTruncation" MaxLines="1" />
+                                    <Label FontSize="12" LineBreakMode="TailTruncation" MaxLines="1"
+                                           TextColor="{DynamicResource TextHintColor}">
+                                        <Label.Text>
+                                            <MultiBinding StringFormat="{}{0} · {1}">
+                                                <Binding Path="Artist" />
+                                                <Binding Path="Album" />
+                                            </MultiBinding>
+                                        </Label.Text>
+                                    </Label>
+                                </VerticalStackLayout>
 
-                            <!-- 更多按钮提示 -->
-                            <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center"
-                                   TextColor="{DynamicResource TextHintColor}"
-                                   Padding="6,0" />
+                                <!-- 时长 -->
+                                <Label Grid.Column="2" FontSize="12" VerticalOptions="Center"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
+
+                                <!-- 更多按钮提示 -->
+                                <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       Padding="6,0" />
+                            </Grid>
                         </Grid>
-                        </Button>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
 
