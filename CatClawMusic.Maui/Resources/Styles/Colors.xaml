@@ -69,6 +69,8 @@
     <Color x:Key="CardBackgroundStrongColor">#2DFFFFFF</Color>
     <Color x:Key="InputBackgroundColor">#15FFFFFF</Color>
     <Color x:Key="InputBorderColor">#2BFFFFFF</Color>
+    <!-- 歌曲列表行按压高亮叠加色（ThemeService 深浅模式下分别覆盖） -->
+    <Color x:Key="RowPressOverlayColor">#22FFFFFF</Color>
     <Color x:Key="DividerColor">#1FFFFFFF</Color>
     <Color x:Key="GlassStrokeColor">#28FFFFFF</Color>
     <Color x:Key="GlassStrokeStrongColor">#4AFFFFFF</Color>

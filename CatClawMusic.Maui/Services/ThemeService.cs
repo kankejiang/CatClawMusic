@@ -594,6 +594,7 @@ public class ThemeService : IThemeService
         resources["CardOverlayColor"] = Color.FromArgb("#0AFFFFFF");
         resources["ButtonOverlayColor"] = Color.FromArgb("#12FFFFFF");
         resources["ProgressTrackColor"] = Color.FromArgb("#20FFFFFF");
+        resources["RowPressOverlayColor"] = Color.FromArgb("#26FFFFFF");
         resources["TextPrimaryColor"] = Color.FromArgb("#F5F6FF");
         resources["TextSecondaryColor"] = Color.FromArgb("#BCC0DD");
         resources["TextHintColor"] = Color.FromArgb("#868CAE");
@@ -661,6 +662,7 @@ public class ThemeService : IThemeService
         resources["CardOverlayColor"] = Color.FromArgb("#08000000");
         resources["ButtonOverlayColor"] = Color.FromArgb("#12000000");
         resources["ProgressTrackColor"] = Color.FromArgb("#18000000");
+        resources["RowPressOverlayColor"] = Color.FromArgb("#22000000");
         resources["TextPrimaryColor"] = Color.FromArgb("#1A1F3A");
         resources["TextSecondaryColor"] = Color.FromArgb("#4A5278");
         resources["TextHintColor"] = Color.FromArgb("#6B7399");

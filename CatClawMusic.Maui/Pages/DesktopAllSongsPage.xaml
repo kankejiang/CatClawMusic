@@ -139,6 +139,25 @@
                             <Grid.Behaviors>
                                 <controls:SongContextMenuBehavior />
                             </Grid.Behaviors>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="Transparent" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -198,7 +217,24 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnGridSongTapped" CommandParameter="{Binding}" />
                             </Border.GestureRecognizers>
-                            <VerticalStackLayout Spacing="6">
+                            <Border StrokeShape="RoundRectangle 14" StrokeThickness="0"
+                                    BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                    Padding="6">
+                                <Border.VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </Border.VisualStateManager.VisualStateGroups>
+                                <VerticalStackLayout Spacing="6">
                                 <Border StrokeShape="RoundRectangle 14" StrokeThickness="0"
                                         BackgroundColor="{DynamicResource InputBackgroundColor}">
                                     <Image Source="{Binding CoverArtPath}" Aspect="AspectFill" />
@@ -210,6 +246,7 @@
                                        TextColor="{DynamicResource TextHintColor}"
                                        LineBreakMode="TailTruncation" MaxLines="1" />
                             </VerticalStackLayout>
+                        </Border>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

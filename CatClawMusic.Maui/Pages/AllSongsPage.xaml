@@ -103,6 +103,20 @@
                             <Grid.Behaviors>
                                 <controls:SongContextMenuBehavior />
                             </Grid.Behaviors>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="Transparent" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
