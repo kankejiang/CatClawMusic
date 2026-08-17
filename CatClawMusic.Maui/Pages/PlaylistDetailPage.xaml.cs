@@ -122,6 +122,12 @@ public partial class PlaylistDetailPage : ContentPage, ISongContextMenuHost
             _viewModel.ToggleSort(option.Key);
     }
 
+    private async void OnSongClicked(object? sender, EventArgs e)
+    {
+        if (sender is Button { BindingContext: Song song })
+            await _viewModel.PlaySongCommand.ExecuteAsync(song);
+    }
+
     private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Song song)

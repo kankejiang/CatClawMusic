@@ -93,16 +93,18 @@
 
             <!-- 歌曲列表 -->
             <CollectionView Grid.Row="1" x:Name="SongListView" ItemsSource="{Binding Songs}"
-                            SelectionMode="Single"
-                            SelectedItem="{Binding SelectedSong}"
-                            SelectionChanged="OnSongSelected">
+                            SelectionMode="None">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
-                        <Grid Padding="14,9,34,9" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                            <!-- 整行长按/右键弹菜单（Android 长按、Windows 右键） -->
-                            <Grid.Behaviors>
+                        <!-- 行用 Button：自带按压高亮，且长按 Behaviour 可稳定接收触摸 -->
+                        <Button Padding="14,9,34,9"
+                                BackgroundColor="Transparent"
+                                BorderWidth="0"
+                                CornerRadius="0"
+                                Clicked="OnSongClicked">
+                            <Button.Behaviors>
                                 <controls:SongContextMenuBehavior />
-                            </Grid.Behaviors>
+                            </Button.Behaviors>
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroup x:Name="CommonStates">
                                     <VisualState x:Name="Normal">
@@ -110,13 +112,24 @@
                                             <Setter Property="BackgroundColor" Value="Transparent" />
                                         </VisualState.Setters>
                                     </VisualState>
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
                                     <VisualState x:Name="Pressed">
                                         <VisualState.Setters>
                                             <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
                                         </VisualState.Setters>
                                     </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="Transparent" />
+                                        </VisualState.Setters>
+                                    </VisualState>
                                 </VisualStateGroup>
                             </VisualStateManager.VisualStateGroups>
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
                             <!-- 封面 -->
                             <Border Grid.Column="0" WidthRequest="46" HeightRequest="46"
                                     StrokeShape="RoundRectangle 10" StrokeThickness="0"
@@ -151,6 +164,7 @@
                                    TextColor="{DynamicResource TextHintColor}"
                                    Padding="6,0" />
                         </Grid>
+                        </Button>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
 

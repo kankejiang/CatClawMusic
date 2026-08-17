@@ -86,6 +86,12 @@ public partial class DesktopAllSongsPage : ContentPage, ISongContextMenuHost
             _vm.ToggleSort(option.Key);
     }
 
+    private async void OnSongClicked(object? sender, EventArgs e)
+    {
+        if (sender is Button { BindingContext: Song song })
+            await _vm.PlaySongCommand.ExecuteAsync(song);
+    }
+
     private async void OnSongSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (e.CurrentSelection.FirstOrDefault() is Song song)
