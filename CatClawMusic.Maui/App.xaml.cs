@@ -398,6 +398,9 @@ public partial class App : Application
         if (libraryVm == null || libraryVm.IsPreloaded) return;
         try
         {
+            // 冷启动时后台单飞回填缺失的歌曲时长，修正音乐库总时长（扫描基于性能跳过读 duration）
+            MauiProgram.Services.GetService<Services.LocalScanService>()?.TriggerDurationBackfill();
+
             await Task.WhenAll(
                 libraryVm.RefreshProtocolsAsync(),
                 libraryVm.CurrentTab == "Local" ? libraryVm.LoadLocalAsync() : libraryVm.LoadNetworkAsync(),

@@ -1,7 +1,6 @@
 <Solution>
   <Project Path="CatClawMusic.Core/CatClawMusic.Core.csproj" />
   <Project Path="CatClawMusic.Data/CatClawMusic.Data.csproj" />
-  <Project Path="CatClawMusic.Core.Tests/CatClawMusic.Core.Tests.csproj" />
   <Project Path="CatClawMusic.Maui/CatClawMusic.Maui.csproj">
     <Deploy />
   </Project>

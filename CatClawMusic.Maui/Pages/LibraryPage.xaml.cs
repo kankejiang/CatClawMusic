@@ -422,6 +422,16 @@ public partial class LibraryPage : ContentPage
         RefreshLibraryAfterDataChangedAsync();
     }
 
+    private void OnDurationBackfillCompleted(object? sender, int updatedCount)
+    {
+        // 时长回填只改 Duration，不影响歌曲/专辑/艺术家列表，仅刷新总时长统计即可
+        _ = Task.Run(async () =>
+        {
+            try { await _vm.LoadOverviewDataAsync(); }
+            catch (Exception ex) { Log.Debug("LibraryPage.xaml", $"[LibraryPage] 时长回填后刷新总览失败: {ex.Message}"); }
+        });
+    }
+
     /// <summary>
     /// 本地扫描或网络音乐库同步完成后统一刷新：清空各列表页缓存、刷新协议、
     /// 总览与当前 tab（本地加载本地、网络加载网络），确保音乐库视图即时同步。
@@ -492,6 +502,7 @@ public partial class LibraryPage : ContentPage
             _vm.DiscoverSourceChanged -= OnDiscoverSourceChanged;
             Services.LocalScanService.ScanCompleted -= OnScanCompleted;
             Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
+            Services.LocalScanService.DurationBackfillCompleted -= OnDurationBackfillCompleted;
             _vm.PropertyChanged -= OnViewModelPropertyChanged;
         }
         else
@@ -503,6 +514,8 @@ public partial class LibraryPage : ContentPage
             Services.LocalScanService.ScanCompleted += OnScanCompleted;
             Services.LocalScanService.NetworkSyncCompleted -= OnNetworkSyncCompleted;
             Services.LocalScanService.NetworkSyncCompleted += OnNetworkSyncCompleted;
+            Services.LocalScanService.DurationBackfillCompleted -= OnDurationBackfillCompleted;
+            Services.LocalScanService.DurationBackfillCompleted += OnDurationBackfillCompleted;
             _vm.PropertyChanged -= OnViewModelPropertyChanged;
             _vm.PropertyChanged += OnViewModelPropertyChanged;
         }

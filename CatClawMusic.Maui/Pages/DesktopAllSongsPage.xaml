@@ -14,19 +14,6 @@
     <Grid ColumnDefinitions="280,*"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <!-- Frosted glass background -->
-        <controls:FrostedBackground Grid.ColumnSpan="2"
-            Source="{DynamicResource ThemeBackgroundImage}"
-            IsActive="{DynamicResource ThemeBackgroundEnabled}"
-            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-            TintColor="{DynamicResource TabBarGlassTint}"
-            TintOpacity="0.45"
-            DimAmount="0.25"
-            Opacity="0.8"
-            Aspect="AspectFill"
-            UseNativeBlur="True"
-            InputTransparent="True" />
-
         <!-- ═══ 左侧控件面板 ═══ -->
         <Border Grid.Column="0"
                 StrokeThickness="0"

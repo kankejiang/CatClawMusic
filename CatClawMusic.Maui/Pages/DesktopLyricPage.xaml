@@ -108,7 +108,7 @@
                                     </DataTrigger>
                                 </Border.Triggers>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="0" />
+                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="{x:Int32 0}" />
                                 </Border.GestureRecognizers>
                                 <VerticalStackLayout Spacing="2" VerticalOptions="Center">
                                     <Label Text="单行" FontSize="15" FontFamily="OpenSansSemibold"
@@ -129,7 +129,7 @@
                                     </DataTrigger>
                                 </Border.Triggers>
                                 <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="1" />
+                                    <TapGestureRecognizer Command="{Binding SelectDisplayModeCommand}" CommandParameter="{x:Int32 1}" />
                                 </Border.GestureRecognizers>
                                 <VerticalStackLayout Spacing="2" VerticalOptions="Center">
                                     <Label Text="双行" FontSize="15" FontFamily="OpenSansSemibold"

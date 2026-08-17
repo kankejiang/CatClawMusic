@@ -5,7 +5,8 @@
        x:Class="CatClawMusic.Maui.AppShell"
        FlyoutBehavior="Disabled"
        Shell.TabBarIsVisible="False"
-       Shell.NavBarIsVisible="False">
+       Shell.NavBarIsVisible="False"
+       BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
     <Shell.Resources>
         <ResourceDictionary>

@@ -10,17 +10,6 @@
 
     <!-- 双层 Grid：背景层 + 内容层 -->
     <Grid>
-        <!-- 雾面动态背景层（与 NowPlayingPage 一致的沉浸式背景） -->
-        <controls:FrostedBackground x:Name="FrostedBg"
-                                    Source="{Binding CoverImage}"
-                                    CacheKey="{Binding Song.CoverArtPath}"
-                                    IsActive="False"
-                                    IsVisible="{DynamicResource FrostedBackgroundEnabled}"
-                                    TintColor="{DynamicResource PrimaryColor}"
-                                    TintOpacity="0.25"
-                                    DimAmount="0.30"
-                                    InputTransparent="True"
-                                    Aspect="AspectFill" />
         <BoxView Color="#70000000" InputTransparent="True" />
 
         <!-- 内容层 ScrollView -->

@@ -272,7 +272,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
                     reasoningBuilder.Append(reasoning);
 
                 // 工具调用分片聚合（OpenAI 流式格式：同 index 多片，arguments 增量拼接）
-                if (delta.TryGetProperty("tool_calls", out var tcs))
+                // 注意：部分服务商会在 delta 中显式返回 "tool_calls":null，
+                // 必须先校验 ValueKind 为 Array 再调用 EnumerateArray()，否则抛
+                // "The requested operation requires an element of type 'Array'..."
+                if (delta.TryGetProperty("tool_calls", out var tcs) && tcs.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var tc in tcs.EnumerateArray())
                     {

@@ -53,6 +53,76 @@ public class LocalScanService
     public static event EventHandler<int>? NetworkSyncCompleted;
 
     /// <summary>
+    /// 时长回填完成事件。扫描/播放时基于性能跳过读 duration 导致部分歌曲 Duration=0（音乐库总时长显示 0.0 小时），
+    /// 后台单飞回填完成后触发，供 LibraryViewModel 刷新总时长统计。
+    /// </summary>
+    public static event EventHandler<int>? DurationBackfillCompleted;
+
+    /// <summary>单飞令牌：0=空闲，1=回填进行中，防止并发重复回填</summary>
+    private static int _backfillRunning;
+
+    /// <summary>
+    /// 后台单飞回填缺失的歌曲时长。
+    /// 扫描时 readDuration:false 仅读标签（避免全文件 IO 卡死），此处用 readDuration:true 读取真实时长并批量回写。
+    /// 全文件 IO 较重，故限并发≤4 后台执行，既不阻塞 UI 也避免 IO 饱和。
+    /// </summary>
+    public async Task<bool> BackfillMissingDurationsAsync()
+    {
+        if (Interlocked.CompareExchange(ref _backfillRunning, 1, 0) != 0)
+            return false;
+
+        var updated = 0;
+        try
+        {
+            var songs = await _db.GetLocalSongsMissingDurationAsync();
+            if (songs.Count == 0) return true;
+
+            // content:// URI（SAF）无法用文件路径读取，跳过；仅处理真实文件系统路径
+            var targets = songs
+                .Where(s => !string.IsNullOrEmpty(s.FilePath)
+                            && !s.FilePath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (targets.Count == 0) return true;
+
+            var durations = new ConcurrentDictionary<int, int>();
+            var degree = Math.Min(4, Math.Max(1, Environment.ProcessorCount));
+            Parallel.ForEach(targets, new ParallelOptions { MaxDegreeOfParallelism = degree }, s =>
+            {
+                try
+                {
+                    var song = TagReader.ReadSongInfo(s.FilePath!, readDuration: true);
+                    if (song != null && song.Duration > 0)
+                        durations[s.Id] = song.Duration;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("LocalScanService", $"[DurationBackfill] {s.FilePath}: {ex.Message}");
+                }
+            });
+
+            await _db.UpdateSongDurationsBatchAsync(durations);
+            updated = durations.Count;
+            if (updated > 0)
+                Log.Debug("LocalScanService", $"[DurationBackfill] 回填 {updated} 首歌曲时长");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("LocalScanService", $"[DurationBackfill] Error: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _backfillRunning, 0);
+        }
+
+        if (updated > 0)
+            DurationBackfillCompleted?.Invoke(null, updated);
+        return true;
+    }
+
+    /// <summary>触发后台时长回填（不等待完成，单飞防重入），供扫描完成后 / App 启动时调用</summary>
+    public void TriggerDurationBackfill() => _ = BackfillMissingDurationsAsync();
+
+    /// <summary>
     /// 标记网络音乐库已变更并触发 <see cref="NetworkSyncCompleted"/> 事件。
     /// 因 C# 事件仅能在声明类型内部引发，故提供此静态方法供外部（如同步页）调用。
     /// </summary>
@@ -353,6 +423,9 @@ public class LocalScanService
             _ = _snapshotService.GenerateSnapshotAsync(_db);
             ScanCompleted?.Invoke(null, totalImported);
         }
+
+        // 扫描导入的新歌时长缺失（readDuration:false），后台单飞回填以修正音乐库总时长统计
+        TriggerDurationBackfill();
 
         return totalImported;
     }

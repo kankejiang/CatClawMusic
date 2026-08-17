@@ -69,6 +69,29 @@ public partial class MusicDatabase
         return await _database.Table<Song>().Where(s => s.Source == SongSource.Local).CountAsync();
     }
 
+    /// <summary>获取缺失时长的本地歌曲（扫描时基于性能跳过读 duration 导致 Duration=0，供后台回填）</summary>
+    public async Task<List<Song>> GetLocalSongsMissingDurationAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        return await _database.Table<Song>()
+            .Where(s => s.Source == SongSource.Local && s.Duration <= 0)
+            .ToListAsync();
+    }
+
+    /// <summary>批量回填歌曲时长（单事务，符合批量写约定）</summary>
+    public Task UpdateSongDurationsBatchAsync(IReadOnlyDictionary<int, int> durations)
+    {
+        if (durations == null || durations.Count == 0) return Task.CompletedTask;
+        return _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var kv in durations)
+            {
+                if (kv.Key > 0 && kv.Value > 0)
+                    tran.Execute("UPDATE Song SET Duration = ? WHERE Id = ?", kv.Value, kv.Key);
+            }
+        });
+    }
+
     /// <summary>回填歌曲时长（扫描时跳过 duration 提速，播放时由播放器拿到真实值后补写）</summary>
     public Task UpdateSongDurationAsync(int songId, int durationSeconds)
     {
