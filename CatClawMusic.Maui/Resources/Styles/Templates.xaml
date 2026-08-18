@@ -12,20 +12,6 @@
                 StrokeThickness="1"
                 Stroke="{DynamicResource GlassStrokeColor}"
                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
-            <VisualStateManager.VisualStateGroups>
-                <VisualStateGroup x:Name="CommonStates">
-                    <VisualState x:Name="Normal">
-                        <VisualState.Setters>
-                            <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
-                        </VisualState.Setters>
-                    </VisualState>
-                    <VisualState x:Name="Pressed">
-                        <VisualState.Setters>
-                            <Setter Property="BackgroundColor" Value="{DynamicResource RowPressOverlayColor}" />
-                        </VisualState.Setters>
-                    </VisualState>
-                </VisualStateGroup>
-            </VisualStateManager.VisualStateGroups>
             <Grid ColumnDefinitions="Auto,*,Auto"
                   RowDefinitions="Auto,Auto"
                   ColumnSpacing="14">
