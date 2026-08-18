@@ -276,23 +276,31 @@ public partial class NowPlayingViewModel
         {
             ct.ThrowIfCancellationRequested();
 
+            // 按歌词来源模式裁剪：仅内嵌跳过外挂 .lrc/.ttml；仅外挂跳过内嵌读取
+            var sourceMode = Services.LyricsSettingsService.Instance.LyricsSourceMode;
+            bool skipExternal = sourceMode == CatClawMusic.Core.Models.LyricsSourceMode.Embedded;
+            bool skipEmbedded = sourceMode == CatClawMusic.Core.Models.LyricsSourceMode.External;
+
             // 1. 先找同名 .lrc 文件
-            var lrcPath = Path.ChangeExtension(localPath, ".lrc");
             string? lyricsText = null;
-            if (File.Exists(lrcPath))
+            if (!skipExternal)
             {
-                lyricsText = await File.ReadAllTextAsync(lrcPath, ct);
-            }
-            else
-            {
-                // 2. 尝试 .ttml
-                var ttmlPath = Path.ChangeExtension(localPath, ".ttml");
-                if (File.Exists(ttmlPath))
-                    lyricsText = await File.ReadAllTextAsync(ttmlPath, ct);
+                var lrcPath = Path.ChangeExtension(localPath, ".lrc");
+                if (File.Exists(lrcPath))
+                {
+                    lyricsText = await File.ReadAllTextAsync(lrcPath, ct);
+                }
+                else
+                {
+                    // 2. 尝试 .ttml
+                    var ttmlPath = Path.ChangeExtension(localPath, ".ttml");
+                    if (File.Exists(ttmlPath))
+                        lyricsText = await File.ReadAllTextAsync(ttmlPath, ct);
+                }
             }
 
             // 3. 内嵌歌词
-            if (string.IsNullOrWhiteSpace(lyricsText))
+            if (!skipEmbedded && string.IsNullOrWhiteSpace(lyricsText))
             {
                 using var fs = File.OpenRead(localPath);
                 lyricsText = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyricsFromStream(fs, Path.GetFileName(localPath));

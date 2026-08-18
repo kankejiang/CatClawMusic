@@ -1,6 +1,21 @@
 namespace CatClawMusic.Core.Models;
 
 /// <summary>
+/// 歌词来源模式：控制外挂（.lrc/.ttml 文件）与内嵌（音频文件标签内）歌词的查找策略。
+/// </summary>
+public enum LyricsSourceMode
+{
+    /// <summary>自动：优先外挂歌词，没有外挂再读内嵌，都没有则回退网络歌词（Navidrome/网易云/插件）</summary>
+    Auto = 0,
+
+    /// <summary>仅内嵌歌词：跳过外挂文件与网络歌词，内嵌没有则显示"暂无歌词"</summary>
+    Embedded = 1,
+
+    /// <summary>仅外挂歌词：跳过内嵌与网络歌词，外挂没有则显示"暂无歌词"</summary>
+    External = 2
+}
+
+/// <summary>
 /// LRC 歌词模型
 /// </summary>
 public class LrcLyrics

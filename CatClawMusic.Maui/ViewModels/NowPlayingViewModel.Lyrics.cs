@@ -21,7 +21,7 @@ public partial class NowPlayingViewModel
             Log.Debug("AppViewModels", $"[Lyrics] 开始加载歌词: {song.Title} (Id={song.Id}, Path={song.FilePath?.Substring(0, Math.Min(60, song.FilePath?.Length ?? 0))}...)");
             Log.Debug("AppViewModels", $"[Lyrics] LyricsPath={song.LyricsPath ?? "null"}");
 
-            lyrics = await _lyrics.GetLyricsAsync(song);
+            lyrics = await _lyrics.GetLyricsAsync(song, LyricsSettingsService.Instance.LyricsSourceMode);
 
             Log.Debug("AppViewModels", $"[Lyrics] 结果: {(lyrics != null ? $"{lyrics.Lines.Count} 行" : "null")}");
         }
@@ -64,6 +64,37 @@ public partial class NowPlayingViewModel
             _desktopLyricManager?.SetLyrics(null);
             Log.Debug("AppViewModels", "[Lyrics] 未找到歌词");
         }
+    }
+
+    /// <summary>
+    /// 歌词来源模式变更后重新加载当前歌曲歌词（外挂/内嵌/自动切换立即生效）。
+    /// 网络歌曲走缓存文件链路，本地歌曲走标准链路。
+    /// </summary>
+    public void ReloadLyricsForCurrentSong()
+    {
+        var song = _queue.CurrentSong;
+        if (song == null) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (song.Source != SongSource.Local)
+                {
+                    var localPath = await ResolveToLocalPathAsync(song, CancellationToken.None);
+                    if (localPath != null)
+                    {
+                        await LoadLyricsFromLocalFileAsync(song, localPath, CancellationToken.None);
+                        return;
+                    }
+                }
+                await LoadLyricsAsync(song, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("AppViewModels", $"[Lyrics] 来源模式切换重载失败: {ex.Message}");
+            }
+        });
     }
 
     private void UpdateLyricPosition(TimeSpan position)

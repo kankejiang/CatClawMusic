@@ -10,7 +10,9 @@ public interface ILyricsService
     /// <summary>
     /// 获取歌词（优先本地，失败后尝试网络提供者）
     /// </summary>
-    Task<LrcLyrics?> GetLyricsAsync(Song song);
+    /// <param name="song">歌曲信息</param>
+    /// <param name="sourceMode">歌词来源模式：Auto 全链路；Embedded 仅内嵌；External 仅外挂（默认 Auto）</param>
+    Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto);
     
     /// <summary>
     /// 从本地文件获取歌词（外挂 .lrc/.ttml 优先，内嵌兜底）

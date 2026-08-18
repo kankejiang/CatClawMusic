@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 
@@ -26,6 +27,20 @@ public partial class FullLyricsPage
                 {
                     _settings.LyricsMode = value;
                     RebuildLyricsView();
+                },
+                primaryColor, inactiveColor, Colors.White, textSecondary));
+
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("歌词来源模式", textHint));
+            LyricsSettingsPopup.AddContent(BuildSegmentedControl(
+                ("自动", LyricsSourceMode.Auto),
+                ("内嵌", LyricsSourceMode.Embedded),
+                ("外挂", LyricsSourceMode.External),
+                _settings.LyricsSourceMode,
+                value =>
+                {
+                    _settings.LyricsSourceMode = value;
+                    _viewModel.ReloadLyricsForCurrentSong();
                 },
                 primaryColor, inactiveColor, Colors.White, textSecondary));
 

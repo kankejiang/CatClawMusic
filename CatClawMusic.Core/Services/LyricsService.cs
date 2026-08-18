@@ -48,9 +48,12 @@ public partial class LyricsService : ILyricsService
     /// 获取歌词（优先级：Navidrome API > 同名 .lrc > 嵌入歌词 > 插件）
     /// 注意：Navidrome API 必须先于内嵌歌词，否则会触发 RemoteUrlStreamOpener
     /// 下载整个音频文件（最大 50MB）到 LOS 堆，导致大量 GC。
+    /// 内嵌/外挂模式下（sourceMode != Auto）严格只读指定本地来源，跳过全部网络歌词链路。
     /// </summary>
-    public async Task<LrcLyrics?> GetLyricsAsync(Song song)
+    public async Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto)
     {
+        // 仅内嵌/仅外挂：跳过网络歌词来源（Navidrome API / 在线插件 / 网易云匹配 / 歌词插件）
+        bool localOnly = sourceMode != LyricsSourceMode.Auto;
         string fpPreview;
         if (song.FilePath == null)
             fpPreview = "null";
@@ -61,7 +64,7 @@ public partial class LyricsService : ILyricsService
         Log.Debug("LyricsService", $"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
 
         // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
-        if (song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
+        if (!localOnly && song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
         {
             try
             {
@@ -89,7 +92,7 @@ public partial class LyricsService : ILyricsService
 
         // 在线音乐插件歌词：临时 Song 的 RemoteId 形如 "{platform}:{onlineId}"（搜索/发现页播放时构造）。
         // 命中则优先路由到对应 IOnlineMusicPlugin 取歌词（原文+翻译合并），避免对 http 直链做本地内嵌探测。
-        if (PluginManager != null && !string.IsNullOrEmpty(song.RemoteId) && song.RemoteId.Contains(':'))
+        if (!localOnly && PluginManager != null && !string.IsNullOrEmpty(song.RemoteId) && song.RemoteId.Contains(':'))
         {
             var parts = song.RemoteId.Split(':', 2);
             var platform = parts[0];
@@ -152,11 +155,14 @@ public partial class LyricsService : ILyricsService
             }
         }
 
-        var lyrics = await GetLocalLyricsAsync(song);
+        var lyrics = await GetLocalLyricsAsync(song,
+            skipEmbedded: sourceMode == LyricsSourceMode.External,
+            preferEmbedded: sourceMode == LyricsSourceMode.Embedded,
+            skipExternal: sourceMode == LyricsSourceMode.Embedded);
         if (lyrics != null) return lyrics;
 
         // 在线模式：本地无歌词时按标题+歌手去网易云匹配歌词（宿主直连，原文+译文/罗马音已并入）
-        if (!string.IsNullOrWhiteSpace(song.Title))
+        if (!localOnly && !string.IsNullOrWhiteSpace(song.Title))
         {
             try
             {
@@ -174,7 +180,7 @@ public partial class LyricsService : ILyricsService
             }
         }
 
-        if (PluginManager != null)
+        if (!localOnly && PluginManager != null)
         {
             var providers = PluginManager.GetEnabledPlugins<ILyricsProviderPlugin>();
             foreach (var provider in providers)

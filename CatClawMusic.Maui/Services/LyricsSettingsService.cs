@@ -26,6 +26,7 @@ public class LyricsSettingsService
     }
 
     private const string KeyMode = "lyrics_mode";
+    private const string KeySourceMode = "lyrics_source_mode";
     private const string KeyAlignment = "lyrics_alignment";
     private const string KeyFontSize = "lyrics_font_size";
     private const string KeyRemoveEmptyLines = "lyrics_remove_empty_lines";
@@ -70,6 +71,13 @@ public class LyricsSettingsService
     {
         get => (Mode)Preferences.Get(KeyMode, (int)Mode.Line);
         set => Preferences.Set(KeyMode, (int)value);
+    }
+
+    /// <summary>歌词来源模式（自动 / 仅内嵌 / 仅外挂），复用 Core 的 LyricsSourceMode 枚举</summary>
+    public LyricsSourceMode LyricsSourceMode
+    {
+        get => (LyricsSourceMode)Preferences.Get(KeySourceMode, (int)LyricsSourceMode.Auto);
+        set => Preferences.Set(KeySourceMode, (int)value);
     }
 
     public Alignment LyricsAlignment
