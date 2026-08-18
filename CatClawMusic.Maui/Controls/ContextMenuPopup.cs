@@ -42,6 +42,11 @@ public class ContextMenuPopup : ContentView
         };
         _card.SetDynamicResource(BackgroundColorProperty, "CardBackgroundStrongColor");
         _card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeStrongColor");
+#if !ANDROID
+        // Windows 端 Shadow 渲染正常（提供下拉阴影）；Android 端 Border + Shadow 在 MAUI 已知
+        // 会导致整张卡片（背景+内容）渲染失效（被 Shadow 视图遮挡/绘制管线冲突），
+        // 仅显示透明遮罩——表现为"弹窗不可见但拦截触摸"。临时去除以恢复可见性。
+        // 待 MAUI 官方修复后可统一恢复。
         _card.Shadow = new Shadow
         {
             Brush = Colors.Black,
@@ -49,6 +54,7 @@ public class ContextMenuPopup : ContentView
             Offset = new Point(0, 6),
             Opacity = 0.35f
         };
+#endif
 
         _mask = new BoxView { Color = Colors.Transparent };
         _mask.GestureRecognizers.Add(new TapGestureRecognizer
