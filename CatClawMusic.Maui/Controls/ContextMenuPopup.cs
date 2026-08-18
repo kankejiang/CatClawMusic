@@ -96,12 +96,79 @@ public class ContextMenuPopup : ContentView
         Opacity = 0;
     }
 
-    /// <summary>抽屉模式下内容超高时内部滚动，避免顶出屏幕；下拉模式直接平铺。</summary>
-    private View BuildDrawerContent() => new ScrollView
+    /// <summary>抽屉模式：顶部 drag handle（拖动手势下滑关闭）+ 内容区 ScrollView（超高内部滚动）。</summary>
+    private View BuildDrawerContent()
     {
-        VerticalOptions = LayoutOptions.Fill,
-        Content = _cardContent
-    };
+        // 顶部 32 DIP 高的抓握区；居中放一条 36×4 圆角半透明小条作为可视提示。
+        // PanGestureRecognizer 加在抓握区上，避免与下方菜单行的点击冲突。
+        var handleBar = new Border
+        {
+            WidthRequest = 36,
+            HeightRequest = 4,
+            BackgroundColor = Color.FromArgb("#50000000"),
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(2) },
+            StrokeThickness = 0,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        var handleArea = new Grid
+        {
+            HeightRequest = 32,
+            Children = { handleBar }
+        };
+        var pan = new PanGestureRecognizer();
+        pan.PanUpdated += OnHandlePan;
+        handleArea.GestureRecognizers.Add(pan);
+
+        var root = new Grid
+        {
+            RowDefinitions = new RowDefinitionCollection
+            {
+                new() { Height = GridLength.Auto },  // drag handle
+                new() { Height = GridLength.Star }   // 内容区
+            }
+        };
+        root.Add(handleArea, 0, 0);
+        root.Add(new ScrollView
+        {
+            VerticalOptions = LayoutOptions.Fill,
+            Content = _cardContent
+        }, 0, 1);
+        return root;
+    }
+
+    /// <summary>抽屉拖动手柄：向下拖动 > 卡片 25% 高度时关闭，否则回弹；拖动时遮罩同步淡出。</summary>
+    private async void OnHandlePan(object? sender, PanUpdatedEventArgs e)
+    {
+        if (!IsDrawer || !_isOpen) return;
+        switch (e.StatusType)
+        {
+            case GestureStatus.Running:
+                var ty = Math.Max(0, e.TotalY);
+                _card.TranslationY = ty;
+                // 拖到 30% 高度时遮罩淡到 50%，强化"正在关闭"的视觉反馈
+                var ratio = _card.Height > 0 ? Math.Min(1, ty / (_card.Height * 0.3)) : 0;
+                _mask.Opacity = 1 - ratio * 0.5;
+                break;
+            case GestureStatus.Completed:
+            case GestureStatus.Canceled:
+                if (_card.Height > 0 && _card.TranslationY > _card.Height * 0.25)
+                {
+                    await CloseAsync();
+                }
+                else
+                {
+                    try
+                    {
+                        await Task.WhenAll(
+                            _card.TranslateTo(0, 0, 220, Easing.CubicOut),
+                            _mask.FadeTo(1, 200));
+                    }
+                    catch { }
+                }
+                break;
+        }
+    }
 
     /// <summary>清空菜单内容。</summary>
     public void ClearContent() => _cardContent.Children.Clear();
@@ -123,7 +190,8 @@ public class ContextMenuPopup : ContentView
 
         if (IsDrawer)
         {
-            _card.MaximumHeightRequest = Math.Max(120, _maxHeight - 16);
+            // 抽屉最大高度=屏高一半；内容自然高度低于该值时按内容显示，超出时 ScrollView 内部滚动
+            _card.MaximumHeightRequest = Math.Max(160, _maxHeight * 0.5);
             _card.TranslationX = 0;
             _card.TranslationY = _maxHeight; // 屏外起点，等首次布局后按实际高度滑入
             _card.Opacity = 1;
