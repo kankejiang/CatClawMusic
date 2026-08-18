@@ -94,16 +94,16 @@ public partial class AppBottomSheet : ContentView
         }
         else
         {
-            // 底部抽屉：贴底、从下方滑入，固定 70% 屏高（内容多时内部滚动）
+            // 底部抽屉：固定占屏幕 70%（顶部留 30% margin，贴底显示）
             GripBar.IsVisible = true;
-            SheetCard.VerticalOptions = LayoutOptions.End;
+            SheetCard.VerticalOptions = LayoutOptions.Fill;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
-            SheetCard.Margin = new Thickness(8, 0, 8, 8);
+            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
+            SheetCard.Margin = new Thickness(8, screenH * 0.3, 8, 8);
             SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
-            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
-            SheetCard.HeightRequest = screenH * 0.7;
+            SheetCard.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
         }
