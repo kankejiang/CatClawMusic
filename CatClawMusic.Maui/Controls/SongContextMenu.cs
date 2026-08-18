@@ -83,7 +83,12 @@ public static class SongContextMenu
             popup.Closed += closed;
 
             var pos = ToHostPosition(row, position, host);
-            popup.ShowAt(pos.X, pos.Y, host.Width, host.Height);
+
+            // 宿主尺寸无效（未布局）时回退到窗口尺寸，避免约束范围错误导致菜单越界
+            var window = host.Window ?? Application.Current?.Windows.FirstOrDefault();
+            var maxW = host.Width > 0 ? host.Width : (window?.Width ?? 0);
+            var maxH = host.Height > 0 ? host.Height : (window?.Height ?? 0);
+            popup.ShowAt(pos.X, pos.Y, maxW, maxH);
         }
         catch (Exception ex)
         {

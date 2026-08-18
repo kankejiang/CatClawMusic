@@ -16,6 +16,8 @@ public class ContextMenuPopup : ContentView
     private bool _isOpen;
     private double _maxWidth = 400;
     private double _maxHeight = 600;
+    private double _pendingX;
+    private double _pendingY;
     private const double CardWidth = 248;
     private const double EdgeMargin = 8;
 
@@ -94,13 +96,44 @@ public class ContextMenuPopup : ContentView
         this.Opacity = 1;
         this.InputTransparent = false;
         this.IsVisible = true;
+
+#if ANDROID
+        // 与播放页弹窗一致的背景高斯模糊（透明遮罩下透出模糊内容）
+        ApplyBlurToSiblings();
+#endif
+
+        // 卡片首次渲染完成前 Measure 会低估高度（未挂载布局树，且不含系统字体缩放），
+        // 若歌曲行位于屏幕底部，菜单底部会超出屏幕；等真实布局（SizeChanged）后按实际尺寸重新约束。
+        ScheduleReclamp(x, y);
     }
 
-    /// <summary>内容变化（如进入"添加到歌单"子视图）后重新测量并按原边界收缩定位。</summary>
+    /// <summary>内容变化（如进入"添加到歌单"子视图）后按原始锚点重新测量并收缩定位。</summary>
     public void Relayout()
     {
         if (!_isOpen) return;
-        ClampAndPosition(_card.TranslationX, _card.TranslationY);
+        ClampAndPosition(_pendingX, _pendingY);
+    }
+
+    /// <summary>记录锚点并等待卡片首次真实布局后重新约束位置（修正 Measure 低估导致的越界）。</summary>
+    private void ScheduleReclamp(double x, double y)
+    {
+        _pendingX = x;
+        _pendingY = y;
+
+        // 弹层每次新建，首次 ShowAt 时卡片必然未布局；若已有尺寸（极端复用场景）则直接修正。
+        if (_card.Width > 0 && _card.Height > 0)
+        {
+            ClampAndPosition(x, y);
+            return;
+        }
+        _card.SizeChanged += OnCardSizedForReclamp;
+    }
+
+    private void OnCardSizedForReclamp(object? sender, EventArgs e)
+    {
+        _card.SizeChanged -= OnCardSizedForReclamp;
+        if (!_isOpen) return;
+        ClampAndPosition(_pendingX, _pendingY);
     }
 
     private void ClampAndPosition(double x, double y)
@@ -114,6 +147,10 @@ public class ContextMenuPopup : ContentView
             if (_card.DesiredSize.Height > 0) h = _card.DesiredSize.Height;
         }
         catch { }
+
+        // 已真实布局后优先用实际尺寸（比 Measure 更可靠，涵盖系统字体缩放等）
+        if (_card.Width > 0) w = Math.Min(CardWidth, _card.Width);
+        if (_card.Height > 0) h = _card.Height;
 
         if (double.IsNaN(x) || double.IsInfinity(x)) x = EdgeMargin;
         if (double.IsNaN(y) || double.IsInfinity(y)) y = EdgeMargin;
@@ -129,6 +166,7 @@ public class ContextMenuPopup : ContentView
     {
         if (!_isOpen) return;
         _isOpen = false;
+        _card.SizeChanged -= OnCardSizedForReclamp;
 
         try
         {
@@ -138,8 +176,48 @@ public class ContextMenuPopup : ContentView
         }
         catch { }
 
+#if ANDROID
+        RemoveBlurFromSiblings();
+#endif
+
         this.IsVisible = false;
         this.InputTransparent = true;
         Closed?.Invoke(this, EventArgs.Empty);
     }
+
+#if ANDROID
+    private readonly List<global::Android.Views.View> _blurredViews = new();
+
+    /// <summary>对弹层背后的兄弟视图应用高斯模糊 RenderEffect（与播放页弹窗一致，minSdk=31 无需 API 防护）。</summary>
+    private void ApplyBlurToSiblings()
+    {
+        _blurredViews.Clear();
+
+        if (this.Parent is Microsoft.Maui.Controls.Layout layout)
+        {
+            foreach (var child in layout.Children)
+            {
+                if (child == this) continue;
+                if (child is Microsoft.Maui.Controls.View view &&
+                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
+                {
+                    nativeView.SetRenderEffect(
+                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
+                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
+                    _blurredViews.Add(nativeView);
+                }
+            }
+        }
+    }
+
+    /// <summary>移除兄弟视图上的模糊效果。</summary>
+    private void RemoveBlurFromSiblings()
+    {
+        foreach (var view in _blurredViews)
+        {
+            try { view.SetRenderEffect(null); } catch { }
+        }
+        _blurredViews.Clear();
+    }
+#endif
 }
