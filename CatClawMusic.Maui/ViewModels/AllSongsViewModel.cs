@@ -194,6 +194,10 @@ public partial class AllSongsViewModel : ObservableObject
                     {
                         var fresh = await QuerySongsAsync(source);
                         SetCached(source, fresh);
+                        // 刷新得到的是全新 Song 实例（CoverArtPath 为 null），换列表前必须先解析封面：
+                        // 否则换入后封面全部消失（_resolvedSongIds 命中磁盘缓存，开销很小）。
+                        // 先解析再换入，避免"封面闪没再弹回"的视觉抖动。
+                        await CoverHelper.BatchResolveCoversAsync(fresh);
                         await ApplyList(fresh, title);
                     }
                     catch { }
