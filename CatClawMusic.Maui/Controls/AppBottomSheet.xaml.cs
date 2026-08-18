@@ -77,7 +77,9 @@ public partial class AppBottomSheet : ContentView
                 SheetCard.HeightRequest = screenH;
                 SheetCard.Margin = new Thickness(0);
                 SheetCard.ClearValue(MaximumHeightRequestProperty);
-                // ScrollView 填满卡片剩余空间并可滚动
+                // Grid 强制高度（同 Bottom 模式原理），ScrollView 填满卡片剩余空间并可滚动
+                SheetGrid.HeightRequest = screenH;
+                ContentScroll.ClearValue(HeightRequestProperty);
                 ContentScroll.ClearValue(MaximumHeightRequestProperty);
             }
             else
@@ -89,21 +91,25 @@ public partial class AppBottomSheet : ContentView
                 SheetCard.Margin = new Thickness(22, 12);
                 SheetCard.MaximumHeightRequest = screenH * 0.85;
                 SheetCard.ClearValue(HeightRequestProperty);
+                SheetGrid.ClearValue(HeightRequestProperty);
                 ContentScroll.MaximumHeightRequest = screenH * 0.85 - 60;
             }
         }
         else
         {
-            // 底部抽屉：固定占屏幕 70%（顶部留 30% margin，贴底显示）
+            // 底部抽屉：贴底、从下方滑入，固定 70% 屏高
             GripBar.IsVisible = true;
-            SheetCard.VerticalOptions = LayoutOptions.Fill;
+            SheetCard.VerticalOptions = LayoutOptions.End;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
-            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
-            SheetCard.Margin = new Thickness(8, screenH * 0.3, 8, 8);
+            SheetCard.Margin = new Thickness(8, 0, 8, 8);
             SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
             SheetCard.ClearValue(HeightRequestProperty);
+            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
+            // 关键：给内部 Grid 设 HeightRequest——SheetCard 的 End 布局让 Border 高度自适应内容，
+            // Grid 的 * 行退化为 0；给 Grid 强制高度后 * 行才能分到空间，ScrollView 才有高度
+            SheetGrid.HeightRequest = screenH * 0.7;
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
         }

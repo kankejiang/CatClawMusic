@@ -36,7 +36,7 @@
                         Offset="0,-8"
                         Opacity="0.5" />
             </Border.Shadow>
-            <Grid RowDefinitions="Auto,*">
+            <Grid x:Name="SheetGrid" RowDefinitions="Auto,*">
                 <!-- 拖拽指示条（仅底部抽屉模式显示，居中弹窗隐藏） -->
                 <BoxView Grid.Row="0"
                          x:Name="GripBar"
@@ -48,8 +48,7 @@
                          Margin="0,2,0,12" />
                 <ScrollView Grid.Row="1"
                             x:Name="ContentScroll"
-                            VerticalScrollBarVisibility="Never"
-                            MaximumHeightRequest="560">
+                            VerticalScrollBarVisibility="Never">
                     <VerticalStackLayout x:Name="SheetContent" Spacing="0"
                                          x:FieldModifier="public" />
                 </ScrollView>
