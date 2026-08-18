@@ -103,7 +103,9 @@ public partial class AppBottomSheet : ContentView
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
             SheetCard.ClearValue(HeightRequestProperty);
-            ContentScroll.MaximumHeightRequest = 560;
+            // 至少 70% 屏幕高度：内容少时 ScrollView 自适应收缩，内容多时触及上限
+            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
+            ContentScroll.MaximumHeightRequest = screenH * 0.7;
         }
 
 #if ANDROID
