@@ -39,9 +39,6 @@ public sealed record SongMenuActions
 
     /// <summary>把歌曲加入指定歌单（参数为歌单 Id）</summary>
     public Func<int, Task>? AddSongToPlaylist { get; init; }
-
-    /// <summary>下载到本地（网络歌曲）；为 null 时隐藏该项</summary>
-    public Func<Task>? Download { get; init; }
 }
 
 /// <summary>
@@ -97,10 +94,11 @@ public static class SongContextMenu
         }
     }
 
-    /// <summary>构建主菜单（播放 / 下一首播放 / 收藏 / 添加到歌单 / [下载到本地] / 歌曲信息）。</summary>
+    /// <summary>构建主菜单：顶部歌曲信息卡 + 播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息。</summary>
     private static void BuildMainMenu(ContextMenuPopup popup, Song song, SongMenuActions actions)
     {
         popup.ClearContent();
+        BuildSongHeader(popup, song);
         popup.AddContent(CreateRow("▶", "播放", async () =>
         {
             await popup.CloseAsync();
@@ -117,19 +115,101 @@ public static class SongContextMenu
             if (actions.ToggleFavorite != null) await actions.ToggleFavorite();
         }));
         popup.AddContent(CreateRow("＋", "添加到歌单", () => ShowPlaylistPicker(popup, song, actions)));
-        if (actions.Download != null)
-        {
-            popup.AddContent(CreateRow("↓", "下载到本地", async () =>
-            {
-                await popup.CloseAsync();
-                await actions.Download();
-            }));
-        }
         popup.AddContent(CreateRow("ℹ", "歌曲信息", async () =>
         {
             await popup.CloseAsync();
             if (actions.SongInfo != null) await actions.SongInfo();
         }));
+    }
+
+    /// <summary>顶部歌曲信息卡：封面 + 标题 + 歌手（网易云风格），后接分隔线。</summary>
+    private static void BuildSongHeader(ContextMenuPopup popup, Song song)
+    {
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = 64 },
+                new() { Width = GridLength.Star }
+            },
+            ColumnSpacing = 12,
+            Padding = new Thickness(10, 10, 10, 12)
+        };
+
+        header.Add(BuildCover(song.CoverArtPath), 0);
+
+        var right = new VerticalStackLayout
+        {
+            Spacing = 4,
+            VerticalOptions = LayoutOptions.Center
+        };
+        right.Add(new Label
+        {
+            Text = string.IsNullOrWhiteSpace(song.Title) ? "未知歌曲" : song.Title,
+            FontSize = 15,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = textPrimary,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1
+        });
+        right.Add(new Label
+        {
+            Text = string.IsNullOrWhiteSpace(song.Artist) ? "未知歌手" : song.Artist,
+            FontSize = 12,
+            TextColor = textSecondary,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1
+        });
+        header.Add(right, 1);
+
+        popup.AddContent(header);
+        popup.AddContent(new BoxView
+        {
+            HeightRequest = 1,
+            Color = (Color)Application.Current!.Resources["DividerColor"],
+            Opacity = 0.6,
+            Margin = new Thickness(10, 0, 10, 4)
+        });
+    }
+
+    /// <summary>封面 64×64 圆角：有封面路径显示图片，否则音符占位。</summary>
+    private static View BuildCover(string? coverPath)
+    {
+        var cover = new Border
+        {
+            WidthRequest = 64,
+            HeightRequest = 64,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+            BackgroundColor = (Color)Application.Current!.Resources["CardBackgroundColor"],
+            HorizontalOptions = LayoutOptions.Start
+        };
+
+        if (!string.IsNullOrWhiteSpace(coverPath))
+        {
+            cover.Content = new Image
+            {
+                Source = coverPath,
+                Aspect = Aspect.AspectFill,
+                WidthRequest = 64,
+                HeightRequest = 64
+            };
+        }
+        else
+        {
+            cover.Content = new Label
+            {
+                Text = "♪",
+                FontSize = 26,
+                TextColor = (Color)Application.Current!.Resources["TextSecondaryColor"],
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center
+            };
+        }
+        return cover;
     }
 
     /// <summary>"添加到歌单"子视图：列出用户歌单，点击即加入；支持返回主菜单。</summary>
@@ -343,7 +423,7 @@ public static class SongContextMenu
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(9) },
             StrokeThickness = 0,
             BackgroundColor = Colors.Transparent,
-            Padding = new Thickness(10, 9),
+            Padding = new Thickness(12, 11),
             Margin = new Thickness(2, 2),
             HorizontalOptions = LayoutOptions.Fill,
             Content = row

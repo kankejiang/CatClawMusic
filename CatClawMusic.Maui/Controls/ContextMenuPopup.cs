@@ -3,9 +3,11 @@ using Microsoft.Maui.Controls.Shapes;
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// 上下文菜单下拉弹层：全窗透明遮罩 + 在指定坐标处弹出的圆角卡片。
-/// 用于歌曲行长按（Android）/右键（Windows）的右键菜单式下拉菜单，与 AppPopup 的居中弹窗不同：
-/// 菜单位置跟随手指/鼠标按下点，超出边界时自动收缩进可视区域。
+/// 歌曲上下文菜单弹层：
+/// - Android（长按）：网易云风格「底部抽屉」——半透明遮罩 + 背景高斯模糊，卡片从屏幕底部滑入/滑出，
+///   始终贴底弹出（不跟随手指位置）；内容超高时内部滚动，不会顶出屏幕。
+/// - Windows（右键）：保留桌面下拉卡片，跟随鼠标按下点，超出边界自动收缩进可视区域。
+/// 供歌曲行长按/右键菜单（SongContextMenu）与各页面 ISongContextMenuHost 复用。
 /// </summary>
 public class ContextMenuPopup : ContentView
 {
@@ -21,6 +23,14 @@ public class ContextMenuPopup : ContentView
     private const double CardWidth = 248;
     private const double EdgeMargin = 8;
 
+    /// <summary>Android 使用底部抽屉形态；桌面平台保留下拉卡片。</summary>
+    private static bool IsDrawer =>
+#if ANDROID
+        true;
+#else
+        false;
+#endif
+
     /// <summary>关闭完成事件（宿主据此移除本弹层并释放）。</summary>
     public event EventHandler? Closed;
 
@@ -30,17 +40,15 @@ public class ContextMenuPopup : ContentView
 
         _card = new Border
         {
-            WidthRequest = CardWidth,
-            HorizontalOptions = LayoutOptions.Start,
-            VerticalOptions = LayoutOptions.Start,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+            StrokeShape = new RoundRectangle
+            {
+                CornerRadius = IsDrawer ? new CornerRadius(22, 22, 0, 0) : new CornerRadius(14)
+            },
             StrokeThickness = 1,
             Padding = new Thickness(6),
             AnchorX = 0,
             AnchorY = 0,
-            TranslationX = -1000,
-            TranslationY = -1000,
-            Content = _cardContent
+            Content = IsDrawer ? BuildDrawerContent() : _cardContent
         };
         _card.SetDynamicResource(BackgroundColorProperty, "CardBackgroundStrongColor");
         _card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeStrongColor");
@@ -48,7 +56,6 @@ public class ContextMenuPopup : ContentView
         // Windows 端 Shadow 渲染正常（提供下拉阴影）；Android 端 Border + Shadow 在 MAUI 已知
         // 会导致整张卡片（背景+内容）渲染失效（被 Shadow 视图遮挡/绘制管线冲突），
         // 仅显示透明遮罩——表现为"弹窗不可见但拦截触摸"。临时去除以恢复可见性。
-        // 待 MAUI 官方修复后可统一恢复。
         _card.Shadow = new Shadow
         {
             Brush = Colors.Black,
@@ -58,7 +65,26 @@ public class ContextMenuPopup : ContentView
         };
 #endif
 
-        _mask = new BoxView { Color = Colors.Transparent };
+        if (IsDrawer)
+        {
+            // 底部抽屉：贴底、近全宽、顶部圆角；初始置于屏外（滑入动画起点）
+            _card.HorizontalOptions = LayoutOptions.Fill;
+            _card.VerticalOptions = LayoutOptions.End;
+            _card.Margin = new Thickness(8, 0, 8, 8);
+            _card.TranslationY = 1200;
+            _mask = new BoxView { Color = Color.FromArgb("#66000000") };
+        }
+        else
+        {
+            // 桌面下拉卡片：固定宽度、左上对齐，坐标由 ClampAndPosition 定位
+            _card.WidthRequest = CardWidth;
+            _card.HorizontalOptions = LayoutOptions.Start;
+            _card.VerticalOptions = LayoutOptions.Start;
+            _card.TranslationX = -1000;
+            _card.TranslationY = -1000;
+            _mask = new BoxView { Color = Colors.Transparent };
+        }
+
         _mask.GestureRecognizers.Add(new TapGestureRecognizer
         {
             Command = new Command(() => { _ = CloseAsync(); })
@@ -70,6 +96,13 @@ public class ContextMenuPopup : ContentView
         Opacity = 0;
     }
 
+    /// <summary>抽屉模式下内容超高时内部滚动，避免顶出屏幕；下拉模式直接平铺。</summary>
+    private View BuildDrawerContent() => new ScrollView
+    {
+        VerticalOptions = LayoutOptions.Fill,
+        Content = _cardContent
+    };
+
     /// <summary>清空菜单内容。</summary>
     public void ClearContent() => _cardContent.Children.Clear();
 
@@ -77,7 +110,8 @@ public class ContextMenuPopup : ContentView
     public void AddContent(View view) => _cardContent.Children.Add(view);
 
     /// <summary>
-    /// 在指定坐标（相对宿主左上角，DIP）处弹出菜单；坐标越界时自动收缩进 <paramref name="maxWidth"/>/<paramref name="maxHeight"/> 范围内。
+    /// 弹出菜单。Android 抽屉模式下忽略锚点坐标（贴底滑入），<paramref name="maxWidth"/>/<paramref name="maxHeight"/>
+    /// 用于限制最大高度与桌面下拉模式的收缩边界。
     /// </summary>
     public void ShowAt(double x, double y, double maxWidth, double maxHeight)
     {
@@ -87,31 +121,70 @@ public class ContextMenuPopup : ContentView
         if (maxWidth > 0) _maxWidth = maxWidth;
         if (maxHeight > 0) _maxHeight = maxHeight;
 
-        ClampAndPosition(x, y);
+        if (IsDrawer)
+        {
+            _card.MaximumHeightRequest = Math.Max(120, _maxHeight - 16);
+            _card.TranslationX = 0;
+            _card.TranslationY = _maxHeight; // 屏外起点，等首次布局后按实际高度滑入
+            _card.Opacity = 1;
+            _card.Scale = 1;
+            _mask.Opacity = 0;
+            this.Opacity = 1;
+            this.InputTransparent = false;
+            this.IsVisible = true;
+            ScheduleDrawerSlideIn();
+        }
+        else
+        {
+            _pendingX = x;
+            _pendingY = y;
+            ClampAndPosition(x, y);
 
-        // 立即可见，不依赖动画：弹层是打开时新建的，首次布局前可能尚无平台 Handler，
-        // FadeTo/ScaleTo 此时会抛异常（被吞掉后卡片停留在 Opacity=0 永久不可见）。
-        _card.Opacity = 1;
-        _card.Scale = 1;
-        this.Opacity = 1;
-        this.InputTransparent = false;
-        this.IsVisible = true;
+            // 立即可见，不依赖动画：弹层是打开时新建的，首次布局前可能尚无平台 Handler，
+            // FadeTo/ScaleTo 此时会抛异常（被吞掉后卡片停留在 Opacity=0 永久不可见）。
+            _card.Opacity = 1;
+            _card.Scale = 1;
+            this.Opacity = 1;
+            this.InputTransparent = false;
+            this.IsVisible = true;
+
+            // 卡片首次渲染完成前 Measure 会低估高度（未挂载布局树，且不含系统字体缩放），
+            // 若歌曲行位于屏幕底部，菜单底部会超出屏幕；等真实布局（SizeChanged）后按实际尺寸重新约束。
+            ScheduleReclamp(x, y);
+        }
 
 #if ANDROID
-        // 与播放页弹窗一致的背景高斯模糊（透明遮罩下透出模糊内容）
+        // 与播放页弹窗一致的背景高斯模糊（遮罩下透出模糊内容）
         ApplyBlurToSiblings();
 #endif
-
-        // 卡片首次渲染完成前 Measure 会低估高度（未挂载布局树，且不含系统字体缩放），
-        // 若歌曲行位于屏幕底部，菜单底部会超出屏幕；等真实布局（SizeChanged）后按实际尺寸重新约束。
-        ScheduleReclamp(x, y);
     }
 
-    /// <summary>内容变化（如进入"添加到歌单"子视图）后按原始锚点重新测量并收缩定位。</summary>
+    /// <summary>内容变化（如进入"添加到歌单"子视图）后重新适配：抽屉贴底由内部滚动消化，下拉模式按原始锚点重定位。</summary>
     public void Relayout()
     {
         if (!_isOpen) return;
+        if (IsDrawer) return;
         ClampAndPosition(_pendingX, _pendingY);
+    }
+
+    /// <summary>等待抽屉首次真实布局后播放滑入动画（此时卡片高度已知，滑入距离=卡片高度）。</summary>
+    private void ScheduleDrawerSlideIn()
+    {
+        _card.SizeChanged += OnDrawerCardSized;
+    }
+
+    private async void OnDrawerCardSized(object? sender, EventArgs e)
+    {
+        _card.SizeChanged -= OnDrawerCardSized;
+        if (!_isOpen) return;
+        try
+        {
+            _card.TranslationY = _card.Height + 16;
+            await Task.WhenAll(
+                _card.TranslateTo(0, 0, 260, Easing.CubicOut),
+                _mask.FadeTo(1, 200));
+        }
+        catch { }
     }
 
     /// <summary>记录锚点并等待卡片首次真实布局后重新约束位置（修正 Measure 低估导致的越界）。</summary>
@@ -136,6 +209,7 @@ public class ContextMenuPopup : ContentView
         ClampAndPosition(_pendingX, _pendingY);
     }
 
+    /// <summary>桌面下拉模式：按卡片实际尺寸把位置夹紧进可视区域（抽屉模式不使用）。</summary>
     private void ClampAndPosition(double x, double y)
     {
         double w = CardWidth;
@@ -161,20 +235,34 @@ public class ContextMenuPopup : ContentView
         _card.TranslationY = Math.Clamp(y + 8, EdgeMargin, maxY);
     }
 
-    /// <summary>关闭菜单（淡出后隐藏并触发 <see cref="Closed"/>）。</summary>
+    /// <summary>关闭菜单：抽屉滑出/下拉淡出后隐藏并触发 <see cref="Closed"/>。</summary>
     public async Task CloseAsync()
     {
         if (!_isOpen) return;
         _isOpen = false;
         _card.SizeChanged -= OnCardSizedForReclamp;
+        _card.SizeChanged -= OnDrawerCardSized;
 
-        try
+        if (IsDrawer)
         {
-            await Task.WhenAll(
-                _card.FadeTo(0, 120, Easing.CubicIn),
-                _card.ScaleTo(0.92, 120, Easing.CubicIn));
+            try
+            {
+                await Task.WhenAll(
+                    _card.TranslateTo(0, _card.Height + 16, 220, Easing.CubicIn),
+                    _mask.FadeTo(0, 180));
+            }
+            catch { }
         }
-        catch { }
+        else
+        {
+            try
+            {
+                await Task.WhenAll(
+                    _card.FadeTo(0, 120, Easing.CubicIn),
+                    _card.ScaleTo(0.92, 120, Easing.CubicIn));
+            }
+            catch { }
+        }
 
 #if ANDROID
         RemoveBlurFromSiblings();
