@@ -7,6 +7,7 @@ using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using System.IO;
+using System.Linq;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -77,6 +78,9 @@ public partial class NowPlayingPage : ContentPage
         _audioPlayer = audioPlayer;
         _desktopLyricManager = desktopLyricManager;
         BindingContext = _viewModel;
+
+        // FM 模式选择抽屉：VM 加载完模式列表后触发事件，页面动态构建抽屉内容
+        _viewModel.FmModeDrawerRequested += OnFmModeDrawerRequested;
 
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
@@ -1026,4 +1030,150 @@ public partial class NowPlayingPage : ContentPage
     // 桌面歌词按钮仅 Windows 存在（XAML 已 OnPlatform 隐藏），Android 空实现兜底防 XamlC XC0002
     private void OnWinDesktopLyricTapped(object? sender, EventArgs e) { }
 #endif
+
+    // === FM 模式选择抽屉 ===
+
+    /// <summary>VM 加载完模式列表后触发：动态构建抽屉内容并打开</summary>
+    private void OnFmModeDrawerRequested(List<FmModeCategory> categories, string currentLabel)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            BuildFmModeSheetContent(categories, currentLabel);
+            FmModeSheet.Open();
+        });
+    }
+
+    /// <summary>构建 FM 模式抽屉内容：顶部 3 个推荐模式卡 + 下方场景模式 4 列网格</summary>
+    private void BuildFmModeSheetContent(List<FmModeCategory> categories, string currentLabel)
+    {
+        FmModeSheet.ClearContent();
+
+        var container = new VerticalStackLayout { Spacing = 16, Padding = new Thickness(0, 4, 0, 0) };
+
+        // 标题
+        container.Children.Add(new Label
+        {
+            Text = "私人漫游模式",
+            FontSize = 16, FontAttributes = FontAttributes.Bold,
+            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+            HorizontalOptions = LayoutOptions.Start,
+        });
+
+        var modes = categories.Where(c => c.Type == "mode").ToList();
+        var scenes = categories.Where(c => c.Type == "scene").ToList();
+
+        // 推荐模式（3 个横排卡片）
+        if (modes.Count > 0)
+        {
+            container.Children.Add(new Label
+            {
+                Text = "推荐模式",
+                FontSize = 12,
+                TextColor = (Color)Application.Current.Resources["TextSecondaryColor"],
+                HorizontalOptions = LayoutOptions.Start,
+            });
+            var modeRow = new HorizontalStackLayout { Spacing = 10 };
+            foreach (var m in modes)
+            {
+                var isCurrent = m.Title == currentLabel;
+                var card = CreateFmModeCard(m, isCurrent);
+                modeRow.Children.Add(card);
+            }
+            container.Children.Add(modeRow);
+        }
+
+        // 场景模式（4 列网格）
+        if (scenes.Count > 0)
+        {
+            container.Children.Add(new Label
+            {
+                Text = "场景模式",
+                FontSize = 12,
+                Margin = new Thickness(0, 8, 0, 0),
+                TextColor = (Color)Application.Current.Resources["TextSecondaryColor"],
+                HorizontalOptions = LayoutOptions.Start,
+            });
+            int cols = 4;
+            int rows = (int)Math.Ceiling(scenes.Count / (double)cols);
+            var grid = new Grid
+            {
+                RowSpacing = 10,
+                ColumnSpacing = 10,
+            };
+            for (int r = 0; r < rows; r++)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            for (int c = 0; c < cols; c++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+            for (int i = 0; i < scenes.Count; i++)
+            {
+                var s = scenes[i];
+                var isCurrent = s.Title == currentLabel;
+                var chip = CreateFmSceneChip(s, isCurrent);
+                grid.Add(chip, i % cols, i / cols);
+            }
+            container.Children.Add(grid);
+        }
+
+        FmModeSheet.AddContent(container);
+    }
+
+    /// <summary>推荐模式卡（带标题+副标题+图标，选中高亮）</summary>
+    private Border CreateFmModeCard(FmModeCategory m, bool isCurrent)
+    {
+        var border = new Border
+        {
+            Padding = new Thickness(14, 10),
+            StrokeShape = new RoundRectangle { CornerRadius = 14 },
+            StrokeThickness = isCurrent ? 2 : 1,
+            Stroke = isCurrent ? Color.FromArgb("#f953c6") : (Color)Application.Current!.Resources["GlassStrokeColor"]!,
+            BackgroundColor = isCurrent ? Color.FromArgb("#1Af953c6") : (Color)Application.Current.Resources["CardBackgroundColor"]!,
+            HorizontalOptions = LayoutOptions.Fill,
+        };
+        border.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await _viewModel.SelectFmModeAsync(m.Code);
+                await FmModeSheet.CloseAsync();
+            }),
+        });
+        var stack = new VerticalStackLayout { Spacing = 4 };
+        stack.Children.Add(new Label { Text = $"{m.Icon} {m.Title}", FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = (Color)Application.Current.Resources["TextPrimaryColor"]! });
+        if (!string.IsNullOrEmpty(m.SubTitle))
+            stack.Children.Add(new Label { Text = m.SubTitle, FontSize = 10, TextColor = (Color)Application.Current.Resources["TextSecondaryColor"]!, MaxLines = 2 });
+        border.Content = stack;
+        return border;
+    }
+
+    /// <summary>场景模式 Chip（圆角小卡片，选中高亮）</summary>
+    private Border CreateFmSceneChip(FmModeCategory s, bool isCurrent)
+    {
+        var border = new Border
+        {
+            Padding = new Thickness(10, 8),
+            StrokeShape = new RoundRectangle { CornerRadius = 12 },
+            StrokeThickness = isCurrent ? 2 : 0,
+            Stroke = isCurrent ? Color.FromArgb("#f953c6") : Colors.Transparent,
+            BackgroundColor = isCurrent ? Color.FromArgb("#1Af953c6") : (Color)Application.Current!.Resources["CardBackgroundColor"]!,
+            HorizontalOptions = LayoutOptions.Fill,
+        };
+        border.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await _viewModel.SelectFmModeAsync(s.Code);
+                await FmModeSheet.CloseAsync();
+            }),
+        });
+        border.Content = new Label
+        {
+            Text = s.Title,
+            FontSize = 12,
+            FontAttributes = isCurrent ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = (Color)Application.Current.Resources["TextPrimaryColor"]!,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        return border;
+    }
 }

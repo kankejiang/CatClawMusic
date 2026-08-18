@@ -280,6 +280,85 @@ public partial class NowPlayingViewModel
     private void OnIsFmModeChanged(object? sender, EventArgs e)
     {
         RefreshPlayModeDisplay();
+        // 同步 FM 模式状态与模式标签（播放页模式按钮的显示/隐藏依据）
+        IsFmMode = _queue.IsFmMode;
+        if (IsFmMode)
+            _ = SyncFmModeLabelAsync();
+        else
+            FmModeLabel = "";
+    }
+
+    /// <summary>从当前歌曲所属插件获取 FM 推荐模式显示名（首次进入 FM 或切歌时同步按钮文字）</summary>
+    private async Task SyncFmModeLabelAsync()
+    {
+        var song = _queue.CurrentSong;
+        if (song == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':'))
+        { FmModeLabel = ""; return; }
+        try
+        {
+            var sep = song.RemoteId.IndexOf(':');
+            var platform = song.RemoteId[..sep];
+            var plugin = _pluginManager?.GetEnabledPlugins<IOnlineMusicPlugin>()
+                .FirstOrDefault(p => string.Equals(p.PlatformName, platform, StringComparison.OrdinalIgnoreCase));
+            if (plugin != null)
+                FmModeLabel = await plugin.GetFmModeLabelAsync() ?? "";
+        }
+        catch { FmModeLabel = ""; }
+    }
+
+    /// <summary>循环切换私人漫游推荐模式（默认→熟悉→探索→默认），由插件执行并返回新模式名</summary>
+    private async Task CycleFmModeAsync()
+    {
+        // 打开模式选择抽屉：加载插件提供的模式列表，由页面 code-behind 渲染 AppBottomSheet
+        await OpenFmModeDrawerAsync();
+    }
+
+    /// <summary>FM 模式选择抽屉所需数据：当前歌曲所属插件提供的模式/场景列表</summary>
+    [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private List<FmModeCategory> _fmModeCategories = new();
+
+    /// <summary>打开 FM 模式选择抽屉：从插件加载模式列表，页面订阅事件后渲染</summary>
+    public event Action<List<FmModeCategory>, string>? FmModeDrawerRequested;
+
+    private async Task OpenFmModeDrawerAsync()
+    {
+        var song = _queue.CurrentSong;
+        if (song == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':')) return;
+        try
+        {
+            var sep = song.RemoteId.IndexOf(':');
+            var platform = song.RemoteId[..sep];
+            var plugin = _pluginManager?.GetEnabledPlugins<IOnlineMusicPlugin>()
+                .FirstOrDefault(p => string.Equals(p.PlatformName, platform, StringComparison.OrdinalIgnoreCase));
+            if (plugin != null)
+            {
+                var categories = await plugin.GetFmModesAsync();
+                FmModeCategories = categories ?? new List<FmModeCategory>();
+                var currentLabel = await plugin.GetFmModeLabelAsync() ?? "";
+                FmModeDrawerRequested?.Invoke(FmModeCategories, currentLabel);
+            }
+        }
+        catch (Exception ex) { Log.Debug("NowPlayingVM", $"[OpenFmModeDrawer] failed: {ex.Message}"); }
+    }
+
+    /// <summary>用户在抽屉中选择某个模式/场景后调用：通知插件切换并更新标签</summary>
+    public async Task SelectFmModeAsync(string modeCode)
+    {
+        var song = _queue.CurrentSong;
+        if (song == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':')) return;
+        try
+        {
+            var sep = song.RemoteId.IndexOf(':');
+            var platform = song.RemoteId[..sep];
+            var plugin = _pluginManager?.GetEnabledPlugins<IOnlineMusicPlugin>()
+                .FirstOrDefault(p => string.Equals(p.PlatformName, platform, StringComparison.OrdinalIgnoreCase));
+            if (plugin != null)
+            {
+                var label = await plugin.TrySetFmModeAsync(modeCode);
+                if (!string.IsNullOrEmpty(label))
+                    FmModeLabel = label;
+            }
+        }
+        catch (Exception ex) { Log.Debug("NowPlayingVM", $"[SelectFmMode] failed: {ex.Message}"); }
     }
 
     private void RefreshPlayModeDisplay()

@@ -180,15 +180,32 @@
                   RowDefinitions="Auto,Auto,Auto,Auto"
                   RowSpacing="6"
                   Margin="0,4,0,0">
-                <!-- 收藏按钮（进度条右上方） -->
-                <ImageButton Grid.Row="0"
-                        WidthRequest="36" HeightRequest="36"
-                        CornerRadius="18" Padding="6"
-                        Aspect="AspectFit"
-                        BackgroundColor="Transparent"
-                        Source="{Binding LikeIconSourceWhite}"
-                        Command="{Binding ToggleLikeCommand}"
-                        HorizontalOptions="End" VerticalOptions="Center" />
+                <!-- FM 模式切换按钮 + 收藏按钮（进度条右上方） -->
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <!-- FM 模式切换 Chip（只在私人漫游时显示，点击循环切换模式） -->
+                    <Border Grid.Column="0"
+                            IsVisible="{Binding IsFmMode}"
+                            Padding="12,6" StrokeShape="RoundRectangle 14" StrokeThickness="0"
+                            BackgroundColor="#30FFFFFF"
+                            HorizontalOptions="Start" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding CycleFmModeCommand}" />
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="4">
+                            <Label Text="{Binding FmModeLabel}" FontSize="11" TextColor="White" FontFamily="OpenSansSemibold" VerticalOptions="Center" />
+                            <Image Source="ic_fm_mode" WidthRequest="12" HeightRequest="12" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Border>
+                    <!-- 收藏按钮 -->
+                    <ImageButton Grid.Column="1"
+                            WidthRequest="36" HeightRequest="36"
+                            CornerRadius="18" Padding="6"
+                            Aspect="AspectFit"
+                            BackgroundColor="Transparent"
+                            Source="{Binding LikeIconSourceWhite}"
+                            Command="{Binding ToggleLikeCommand}"
+                            HorizontalOptions="End" VerticalOptions="Center" />
+                </Grid>
                 <!-- 进度条 -->
                 <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="2">
                     <Slider x:Name="ProgressSlider"
@@ -816,5 +833,10 @@
         <controls:AppPopup x:Name="LyricsSettingsPopup"
                            Title="歌词设置"
                            CloseOnMaskTapped="True" />
+
+        <!-- FM 模式选择抽屉（私人漫游时点击模式按钮弹出） -->
+        <controls:AppBottomSheet x:Name="FmModeSheet"
+                                 SheetMode="Bottom"
+                                 CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

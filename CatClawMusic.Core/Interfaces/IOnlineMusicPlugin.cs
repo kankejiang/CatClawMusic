@@ -98,4 +98,23 @@ public interface IOnlineMusicPlugin : IPlugin
 
     /// <summary>私人漫游（FM）歌曲红心/取消红心（影响推荐；未实现返回 false）</summary>
     Task<bool> FmLikeAsync(string songId, bool like) => Task.FromResult(false);
+
+    /// <summary>
+    /// 获取私人漫游可用的推荐模式与场景模式列表（供宿主渲染模式选择抽屉）。
+    /// 返回空列表表示不支持模式切换。
+    /// </summary>
+    Task<List<FmModeCategory>> GetFmModesAsync() => Task.FromResult(new List<FmModeCategory>());
+
+    /// <summary>
+    /// 切换到指定推荐模式/场景模式并重新加载电台。
+    /// </summary>
+    /// <param name="modeCode">模式代码（DEFAULT / FAMILIAR / EXPLORE / ROCK / JAZZ 等，由 GetFmModesAsync 返回）</param>
+    /// <returns>切换后的模式显示名；失败返回 null</returns>
+    Task<string?> TrySetFmModeAsync(string modeCode) => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// 获取当前私人漫游推荐模式显示名（如"默认模式"）；不在 FM 模式或不支持返回 null。
+    /// 宿主播放页首次进入 FM 模式时调用以同步按钮文字。
+    /// </summary>
+    Task<string?> GetFmModeLabelAsync() => Task.FromResult<string?>(null);
 }

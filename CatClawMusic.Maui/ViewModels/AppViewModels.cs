@@ -130,6 +130,12 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>收藏按钮白色图标 ImageSource（恒白，专给播放页等已有深色遮罩的场景）</summary>
     [ObservableProperty] private ImageSource? _likeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_favorite_border");
 
+    // === FM Mode (私人漫游模式切换) ===
+    /// <summary>当前是否处于 FM 电台模式（绑定 PlayQueue.IsFmMode，播放页据此显示/隐藏模式按钮）</summary>
+    [ObservableProperty] private bool _isFmMode;
+    /// <summary>当前 FM 推荐模式显示名（如"默认模式"/"熟悉模式"/"探索模式"）；非 FM 模式时为空</summary>
+    [ObservableProperty] private string _fmModeLabel = "";
+
     // === Previous / Next ===
     /// <summary>上一首按钮图标 ImageSource</summary>
     [ObservableProperty] private ImageSource? _playPreviousIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_previous", "ic_notif_previous");
@@ -286,6 +292,7 @@ public partial class NowPlayingViewModel : ObservableObject
         PlayPreviousCommand = new AsyncRelayCommand(PlayPreviousAsync);
         CyclePlayModeCommand = new RelayCommand(CyclePlayMode);
         ToggleLikeCommand = new AsyncRelayCommand(ToggleLikeAsync);
+        CycleFmModeCommand = new AsyncRelayCommand(CycleFmModeAsync);
         SeekCommand = new RelayCommand<double>(OnSeek);
         PlaySongFromQueueCommand = new AsyncRelayCommand<Song>(PlaySongFromQueueAsync);
         RemoveSongFromQueueCommand = new AsyncRelayCommand<Song>(RemoveSongFromQueueAsync);
@@ -437,6 +444,8 @@ public partial class NowPlayingViewModel : ObservableObject
     public IRelayCommand CyclePlayModeCommand { get; }
     /// <summary>切换当前歌曲收藏状态命令</summary>
     public IRelayCommand ToggleLikeCommand { get; }
+    /// <summary>循环切换私人漫游推荐模式命令（默认→熟悉→探索→默认）</summary>
+    public IRelayCommand CycleFmModeCommand { get; }
     /// <summary>进度跳转命令，参数为目标位置（秒）</summary>
     public RelayCommand<double> SeekCommand { get; }
     /// <summary>从播放队列中选择一首歌播放</summary>
