@@ -35,6 +35,16 @@ public class NavigationService : INavigationService
                 return;
             }
 
+            // Shell 环境下，若当前导航栈已有 Push 进来的页面（如插件页经 shell.Navigation.PushAsync
+            // 推入），此时 Shell.Current.GoToAsync 会在 GetOrCreateFromRoute 找不到正确父节点而 NRE。
+            // 检测到 Push 栈非空时，改为从 DI 解析页面类型并 PushAsync，与调用方保持同一导航栈。
+            var navStack = shell.CurrentPage?.Navigation?.NavigationStack;
+            if (navStack != null && navStack.Count > 1)
+            {
+                PushByRoute(route, parameters);
+                return;
+            }
+
             if (parameters != null)
             {
                 await shell.GoToAsync(route, parameters);
@@ -47,6 +57,52 @@ public class NavigationService : INavigationService
         catch (Exception ex)
         {
             Log.Debug("NavigationService", $"Navigation error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 从 DI 容器解析路由对应的页面类型，注入查询参数后 PushAsync 到当前导航栈。
+    /// 用于当前页是 Navigation.PushAsync 推入的场景（Shell.GoToAsync 会 NRE）。
+    /// </summary>
+    private static void PushByRoute(string route, Dictionary<string, object>? parameters)
+    {
+        try
+        {
+            var parts = route.Split('?', 2);
+            var routeName = parts[0].TrimStart('/');
+            var query = new Dictionary<string, object>();
+            if (parts.Length > 1 && !string.IsNullOrEmpty(parts[1]))
+            {
+                foreach (var pair in parts[1].Split('&', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2)
+                        query[kv[0]] = System.Uri.UnescapeDataString(kv[1]);
+                }
+            }
+            if (parameters != null)
+            {
+                foreach (var (k, v) in parameters)
+                    query[k] = v;
+            }
+
+            if (!_embeddedRoutes.TryGetValue(routeName, out var pageType))
+            {
+                Log.Debug("NavigationService", $"PushByRoute: 未登记路由 {routeName}");
+                return;
+            }
+
+            var page = (Microsoft.Maui.Controls.Page?)MauiProgram.Services.GetRequiredService(pageType);
+            if (page == null) return;
+
+            if (page.BindingContext is IQueryAttributable attributable && query.Count > 0)
+                attributable.ApplyQueryAttributes(query);
+
+            _ = Shell.Current?.CurrentPage?.Navigation?.PushAsync(page);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NavigationService", $"PushByRoute error: {ex.Message}");
         }
     }
 
