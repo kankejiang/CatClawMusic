@@ -15,8 +15,8 @@
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
 		<ApplicationId>com.catclaw.music</ApplicationId>
-		<ApplicationDisplayVersion>1.8.5</ApplicationDisplayVersion>
-		<ApplicationVersion>62</ApplicationVersion>
+		<ApplicationDisplayVersion>1.8.6</ApplicationDisplayVersion>
+		<ApplicationVersion>63</ApplicationVersion>
 
 		<!-- Android 打包：禁用快速部署（Fast Deployment），Debug APK 也完整打包 .NET 程序集。
 		     否则 VS 调试（F5）能启动（程序集靠 adb push 到设备 .override 目录），
