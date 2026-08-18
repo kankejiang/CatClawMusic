@@ -94,7 +94,7 @@ public partial class AppBottomSheet : ContentView
         }
         else
         {
-            // 底部抽屉：贴底、从下方滑入
+            // 底部抽屉：贴底、从下方滑入，固定 70% 屏高（内容多时内部滚动）
             GripBar.IsVisible = true;
             SheetCard.VerticalOptions = LayoutOptions.End;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
@@ -102,10 +102,10 @@ public partial class AppBottomSheet : ContentView
             SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
-            SheetCard.ClearValue(HeightRequestProperty);
-            // 固定 70% 屏幕高度：内容少时留白，内容多时内部滚动
             var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
-            ContentScroll.HeightRequest = screenH * 0.7;
+            SheetCard.HeightRequest = screenH * 0.7;
+            ContentScroll.ClearValue(HeightRequestProperty);
+            ContentScroll.ClearValue(MaximumHeightRequestProperty);
         }
 
 #if ANDROID
