@@ -1036,10 +1036,13 @@ public partial class NowPlayingPage : ContentPage
     /// <summary>VM 加载完模式列表后触发：动态构建抽屉内容并打开</summary>
     private void OnFmModeDrawerRequested(List<FmModeCategory> categories, string currentLabel)
     {
+        Log.Debug("NowPlaying", $"[FM] drawer requested: categories={categories?.Count ?? 0}, current={currentLabel}");
         MainThread.BeginInvokeOnMainThread(() =>
         {
             BuildFmModeSheetContent(categories, currentLabel);
+            Log.Debug("NowPlaying", $"[FM] sheet content built, opening...");
             FmModeSheet.Open();
+            Log.Debug("NowPlaying", $"[FM] sheet Open() returned, IsVisible={FmModeSheet.IsVisible}");
         });
     }
 
