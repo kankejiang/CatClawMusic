@@ -97,7 +97,7 @@ public partial class AppBottomSheet : ContentView
         }
         else
         {
-            // 底部抽屉：贴底、从下方滑入，固定 70% 屏高
+            // 底部抽屉：贴底、从下方滑入，固定 80% 屏高
             GripBar.IsVisible = true;
             SheetCard.VerticalOptions = LayoutOptions.End;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
@@ -109,7 +109,7 @@ public partial class AppBottomSheet : ContentView
             var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
             // 关键：给内部 Grid 设 HeightRequest——SheetCard 的 End 布局让 Border 高度自适应内容，
             // Grid 的 * 行退化为 0；给 Grid 强制高度后 * 行才能分到空间，ScrollView 才有高度
-            SheetGrid.HeightRequest = screenH * 0.7;
+            SheetGrid.HeightRequest = screenH * 0.8;
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
         }
