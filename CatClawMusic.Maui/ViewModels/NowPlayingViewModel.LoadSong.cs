@@ -156,6 +156,10 @@ public partial class NowPlayingViewModel
         // Update play mode display (read current state, don't cycle)
         RefreshPlayModeDisplay();
 
+        // FM 模式：切歌时同步模式标签（模式按钮文字）
+        if (_queue.IsFmMode)
+            _ = SyncFmModeLabelAsync();
+
         // Update upcoming songs
         RefreshUpcomingSongs();
 
