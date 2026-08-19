@@ -49,10 +49,26 @@ public partial class WebViewLoginPage : ContentPage
     /// <summary>
     /// 桌面无 Shell 模式（嵌入主区域）不会触发 OnNavigatedTo，只经反射调 OnAppearing，
     /// 故此处兜底触发加载（幂等，Shell 环境下 OnNavigatedTo 已加载则跳过）。
+    /// 同时是关键修复点：每次进入登录页先清除该域旧 Cookie，防止退出登录后
+    /// WebView 会话残留 MUSIC_U，再次登录直接显示"已登录"而无法切换账号。
+    /// OnNavigatedTo 时 Handler 可能未就绪清不掉，OnAppearing 时 Handler 已就绪，
+    /// 清完后强制用干净会话重新加载一次。
     /// </summary>
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
+        var info = _vm.LoginInfo;
+        if (!string.IsNullOrWhiteSpace(info?.CookieDomain))
+        {
+            await ClearDomainCookiesAsync(info.CookieDomain);
+            // 若 OnNavigatedTo 已加载过（Shell 模式），用干净 Cookie 强制重载
+            if (_loginLoadStarted && LoginWebView.Source != null)
+            {
+                var src = LoginWebView.Source;
+                LoginWebView.Source = null;
+                LoginWebView.Source = src;
+            }
+        }
         EnsureLoginLoaded();
     }
 
@@ -96,7 +112,9 @@ public partial class WebViewLoginPage : ContentPage
         _cookieTimer = null;
     }
 
-    /// <summary>轮询检查：指定域名的 Cookie 已包含全部成功标识（如 MUSIC_U）即完成登录</summary>
+    /// <summary>轮询检查：指定域名的 Cookie 已包含全部成功标识（如 MUSIC_U）即完成登录。
+    /// 只提示不自动关闭——登录页保留，由用户手动点「完成」返回，
+    /// 避免残留 Cookie 误判"已登录"导致登录页自动消失而无法操作。</summary>
     private async Task CheckLoginByCookieAsync()
     {
         var info = _vm.LoginInfo;
@@ -109,7 +127,7 @@ public partial class WebViewLoginPage : ContentPage
                 && info.SuccessCookieNames.All(n => cookie.Contains(n + "=", StringComparison.OrdinalIgnoreCase)))
             {
                 StopCookiePolling();
-                await TryExtractCookieAndReturnAsync();
+                StatusHint.Text = "✅ 检测到登录成功，请点击右上角「完成」返回";
             }
         }
         catch { }
@@ -176,7 +194,10 @@ public partial class WebViewLoginPage : ContentPage
 
         if (urlMatched || cookieReady)
         {
-            await TryExtractCookieAndReturnAsync();
+            // 只提示不自动关闭：登录页保留，由用户手动点「完成」返回，
+            // 避免残留 Cookie 误判"已登录"导致登录页自动消失而无法操作。
+            StopCookiePolling();
+            StatusHint.Text = "✅ 检测到登录成功，请点击右上角「完成」返回";
         }
     }
 
@@ -218,6 +239,78 @@ public partial class WebViewLoginPage : ContentPage
             .ContinueWith(t => t.Result?.ToString()?.Trim('"') ?? "", TaskScheduler.Default);
 #endif
     }
+
+    /// <summary>
+    /// 清除指定域名在 WebView 会话中的全部 Cookie。
+    /// 只清目标登录域（如 music.163.com），不动其他域（如 AI 搜索预览的 Bing/Baidu）。
+    /// 失败静默：即使清不掉也不阻塞登录页加载。
+    /// </summary>
+    private async Task ClearDomainCookiesAsync(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain)) return;
+#if ANDROID
+        ClearCookiesAndroid(domain);
+#elif WINDOWS
+        await ClearCookiesWindowsAsync(domain);
+#else
+        try
+        {
+            // 回退：通过 JS 逐条过期（HttpOnly Cookie 无法清除，尽力而为）
+            await LoginWebView.EvaluateJavaScriptAsync(
+                "document.cookie.split(';').forEach(c => { var i = c.indexOf('='); if (i > 0) { var n = c.substring(0, i).trim(); document.cookie = n + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; } });");
+        }
+        catch { }
+#endif
+    }
+
+#if ANDROID
+    /// <summary>Android 平台：通过 CookieManager 逐条清除指定域名的 Cookie（精准，不影响其他域）</summary>
+    private static void ClearCookiesAndroid(string domain)
+    {
+        try
+        {
+            var cm = global::Android.Webkit.CookieManager.Instance;
+            var url = domain.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                ? domain
+                : $"https://{domain}/";
+            var raw = cm.GetCookie(url);
+            if (string.IsNullOrEmpty(raw)) return;
+            foreach (var pair in raw.Split(';'))
+            {
+                var idx = pair.IndexOf('=');
+                if (idx <= 0) continue;
+                var name = pair.Substring(0, idx).Trim();
+                cm.SetCookie(url, $"{name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/");
+            }
+            cm.Flush();
+        }
+        catch { }
+    }
+#endif
+
+#if WINDOWS
+    /// <summary>Windows 平台：通过 WebView2 CoreWebView2.CookieManager 读取列表后逐条删除（兼容基础接口）</summary>
+    private async Task ClearCookiesWindowsAsync(string domain)
+    {
+        try
+        {
+            var handler = LoginWebView.Handler;
+            if (handler?.PlatformView is not Microsoft.UI.Xaml.Controls.WebView2 wv2) return;
+            var core = wv2.CoreWebView2;
+            if (core == null)
+            {
+                await wv2.EnsureCoreWebView2Async();
+                core = wv2.CoreWebView2;
+                if (core == null) return;
+            }
+            var cookies = await core.CookieManager.GetCookiesAsync($"https://{domain}/");
+            if (cookies == null) return;
+            foreach (var c in cookies)
+                core.CookieManager.DeleteCookie(c);
+        }
+        catch { }
+    }
+#endif
 
 #if ANDROID
     /// <summary>Android 平台：通过 CookieManager 同步读取指定域名的所有 Cookie</summary>

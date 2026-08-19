@@ -78,6 +78,11 @@ public partial class AppBottomSheet : ContentView
                 SheetCard.Margin = new Thickness(0);
                 SheetCard.ClearValue(MaximumHeightRequestProperty);
                 // Grid 强制高度（同 Bottom 模式原理），ScrollView 填满卡片剩余空间并可滚动
+                SheetGrid.RowDefinitions = new RowDefinitionCollection
+                {
+                    new() { Height = GridLength.Auto },
+                    new() { Height = GridLength.Star }
+                };
                 SheetGrid.HeightRequest = screenH;
                 ContentScroll.ClearValue(HeightRequestProperty);
                 ContentScroll.ClearValue(MaximumHeightRequestProperty);
@@ -91,27 +96,42 @@ public partial class AppBottomSheet : ContentView
                 SheetCard.Margin = new Thickness(22, 12);
                 SheetCard.MaximumHeightRequest = screenH * 0.85;
                 SheetCard.ClearValue(HeightRequestProperty);
+                SheetGrid.RowDefinitions = new RowDefinitionCollection
+                {
+                    new() { Height = GridLength.Auto },
+                    new() { Height = GridLength.Star }
+                };
                 SheetGrid.ClearValue(HeightRequestProperty);
                 ContentScroll.MaximumHeightRequest = screenH * 0.85 - 60;
             }
         }
         else
         {
-            // 底部抽屉：贴底、从下方滑入，固定 70% 屏高
+            // 底部抽屉：贴底、从下方滑入，内容自适应 + 屏高 50% 封顶（对齐长按歌曲菜单抽屉）。
+            // Grid 保持 Auto,*：Star 行在有限高度约束下才能分到空间（End 布局 + 无界测量时
+            // * 行/ScrollView 会退化为 0 导致卡片塌陷不可见）。因此给 Grid 显式 HeightRequest，
+            // 首帧给足 50% 屏高保证可见，布局完成后按真实内容高度收缩。
             GripBar.IsVisible = true;
             SheetCard.VerticalOptions = LayoutOptions.End;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
             SheetCard.Margin = new Thickness(8, 0, 8, 8);
             SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
-            SheetCard.ClearValue(MaximumHeightRequestProperty);
             SheetCard.ClearValue(HeightRequestProperty);
+            SheetCard.ClearValue(MaximumHeightRequestProperty);
+            SheetGrid.ClearValue(HeightRequestProperty);
+            SheetGrid.RowDefinitions = new RowDefinitionCollection
+            {
+                new() { Height = GridLength.Auto },
+                new() { Height = GridLength.Star }
+            };
             var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
-            // 关键：给内部 Grid 设 HeightRequest——SheetCard 的 End 布局让 Border 高度自适应内容，
-            // Grid 的 * 行退化为 0；给 Grid 强制高度后 * 行才能分到空间，ScrollView 才有高度
-            SheetGrid.HeightRequest = screenH * 0.7;
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
+            SheetGrid.HeightRequest = screenH * 0.5;
+            Log.Debug("AppBottomSheet", $"[Sheet] Open Bottom: screenH={screenH:F0}, gridH={SheetGrid.HeightRequest:F0}, cardVisible={IsVisible}");
+            // 布局完成后尝试按真实内容高度收缩；测量不可靠时保持 50% 屏高，确保抽屉必可见
+            Dispatcher.Dispatch(() => FitContentHeight(screenH));
         }
 
 #if ANDROID
@@ -133,7 +153,7 @@ public partial class AppBottomSheet : ContentView
                 await Task.WhenAll(
                     MaskLayer.FadeTo(1, 220, Easing.CubicOut),
                     SheetCard.FadeTo(1, 200, Easing.CubicOut),
-                    SheetCard.TranslateTo(0, 0, 300, Easing.CubicOut)
+                    SheetCard.TranslateTo(0, 0, 260, Easing.CubicOut)
                 );
             }
         });
@@ -187,6 +207,63 @@ public partial class AppBottomSheet : ContentView
     {
         if (CloseOnMaskTapped)
             _ = CloseAsync();
+    }
+
+    /// <summary>布局完成后按真实内容高度收缩抽屉：高度 = clamp(抓握区32 + 内容高, 120, 屏高50%)。
+    /// 测量结果不合理（&lt;=60 或 NaN）时保持 50% 屏高——宁可留白也不让抽屉塌陷不可见。</summary>
+    private void FitContentHeight(double screenH)
+    {
+        if (!_isOpen || SheetMode != BottomSheetMode.Bottom) return;
+        try
+        {
+            var cardW = SheetCard.Width > 0 ? SheetCard.Width
+                : DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density;
+            var contentW = Math.Max(120, cardW - 32); // 卡片 Padding 左右 16×2
+            var contentH = SheetContent.Measure(contentW, double.PositiveInfinity).Height;
+            if (double.IsNaN(contentH) || double.IsInfinity(contentH) || contentH <= 60)
+            {
+                Log.Debug("AppBottomSheet", $"[Sheet] FitContent skipped (unreliable): contentH={contentH}, keep {SheetGrid.HeightRequest:F0}");
+                return;
+            }
+            var target = Math.Clamp(contentH + 32, 120, screenH * 0.5); // 32 = 抓握区
+            Log.Debug("AppBottomSheet", $"[Sheet] FitContent: contentH={contentH:F0} -> gridH {SheetGrid.HeightRequest:F0}->{target:F0}");
+            if (Math.Abs(target - SheetGrid.HeightRequest) > 1)
+                SheetGrid.HeightRequest = target;
+        }
+        catch { }
+    }
+
+    /// <summary>抓握区下滑手势：向下拖动 &gt; 卡片 25% 高度时关闭，否则回弹；拖动时遮罩同步淡出（对齐长按菜单抽屉）。</summary>
+    private async void OnGripPan(object? sender, PanUpdatedEventArgs e)
+    {
+        if (SheetMode != BottomSheetMode.Bottom || !_isOpen) return;
+        switch (e.StatusType)
+        {
+            case GestureStatus.Running:
+                var ty = Math.Max(0, e.TotalY);
+                SheetCard.TranslationY = ty;
+                // 拖到 30% 高度时遮罩淡到 50%，强化"正在关闭"的视觉反馈
+                var ratio = SheetCard.Height > 0 ? Math.Min(1, ty / (SheetCard.Height * 0.3)) : 0;
+                MaskLayer.Opacity = 1 - ratio * 0.5;
+                break;
+            case GestureStatus.Completed:
+            case GestureStatus.Canceled:
+                if (SheetCard.Height > 0 && SheetCard.TranslationY > SheetCard.Height * 0.25)
+                {
+                    await CloseAsync();
+                }
+                else
+                {
+                    try
+                    {
+                        await Task.WhenAll(
+                            SheetCard.TranslateTo(0, 0, 220, Easing.CubicOut),
+                            MaskLayer.FadeTo(1, 200));
+                    }
+                    catch { }
+                }
+                break;
+        }
     }
 
 #if ANDROID
