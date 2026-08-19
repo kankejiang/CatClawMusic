@@ -11,7 +11,7 @@
           InputTransparent="False"
           BackgroundColor="Transparent">
         <BoxView x:Name="MaskLayer"
-                 Color="#99000000"
+                 Color="#66000000"
                  InputTransparent="False"
                  Opacity="0">
             <BoxView.GestureRecognizers>
@@ -22,7 +22,7 @@
                 BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
                 Stroke="{DynamicResource GlassStrokeStrongColor}"
                 StrokeThickness="1"
-                StrokeShape="RoundRectangle 26,26,14,14"
+                StrokeShape="RoundRectangle 22,22,0,0"
                 Padding="16,10,16,16"
                 HorizontalOptions="Fill"
                 VerticalOptions="End"
@@ -37,15 +37,21 @@
                         Opacity="0.5" />
             </Border.Shadow>
             <Grid x:Name="SheetGrid" RowDefinitions="Auto,*">
-                <!-- 拖拽指示条（仅底部抽屉模式显示，居中弹窗隐藏） -->
-                <BoxView Grid.Row="0"
-                         x:Name="GripBar"
-                         WidthRequest="38" HeightRequest="4"
-                         CornerRadius="2"
-                         Color="{DynamicResource TextHintColor}"
-                         Opacity="0.4"
-                         HorizontalOptions="Center"
-                         Margin="0,2,0,12" />
+                <!-- 抓握区：顶部 32 DIP 透明区，内嵌半透明圆角小条，支持下滑拖拽关闭（对齐长按菜单抽屉） -->
+                <Grid Grid.Row="0"
+                      HeightRequest="32"
+                      BackgroundColor="Transparent"
+                      VerticalOptions="Start">
+                    <BoxView x:Name="GripBar"
+                             WidthRequest="36" HeightRequest="4"
+                             CornerRadius="2"
+                             Color="#50000000"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center" />
+                    <Grid.GestureRecognizers>
+                        <PanGestureRecognizer PanUpdated="OnGripPan" />
+                    </Grid.GestureRecognizers>
+                </Grid>
                 <ScrollView Grid.Row="1"
                             x:Name="ContentScroll"
                             VerticalScrollBarVisibility="Never">
