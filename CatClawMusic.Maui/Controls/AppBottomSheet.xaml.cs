@@ -105,11 +105,13 @@ public partial class AppBottomSheet : ContentView
             SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
-            SheetCard.ClearValue(HeightRequestProperty);
-            var screenH = DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
-            // 关键：给内部 Grid 设 HeightRequest——SheetCard 的 End 布局让 Border 高度自适应内容，
-            // Grid 的 * 行退化为 0；给 Grid 强制高度后 * 行才能分到空间，ScrollView 才有高度
-            SheetGrid.HeightRequest = screenH * 0.8;
+            var screenH = ResolveHostHeight();
+            var sheetH = screenH * 0.8;
+            // 双保险：Border 本体固定高度 + 内部 Grid 同步给高。
+            // 仅给 Grid 设 HeightRequest 不可靠——SheetCard 是 wrap-content 测量（无限约束），
+            // Grid 的请求高度可能被忽略，抽屉会塌回内容自适应高度（此前只显示 ~40% 屏高的根因）
+            SheetCard.HeightRequest = sheetH;
+            SheetGrid.HeightRequest = sheetH;
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
         }
@@ -187,6 +189,20 @@ public partial class AppBottomSheet : ContentView
     {
         if (CloseOnMaskTapped)
             _ = CloseAsync();
+    }
+
+    /// <summary>解析宿主可用高度：优先沿元素树找已布局 Page 的真实高度
+    /// （自动跟随窗口方向/尺寸/系统栏），找不到时退回显示器物理尺寸。</summary>
+    private double ResolveHostHeight()
+    {
+        Element? node = Parent;
+        while (node != null)
+        {
+            if (node is Page page && page.Height > 0)
+                return page.Height;
+            node = node.Parent;
+        }
+        return DeviceDisplay.MainDisplayInfo.Height / DeviceDisplay.MainDisplayInfo.Density;
     }
 
 #if ANDROID
