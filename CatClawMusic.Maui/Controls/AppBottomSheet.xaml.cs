@@ -53,8 +53,6 @@ public partial class AppBottomSheet : ContentView
         _isOpen = true;
 
         this.InputTransparent = false;
-        this.IsVisible = true;
-        this.Opacity = 1;
 
         MaskLayer.Opacity = 0;
         SheetCard.Opacity = 0;
@@ -102,28 +100,32 @@ public partial class AppBottomSheet : ContentView
             SheetCard.VerticalOptions = LayoutOptions.End;
             SheetCard.HorizontalOptions = LayoutOptions.Fill;
             SheetCard.Margin = new Thickness(8, 0, 8, 8);
-            SheetCard.TranslationY = 600;
             SheetCard.Scale = 1;
             SheetCard.ClearValue(MaximumHeightRequestProperty);
             var screenH = ResolveScreenHeight();
             var sheetH = screenH * 0.8;
-            // 关键修复（同 AppPopup.PinToScreenHeight 的真机验证方案）：
-            // NowPlayingPage 宿主在 ViewPager2 等「无界高度」容器内，Fill 覆盖层会被父容器
-            // 实际高度钳制，End 锚定的 SheetCard 拿不到一屏空间，HeightRequest 不生效
-            //（表现为抽屉只有内容高度 ~40% 屏高）。必须先把覆盖层自身钉到一屏高并顶对齐。
-            this.VerticalOptions = LayoutOptions.Start;
-            this.HeightRequest = screenH;
-            // 双保险：Border 本体 + 内部 Grid 同时固定高度
+            // 同 FullScreen 模式原理：直接给 SheetCard/Grid 固定高度，且在置可见前设置——
+            // 首次测量即带正确高度，不依赖运行时改 HeightRequest 触发重新测量（嵌入式宿主中不可靠）
             SheetCard.HeightRequest = sheetH;
             SheetGrid.HeightRequest = sheetH;
             ContentScroll.ClearValue(HeightRequestProperty);
             ContentScroll.ClearValue(MaximumHeightRequestProperty);
-            Log.Debug("AppBottomSheet", $"[Open] Bottom: screenH={screenH:F0}, sheetH={sheetH:F0}, overlay={this.HeightRequest:F0}");
         }
+
+        // 关键：尺寸全部就绪后再置可见——首次测量即带正确高度，
+        // 不依赖「运行时改 HeightRequest 触发重新测量」（嵌入式宿主中不可靠，抽屉曾因此塌回内容高度）
+        this.IsVisible = true;
+        this.Opacity = 1;
 
 #if ANDROID
         ApplyBlurToSiblings();
 #endif
+
+        DumpState("open");
+        _ = Task.Delay(1500).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+        {
+            DumpState("settled");
+        }));
 
         MainThread.BeginInvokeOnMainThread(async () =>
         {
@@ -137,13 +139,44 @@ public partial class AppBottomSheet : ContentView
             }
             else
             {
+                // 嵌入式宿主中 TranslationY 的 handler 映射失效（MAUI 层归零但原生视图停留在初始位移，
+                // 卡片只露出底部一截），必须直写原生视图 translationY
                 await Task.WhenAll(
                     MaskLayer.FadeTo(1, 220, Easing.CubicOut),
-                    SheetCard.FadeTo(1, 200, Easing.CubicOut),
-                    SheetCard.TranslateTo(0, 0, 300, Easing.CubicOut)
+                    SheetCard.FadeTo(1, 180, Easing.CubicOut),
+                    AnimateCardTranslationYAsync(600, 0, 300)
                 );
+                SetCardTranslationY(0);
             }
         });
+    }
+
+    /// <summary>设置抽屉卡片位移（dp）。MAUI 属性与原生视图双写：嵌入式宿主中属性映射可能失效。</summary>
+    private void SetCardTranslationY(double dp)
+    {
+        SheetCard.TranslationY = dp;
+#if ANDROID
+        try
+        {
+            if (SheetCard.Handler?.PlatformView is global::Android.Views.View nv)
+                nv.TranslationY = (float)(dp * nv.Resources!.DisplayMetrics!.Density);
+        }
+        catch (Exception ex) { global::Android.Util.Log.Error("FMDBG", "set translation failed: " + ex.Message); }
+#endif
+    }
+
+    /// <summary>逐帧手动插值卡片 TranslationY（三次缓出），直写原生视图，不依赖 ViewExtensions 动画 ticker。</summary>
+    private async Task AnimateCardTranslationYAsync(double from, double to, uint durationMs)
+    {
+        const int frameMs = 16;
+        for (var t = 0; t < durationMs; t += frameMs)
+        {
+            await Task.Delay(frameMs);
+            var p = Math.Min(1.0, (t + frameMs) / (double)durationMs);
+            var eased = 1 - Math.Pow(1 - p, 3);
+            SetCardTranslationY(from + (to - from) * eased);
+        }
+        SetCardTranslationY(to);
     }
 
     public async Task CloseAsync()
@@ -167,7 +200,7 @@ public partial class AppBottomSheet : ContentView
             {
                 anim = Task.WhenAll(
                     MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                    SheetCard.TranslateTo(0, 600, 220, Easing.CubicIn),
+                    AnimateCardTranslationYAsync(SheetCard.TranslationY, 600, 200),
                     SheetCard.FadeTo(0, 180, Easing.CubicIn)
                 );
             }
@@ -196,10 +229,23 @@ public partial class AppBottomSheet : ContentView
             _ = CloseAsync();
     }
 
-    /// <summary>解析可用屏幕高度：优先沿元素树取宿主页真实布局高度（跟随窗口/系统栏），
-    /// 找不到时退回显示器物理尺寸换算的 dp 高度。</summary>
+    /// <summary>解析可用屏幕高度。Android 优先取原生窗口 CurrentWindowMetrics（真值，
+    /// 不受 MAUI 嵌入式宿主测量影响）；否则沿元素树取宿主页真实高度；最后退回显示器尺寸。</summary>
     private double ResolveScreenHeight()
     {
+#if ANDROID
+        try
+        {
+            var act = Platform.CurrentActivity;
+            var bounds = act?.Window?.WindowManager?.CurrentWindowMetrics?.Bounds;
+            if (bounds is { } b && b.Height() > 0)
+            {
+                var d = act!.Resources!.DisplayMetrics!.Density;
+                if (d > 0) return b.Height() / d;
+            }
+        }
+        catch { }
+#endif
         Element? node = Parent;
         while (node != null)
         {
@@ -215,6 +261,43 @@ public partial class AppBottomSheet : ContentView
         }
         catch { }
         return 800;
+    }
+
+    /// <summary>logcat 诊断：输出屏高来源与各层实际/请求高度，用于排查嵌入式宿主中的布局钳制。</summary>
+    private void DumpState(string phase)
+    {
+#if ANDROID
+        try
+        {
+            var page = FindPage();
+            string Nat(string name, Element el) =>
+                el?.Handler?.PlatformView is global::Android.Views.View nv
+                    ? $"{name}[{nv.Left},{nv.Top},{nv.Right},{nv.Bottom},ty={nv.TranslationY:F0}]" : $"{name}[null]";
+            global::Android.Util.Log.Info("FMDBG",
+                $"[{phase}] card={SheetCard.Height:F0}/{SheetCard.HeightRequest:F0} " +
+                $"grid={SheetGrid.Height:F0}/{SheetGrid.HeightRequest:F0} " +
+                $"ty={SheetCard.TranslationY:F0} op={SheetCard.Opacity:F2} " +
+                $"overlay={this.Height:F0}/{this.HeightRequest:F0} " +
+                $"pageH={page?.Height ?? -1:F0} screenH={ResolveScreenHeight():F0} " +
+                $"cardBounds={SheetCard.Bounds} parent={Parent?.GetType().Name} " +
+                $"{Nat("ov", this)} {Nat("root", RootGrid)} {Nat("card", SheetCard)} {Nat("grid", SheetGrid)}");
+        }
+        catch (Exception ex)
+        {
+            global::Android.Util.Log.Error("FMDBG", ex.ToString());
+        }
+#endif
+    }
+
+    private Page? FindPage()
+    {
+        Element? node = Parent;
+        while (node != null)
+        {
+            if (node is Page p) return p;
+            node = node.Parent;
+        }
+        return null;
     }
 
 #if ANDROID
