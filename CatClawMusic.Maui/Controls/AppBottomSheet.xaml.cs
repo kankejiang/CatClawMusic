@@ -31,6 +31,8 @@ public partial class AppBottomSheet : ContentView
     public event EventHandler? Closed;
 
     private bool _isOpen;
+    private double _panStartY;
+    private double _panStartTy;
 
     public AppBottomSheet()
     {
@@ -227,6 +229,34 @@ public partial class AppBottomSheet : ContentView
     {
         if (CloseOnMaskTapped)
             _ = CloseAsync();
+    }
+
+    /// <summary>抓握区下滑拖拽：拖动跟随 + 松手判断（超过 1/4 屏高关闭，否则回弹）。</summary>
+    private void OnGripPan(object sender, PanUpdatedEventArgs e)
+    {
+        // 仅底部抽屉模式支持拖拽关闭（Center/FullScreen 无抓握条且 GripBar 隐藏，不响应）
+        if (SheetMode != BottomSheetMode.Bottom) return;
+        switch (e.StatusType)
+        {
+            case GestureStatus.Started:
+                _panStartY = e.TotalY;
+                _panStartTy = SheetCard.TranslationY;
+                break;
+            case GestureStatus.Running:
+            {
+                var dy = e.TotalY - _panStartY;
+                if (dy > 0) SetCardTranslationY(_panStartTy + dy);
+                break;
+            }
+            case GestureStatus.Completed:
+            {
+                if (SheetCard.TranslationY > ResolveScreenHeight() * 0.25)
+                    _ = CloseAsync();
+                else
+                    _ = AnimateCardTranslationYAsync(SheetCard.TranslationY, 0, 180);
+                break;
+            }
+        }
     }
 
     /// <summary>解析可用屏幕高度。Android 优先取原生窗口 CurrentWindowMetrics（真值，

@@ -323,7 +323,18 @@ public abstract class DiscoverPageBase : ContentPage
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[PluginEntry] 打开失败: {ex.Message}");
-            try { await DisplayAlert("打开插件页面失败", ex.Message, "确定"); } catch { }
+            // 插件入口创建/导航失败时给用户提示。注意：Android 上当前页在导航过程中
+            // Handler/MauiContext 可能为 null，直接 this.DisplayAlert 会抛 NullReferenceException，
+            // 因此优先用 MainPage 弹（MainPage 常驻窗口，Handler 稳定）。
+            try
+            {
+                var main = Application.Current?.MainPage;
+                if (main != null && !ReferenceEquals(main, this))
+                    await main.DisplayAlert("打开插件页面失败", ex.Message, "确定");
+                else
+                    await DisplayAlert("打开插件页面失败", ex.Message, "确定");
+            }
+            catch { }
         }
     }
 
