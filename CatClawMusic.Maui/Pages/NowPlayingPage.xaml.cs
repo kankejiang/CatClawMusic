@@ -1075,12 +1075,14 @@ public partial class NowPlayingPage : ContentPage
                 TextColor = (Color)Application.Current.Resources["TextSecondaryColor"],
                 HorizontalOptions = LayoutOptions.Start,
             });
-            var modeRow = new HorizontalStackLayout { Spacing = 10 };
-            foreach (var m in modes)
+            // 3 个推荐模式卡用 3 等分 Grid 并排排布，避免 HorizontalStackLayout+Fill 把后面的卡挤出屏幕
+            var modeRow = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) } };
+            for (int i = 0; i < modes.Count; i++)
             {
-                var isCurrent = m.Title == currentLabel;
-                var card = CreateFmModeCard(m, isCurrent);
-                modeRow.Children.Add(card);
+                var isCurrent = modes[i].Title == currentLabel;
+                var card = CreateFmModeCard(modes[i], isCurrent);
+                Grid.SetColumn(card, i);
+                modeRow.Add(card);
             }
             container.Children.Add(modeRow);
         }
