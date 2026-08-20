@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
@@ -549,6 +550,15 @@ public class PluginManager : IPluginManager
         // 以字节方式加载程序集，避免锁定文件
         var fileBytes = File.ReadAllBytes(localPath);
         var assembly = Assembly.Load(fileBytes);
+
+        // 强制运行插件程序集的模块初始化器（<Module>.cctor）。
+        // Assembly.Load(byte[]) 不会立即执行 [ModuleInitializer]（lazy），而插件内部
+        // 可能靠模块初始化器注册 AppDomain.AssemblyResolve（如 LxSource 插件从嵌入
+        // 资源加载 Jint.dll/Acornima.dll）。若不先触发，紧随其后的 GetTypes() 扫描
+        // 到字段/方法签名引用第三方程序集类型的插件类型（如 LxScriptHost 引用
+        // Jint.Engine）时会抛 ReflectionTypeLoadException，导致安装失败。
+        try { RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle); }
+        catch (Exception ex) { Log.Debug("PluginManager", $"[PluginManager] 运行插件模块初始化器失败: {ex.Message}"); }
 
         Log.Debug("PluginManager", $"[PluginManager] Loaded assembly: {assembly.FullName}");
 
@@ -1154,6 +1164,11 @@ public class PluginManager : IPluginManager
                     // 以字节方式加载，避免文件锁定
                     var fileBytes = File.ReadAllBytes(entry.AssemblyPath);
                     var assembly = Assembly.Load(fileBytes);
+
+                    // 与 LoadAndRegisterPluginAsync 一致：强制运行模块初始化器，
+                    // 确保插件内部 AssemblyResolve（嵌入资源依赖）先于 GetTypes() 生效
+                    try { RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle); }
+                    catch (Exception ex) { Log.Debug("PluginManager", $"[PluginManager] 运行插件模块初始化器失败: {ex.Message}"); }
 
                     // 提取类型，处理部分加载失败
                     Type[] allTypes;
