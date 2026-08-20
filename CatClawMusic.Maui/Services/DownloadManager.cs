@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using CatClawMusic.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CatClawMusic.Maui.Services;
@@ -133,7 +134,7 @@ public partial class DownloadTaskItem : ObservableObject
 /// 下载管理器：维护下载任务队列（支持 URL 直下与网络歌曲流式下载），
 /// 提供并发控制、进度回调、暂停/继续/取消/删除、任务持久化与下载路径设置。
 /// </summary>
-public class DownloadManager : IDisposable
+public class DownloadManager : IDisposable, IDownloadManager
 {
     /// <summary>下载路径默认值（Android 外部存储根目录）</summary>
     public const string DefaultFolderPath = "/storage/emulated/0/CatClawMusic";
@@ -213,6 +214,12 @@ public class DownloadManager : IDisposable
         _ = RunAsync(item);
         return item;
     }
+
+    /// <summary>IDownloadManager 显式实现：入队并返回任务 ID（插件经 Core 接口访问）。</summary>
+    string IDownloadManager.EnqueueUrl(string url, string? fileName) => EnqueueUrl(url, fileName).Id;
+
+    /// <summary>当前任务数（IDownloadManager）。</summary>
+    int IDownloadManager.TaskCount => Tasks.Count;
 
     /// <summary>新建磁力（BT）下载任务：magnet: 链接由内置 BT 引擎下载（DHT/tracker 发现做种者）</summary>
     /// <param name="magnet">magnet: 链接</param>

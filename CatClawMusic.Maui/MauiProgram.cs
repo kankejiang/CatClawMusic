@@ -319,6 +319,9 @@ public static class MauiProgram
             };
             return dm;
         });
+        // 插件/外部组件经 Core 接口访问宿主下载管理器（DownloadManager 类型在 Maui 程序集不可跨引用）
+        services.AddSingleton<CatClawMusic.Core.Interfaces.IDownloadManager>(
+            sp => sp.GetRequiredService<Services.DownloadManager>());
         // Agent 浏览器：browser_open 工具经协调器在聊天页顶部弹出预览小窗口
         CatClawMusic.Core.Services.AI.AgentBrowserBridge.Navigator = (url, ct) =>
             CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.NavigateAndExtractAsync(url, ct);
