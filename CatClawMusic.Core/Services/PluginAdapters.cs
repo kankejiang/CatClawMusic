@@ -810,6 +810,34 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
             return new();
         }
 
+        /// <summary>异步歌单搜索；未实现返回 null。</summary>
+        public async Task<List<OnlinePlaylist>?> SearchPlaylistsAsync(string keyword, int page = 1, int pageSize = 20)
+        {
+            // 老插件无此方法：DIM null 兜底返回 null
+            var method = _targetType.GetMethod("SearchPlaylistsAsync");
+            object? result;
+            if (method == null) return null;
+            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            object?[] invokeArgs;
+            if (paramType != null && paramType.FullName == typeof(string).FullName)
+                invokeArgs = new object?[] { keyword, page, pageSize };
+            else
+                invokeArgs = new object?[] { keyword, page, pageSize };
+            result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "SearchPlaylistsAsync", invokeArgs);
+            if (result is List<OnlinePlaylist> typed) return typed;
+            if (result is System.Collections.IList list)
+            {
+                var items = new List<OnlinePlaylist>();
+                foreach (var item in list)
+                {
+                    var converted = PluginAdapterReflection.ConvertType<OnlinePlaylist>(item);
+                    if (converted != null) items.Add(converted);
+                }
+                return items;
+            }
+            return null;
+        }
+
         /// <summary>获取浏览器登录配置（反射调用插件方法；未实现返回 null）</summary>
         public async Task<BrowserLoginInfo?> GetBrowserLoginInfoAsync()
         {

@@ -257,7 +257,10 @@ public partial class MusicDatabase
             if (listens <= 0) continue; // 仅有 PlayHistory 无会话时不动，避免误清零
 
             var maxPlayed = rows.Max(r => r.PlayedAt);
-            var hist = await _database.Table<PlayHistory>().Where(h => h.SongId == grp.Key).FirstOrDefaultAsync();
+            // 预存为局部 int：sqlite-net 表达式编译器无法直接求值 IGrouping 捕获变量的 Key，
+            // 内联 grp.Key 会抛出 NotSupportedException（Cannot store type: PlaySession）
+            var songId = grp.Key;
+            var hist = await _database.Table<PlayHistory>().Where(h => h.SongId == songId).FirstOrDefaultAsync();
             if (hist != null)
             {
                 if (hist.PlayCount != listens)

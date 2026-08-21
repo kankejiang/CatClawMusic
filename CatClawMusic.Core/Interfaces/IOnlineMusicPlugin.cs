@@ -66,6 +66,13 @@ public interface IOnlineMusicPlugin : IPlugin
     /// <summary>排行榜列表（榜单可当作歌单打开）；未实现返回空列表</summary>
     Task<List<OnlinePlaylist>> GetToplistsAsync() => Task.FromResult(new List<OnlinePlaylist>());
 
+    /// <summary>歌单搜索（类似搜索引擎搜索后切到「歌单」tab）；未实现返回 null。</summary>
+    /// <param name="keyword">关键词</param>
+    /// <param name="page">页码（从 1 开始）</param>
+    /// <param name="pageSize">每页数量</param>
+    Task<List<OnlinePlaylist>?> SearchPlaylistsAsync(string keyword, int page = 1, int pageSize = 20)
+        => Task.FromResult<List<OnlinePlaylist>?>(null);
+
     // ── 账号登录（浏览器登录方式；由插件提供配置，宿主打开 WebView） ──
 
     /// <summary>

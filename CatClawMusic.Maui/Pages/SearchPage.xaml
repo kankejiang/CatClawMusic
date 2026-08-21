@@ -13,15 +13,11 @@
 
     <Grid Background="Transparent">
 
-        <CollectionView x:Name="DiscoverCollection"
-                        IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}"
-                        ItemsSource="{Binding DiscoverPageItems}"
-                        SelectionMode="None">
-            <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Vertical" />
-            </CollectionView.ItemsLayout>
-            <CollectionView.Header>
-                <VerticalStackLayout Padding="0,0,0,24" Spacing="0">
+        <ScrollView x:Name="DiscoverCollection"
+                    IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}"
+                    Orientation="Vertical">
+            <ScrollView.Behaviors><controls:ScrollPerformanceBehavior /></ScrollView.Behaviors>
+            <VerticalStackLayout Padding="0,0,0,24" Spacing="0">
                     <Grid Margin="18,16,18,10" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout VerticalOptions="Center">
                             <Label Text="发现" Style="{StaticResource PageTitleStyle}" />
@@ -520,13 +516,7 @@
 
                     <ActivityIndicator Margin="0,10" IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" Color="{DynamicResource PrimaryColor}" HorizontalOptions="Center" />
                 </VerticalStackLayout>
-            </CollectionView.Header>
-            <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <BoxView HeightRequest="0" />
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
+        </ScrollView>
 
         <!-- Chat Overlay: 不透明背景覆盖发现页；顶栏(返回/头像)/消息/迷你播放器/输入框各自独立一行，
              互不重叠。IsClippedToBounds 裁剪旋转列表的越界绘制/命中，防其干扰相邻行控件。 -->

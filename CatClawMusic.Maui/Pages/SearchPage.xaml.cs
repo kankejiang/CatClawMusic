@@ -346,7 +346,7 @@ public partial class SearchPage : DiscoverPageBase
     private void OnViewAllFavoritesClicked(object? sender, EventArgs e)
         => DesktopNavigation.TryGoToShell($"playlistdetail?playlistId=-2&name={Uri.EscapeDataString("收藏歌曲")}");
 
-    /// <summary>滚动到指定元素位置（适配 CollectionView 的实现）。</summary>
+    /// <summary>滚动到指定元素位置（适配 ScrollView 的实现）。</summary>
     private async Task ScrollToElementAsync(VisualElement element)
     {
         try
@@ -368,10 +368,7 @@ public partial class SearchPage : DiscoverPageBase
         }
         catch
         {
-            if (DiscoverCollection.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().Any())
-            {
-                DiscoverCollection.ScrollTo(items.Cast<object>().First(), position: ScrollToPosition.Start, animate: true);
-            }
+            await DiscoverCollection.ScrollToAsync(0, 0, true);
         }
     }
 
@@ -494,14 +491,14 @@ public partial class SearchPage : DiscoverPageBase
 #if ANDROID
         if (cv.Handler?.PlatformView != null)
         {
-            CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
+            CatClawMusic.Maui.Platforms.Android.HorizontalSwipeHelper.Attach(cv);
             return;
         }
         // Handler 尚未就绪：延迟一帧重试（Loaded 时 Handler 通常已就绪）
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (cv.Handler?.PlatformView != null)
-                CatClawMusic.Maui.Platforms.Android.ViewPagerGestureHelper.Attach(cv);
+                CatClawMusic.Maui.Platforms.Android.HorizontalSwipeHelper.Attach(cv);
         });
 #endif
     }

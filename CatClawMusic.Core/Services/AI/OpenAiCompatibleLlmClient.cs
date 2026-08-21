@@ -582,6 +582,10 @@ public class OpenAiCompatibleLlmClient : ILlmClient
             var provider = (config.Provider ?? "").ToLowerInvariant();
             if (provider is "deepseek" or "moonshot")
                 body["reasoning_effort"] = effort;
+            // NVIDIA（vLLM 后端）：仅对 DeepSeek 系列模型透传 reasoning_effort，其余模型不发送，避免未知参数报错
+            else if (provider == "nvidia"
+                     && (config.Model ?? "").Contains("deepseek-ai/", StringComparison.OrdinalIgnoreCase))
+                body["reasoning_effort"] = effort;
         }
 
         if (tools != null && tools.Count > 0)

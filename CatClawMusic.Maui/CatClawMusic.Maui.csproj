@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0-android</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>net11.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>CatClawMusic.Maui</RootNamespace>
@@ -10,7 +10,7 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<LangVersion>13.0</LangVersion>
+		<LangVersion>preview</LangVersion>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<ApplicationTitle>猫爪音乐</ApplicationTitle>
@@ -56,9 +56,13 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 
-		<!-- 使用 Mono 运行时（.NET 10 Android 默认，CoreCLR 实验性且调试器有问题） -->
+		<!-- 运行时说明：.NET 11 Android 仅支持 CoreCLR（NETSDK1242 禁止 Mono）。CoreCLR Release 下
+		     FixAbstractMethodsStep 修补 R2R 预编译 binding 程序集时会报 XALNS7015（dotnet/android#11025）。
+		     CoreCLR targets 默认在 Release 打开 PublishReadyToRun（R2R 预编译），SDK 尚未修复该 bug，
+		     故此处显式关闭 R2R，回退为纯 IL + 运行时 JIT，规避 XALNS7015。 -->
 		<!-- Android release build settings -->
 		<RunAOTCompilation Condition="'$(Configuration)' == 'Release'">false</RunAOTCompilation>
+		<PublishReadyToRun Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</PublishReadyToRun>
 		<!-- 插件系统依赖运行时动态加载（Assembly.Load 独立 .ccp 程序集）。
 		     裁剪（trimmer）无法分析插件代码，会重写/移除插件引用的宿主类型，
 		     导致安装插件时报"未找到有效的IPlugin实现"（typeref 解析失败）。
@@ -128,10 +132,10 @@
 		<PackageReference Include="Xamarin.AndroidX.Media3.Datasource" Version="1.10.1.1" />
 		<!-- 原生 ViewPager2：Android 端用其承载 5 个 MAUI 页，水平分页位移由 GPU 合成，
 		     根治 net10 下 TranslationX 手动画面导致的左右滑动抽搐 -->
-		<PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.10" />
+		<PackageReference Include="Xamarin.AndroidX.ViewPager2" Version="1.1.0.11" />
 		<!-- 显式引入 Browser 包：MAUI WebAuthenticator 内部生成 CustomTabsServiceConnectionImpl.java
 		     等桩代码，依赖 androidx.browser.customtabs.*，但 SDK 不会自动传递该依赖 -->
-		<PackageReference Include="Xamarin.AndroidX.Browser" Version="1.8.0.11" />
+		<PackageReference Include="Xamarin.AndroidX.Browser" Version="1.10.0.1" />
 	</ItemGroup>
 
 	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup）。
@@ -147,6 +151,12 @@
 		<AndroidSigningKeyAlias>catclaw</AndroidSigningKeyAlias>
 		<AndroidSigningKeyPass>$(CatClawKeyPass)</AndroidSigningKeyPass>
 		<AndroidSigningStorePass>$(CatClawStorePass)</AndroidSigningStorePass>
+		<!-- 启动闪退修复：.NET 9/10 Android 的 JNI Marshal Methods（AndroidEnableMarshalMethods，
+		     默认开启）在 Release 增量构建/多 ABI 场景下偶发 ACW 原生方法未注册，
+		     表现为 java.lang.UnsatisfiedLinkError: No implementation found for
+		     crc6488302ad6e9e4df1a.MauiApplication.n_onCreate()。显式关闭回退到传统
+		     RegisterNatives 运行时注册路径。 -->
+		<AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
 	</PropertyGroup>
 
 	<!-- 开发调试（Debug）：关闭 Fast Assembly Deployment，避免物理机部署时

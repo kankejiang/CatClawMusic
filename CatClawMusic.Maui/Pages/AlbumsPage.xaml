@@ -7,7 +7,6 @@
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
              xmlns:data="clr-namespace:CatClawMusic.Data;assembly=CatClawMusic.Data"
              x:Class="CatClawMusic.Maui.Pages.AlbumsPage"
-             x:DataType="vm:AlbumsViewModel"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabAlbums]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
              Shell.NavBarIsVisible="False">

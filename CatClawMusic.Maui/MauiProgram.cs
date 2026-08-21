@@ -63,6 +63,12 @@ public static class MauiProgram
                 // 栈式原生 ViewPager2 导航容器（给 Shell 子页的进出也套上原生水平滑动转场）
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.PagerNavigator),
                     typeof(CatClawMusic.Maui.Platforms.Android.PagerNavigatorHandler));
+                // 方向仲裁 ScrollView：解决发现页卡片嵌套在纵向 ScrollView 内无法左右滑动。
+                // 注意：勿用同样的方式替换 CollectionView —— 其平台视图是 MauiRecyclerView(带 ItemsSource
+                // 绑定/滚动到底等能力)，替换成裸 RecyclerView 会导致辣屏发现页不渲染内容。横滑卡片与外层
+                // 的手势冲突统一由 HorizontalSwipeHelper 的 requestDisallowInterceptTouchEvent 处理。
+                handlers.AddHandler(typeof(Microsoft.Maui.Controls.ScrollView),
+                    typeof(CatClawMusic.Maui.Platforms.Android.DirectionalScrollViewHandler));
 #endif
 #if WINDOWS
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),

@@ -7,7 +7,6 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:data="clr-namespace:CatClawMusic.Data;assembly=CatClawMusic.Data"
              x:Class="CatClawMusic.Maui.Pages.DesktopArtistsPage"
-             x:DataType="vm:ArtistsViewModel"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Artists]}"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 

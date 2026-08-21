@@ -1,6 +1,6 @@
-﻿# 猫爪音乐 Release APK 构建脚本
+# 猫爪音乐 Release APK 构建脚本
 # 用法: .\build-release.ps1
-# 输出: CatClawMusic.Maui\bin\Release\net10.0-android\publish\com.catclaw.music-Signed.apk
+# 输出: CatClawMusic.Maui\bin\Release\net11.0-android\publish\com.catclaw.music-Signed.apk
 #
 # 说明: 脚本结尾会等待按键再关闭窗口，便于在双击运行时查看构建结果/报错。
 #       若从已打开的终端运行，构建完成后按 Enter 即可退出。
@@ -25,7 +25,7 @@ function Pause-And-Exit {
 
 # === 配置 ===
 $ProjectPath = "CatClawMusic.Maui\CatClawMusic.Maui.csproj"
-$TargetFramework = "net10.0-android"
+$TargetFramework = "net11.0-android"
 $Config = "Release"
 
 # 签名信息（与 SIGNING.md 一致）

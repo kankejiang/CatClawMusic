@@ -116,7 +116,7 @@ public class LlmProviderInfo
     /// <summary>
     /// 获取所有内置支持的 LLM 服务商列表（2026-08 官方接口）
     /// </summary>
-    /// <returns>包含 DeepSeek、魔搭、llama.cpp、智谱、Moonshot、通义千问、讯飞星火、自定义的数组</returns>
+    /// <returns>包含 DeepSeek、魔搭、llama.cpp、智谱、Moonshot、通义千问、讯飞星火、NVIDIA、OpenCode Go、自定义的数组</returns>
     public static LlmProviderInfo[] GetAll() => new[]
     {
         // DeepSeek V4 系列（2026-08 官方：deepseek-v4-flash / deepseek-v4-pro，1M 上下文）
@@ -131,6 +131,10 @@ public class LlmProviderInfo
         new LlmProviderInfo { Id = "qwen", Name = "通义千问", DefaultApiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1", DefaultModel = "", PresetModels = new[] { "qwen3.8-max", "qwen3.7-plus", "qwen3.7-flash" } },
         // 讯飞星火：spark 命名系列（lite/pro/max/4.0-ultra）
         new LlmProviderInfo { Id = "spark", Name = "讯飞星火", DefaultApiUrl = "https://spark-api-open.xf-yun.com/v1", DefaultModel = "", PresetModels = new[] { "spark-4.0-ultra", "spark-max", "spark-pro", "spark-lite" } },
+        // NVIDIA NIM（build.nvidia.com，2026-08）：OpenAI 兼容端点，Base URL 必须带 /v1；API Key 为 nvapi- 前缀。
+        // 模型 ID 为 "{组织}/{模型}" 格式；NVIDIA 目录含 Nemotron/Llama/Phi/Nemotron-DeepSeek 等。
+        // 也可在设置页用"获取模型列表"拉取当前账号可用的全部模型。
+        new LlmProviderInfo { Id = "nvidia", Name = "NVIDIA NIM", DefaultApiUrl = "https://integrate.api.nvidia.com/v1", DefaultModel = "nvidia/llama-3.1-nemotron-nano-8b-v1", PresetModels = new[] { "nvidia/llama-3.1-nemotron-nano-8b-v1", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct", "microsoft/phi-4-mini-instruct", "mistralai/mistral-nemotron" } },
         // OpenCode Go（opencode.ai/docs/go）：订阅制 OpenAI 兼容网关（$10/月，额度用尽后可继续用免费模型）。
         // 仅收录官方 /v1/chat/completions 兼容模型（实测官方 /v1/models 无 *-free slug——
         // 免费模型是 opencode-go-proxy 本地代理的概念：把地址改 http://127.0.0.1:8787/v1 后手填

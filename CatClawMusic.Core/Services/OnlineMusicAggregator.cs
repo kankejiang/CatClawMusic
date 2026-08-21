@@ -116,4 +116,99 @@ public class OnlineMusicAggregator
         }
         return null;
     }
+
+    /// <summary>合并所有插件的歌单列表（分平台返回，不跨平台去重）。
+    /// <para>category=null：取各插件的默认/推荐歌单（最热/最新）；category 有值时传给每个插件。</para>
+    /// </summary>
+    public async Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null)
+    {
+        var providers = GetProviders();
+        if (providers.Count == 0) return new List<OnlinePlaylist>();
+        var tasks = providers.Select(async p =>
+        {
+            try { return await p.GetPlaylistsAsync(category).ConfigureAwait(false); }
+            catch { return new List<OnlinePlaylist>(); }
+        }).ToArray();
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        var list = new List<OnlinePlaylist>();
+        foreach (var r in results)
+        {
+            if (r == null || r.Count == 0) continue;
+            foreach (var pl in r)
+            {
+                if (string.IsNullOrEmpty(pl.Platform))
+                    pl.Platform = providers.FirstOrDefault(x => x.PlatformName == pl.Platform)?.PlatformName ?? "";
+            }
+            list.AddRange(r);
+        }
+        return list;
+    }
+
+    /// <summary>合并所有插件的排行榜列表（分平台返回，每个插件通常返回 20~30 个榜单）。</summary>
+    public async Task<List<OnlinePlaylist>> GetToplistsAsync()
+    {
+        var providers = GetProviders();
+        if (providers.Count == 0) return new List<OnlinePlaylist>();
+        var tasks = providers.Select(async p =>
+        {
+            try { return await p.GetToplistsAsync().ConfigureAwait(false); }
+            catch { return new List<OnlinePlaylist>(); }
+        }).ToArray();
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        var list = new List<OnlinePlaylist>();
+        foreach (var r in results)
+        {
+            if (r == null || r.Count == 0) continue;
+            list.AddRange(r);
+        }
+        return list;
+    }
+
+    /// <summary>打开歌单/榜单内歌曲（按 playlist.Platform 路由到对应插件）。失败返回 null。</summary>
+    public async Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
+    {
+        if (playlist == null) return null;
+        foreach (var p in GetProviders())
+        {
+            if (!string.IsNullOrEmpty(playlist.Platform) &&
+                !string.Equals(p.PlatformName, playlist.Platform, StringComparison.OrdinalIgnoreCase))
+                continue;
+            // Platform 为空时尝试所有插件：任何返回非空且非 null 的都采用
+            try
+            {
+                var r = await p.GetPlaylistSongsAsync(playlist, page, pageSize).ConfigureAwait(false);
+                if (r == null) continue;
+                // 路由命中：回填 PlatformName
+                foreach (var s in r)
+                {
+                    if (string.IsNullOrEmpty(s.PlatformName) && !string.IsNullOrEmpty(p.PlatformName))
+                        s.PlatformName = p.PlatformName;
+                }
+                return r;
+            }
+            catch { }
+        }
+        return null;
+    }
+
+    /// <summary>歌单搜索（并行查询全部插件，合并结果）。未实现返回空列表。</summary>
+    public async Task<List<OnlinePlaylist>> SearchPlaylistsAsync(string keyword, int page = 1, int pageSize = 20)
+    {
+        if (string.IsNullOrWhiteSpace(keyword)) return new List<OnlinePlaylist>();
+        var providers = GetProviders();
+        if (providers.Count == 0) return new List<OnlinePlaylist>();
+        var tasks = providers.Select(async p =>
+        {
+            try { return await p.SearchPlaylistsAsync(keyword, page, pageSize).ConfigureAwait(false); }
+            catch { return null; }
+        }).ToArray();
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        var list = new List<OnlinePlaylist>();
+        foreach (var r in results)
+        {
+            if (r == null || r.Count == 0) continue;
+            list.AddRange(r);
+        }
+        return list;
+    }
 }

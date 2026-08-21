@@ -142,16 +142,35 @@ public class DownloadManager : IDisposable, IDownloadManager
     /// <summary>下载路径偏好键</summary>
     public const string PrefKey = "download_folder_path";
 
-    private const int MaxConcurrent = 2;
+    /// <summary>最大并发下载任务数偏好键</summary>
+    public const string ConcurrentPrefKey = "download_max_concurrent";
+    /// <summary>每任务下载限速偏好键（KB/s，0=不限）</summary>
+    public const string SpeedPrefKey = "download_max_speed_kbps";
+
+    /// <summary>默认最大并发下载任务数</summary>
+    public const int DefaultConcurrent = 2;
+    /// <summary>并发上限（设置面板可选最小值~最大值；信号量容量取上限值）</summary>
+    public const int ConcurrentMin = 1;
+    public const int ConcurrentMax = 5;
+
     private static readonly string TasksFilePath =
         Path.Combine(FileSystem.AppDataDirectory, "download_tasks.json");
 
     private readonly HttpClient _http;
-    private readonly SemaphoreSlim _gate = new(MaxConcurrent);
+    /// <summary>排队任务等待"并发槽位空出"的通知信号（0 初始许可；ReleaseSlot 每次释放一个许可，无固定轮询）</summary>
+    private readonly SemaphoreSlim _slotWake = new(0);
     private readonly Dictionary<string, CancellationTokenSource> _ctsMap = new();
     private readonly Dictionary<string, Func<CancellationToken, Task<Stream?>>> _networkProviders = new();
     private readonly object _lock = new();
+    /// <summary>当前实际并发下载数（配对 <see cref="AcquireSlotAsync"/> / <see cref="ReleaseSlot"/>）</summary>
+    private int _active;
     private bool _disposed;
+
+    /// <summary>当前最大并发下载任务数（可运行时调整，立即生效）</summary>
+    public int ConcurrentLimit { get; private set; } = DefaultConcurrent;
+
+    /// <summary>每任务下载限速（字节/秒，0=不限）。设置后立即生效，仅作用于新下载的数据块。</summary>
+    public long MaxDownloadBytesPerSecond { get; private set; }
 
     /// <summary>磁力（BT）下载引擎（由 DI 注入；测试环境可为 null）</summary>
     private readonly BitTorrentDownloadService? _bt;
@@ -170,7 +189,49 @@ public class DownloadManager : IDisposable, IDownloadManager
         _bt = bt;
         _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _http.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
+        ConcurrentLimit = LoadConcurrentLimit();
+        MaxDownloadBytesPerSecond = LoadSpeedLimit();
         LoadTasks();
+    }
+
+    /// <summary>读取并发数偏好并夹取到 [1,5]</summary>
+    private static int LoadConcurrentLimit()
+    {
+        var v = Preferences.Default.Get(ConcurrentPrefKey, DefaultConcurrent);
+        return Math.Clamp(v, ConcurrentMin, ConcurrentMax);
+    }
+
+    /// <summary>读取每任务限速偏好（KB/s→字节/秒），非法值按 0（不限）</summary>
+    private static long LoadSpeedLimit()
+    {
+        var kbps = Preferences.Default.Get(SpeedPrefKey, 0);
+        return kbps > 0 ? kbps * 1024L : 0;
+    }
+
+    /// <summary>设置并发数上限（立即生效，并持久化）。提高并发时唤醒排队任务使其立即自动开始。</summary>
+    public void SetConcurrentLimit(int count)
+    {
+        var v = Math.Clamp(count, ConcurrentMin, ConcurrentMax);
+        int delta;
+        lock (_lock)
+        {
+            delta = v - ConcurrentLimit;
+            ConcurrentLimit = v;
+        }
+        if (delta > 0)
+        {
+            // 提升并发上限：补发对应数量的"槽位空出"通知，唤醒阻塞中的排队任务
+            try { _slotWake.Release(delta); } catch (SemaphoreFullException) { }
+        }
+        Preferences.Default.Set(ConcurrentPrefKey, v);
+    }
+
+    /// <summary>设置每任务限速（KB/s；0=不限）。立即生效并持久化。</summary>
+    public void SetSpeedLimitKbps(int kbps)
+    {
+        var safe = Math.Max(0, kbps);
+        MaxDownloadBytesPerSecond = safe > 0 ? safe * 1024L : 0;
+        Preferences.Default.Set(SpeedPrefKey, safe);
     }
 
     /// <summary>获取下载目录：优先用户设置，否则平台默认值</summary>
@@ -327,7 +388,6 @@ public class DownloadManager : IDisposable, IDownloadManager
             t.Status = DownloadStatus.Queued;
             t.IsPaused = false;
             t.Error = "";
-            t.DownloadedBytes = 0;
         });
         if (task.Kind == "network")
         {
@@ -412,11 +472,18 @@ public class DownloadManager : IDisposable, IDownloadManager
         return fileError;
     }
 
-    /// <summary>失败任务重新下载</summary>
+    /// <summary>失败任务重试 / 已完成任务重新下载</summary>
     public void Retry(string id)
     {
         var task = Find(id);
-        if (task == null || task.Status != DownloadStatus.Failed) return;
+        if (task == null || task.Status is not (DownloadStatus.Failed or DownloadStatus.Completed)) return;
+        // 已完成任务触发的是"重新下载"：清除旧结果与临时文件后从头下载（磁力已完成目录不重下，避免覆盖）
+        if (task.Status == DownloadStatus.Completed)
+        {
+            if (task.Kind == "magnet") return;
+            DeletePartFile(task);
+            try { if (File.Exists(task.LocalPath)) File.Delete(task.LocalPath); } catch { }
+        }
         UpdateTask(task, t =>
         {
             t.Status = DownloadStatus.Queued;
@@ -521,14 +588,15 @@ public class DownloadManager : IDisposable, IDownloadManager
 
     private async Task RunAsync(DownloadTaskItem task)
     {
-        await _gate.WaitAsync().ConfigureAwait(false);
+        var cts = new CancellationTokenSource();
+        lock (_lock) _ctsMap[task.Id] = cts;
+        var reserved = false;
         try
         {
-            if (_disposed) return;
-            if (IsTerminal(task)) return;
-
-            var cts = new CancellationTokenSource();
-            lock (_lock) _ctsMap[task.Id] = cts;
+            // 排队阶段即注册 cts：排队/等待 slot 的任务也能被取消，暂停同样生效
+            await AcquireSlotAsync(cts.Token).ConfigureAwait(false);
+            reserved = true;
+            if (_disposed || IsTerminal(task)) return;
 
             UpdateTask(task, t => { t.Status = DownloadStatus.Downloading; t.IsPaused = false; });
             try
@@ -544,14 +612,11 @@ public class DownloadManager : IDisposable, IDownloadManager
                 if (task.Status == DownloadStatus.Downloading)
                     MarkFailed(task, ex.Message);
             }
-            finally
-            {
-                lock (_lock) { _ctsMap.Remove(task.Id); cts.Dispose(); }
-            }
         }
         finally
         {
-            _gate.Release();
+            if (reserved) ReleaseSlot();
+            lock (_lock) { _ctsMap.Remove(task.Id); cts.Dispose(); }
         }
     }
 
@@ -560,14 +625,14 @@ public class DownloadManager : IDisposable, IDownloadManager
         if (provider == null) { MarkFailed(task, "缺少下载源"); return; }
         lock (_lock) _networkProviders[task.Id] = provider;
 
-        await _gate.WaitAsync().ConfigureAwait(false);
+        var cts = new CancellationTokenSource();
+        lock (_lock) _ctsMap[task.Id] = cts;
+        var reserved = false;
         try
         {
-            if (_disposed) return;
-            if (IsTerminal(task)) return;
-
-            var cts = new CancellationTokenSource();
-            lock (_lock) _ctsMap[task.Id] = cts;
+            await AcquireSlotAsync(cts.Token).ConfigureAwait(false);
+            reserved = true;
+            if (_disposed || IsTerminal(task)) return;
 
             UpdateTask(task, t => { t.Status = DownloadStatus.Downloading; t.IsPaused = false; });
             try
@@ -587,41 +652,84 @@ public class DownloadManager : IDisposable, IDownloadManager
                 if (task.Status == DownloadStatus.Downloading)
                     MarkFailed(task, ex.Message);
             }
-            finally
-            {
-                lock (_lock) { _ctsMap.Remove(task.Id); cts.Dispose(); }
-            }
         }
         finally
         {
-            _gate.Release();
+            if (reserved) ReleaseSlot();
+            lock (_lock) { _ctsMap.Remove(task.Id); cts.Dispose(); }
         }
     }
 
-    /// <summary>HTTP 下载：先探测总大小，再流式写入临时文件</summary>
+    /// <summary>获取一个下载并发槽位。并发未满时立即返回；已满则等待"槽位空出"通知，
+    /// 由 <see cref="ReleaseSlot"/> 或并发上限提升时唤醒，实现排队任务即时自动开始（无固定轮询）。</summary>
+    private async Task AcquireSlotAsync(CancellationToken ct)
+    {
+        while (true)
+        {
+            lock (_lock)
+            {
+                if (_active < ConcurrentLimit)
+                {
+                    _active++;
+                    return;
+                }
+            }
+            await _slotWake.WaitAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    private void ReleaseSlot()
+    {
+        lock (_lock) _active--;
+        // 释放一个空位许可，唤醒一个等待中的排队任务立即开始
+        try { _slotWake.Release(1); } catch (SemaphoreFullException) { }
+    }
+
+    /// <summary>HTTP 下载：先探测总大小，再流式写入临时文件。存在有效 .part 时优先用 Range 断点续传。</summary>
     private async Task DownloadFromUrlAsync(DownloadTaskItem task, CancellationToken ct)
     {
         var partPath = task.LocalPath + ".part";
-        DeletePartFile(task);
-
-        long total = -1;
-        using (var probe = new HttpRequestMessage(HttpMethod.Get, task.Url))
+        // 存在有效 .part（暂停遗留）时从断点续传，服务器需支持 HTTP Range
+        long resumeFrom = 0;
+        if (File.Exists(partPath))
         {
-            using var probeResp = await _http.SendAsync(probe, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-            probeResp.EnsureSuccessStatusCode();
-            total = probeResp.Content.Headers.ContentLength ?? -1;
-            UpdateTask(task, t => t.TotalBytes = total);
-
-            await using var src = await probeResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            await using var dst = new FileStream(partPath, FileMode.Create, FileAccess.Write);
-            await CopyStreamAsync(task, src, dst, total, ct).ConfigureAwait(false);
+            try { resumeFrom = new FileInfo(partPath).Length; } catch { resumeFrom = 0; }
+            if (resumeFrom <= 0) DeletePartFile(task);
         }
 
-        if (ct.IsCancellationRequested)
+        using (var req = new HttpRequestMessage(HttpMethod.Get, task.Url))
         {
-            DeletePartFile(task);
-            return;
+            if (resumeFrom > 0)
+                req.Headers.TryAddWithoutValidation("Range", $"bytes={resumeFrom}-");
+
+            using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+
+            if (resp.StatusCode == System.Net.HttpStatusCode.PartialContent)
+            {
+                // 服务器支持续传：追加写入 .part
+                resp.EnsureSuccessStatusCode();
+                var total = resp.Content.Headers.ContentRange?.Length ??
+                            resp.Content.Headers.ContentLength ?? resumeFrom;
+                UpdateTask(task, t => { t.TotalBytes = total; t.DownloadedBytes = resumeFrom; });
+                await using var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                await using var dst = new FileStream(partPath, FileMode.Append, FileAccess.Write);
+                await CopyStreamAsync(task, src, dst, total, ct, start: resumeFrom).ConfigureAwait(false);
+            }
+            else
+            {
+                // 服务器不支持 Range：从头下载
+                resp.EnsureSuccessStatusCode();
+                DeletePartFile(task);
+                var total = resp.Content.Headers.ContentLength ?? -1;
+                UpdateTask(task, t => t.TotalBytes = total);
+                await using var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                await using var dst = new FileStream(partPath, FileMode.Create, FileAccess.Write);
+                await CopyStreamAsync(task, src, dst, total, ct).ConfigureAwait(false);
+            }
         }
+
+        // 取消/暂停时保留 .part 供后续续传；正常完成才落盘为最终文件
+        if (ct.IsCancellationRequested) return;
         FinalizeDownload(task, partPath);
     }
 
@@ -642,36 +750,58 @@ public class DownloadManager : IDisposable, IDownloadManager
         FinalizeDownload(task, partPath);
     }
 
-    private async Task CopyStreamAsync(DownloadTaskItem task, Stream src, FileStream dst, long total, CancellationToken ct)
+    /// <summary>流式拷贝：进度/速度按 ~500ms 节流上报主线程，并按 <see cref="MaxDownloadBytesPerSecond"/> 限速。</summary>
+    private async Task CopyStreamAsync(DownloadTaskItem task, Stream src, FileStream dst, long total, CancellationToken ct, long start = 0)
     {
         var buffer = new byte[81920];
-        long read = 0;
+        long read = start;
         long lastTick = Environment.TickCount64;
-        long lastBytes = 0;
+        long lastBytes = start;
+        // 首次上报已下字节（断点续传时 >0），让进度条立即反映
+        UpdateTask(task, t => { if (total > 0) t.TotalBytes = total; t.DownloadedBytes = read; });
+
+        // 限速记账（滑动窗口累加已写字节，超出配额时 sleep 压制），限速可运行时即时生效
+        long limWindowStart = Environment.TickCount64;
+        long limBytes = 0;
+
         int n;
         while ((n = await src.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
         {
             await dst.WriteAsync(buffer, 0, n, ct).ConfigureAwait(false);
             read += n;
-            if (total > 0) UpdateTask(task, t => t.TotalBytes = total);
 
-            var now = Environment.TickCount64;
-            if (now - lastTick >= 500)
+            var speedLimit = MaxDownloadBytesPerSecond;
+            if (speedLimit > 0)
             {
-                var elapsedSec = (now - lastTick) / 1000.0;
+                limBytes += n;
+                var now = Environment.TickCount64;
+                var elapsed = now - limWindowStart;
+                if (elapsed >= 1000L)
+                {
+                    limWindowStart = now;
+                    limBytes = n;
+                }
+                else if (limBytes > speedLimit * elapsed / 1000.0)
+                {
+                    var over = limBytes - speedLimit * elapsed / 1000.0;
+                    var sleepMs = (int)(over * 1000.0 / speedLimit) + 1;
+                    await Task.Delay(Math.Min(sleepMs, 500), ct).ConfigureAwait(false);
+                }
+            }
+
+            if (Environment.TickCount64 - lastTick >= 500)
+            {
+                var elapsedSec = (Environment.TickCount64 - lastTick) / 1000.0;
                 var speed = (read - lastBytes) / Math.Max(elapsedSec, 0.001);
                 var speedText = $"{DownloadTaskItem.FormatBytes((long)speed)}/s";
                 UpdateTask(task, t =>
                 {
+                    if (total > 0) t.TotalBytes = total;
                     t.DownloadedBytes = read;
                     t.SpeedText = speedText;
                 });
-                lastTick = now;
+                lastTick = Environment.TickCount64;
                 lastBytes = read;
-            }
-            else
-            {
-                UpdateTask(task, t => t.DownloadedBytes = read);
             }
         }
         UpdateTask(task, t => { t.DownloadedBytes = read; t.SpeedText = ""; });
@@ -867,6 +997,6 @@ public class DownloadManager : IDisposable, IDownloadManager
             _ctsMap.Clear();
         }
         _http.Dispose();
-        _gate.Dispose();
+        _slotWake.Dispose();
     }
 }
