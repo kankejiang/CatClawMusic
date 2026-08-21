@@ -15,13 +15,11 @@ public class ContextMenuPopup : ContentView
     private readonly BoxView _mask;
     private readonly Border _card;
     private readonly VerticalStackLayout _cardContent;
-    private ScrollView? _contentScroll;
     private bool _isOpen;
     private double _maxWidth = 400;
     private double _maxHeight = 600;
     private double _pendingX;
     private double _pendingY;
-    private double _dragStartY;
     private const double CardWidth = 248;
     private const double EdgeMargin = 8;
 
@@ -101,7 +99,7 @@ public class ContextMenuPopup : ContentView
     /// <summary>抽屉模式：顶部 drag handle（拖动手势下滑关闭）+ 内容区 ScrollView（超高内部滚动）。</summary>
     private View BuildDrawerContent()
     {
-        // 顶部 32 DIP 高的抓握区；居中放一条 36×4 圆角半透明小条作为可视提示。
+        // 顶部 40 DIP 高的抓握区；居中放一条 36×4 圆角半透明小条作为可视提示。
         var handleBar = new Border
         {
             WidthRequest = 36,
@@ -114,11 +112,16 @@ public class ContextMenuPopup : ContentView
         };
         var handleArea = new Grid
         {
-            HeightRequest = 32,
+            HeightRequest = 40,
             Children = { handleBar }
         };
 
-        _contentScroll = new ScrollView
+        // PanGestureRecognizer 仅挂在拖拽把手上，不与 ScrollView 竞争触摸事件
+        var pan = new PanGestureRecognizer();
+        pan.PanUpdated += OnHandlePan;
+        handleArea.GestureRecognizers.Add(pan);
+
+        var contentScroll = new ScrollView
         {
             VerticalOptions = LayoutOptions.Fill,
             Content = _cardContent
@@ -133,35 +136,20 @@ public class ContextMenuPopup : ContentView
             }
         };
         root.Add(handleArea, 0, 0);
-        root.Add(_contentScroll, 0, 1);
-
-        // PanGestureRecognizer 挂在整个抽屉根容器上，确保从内容区也能流畅拖拽关闭
-        // 与 ScrollView 的协调：仅在内容区已滚到顶部且向下拖动时接管抽屉拖拽
-        var pan = new PanGestureRecognizer();
-        pan.PanUpdated += OnHandlePan;
-        root.GestureRecognizers.Add(pan);
+        root.Add(contentScroll, 0, 1);
 
         return root;
     }
 
-    /// <summary>抽屉拖拽处理：PanGestureRecognizer 挂在抽屉根容器上（非仅抓握区），
-    /// 确保从内容区也能流畅拖拽关闭。当 ScrollView 已滚到顶部且向下拖动时接管抽屉拖拽，
-    /// 否则放行给 ScrollView 内部滚动。</summary>
+    /// <summary>抽屉拖拽处理：PanGestureRecognizer 仅挂在拖拽把手上（40dp 高），不与 ScrollView 竞争触摸事件，
+    /// 拖动时直接更新卡片 TranslationY，松开后基于阈值关闭或回弹。</summary>
     private async void OnHandlePan(object? sender, PanUpdatedEventArgs e)
     {
         if (!IsDrawer || !_isOpen) return;
 
-        // 首次 Running 时记录手势起点时的 ScrollView 滚动位置
-        if (e.StatusType == GestureStatus.Running && e.TotalY == 0)
-            _dragStartY = _contentScroll?.ScrollY ?? 0;
-
         switch (e.StatusType)
         {
             case GestureStatus.Running:
-                // 内容区未在顶部(已上滚)、且手势向上：放行给 ScrollView 滚动
-                if (_dragStartY > 0 && e.TotalY < 0)
-                    return;
-
                 var ty = Math.Max(0, e.TotalY);
                 _card.TranslationY = ty;
                 var ratio = _card.Height > 0 ? Math.Min(1, ty / (_card.Height * 0.3)) : 0;
