@@ -1051,6 +1051,15 @@ public partial class NowPlayingPage : ContentPage
     {
         FmModeSheet.ClearContent();
 
+        // 一次性缓存资源查找，避免每个元素都走字典查找
+        var res = Application.Current!.Resources;
+        var textPrimary = (Color)res["TextPrimaryColor"];
+        var textSecondary = (Color)res["TextSecondaryColor"];
+        var cardBg = (Color)res["CardBackgroundColor"];
+        var stroke = (Color)res["GlassStrokeColor"];
+        var accentPink = Color.FromArgb("#f953c6");
+        var accentBg = Color.FromArgb("#1Af953c6");
+
         var container = new VerticalStackLayout { Spacing = 16, Padding = new Thickness(0, 4, 0, 0) };
 
         // 标题
@@ -1058,7 +1067,7 @@ public partial class NowPlayingPage : ContentPage
         {
             Text = "私人漫游模式",
             FontSize = 16, FontAttributes = FontAttributes.Bold,
-            TextColor = (Color)Application.Current!.Resources["TextPrimaryColor"],
+            TextColor = textPrimary,
             HorizontalOptions = LayoutOptions.Start,
         });
 
@@ -1072,7 +1081,7 @@ public partial class NowPlayingPage : ContentPage
             {
                 Text = "推荐模式",
                 FontSize = 12,
-                TextColor = (Color)Application.Current.Resources["TextSecondaryColor"],
+                TextColor = textSecondary,
                 HorizontalOptions = LayoutOptions.Start,
             });
             // 3 个推荐模式卡用 3 等分 Grid 并排排布，避免 HorizontalStackLayout+Fill 把后面的卡挤出屏幕
@@ -1080,7 +1089,7 @@ public partial class NowPlayingPage : ContentPage
             for (int i = 0; i < modes.Count; i++)
             {
                 var isCurrent = modes[i].Title == currentLabel;
-                var card = CreateFmModeCard(modes[i], isCurrent);
+                var card = CreateFmModeCard(modes[i], isCurrent, textPrimary, textSecondary, cardBg, stroke, accentPink, accentBg);
                 Grid.SetColumn(card, i);
                 modeRow.Add(card);
             }
@@ -1095,7 +1104,7 @@ public partial class NowPlayingPage : ContentPage
                 Text = "场景模式",
                 FontSize = 12,
                 Margin = new Thickness(0, 8, 0, 0),
-                TextColor = (Color)Application.Current.Resources["TextSecondaryColor"],
+                TextColor = textSecondary,
                 HorizontalOptions = LayoutOptions.Start,
             });
             int cols = 4;
@@ -1113,7 +1122,7 @@ public partial class NowPlayingPage : ContentPage
             {
                 var s = scenes[i];
                 var isCurrent = s.Title == currentLabel;
-                var chip = CreateFmSceneChip(s, isCurrent);
+                var chip = CreateFmSceneChip(s, isCurrent, textPrimary, cardBg, accentPink, accentBg);
                 grid.Add(chip, i % cols, i / cols);
             }
             container.Children.Add(grid);
@@ -1123,15 +1132,16 @@ public partial class NowPlayingPage : ContentPage
     }
 
     /// <summary>推荐模式卡（带标题+副标题+图标，选中高亮）</summary>
-    private Border CreateFmModeCard(FmModeCategory m, bool isCurrent)
+    private Border CreateFmModeCard(FmModeCategory m, bool isCurrent,
+        Color textPrimary, Color textSecondary, Color cardBg, Color stroke, Color accentPink, Color accentBg)
     {
         var border = new Border
         {
             Padding = new Thickness(14, 10),
             StrokeShape = new RoundRectangle { CornerRadius = 14 },
             StrokeThickness = isCurrent ? 2 : 1,
-            Stroke = isCurrent ? Color.FromArgb("#f953c6") : (Color)Application.Current!.Resources["GlassStrokeColor"]!,
-            BackgroundColor = isCurrent ? Color.FromArgb("#1Af953c6") : (Color)Application.Current.Resources["CardBackgroundColor"]!,
+            Stroke = isCurrent ? accentPink : stroke,
+            BackgroundColor = isCurrent ? accentBg : cardBg,
             HorizontalOptions = LayoutOptions.Fill,
         };
         border.GestureRecognizers.Add(new TapGestureRecognizer
@@ -1143,23 +1153,24 @@ public partial class NowPlayingPage : ContentPage
             }),
         });
         var stack = new VerticalStackLayout { Spacing = 4 };
-        stack.Children.Add(new Label { Text = $"{m.Icon} {m.Title}", FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = (Color)Application.Current.Resources["TextPrimaryColor"]! });
+        stack.Children.Add(new Label { Text = $"{m.Icon} {m.Title}", FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = textPrimary });
         if (!string.IsNullOrEmpty(m.SubTitle))
-            stack.Children.Add(new Label { Text = m.SubTitle, FontSize = 10, TextColor = (Color)Application.Current.Resources["TextSecondaryColor"]!, MaxLines = 2 });
+            stack.Children.Add(new Label { Text = m.SubTitle, FontSize = 10, TextColor = textSecondary, MaxLines = 2 });
         border.Content = stack;
         return border;
     }
 
     /// <summary>场景模式 Chip（圆角小卡片，选中高亮）</summary>
-    private Border CreateFmSceneChip(FmModeCategory s, bool isCurrent)
+    private Border CreateFmSceneChip(FmModeCategory s, bool isCurrent,
+        Color textPrimary, Color cardBg, Color accentPink, Color accentBg)
     {
         var border = new Border
         {
             Padding = new Thickness(10, 8),
             StrokeShape = new RoundRectangle { CornerRadius = 12 },
             StrokeThickness = isCurrent ? 2 : 0,
-            Stroke = isCurrent ? Color.FromArgb("#f953c6") : Colors.Transparent,
-            BackgroundColor = isCurrent ? Color.FromArgb("#1Af953c6") : (Color)Application.Current!.Resources["CardBackgroundColor"]!,
+            Stroke = isCurrent ? accentPink : Colors.Transparent,
+            BackgroundColor = isCurrent ? accentBg : cardBg,
             HorizontalOptions = LayoutOptions.Fill,
         };
         border.GestureRecognizers.Add(new TapGestureRecognizer
@@ -1175,7 +1186,7 @@ public partial class NowPlayingPage : ContentPage
             Text = s.Title,
             FontSize = 12,
             FontAttributes = isCurrent ? FontAttributes.Bold : FontAttributes.None,
-            TextColor = (Color)Application.Current.Resources["TextPrimaryColor"]!,
+            TextColor = textPrimary,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
         };

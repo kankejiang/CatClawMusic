@@ -119,10 +119,6 @@ public partial class AppBottomSheet : ContentView
         this.IsVisible = true;
         this.Opacity = 1;
 
-#if ANDROID
-        ApplyBlurToSiblings();
-#endif
-
         DumpState("open");
         _ = Task.Delay(1500).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -150,6 +146,11 @@ public partial class AppBottomSheet : ContentView
                 );
                 SetCardTranslationY(0);
             }
+
+#if ANDROID
+            // 动画完成后才施加模糊，避免与滑入动画竞争 GPU 资源导致丢帧
+            ApplyBlurToSiblings();
+#endif
         });
     }
 
