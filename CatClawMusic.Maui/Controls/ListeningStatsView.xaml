@@ -30,7 +30,7 @@
                             BackgroundColor="{Binding Range7BgColor}">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
-                                                  CommandParameter="{x:Int32 7}" />
+                                                  CommandParameter="7" />
                         </Border.GestureRecognizers>
                         <Label Text="近 7 天" FontSize="13" FontFamily="OpenSansSemibold"
                                TextColor="{Binding Range7TextColor}" />
@@ -39,7 +39,7 @@
                             BackgroundColor="{Binding Range30BgColor}">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
-                                                  CommandParameter="{x:Int32 30}" />
+                                                  CommandParameter="30" />
                         </Border.GestureRecognizers>
                         <Label Text="近 30 天" FontSize="13" FontFamily="OpenSansSemibold"
                                TextColor="{Binding Range30TextColor}" />
@@ -48,7 +48,7 @@
                             BackgroundColor="{Binding RangeAllBgColor}">
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding SwitchRangeCommand}"
-                                                  CommandParameter="{x:Int32 0}" />
+                                                  CommandParameter="0" />
                         </Border.GestureRecognizers>
                         <Label Text="全部" FontSize="13" FontFamily="OpenSansSemibold"
                                TextColor="{Binding RangeAllTextColor}" />
@@ -277,7 +277,7 @@
                                     BackgroundColor="{Binding CountMetricBgColor}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SwitchMetricCommand}"
-                                                          CommandParameter="{x:Boolean True}" />
+                                                          CommandParameter="True" />
                                 </Border.GestureRecognizers>
                                 <Label Text="次数" FontSize="11" FontFamily="OpenSansSemibold"
                                        TextColor="{Binding CountMetricTextColor}" />
@@ -286,7 +286,7 @@
                                     BackgroundColor="{Binding DurationMetricBgColor}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SwitchMetricCommand}"
-                                                          CommandParameter="{x:Boolean False}" />
+                                                          CommandParameter="False" />
                                 </Border.GestureRecognizers>
                                 <Label Text="时长" FontSize="11" FontFamily="OpenSansSemibold"
                                        TextColor="{Binding DurationMetricTextColor}" />

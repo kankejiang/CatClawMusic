@@ -45,9 +45,9 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
             LayoutParameters = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.MatchParent),
-            // 发现页（index 2）禁用手势滑动切 tab：卡片区域滑动只滚卡片，不会误切页；
-            // 其他页保留 ViewPager2 滑动手势（由 OnPageSelected 动态控制）。
-            UserInputEnabled = VirtualView.CurrentItem != 2
+            // 全页启用 ViewPager2 滑动手势：横滑卡片与页切换的冲突由 HorizontalSwipeHelper
+            // 通过 RequestDisallowInterceptTouchEvent 仲裁（卡片区域按下时禁止祖先拦截）。
+            UserInputEnabled = true
         };
         return vp;
     }
@@ -182,9 +182,9 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
 
         public override void OnPageSelected(int position)
         {
-            // 发现页（index 2）禁用手势滑动切页（卡片横向滑动不会带动外层）；
-            // 其他页恢复 ViewPager2 滑动手势。命令式 SetCurrentItem 不受影响。
-            _platformView.UserInputEnabled = position != 2;
+            // 所有页均启用 ViewPager2 滑动手势：横滑卡片与页切换的冲突由
+            // HorizontalSwipeHelper 的 RequestDisallowInterceptTouchEvent 仲裁，
+            // 无需在页级别禁用手势。
             _pager.NotifyPageSelected(position);
         }
 
