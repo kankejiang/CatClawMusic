@@ -30,6 +30,11 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     private int _heroIndex;
     private double _heroCardWidth;
     private const double HeroSpacing = 18;
+    /// <summary>上次响应式布局应用的尺寸，避免重复刷新</summary>
+    private Size _lastResponsiveSize = new(-1, -1);
+    /// <summary>卡片尺寸预设：按可见高度切换 标准 / 紧凑 / 超紧凑</summary>
+    private LayoutPreset _currentPreset = LayoutPreset.Regular;
+    private enum LayoutPreset { Regular, Compact, SuperCompact }
 
     /// <summary>英雄卡在 HeroTrack 中的起始下标（0=AI 卡，其后为插件快捷入口卡，英雄卡从 _heroStartIndex 开始）</summary>
     private int _heroStartIndex = 1;
@@ -78,6 +83,8 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 注意：本页被 DesktopMainPage 提取 Content 后，ContentPage 自身脱离可视化树，
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
+        // 根容器尺寸变化 → 横屏（高度偏小时）自适应卡片尺寸，缓解 AI 歌单卡过大 + 布局拥挤。
+        RootStack.SizeChanged += OnRootStackSizeChanged;
 
 #if WINDOWS
         // 聊天列表 Handler 建立后挂接 WinUI 滚轮反转 + 隐藏滚动条（幂等，见 FixChatMouseWheelDirection）
@@ -521,14 +528,22 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
     /// <summary>根据可见宽度计算每张 Hero 卡尺寸（方形：宽=高），目标一屏约 4 张，
     /// 并限制单卡尺寸（方形卡片随窗口过宽会变得巨大）；同时刷新圆点数量。
-    /// AI 助手卡（最左侧第一张）与英雄卡同尺寸。</summary>
-    private void LayoutHeroCards()
+    /// AI 助手卡（最左侧第一张）与英雄卡同尺寸。
+    /// 横屏（高度小）时进一步收窄单卡上限，避免 AI 入口卡过高挤占其他模块。</summary>
+    private void LayoutHeroCards(double? overrideCap = null)
     {
         HeroDots.Count = _vm.HeroCards.Count;
         if (HeroScroll.Width <= 0) return;
-        // 一屏约 4 张；方形卡限制在 140~220px，窗口再宽也不放大
+        // 一屏约 4 张；方形卡上限按布局预设下降（外部 overrideCap 优先，用于 ApplyResponsiveMetrics 统一档位）
         var cardW = (HeroScroll.Width - HeroSpacing * 4) / 4;
-        cardW = Math.Clamp(cardW, 140, 220);
+        double cap = overrideCap ?? (_currentPreset switch
+        {
+            LayoutPreset.SuperCompact => 136,
+            LayoutPreset.Compact => 176,
+            _ => 210
+        });
+        double minW = _currentPreset == LayoutPreset.SuperCompact ? 96 : 120;
+        cardW = Math.Clamp(cardW, minW, cap);
         _heroCardWidth = cardW;
 
         foreach (View child in HeroTrack.Children)
@@ -536,6 +551,288 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             // 方形卡片：宽高一致（覆盖模板中的固定高度）
             child.WidthRequest = cardW;
             child.HeightRequest = cardW;
+        }
+    }
+
+    /// <summary>根容器尺寸变化：首次或切横竖屏时触发响应式卡片尺寸重算。</summary>
+    private void OnRootStackSizeChanged(object? sender, EventArgs e)
+    {
+        // RootStack 在 ScrollView 内，其 Height 会被内容撑开至无限大，不能用作可视高度判断依据。
+        // 改用 HeroScroll.Height（横向 ScrollView 位于可视树内，高度受窗口约束，能真实反映可用空间）。
+        double w = HeroScroll.Width > 0 ? HeroScroll.Width : (sender is VisualElement el ? el.Width : 0);
+        double h = HeroScroll.Height > 0 ? HeroScroll.Height : 0;
+        // 若 HeroScroll 高度仍不可用，回退取本页所在窗口（父页面 DesktopMainPage）的 Height
+        if (h <= 0 && this.Parent is VisualElement p) h = p.Height;
+        if (h <= 0 && Window != null) h = Window.Height;
+        ApplyResponsiveMetrics(w, h);
+    }
+
+    /// <summary>横屏自适应卡片：依据【可视高度】（HeroScroll / 父窗口高度）分档
+    /// 下调 AI 歌单 / 每日推荐 / 推荐艺人 等卡片尺寸与间距，
+    /// 避免 AI 歌单单卡占据可视高度的 60%+ 导致布局过度拥挤。
+    /// 关键修复：不再使用 ScrollView 内被内容撑高的 RootStack.Height 做阈值。</summary>
+    private void ApplyResponsiveMetrics(double width, double height)
+    {
+        // width 允许为 0（Hero 卡按宽度计算，但高度维度判断仍可进行）
+        if (height <= 0) return;
+        // 仅以高度做档位依据；宽度变化单独驱动 Hero 卡重排
+        int hRounded = (int)Math.Round(height);
+        if (hRounded == (int)_lastResponsiveSize.Height)
+        {
+            LayoutHeroCards();
+            return;
+        }
+        _lastResponsiveSize = new Size(width, hRounded);
+
+        // 阈值按【可视高度】划分（参考手机横屏：
+        //   PC 大屏窗口 ≥ 860，平板 / 大折叠屏 ≥ 680，普通手机横屏 520~680，窄边高刷屏 / 安全区压缩 < 520）
+        LayoutPreset preset;
+        if (height >= 860) preset = LayoutPreset.Regular;
+        else if (height >= 620) preset = LayoutPreset.Regular; // 中等高度以上仍可常规
+        else if (height >= 460) preset = LayoutPreset.Compact;
+        else preset = LayoutPreset.SuperCompact;
+
+        bool presetChanged = preset != _currentPreset;
+        _currentPreset = preset;
+
+        // 预设切换 → 按档重设各横滑行/网格的固定尺寸。整体再缩小一档，确保横屏首屏至少可见 Hero+AI+每日。
+        // 元组：(AI 歌单行高, AI 卡宽, 每日行高, 每日卡宽, 艺人行高, 艺人卡宽, Hero 卡宽上限)
+        (double aiRowH, double aiCardW, double dailyRowH, double dailyCardW, double artistRowH, double artistCardW, double heroCap) = preset switch
+        {
+            LayoutPreset.Compact => (236, 184, 142, 104, 100, 66, 176),
+            LayoutPreset.SuperCompact => (186, 144, 114, 84, 82, 54, 136),
+            _ => (310, 240, 184, 136, 128, 82, 210)
+        };
+
+        if (presetChanged)
+        {
+            // ── AI 歌单横滑行 ──
+            AiPlaylistRow.HeightRequest = aiRowH;
+            AiPlaylistRow.ItemTemplate = BuildAiPlaylistCardTemplate(aiCardW);
+            ForceReloadItems(AiPlaylistRow);
+
+            // ── 每日推荐横滑行 ──
+            DailyList.HeightRequest = dailyRowH;
+            DailyList.ItemTemplate = BuildDailyCardTemplate(dailyCardW);
+            ForceReloadItems(DailyList);
+
+            // ── 推荐艺人横滑行 ──
+            ArtistsRow.HeightRequest = artistRowH;
+            ArtistsRow.ItemTemplate = BuildArtistCardTemplate(artistCardW);
+            ForceReloadItems(ArtistsRow);
+
+            // ── Hero 区 / 各分区间距同步收紧 ──
+            HeroWrap.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 0, 0, 2)
+                : new Thickness(0, 0, 0, preset == LayoutPreset.Compact ? 4 : 6);
+            HeroDots.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 0, 0, 6)
+                : new Thickness(0, 2, 0, preset == LayoutPreset.Compact ? 10 : 18);
+
+            // 同步调整分段 Tab 与页面头部的内边距（只在紧凑档收紧）
+            CategoryTabBar.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 8, 0, 10)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(0, 10, 0, 12)
+                    : new Thickness(0, 16, 0, 16);
+            RootStack.Padding = preset == LayoutPreset.SuperCompact
+                ? new Thickness(20, 2, 20, 18)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(22, 3, 22, 22)
+                    : new Thickness(26, 4, 26, 26);
+        }
+
+        // Hero 卡按新上限重排（无论 preset 是否变化都需要，因为宽度可能改变）
+        LayoutHeroCards(heroCap);
+    }
+
+    private DataTemplate BuildAiPlaylistCardTemplate(double cardW)
+    {
+        return new DataTemplate(() =>
+        {
+            var cover = new Border
+            {
+                WidthRequest = cardW,
+                HeightRequest = cardW,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16, 16, 0, 0) },
+                StrokeThickness = 0,
+            };
+            cover.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
+            var coverImg = new Image { Aspect = Aspect.AspectFill };
+            coverImg.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
+            cover.Content = coverImg;
+
+            var name = new Label
+            {
+                FontFamily = "OpenSansSemibold",
+                FontSize = cardW >= 200 ? 14 : 12.5,
+                MaxLines = 1
+            };
+            name.SetBinding(Label.TextProperty, "Name");
+            name.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
+
+            var reason = new Label
+            {
+                FontSize = cardW >= 200 ? 11 : 10,
+                MaxLines = cardW >= 200 ? 2 : 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            reason.SetBinding(Label.TextProperty, "Reason");
+            reason.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
+
+            var subtitle = new Label
+            {
+                FontSize = cardW >= 200 ? 10.5 : 9.5,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            subtitle.SetBinding(Label.TextProperty, "Subtitle");
+            subtitle.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
+
+            var body = new VerticalStackLayout
+            {
+                Padding = new Thickness(cardW >= 200 ? 12 : 9, cardW >= 200 ? 10 : 7, cardW >= 200 ? 12 : 9, cardW >= 200 ? 12 : 9),
+                Spacing = Math.Max(2, (cardW >= 200 ? 4 : 2)),
+                Children = { name, reason, subtitle }
+            };
+
+            var root = new VerticalStackLayout { Spacing = 0 };
+            root.Children.Add(cover);
+            root.Children.Add(body);
+
+            var card = new Border
+            {
+                WidthRequest = cardW,
+                StrokeShape = new RoundRectangle { CornerRadius = 16 },
+                StrokeThickness = 1,
+                Content = root
+            };
+            card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+            card.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += OnAiPlaylistTapped;
+            card.GestureRecognizers.Add(tap);
+            return card;
+        });
+    }
+
+    private DataTemplate BuildDailyCardTemplate(double cardW)
+    {
+        return new DataTemplate(() =>
+        {
+            var cover = new Border
+            {
+                WidthRequest = cardW,
+                HeightRequest = cardW,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(18, 18, 0, 0) },
+                StrokeThickness = 0
+            };
+            cover.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
+            var coverImg = new Image { WidthRequest = cardW, HeightRequest = cardW, Aspect = Aspect.AspectFill };
+            coverImg.SetBinding(Image.SourceProperty, new Binding("CoverArtPath") { TargetNullValue = "ic_music_note" });
+            cover.Content = coverImg;
+
+            var title = new Label
+            {
+                FontFamily = "OpenSansSemibold",
+                FontSize = cardW >= 130 ? 12.5 : 11,
+                MaxLines = 1
+            };
+            title.SetBinding(Label.TextProperty, "Title");
+            title.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
+
+            var artist = new Label
+            {
+                FontSize = cardW >= 130 ? 10.5 : 9.5,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            artist.SetBinding(Label.TextProperty, "Artist");
+            artist.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
+
+            var body = new VerticalStackLayout
+            {
+                Padding = new Thickness(8, 6, 8, 8),
+                Spacing = 2,
+                Children = { title, artist }
+            };
+            var root = new VerticalStackLayout { Spacing = 0 };
+            root.Children.Add(cover);
+            root.Children.Add(body);
+            var card = new Border
+            {
+                WidthRequest = cardW,
+                StrokeShape = new RoundRectangle { CornerRadius = 18 },
+                StrokeThickness = 1,
+                Content = root
+            };
+            card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+            card.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
+            return card;
+        });
+    }
+
+    private DataTemplate BuildArtistCardTemplate(double cardW)
+    {
+        return new DataTemplate(() =>
+        {
+            var avatarBorder = new Border
+            {
+                WidthRequest = cardW,
+                HeightRequest = cardW,
+                StrokeShape = new RoundRectangle { CornerRadius = cardW / 2.0 },
+                StrokeThickness = 0,
+                HorizontalOptions = LayoutOptions.Center
+            };
+            avatarBorder.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
+            var img = new Image { WidthRequest = cardW, HeightRequest = cardW, Aspect = Aspect.AspectFill };
+            img.SetBinding(Image.SourceProperty, "CoverSource");
+            avatarBorder.Content = img;
+
+            var name = new Label
+            {
+                FontFamily = "OpenSansSemibold",
+                FontSize = cardW >= 80 ? 13 : 11.5,
+                HorizontalOptions = LayoutOptions.Center,
+                MaxLines = 1
+            };
+            name.SetBinding(Label.TextProperty, "Name");
+
+            var subtitle = new Label
+            {
+                FontSize = cardW >= 80 ? 11 : 9.5,
+                HorizontalOptions = LayoutOptions.Center,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines = 1
+            };
+            subtitle.SetBinding(Label.TextProperty, "Subtitle");
+            subtitle.SetDynamicResource(Label.TextColorProperty, "TextHintColor");
+
+            var vsl = new VerticalStackLayout
+            {
+                WidthRequest = cardW + 8,
+                Spacing = 6,
+                Children = { avatarBorder, name, subtitle }
+            };
+            return vsl;
+        });
+    }
+
+    /// <summary>强制让 CollectionView 按新 ItemTemplate 重新渲染可视项：
+    /// 卸载 ItemsSource 再重新赋值，MAUI 会按新 DataTemplate 新建可视项；MVVM 源不变。</summary>
+    private static void ForceReloadItems(CollectionView cv)
+    {
+        try
+        {
+            if (cv == null) return;
+            var source = cv.ItemsSource;
+            if (source == null) return;
+            cv.ItemsSource = null;
+            cv.ItemsSource = source;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopDiscoverPage.xaml", $"[Responsive] ForceReloadItems 失败(忽略): {ex.Message}");
         }
     }
 
@@ -674,6 +971,8 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         _vm.ScrollToLatestMessageRequested += OnScrollToLatestMessageRequested;
         HeroScroll.SizeChanged -= OnHeroSizeChanged;
         HeroScroll.SizeChanged += OnHeroSizeChanged;
+        RootStack.SizeChanged -= OnRootStackSizeChanged;
+        RootStack.SizeChanged += OnRootStackSizeChanged;
     }
 
     /// <summary>解绑页面事件（在 OnDisappearing 中调用，避免页面不可见时仍处理回调导致内存泄漏或无效刷新）</summary>
@@ -685,6 +984,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         _vm.ChatHistoryLoaded -= OnChatHistoryLoaded;
         _vm.ScrollToLatestMessageRequested -= OnScrollToLatestMessageRequested;
         HeroScroll.SizeChanged -= OnHeroSizeChanged;
+        RootStack.SizeChanged -= OnRootStackSizeChanged;
     }
 
     protected override void OnDisappearing()
