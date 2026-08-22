@@ -27,10 +27,7 @@
                     <Border BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" StrokeThickness="0" StrokeShape="RoundRectangle 999" WidthRequest="20" HeightRequest="20">
                         <Label Text="AI" FontSize="8" FontAttributes="Bold" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
-                    <Border StrokeShape="RoundRectangle 999" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
-                            BackgroundColor="{DynamicResource CardBackgroundColor}" Padding="5,0">
-                        <Switch IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" Scale="0.6" HeightRequest="24" />
-                    </Border>
+                    <Switch IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" Scale="0.72" />
                 </HorizontalStackLayout>
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
