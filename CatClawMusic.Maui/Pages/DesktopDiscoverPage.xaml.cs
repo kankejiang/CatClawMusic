@@ -552,12 +552,9 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
         foreach (View child in HeroTrack.Children)
         {
-            // 英雄卡（Tag="hero"）在紧凑档应用扁宽 16:9 比例，降低 Hero 区高度、提升信息密度；
-            // AI 卡 / 插件快捷入口卡保持方形观感；常规档（PC 大窗）全部保持方形。
+            // 全部卡片保持正方形观感
             child.WidthRequest = cardW;
-            child.HeightRequest = (_currentPreset != LayoutPreset.Regular && child.ClassId == "hero")
-                ? cardW * 9 / 16
-                : cardW;
+            child.HeightRequest = cardW;
         }
     }
 

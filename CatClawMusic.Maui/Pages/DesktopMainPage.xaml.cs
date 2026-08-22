@@ -71,17 +71,9 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         SidebarLogo.IsVisible = false;
         RootGrid.RowDefinitions[2].Height = new GridLength(64);
         ApplyCompactPlayerBarMetrics();
-        // Android 端此页仅横屏复用：侧栏直接以 64dp 图标栏首帧呈现（与 ApplyResponsiveLayout 一致），
-        // 折叠分支隐藏的文字标签也同步隐藏，避免首帧图标栏出现文字溢出。
-        _compact = true;
-        RootGrid.ColumnDefinitions[0].Width = new GridLength(64);
-        LogoText.IsVisible = false;
-        NavDiscoverLabel.IsVisible = false;
-        NavLibraryLabel.IsVisible = false;
-        NavPlaylistsLabel.IsVisible = false;
-        SettingsLabel.IsVisible = false;
-        PlaylistHeader.IsVisible = false;
-        AddPlaylistButton.IsVisible = false;
+        // Android 横屏复用桌面布局：侧栏保持完整宽度（与竖屏版一致），不折叠为图标栏
+        _compact = false;
+        RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
 #endif
 
         // 顶部搜索/命令栏在两个平台都移除：发现页已有独立搜索框，顶部为重复入口
@@ -842,9 +834,8 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     {
         if (Width <= 0) return;
 #if ANDROID
-        // 手机横屏复用桌面布局：横屏宽度宽但高度稀缺，侧栏始终折叠为 64dp 图标栏，
-        // 把释放的横向空间让给内容区（歌单等次级入口叠入"我的歌单"列表，见折叠分支）。
-        const bool compact = true;
+        // Android 横屏复用桌面布局：侧栏保持完整宽度，不响应窗口宽度折叠
+        const bool compact = false;
 #else
         bool compact = Width < CompactThreshold;
 #endif
