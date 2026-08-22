@@ -36,18 +36,20 @@
                     Background="Transparent">
 
                 <Grid>
-                    <!-- 毛玻璃背景：与底部 TabBar 共用同一套磨砂参数，视觉上连为一体 -->
+                    <!-- 毛玻璃背景：封面图模糊做底，透出下层内容感 -->
                     <controls:FrostedBackground x:Name="MiniPlayerFrosted"
-                                                Source="{DynamicResource ThemeBackgroundImage}"
-                                                IsActive="{DynamicResource ThemeBackgroundEnabled}"
-                                                IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                                TintOpacity="{DynamicResource BottomBarTintOpacity}"
-                                                DimAmount="{DynamicResource BottomBarDimAmount}"
+                                                Source="{Binding CoverImage}"
+                                                IsActive="True"
+                                                IsVisible="True"
+                                                TintOpacity="0.5"
+                                                DimAmount="0.3"
                                                 TintColor="{DynamicResource TabBarGlassTint}"
-                                                Opacity="1.0"
+                                                Opacity="0.85"
                                                 UseNativeBlur="True"
                                                 Aspect="AspectFill"
                                                 InputTransparent="True" />
+                    <!-- 半透明底色保底（毛玻璃下面的基础色，确保分层清晰） -->
+                    <BoxView Color="{DynamicResource CardBackgroundColor}" InputTransparent="True" Opacity="0.6" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
                           ColumnSpacing="16"
@@ -155,18 +157,20 @@
                     Stroke="{DynamicResource BottomBarStrokeColor}"
                     Background="Transparent">
                 <Grid>
-            <!-- 毛玻璃背景：与迷你播放器共用同一套磨砂参数，视觉上连为一体 -->
+            <!-- 毛玻璃背景：封面图模糊做底，透出下层内容感 -->
             <controls:FrostedBackground x:Name="TabBarFrosted"
-                                        Source="{DynamicResource ThemeBackgroundImage}"
-                                        IsActive="{DynamicResource ThemeBackgroundEnabled}"
-                                        IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                        TintOpacity="{DynamicResource BottomBarTintOpacity}"
-                                        DimAmount="{DynamicResource BottomBarDimAmount}"
+                                        Source="{Binding CoverImage}"
+                                        IsActive="True"
+                                        IsVisible="True"
+                                        TintOpacity="0.5"
+                                        DimAmount="0.3"
                                         TintColor="{DynamicResource TabBarGlassTint}"
-                                        Opacity="1.0"
+                                        Opacity="0.85"
                                         UseNativeBlur="True"
                                         Aspect="AspectFill"
                                         InputTransparent="True" />
+            <!-- 半透明底色保底（毛玻璃下面的基础色，确保分层清晰） -->
+            <BoxView Color="{DynamicResource CardBackgroundColor}" InputTransparent="True" Opacity="0.6" />
 
             <Grid ColumnDefinitions="*,*,*,*"
                   Padding="4,0,4,0"
