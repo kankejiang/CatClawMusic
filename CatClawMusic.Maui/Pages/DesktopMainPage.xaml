@@ -19,8 +19,21 @@
         <Border x:Name="SidebarBorder" Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                 StrokeThickness="0,0,1,0"
                 Stroke="{DynamicResource DividerColor}"
-                BackgroundColor="{DynamicResource CardBackgroundColor}">
+                BackgroundColor="Transparent">
             <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
+                <!-- 毛玻璃背景层 -->
+                <controls:FrostedBackground Grid.RowSpan="5"
+                                            Source="{DynamicResource ThemeBackgroundImage}"
+                                            IsActive="{DynamicResource ThemeBackgroundEnabled}"
+                                            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+                                            TintOpacity="{DynamicResource BottomBarTintOpacity}"
+                                            DimAmount="{DynamicResource BottomBarDimAmount}"
+                                            TintColor="{DynamicResource TabBarGlassTint}"
+                                            UseNativeBlur="True"
+                                            Aspect="AspectFill"
+                                            InputTransparent="True" />
+                <!-- 半透明叠加层（毛玻璃表面色调） -->
+                <BoxView Grid.RowSpan="5" Color="{DynamicResource TabBarBackgroundColor}" InputTransparent="True" />
 
                 <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
                 <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,2,20,12"
