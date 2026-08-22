@@ -52,6 +52,11 @@
 		<!-- Platform min versions -->
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">31.0</SupportedOSPlatformVersion>
 		<TargetAndroidApi Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">36</TargetAndroidApi>
+		<!-- Release 拆分两个单 ABI 包：真机用 arm64，模拟器（x64）用 x86_64。
+		     构建脚本各自传 -r android-arm64 / -r android-x64，AndroidSupportedAbis 由所选
+		     RuntimeIdentifier 自动派生为单一 ABI，避免 FFmpeg 原生库在双 ABI 包里重复近 20MB。
+		     Debug 的 AutoAndroidRid Target 仍会在遇到 x64 模拟器时把 RuntimeIdentifiers 覆盖为
+		     android-x64，这里保留两个 RID 作为其候选集。 -->
 		<RuntimeIdentifiers Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64;android-x64</RuntimeIdentifiers>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
@@ -214,6 +219,21 @@
 			<Output TaskParameter="Lines" PropertyName="_AutoAndroidRidDecision" />
 		</ReadLinesFromFile>
 		<PropertyGroup Condition="'$(_AutoAndroidRidDecision)' == 'x64-only'">
+			<RuntimeIdentifiers>android-x64</RuntimeIdentifiers>
+		</PropertyGroup>
+	</Target>
+
+	<!-- Release 单 ABI 选择：build-release.ps1 传 -p:ReleaseAbi=arm64，build-x64.ps1 传
+	     -p:ReleaseAbi=x64。与 AutoAndroidRid 同理，在项目局部把 RuntimeIdentifiers 覆盖为单个
+	      RID，让 AndroidSupportedAbis 自动派生为单一 ABI（避免双 ABI 重复打包 FFmpeg 约 20MB），
+	      且不级联到引用的 Core/Data 项目（命令行 -p:RuntimeIdentifiers 会级联导致 MSB3030）。
+	     不传 ReleaseAbi 时维持默认双 RID。 -->
+	<Target Name="SelectReleaseAbi" BeforeTargets="_ResolveAndroidTooling"
+	        Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(ReleaseAbi)' != ''">
+		<PropertyGroup Condition="'$(ReleaseAbi)' == 'arm64'">
+			<RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+		</PropertyGroup>
+		<PropertyGroup Condition="'$(ReleaseAbi)' == 'x64'">
 			<RuntimeIdentifiers>android-x64</RuntimeIdentifiers>
 		</PropertyGroup>
 	</Target>

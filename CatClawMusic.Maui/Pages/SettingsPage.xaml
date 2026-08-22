@@ -9,7 +9,7 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid RowDefinitions="Auto,*,Auto"
+    <Grid RowDefinitions="Auto,*"
           Background="{DynamicResource PageBackgroundBrush}">
         <Grid.Behaviors>
             <controls:SafeAreaPaddingBehavior />
@@ -391,29 +391,5 @@
 
             </VerticalStackLayout>
         </ScrollView>
-
-        <!-- 底部毛玻璃底栏 -->
-        <Grid Grid.Row="2" x:Name="BottomGlassBar"
-              HeightRequest="52"
-              BackgroundColor="{DynamicResource TabBarBackgroundColor}"
-              IsVisible="{OnPlatform Default=false, Android=true}"
-              InputTransparent="True">
-            <controls:FrostedBackground
-                Source="{DynamicResource ThemeBackgroundImage}"
-                IsActive="{DynamicResource ThemeBackgroundEnabled}"
-                IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                TintColor="{DynamicResource TabBarGlassTint}"
-                TintOpacity="{DynamicResource BottomBarTintOpacity}"
-                DimAmount="{DynamicResource BottomBarDimAmount}"
-                Opacity="0.45"
-                Aspect="AspectFill"
-                UseNativeBlur="True"
-                InputTransparent="True" />
-            <BoxView HeightRequest="1"
-                     VerticalOptions="Start"
-                     BackgroundColor="{DynamicResource TabInactiveColor}"
-                     Opacity="0.22"
-                     InputTransparent="True" />
-        </Grid>
     </Grid>
 </ContentPage>

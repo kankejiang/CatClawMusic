@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui.Controls;
 
@@ -47,6 +48,46 @@ public class FrostedBackground : View
     public static readonly BindableProperty CacheKeyProperty =
         BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(FrostedBackground), null,
             propertyChanged: OnCacheKeyChanged);
+
+    // Release+裁剪下 DynamicResource 对 Source 的运行时推送不可靠（Source 根本不随之更新）。
+    // 因此在 Source 首次被赋为主题背景资源时【捕获资源键】，订阅 ThemeService.StaticApplied；
+    // 收到通知后直接从资源读回当前值 set 到控件，绕过 DynamicResource 的失效路径，实现立即生效。
+    // 播放页封面（绑定到 CoverImage，非主题背景资源且带 CacheKey）不会被捕获，避免重复重绘。
+    private string? _themeKey;
+    private bool _themeRefreshSubscribed;
+    private void CaptureThemeKeyIfThemeBound()
+    {
+        if (_themeKey != null) return;
+        if (Source != null && Application.Current?.Resources?.TryGetValue("ThemeBackgroundImage", out var s) == true
+            && ReferenceEquals(s, Source))
+        {
+            _themeKey = "ThemeBackgroundImage";
+        }
+    }
+
+    private void EnsureThemeRefreshSubscription()
+    {
+        if (_themeKey == null) return;   // 非主题背景：不订阅
+        if (_themeRefreshSubscribed) return;
+        ThemeService.StaticApplied += OnThemeStaticApplied;
+        _themeRefreshSubscribed = true;
+    }
+
+    /// <summary>收到主题刷新通知：从资源读回当前背景源并显式 set，绕过失效的 DynamicResource。</summary>
+    private void OnThemeStaticApplied()
+    {
+        if (_themeKey == null || Handler == null) return;
+        try
+        {
+            if (Application.Current?.Resources?.TryGetValue(_themeKey, out var s) == true && s is ImageSource current
+                && !ReferenceEquals(current, Source))
+            {
+                // 显式赋值为资源当前值；触发 OnSourceChanged → Handler.UpdateValue → 原生重载
+                SetValue(SourceProperty, current);
+            }
+        }
+        catch { }
+    }
 
     /// <summary>
     /// 用户是否正在滑动列表。滑动时暂停流体动画以释放主线程/GPU 资源，提升滑动流畅度。
@@ -131,7 +172,11 @@ public class FrostedBackground : View
     private static void OnSourceChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is FrostedBackground fb)
+        {
+            fb.CaptureThemeKeyIfThemeBound();
+            fb.EnsureThemeRefreshSubscription();
             fb.Handler?.UpdateValue(nameof(Source));
+        }
     }
 
     private static void OnIsActiveChanged(BindableObject bindable, object oldValue, object newValue)

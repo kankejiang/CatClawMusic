@@ -30,6 +30,10 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     /// <summary>打在播放页封面原生 ImageView.Tag 上的标记，供 GetTargetPx 识别并强制高分辨率解码。</summary>
     internal const string PlayerCoverTag = "catclaw_player_cover";
 
+    /// <summary>打在 MainPage 全屏背景 ImageView.Tag 上的标记，供 GetTargetPx 识别并按屏幕全分辨率解码。
+    /// 背景图是整屏显示的唯一大图，若沿用封顶 1024px 的缩略图策略会被放大铺满而发糊。</summary>
+    internal const string BackgroundImageTag = "catclaw_background_image";
+
     /// <summary>并发解码信号量：限制同时解码的封面数（默认 8），避免数百张同时解码打满线程池造成设备级卡顿。</summary>
     private static readonly SemaphoreSlim _decodeSemaphore = new(8, 8);
 
@@ -79,6 +83,16 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     {
         try
         {
+            // MainPage 全屏背景：整屏唯一大图，按 ImageView 实际物理像素 × 1.5 过采样解码，
+            // 不再沿用 1024 缩略图上限——否则 1080/2K 屏上背景被压到 1024 再放大铺满会发糊。
+            // 上限 4096 防止超大原图（如 8K 壁纸）解码内存失控（InSampleSize 已按目标边长降采样，不整页开图）。
+            if (imageView.Tag?.ToString() == BackgroundImageTag)
+            {
+                var maxPx = Math.Max(imageView.Width, imageView.Height);
+                if (maxPx <= 0) maxPx = imageView.Context?.Resources?.DisplayMetrics?.WidthPixels ?? 1080;
+                return (int)Math.Clamp(maxPx * 1.5f, 720, 4096);
+            }
+
             // 播放页封面：无论当前测量尺寸如何（含隐藏态 0 尺寸），一律按高分辨率解码，
             // 保证横屏/竖屏首次加载即为满分辨率，避免低清图被缓存后跨方向显示发虚。
             if (imageView.Tag?.ToString() == PlayerCoverTag)

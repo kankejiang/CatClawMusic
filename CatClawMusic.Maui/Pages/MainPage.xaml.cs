@@ -120,6 +120,7 @@ public partial class MainPage : ContentPage
                 SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
             }
         };
+
     }
 
     /// <summary>创建 5 个页面（全屏歌词 + 4 个 tab），按平台选择承载方式：

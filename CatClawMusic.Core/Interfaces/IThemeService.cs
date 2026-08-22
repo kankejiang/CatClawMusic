@@ -26,6 +26,11 @@ public interface IThemeService
     /// <summary>是否启用雾面动态背景（播放页/歌词页）</summary>
     bool FrostedBackgroundEnabled { get; }
 
+    /// <summary>主题/背景应用完成事件：ApplyTheme 结束时触发。
+    /// 用于修复运行时替换自定义背景时 DynamicResource 不通知原生视图、
+    /// 以及返回主页面后背景丢失的问题（页面侧收到后强制重刷背景。</summary>
+    event Action? Applied;
+
     /// <summary>切换当前主题</summary>
     /// <param name="theme">目标主题</param>
     void SetTheme(AppTheme theme);

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -12,23 +12,6 @@
     <Grid RowDefinitions="*,Auto,Auto"
           Background="{DynamicResource PageBackgroundBrush}"
           SafeAreaEdges="None">
-
-        <!-- 主题内置背景图片层（星空/天空静态图，跟随主题色与深浅模式自动切换） -->
-        <!-- RowSpan 3：延伸到底部导航栏之后，让 TabBar 毛玻璃有背景可透 -->
-        <Image x:Name="ThemeBackgroundImage"
-               Grid.RowSpan="3"
-               Aspect="AspectFill"
-               Source="{DynamicResource ThemeBackgroundImage}"
-               IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-               Opacity="1.0"
-               InputTransparent="True" />
-
-        <!-- 背景遮罩层：在主题背景图上加半透明暗色/亮色，确保文字可读 -->
-        <BoxView x:Name="BackgroundMask"
-                 Grid.RowSpan="3"
-                 Color="{DynamicResource CustomBackgroundMaskColor}"
-                 IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                 InputTransparent="True" />
 
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动 -->
         <Grid x:Name="ViewPagerGrid" Grid.Row="0"
@@ -54,7 +37,8 @@
 
                 <Grid>
                     <!-- 毛玻璃背景：与底部 TabBar 共用同一套磨砂参数，视觉上连为一体 -->
-                    <controls:FrostedBackground Source="{DynamicResource ThemeBackgroundImage}"
+                    <controls:FrostedBackground x:Name="MiniPlayerFrosted"
+                                                Source="{DynamicResource ThemeBackgroundImage}"
                                                 IsActive="{DynamicResource ThemeBackgroundEnabled}"
                                                 IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                                                 TintOpacity="{DynamicResource BottomBarTintOpacity}"
@@ -172,7 +156,8 @@
                     Background="Transparent">
                 <Grid>
             <!-- 毛玻璃背景：与迷你播放器共用同一套磨砂参数，视觉上连为一体 -->
-            <controls:FrostedBackground Source="{DynamicResource ThemeBackgroundImage}"
+            <controls:FrostedBackground x:Name="TabBarFrosted"
+                                        Source="{DynamicResource ThemeBackgroundImage}"
                                         IsActive="{DynamicResource ThemeBackgroundEnabled}"
                                         IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                                         TintOpacity="{DynamicResource BottomBarTintOpacity}"

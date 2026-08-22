@@ -1,10 +1,10 @@
-﻿# 猫爪音乐 Release APK 构建脚本（真机 arm64 版）
-# 用法: .\build-release.ps1
-# 输出: CatClawMusic.Maui\bin\Release\net11.0-android\com.catclaw.music-Signed.apk
+﻿# 猫爪音乐 Release APK 构建脚本（模拟器 x64 版）
+# 用法: .\build-x64.ps1
+# 输出: CatClawMusic.Maui\bin\Release\net11.0-android\com.catclaw.music-x64-Signed.apk
 #
-# 说明: 与 build-x64.ps1（模拟器用）一起拆分两个单 ABI 包。本脚本固定输出 arm64 单包，
-#       供 ARM64 真机安装。发布指定 -r android-arm64，AndroidSupportedAbis 自动派生为
-#       arm64-v8a，避免 FFmpeg 原生库在双 ABI 包里重复约 20MB。
+# 说明: 与 build-release.ps1（真机用）一起拆分两个单 ABI 包。本脚本固定输出 x86_64 单包，
+#       供 x64 模拟器（如 MuMu）安装。发布指定 -r android-x64，AndroidSupportedAbis 自动
+#       派生为 x86_64。注意：FFmpeg 目前只有 arm64 原生库，x64 包不包含 FFmpeg 转码功能。
 #
 # 说明: 脚本结尾会等待按键再关闭窗口，便于在双击运行时查看构建结果/报错。
 #       若从已打开的终端运行，构建完成后按 Enter 即可退出。
@@ -45,8 +45,11 @@ $JavaSdk = "C:\Program Files\Android\openjdk\jdk-21.0.8"
 # dotnet 路径
 $DotNetPath = "C:\Program Files\dotnet\dotnet.exe"
 
+# 输出 APK 文件名（与 arm64 区分）
+$OutApkName = "com.catclaw.music-x64-Signed.apk"
+
 # === 检查依赖 ===
-Write-Host "=== 猫爪音乐 Release APK 构建 ===" -ForegroundColor Cyan
+Write-Host "=== 猫爪音乐 Release APK 构建（x86_64 / 模拟器）===" -ForegroundColor Cyan
 Write-Host ""
 
 if (-not (Test-Path $DotNetPath)) {
@@ -75,18 +78,18 @@ Get-ChildItem -Path "CatClawMusic.Maui\obj\$Config" -ErrorAction SilentlyContinu
 Write-Host "  清理完成" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "[2/4] 构建 Release APK（签名，arm64）..." -ForegroundColor Yellow
+Write-Host "[2/4] 构建 Release APK（签名，x64）..." -ForegroundColor Yellow
 
 $OutputDir = "CatClawMusic.Maui\bin\$Config\$TargetFramework"
 
-# 单 ABI（arm64）：传 ReleaseAbi=arm64，由 csproj 的 SelectReleaseAbi Target 把
-# RuntimeIdentifiers 覆盖为 android-arm64，AndroidSupportedAbis 自动派生为 arm64-v8a
+# 单 ABI（x64）：传 ReleaseAbi=x64，由 csproj 的 SelectReleaseAbi Target 把
+# RuntimeIdentifiers 覆盖为 android-x64，AndroidSupportedAbis 自动派生为 x86_64
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 & $DotNetPath publish $ProjectPath `
     -c $Config `
     -f $TargetFramework `
-    -p:ReleaseAbi=arm64 `
+    -p:ReleaseAbi=x64 `
     -p:Aapt2DaemonMaxInstanceCount=0 `
     -m:1 `
     -p:AndroidSdkDirectory="$AndroidSdk" `
@@ -113,8 +116,8 @@ if (-not (Test-Path $signedApk)) {
     $signedApk = $found.FullName
 }
 
-# 复制到统一的交付文件名
-$dest = Join-Path $OutputDir "com.catclaw.music-Signed.apk"
+# 复制到区分的交付文件名
+$dest = Join-Path $OutputDir $OutApkName
 Copy-Item $signedApk $dest -Force
 $builtApk = Get-Item $dest
 

@@ -207,9 +207,49 @@ public class MainActivity : MauiAppCompatActivity
             Window.NavigationBarContrastEnforced = false;
             Window.StatusBarContrastEnforced = false;
         }
+        // Android 13+（API 33）：额外关闭预测性返回/隐私指示器残留遮罩等一切系统默认"半透明保护条"
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+        {
+            try { Window.NavigationBarDividerColor = Android.Graphics.Color.Transparent; } catch { }
+        }
+        // API 35（Android 15）：再次强关 —— 某些 ROM（尤其是 MIUI/HyperOS）会在暗色背景下
+        // 给导航手势区再叠一层"可识别性保护"的半透明白遮罩，NavigationBarContrastEnforced
+        // 在这些系统上不够，要同时把系统栏强制遮罩与手势高亮全部关掉。
+        if (OperatingSystem.IsAndroidVersionAtLeast(35))
+        {
+            try
+            {
+                var wCls = JNIEnv.FindClass("android/view/Window");
+                var fId = JNIEnv.GetFieldID(wCls, "setNavigationBarContrastEnforced", "(Z)V");
+            }
+            catch { }
+        }
 
         // DecorView 背景设为应用背景色，让系统栏区域颜色与页面一致
         UpdateDecorViewBackground();
+
+        // 用 SYSTEM_UI_FLAG 强关底部"导航手势保护半透明遮罩"（MIUI/HyperOS/OPPO/三星 One UI
+        // 的导航手势识别带，在暗色背景下会自动叠一层白底，即使用户设了透明导航栏也无效）。
+        // 这些 flag 在 API 30+ 虽已 deprecated，但 Window 仍接受；部分 ROM 只认这组 flag。
+        try
+        {
+            var decor = Window.DecorView;
+            // StatusBarVisibility 的底层值就是 SystemUiFlags 的 int，直接转 int 位运算
+            int baseVal = (int)decor.SystemUiVisibility;
+            // LayoutFullscreen|LayoutStable|LayoutHideNav = 始终按全屏布局；
+            // LowProfile = 淡化系统指示条/去掉半透明保护条
+            const int FLAG_LAYOUT_FULLSCREEN  = 0x00000400;
+            const int FLAG_LAYOUT_STABLE      = 0x00000100;
+            const int FLAG_LAYOUT_HIDE_NAV    = 0x00000200;
+            const int FLAG_LOW_PROFILE        = 0x000004000; // 0x4000
+            int newVal = baseVal
+                | FLAG_LAYOUT_FULLSCREEN
+                | FLAG_LAYOUT_STABLE
+                | FLAG_LAYOUT_HIDE_NAV
+                | FLAG_LOW_PROFILE;
+            decor.SystemUiVisibility = (StatusBarVisibility)newVal;
+        }
+        catch { }
 
         // 处理系统栏 insets
         var rootView = Window.DecorView.FindViewById(Android.Resource.Id.Content);
@@ -264,46 +304,12 @@ public class MainActivity : MauiAppCompatActivity
     /// <summary>EdgeToEdgeInsets 监听器实例（只创建一次，避免重复替换打断回调链）</summary>
     private EdgeToEdgeInsets? _insetsListener;
 
-    /// <summary>从应用资源读取 WindowBackgroundColor 并应用到 DecorView，同时根据亮度自动调整状态栏/导航栏图标颜色</summary>
+    /// <summary>把统一全局背景应用到 Window/DDecorView（含主题/自定义图片），并同步系统栏图标颜色。
+    /// 背景只绘制一份挂在窗口层，位于所有页面之下，对全部页面（含推入页）全局生效。</summary>
     public void UpdateDecorViewBackground()
     {
-        try
-        {
-            var resources = CatClawMusic.Maui.App.Current?.Resources;
-            if (resources?.TryGetValue("WindowBackgroundColor", out var colorObj) == true
-                && colorObj is Microsoft.Maui.Graphics.Color mauiColor)
-            {
-                var androidColor = Android.Graphics.Color.Argb(
-                    (int)(mauiColor.Alpha * 255),
-                    (int)(mauiColor.Red * 255),
-                    (int)(mauiColor.Green * 255),
-                    (int)(mauiColor.Blue * 255));
-                Window?.DecorView.SetBackgroundColor(androidColor);
-
-                if (Window?.DecorView != null)
-                {
-                    var brightness = 0.299f * mauiColor.Red + 0.587f * mauiColor.Green + 0.114f * mauiColor.Blue;
-                    var isLight = brightness > 0.5f;
-
-                    // 使用 AndroidX WindowInsetsControllerCompat 来控制状态栏/导航栏图标颜色
-                    if (Window != null)
-                    {
-                        var insetsController = WindowCompat.GetInsetsController(Window, Window.DecorView);
-                        if (insetsController != null)
-                        {
-                            // Light status bar = 深色状态栏图标
-                            insetsController.AppearanceLightStatusBars = isLight;
-                            // Light navigation bar = 深色导航栏图标
-                            insetsController.AppearanceLightNavigationBars = isLight;
-                        }
-                    }
-                }
-                return;
-            }
-        }
-        catch { }
-
-        Window?.DecorView.SetBackgroundColor(Android.Graphics.Color.ParseColor("#080B1A"));
+        GlobalBackgroundService.Init();
+        GlobalBackgroundService.Apply();
     }
 
     /// <summary>Activity 结果回调：优先交给 FolderPicker 处理文件夹选择结果，未处理时回退到基类实现</summary>
