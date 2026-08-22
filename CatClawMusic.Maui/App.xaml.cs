@@ -518,9 +518,26 @@ public partial class App : Application
                 ? MauiProgram.Services.GetRequiredService<Pages.DesktopMainPage>()
                 : MauiProgram.Services.GetRequiredService<Pages.MainPage>();
 
-            // 与 Windows CreateWindow 同模式：Clear+Add 强制 Shell 重建
-            shell.Items.Clear();
-            shell.Items.Add(new ShellContent { Content = newPage, Route = "main" });
+            // 复用现有 ShellContent 仅替换 Content，避免 Clear+Add 重建 ShellItem/ShellSection。
+            // Clear+Add 会触发 ShellItemHandler 复用（SwitchToShellItem）并拆除旧 ShellSection，
+            // 其 ShellSectionWrapperFragment 被 FragmentManager 移除但 view 未销毁（stale），
+            // 外层 ViewPager2 布局时抛 "Design assumption violated" IllegalStateException。
+            // 仅替换 Content 时 ShellSectionHandler 走 OnShellContentPropertyChanged →
+            // InvalidateShellContent → NotifyDataSetChanged，内层 adapter 换新 itemId 重建
+            // ShellContentNavigationFragment，外层 ViewPager2 完全不重建，规避崩溃。
+            var shellContent = shell.Items
+                .SelectMany(i => i.Items)
+                .SelectMany(s => s.Items)
+                .FirstOrDefault();
+
+            if (shellContent == null)
+            {
+                shell.Items.Add(new ShellContent { Content = newPage, Route = "main" });
+            }
+            else
+            {
+                shellContent.Content = newPage;
+            }
 
             // 横竖屏根切换可能丢失 UP/ScrollEnded 事件（旧视图树被销毁），
             // 显式复位触摸计数并广播交互结束，防止 IsUserInteracting 卡死

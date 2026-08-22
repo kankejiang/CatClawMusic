@@ -18,6 +18,7 @@ public class BlurConsumerViewHandler : ContentViewHandler
             [nameof(BlurConsumerView.LiquidGlass)] = MapLiquidGlass,
             [nameof(BlurConsumerView.LiquidGlassCornerRadius)] = MapLiquidGlass,
             [nameof(BlurConsumerView.BlurEnabled)] = MapBlurEnabled,
+            [nameof(BlurConsumerView.AlignToHostOrigin)] = MapAlignToHostOrigin,
         };
 
     public BlurConsumerViewHandler() : base(Mapper) { }
@@ -79,4 +80,7 @@ public class BlurConsumerViewHandler : ContentViewHandler
 
     static void MapBlurEnabled(BlurConsumerViewHandler handler, BlurConsumerView view)
         => handler.PlatformView.SetBlurEnabled(view.BlurEnabled);
+
+    static void MapAlignToHostOrigin(BlurConsumerViewHandler handler, BlurConsumerView view)
+        => handler.PlatformView.SetAlignToHostOrigin(view.AlignToHostOrigin);
 }

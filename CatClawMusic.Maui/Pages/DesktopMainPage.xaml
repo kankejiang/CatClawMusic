@@ -4,6 +4,7 @@
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
              xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             xmlns:vitrum="clr-namespace:Vitrum"
              x:Class="CatClawMusic.Maui.Pages.DesktopMainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
@@ -21,19 +22,15 @@
                 Stroke="{DynamicResource DividerColor}"
                 BackgroundColor="Transparent">
             <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
-                <!-- 毛玻璃背景层 -->
-                <controls:FrostedBackground Grid.RowSpan="5"
-                                            Source="{DynamicResource ThemeBackgroundImage}"
-                                            IsActive="{DynamicResource ThemeBackgroundEnabled}"
-                                            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                            TintOpacity="{DynamicResource BottomBarTintOpacity}"
-                                            DimAmount="{DynamicResource BottomBarDimAmount}"
-                                            TintColor="{DynamicResource TabBarGlassTint}"
-                                            UseNativeBlur="True"
-                                            Aspect="AspectFill"
-                                            InputTransparent="True" />
-                <!-- 半透明叠加层（毛玻璃表面色调） -->
-                <BoxView Grid.RowSpan="5" Color="{DynamicResource TabBarBackgroundColor}" InputTransparent="True" />
+                <!-- Windows 无 Vitrum handler 时的兜底底色（Android 被下方模糊层完全覆盖） -->
+                <BoxView Grid.RowSpan="5" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
+                <!-- 真毛玻璃背景：BlurConsumerView 实时模糊下层 BlurHostView 内容（与底部播放器一致）。
+                     AlignToHostOrigin：侧栏在宿主左侧，对齐宿主原点以显示内容区内容从左侧延伸进侧栏 -->
+                <vitrum:BlurConsumerView Grid.RowSpan="5" AlignToHostOrigin="True">
+                    <vitrum:BlurConsumerView.TintColor>
+                        <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                    </vitrum:BlurConsumerView.TintColor>
+                </vitrum:BlurConsumerView>
 
                 <!-- App Logo（Windows 桌面端显示；移动端横屏复用时隐藏以节省空间） -->
                 <Grid x:Name="SidebarLogo" Grid.Row="0" Padding="20,2,20,12"
@@ -185,32 +182,32 @@
         </Grid>
 
         <!-- ═══ Main Content Area (below title bar) ═══ -->
-        <Grid x:Name="ContentArea" Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
-              Background="{DynamicResource PageBackgroundBrush}"
-              IsClippedToBounds="True" />
+        <!-- BlurHostView 包裹内容区并延伸到屏幕底部（RowSpan=3），使滚动内容可滚到播放栏背后，
+             供播放栏的 BlurConsumerView 真毛玻璃透出其下层内容。
+             BlurConsumerView 必须是其 Grid 兄弟（不能在其内容子树内）。 -->
+        <vitrum:BlurHostView Grid.Row="0" Grid.RowSpan="3" Grid.Column="1"
+                             BlurRadius="24">
+            <Grid x:Name="ContentArea"
+                  Background="{DynamicResource PageBackgroundBrush}"
+                  IsClippedToBounds="True" />
+        </vitrum:BlurHostView>
 
         <!-- ═══ Bottom Player Bar ═══ -->
         <!-- 注意：Windows 平台 Border 不会把测量尺寸传递给其内容，导致内部 Grid 高度为 0。
              因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
         <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
               RowDefinitions="1,*">
-            <!-- 毛玻璃背景层 -->
-            <controls:FrostedBackground Grid.RowSpan="2"
-                                        Source="{DynamicResource ThemeBackgroundImage}"
-                                        IsActive="{DynamicResource ThemeBackgroundEnabled}"
-                                        IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-                                        TintOpacity="{DynamicResource BottomBarTintOpacity}"
-                                        DimAmount="{DynamicResource BottomBarDimAmount}"
-                                        TintColor="{DynamicResource TabBarGlassTint}"
-                                        UseNativeBlur="True"
-                                        Aspect="AspectFill"
-                                        InputTransparent="True" />
-            <!-- 卡片底色保底（毛玻璃未启用时也有清晰分层） -->
-            <BoxView Grid.RowSpan="2" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
             <BoxView Grid.Row="0" HeightRequest="1"
                      Color="{DynamicResource BottomBarStrokeColor}"
                      VerticalOptions="Start" />
-            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
+            <!-- Windows 无 Vitrum handler 时的兜底底色（Android 被下方模糊层完全覆盖） -->
+            <BoxView Grid.Row="1" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
+            <!-- 真毛玻璃背景：BlurConsumerView 实时模糊下层 BlurHostView 内容（透列表内容，非封面） -->
+            <vitrum:BlurConsumerView Grid.Row="1">
+                <vitrum:BlurConsumerView.TintColor>
+                    <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                </vitrum:BlurConsumerView.TintColor>
+                <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
 
                 <!-- Song Info (left) -->
                 <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
@@ -350,7 +347,8 @@
                             HorizontalOptions="Fill" MinimumWidthRequest="120"
                             VerticalOptions="Center" />
                 </Grid>
-            </Grid>
+                </Grid>
+            </vitrum:BlurConsumerView>
         </Grid>
 
     </Grid>

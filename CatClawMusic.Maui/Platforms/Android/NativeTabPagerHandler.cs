@@ -84,7 +84,10 @@ public class NativeTabPagerHandler : ViewHandler<NativeTabPager, ViewPager2>
         _adapter = null;
         VirtualView.PlatformSetCurrentItem = null;
         VirtualView.PlatformSetOffscreen = null;
-        platformView.Adapter = null;
+        // 不置空 Adapter：ViewPager2 的 PageAwareAccessibilityProvider 在 onDetachedFromWindow
+        // 时会注销 DataSetObserver，若此处再置空 Adapter 会触发第二次注销，抛出
+        // "Observer ... was not registered" IllegalStateException（Shell 根页面 Clear+Add 切换时崩溃）。
+        // 页面即将销毁，Adapter 随页面一起回收，无泄漏风险。
         base.DisconnectHandler(platformView);
     }
 

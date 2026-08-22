@@ -80,4 +80,21 @@ public class BlurConsumerView : ContentView
         get => (bool)GetValue(BlurEnabledProperty);
         set => SetValue(BlurEnabledProperty, value);
     }
+
+    /// <summary>
+    /// When true, the blurred texture is aligned to the host's top-left origin instead of
+    /// the consumer's own screen position. Use for sidebars that sit to the LEFT of the
+    /// host (where the host's content does not physically extend behind the consumer):
+    /// the consumer then shows the host's content from its left edge, creating the
+    /// "content extends behind the sidebar" frosted-glass illusion.
+    /// </summary>
+    public static readonly BindableProperty AlignToHostOriginProperty =
+        BindableProperty.Create(nameof(AlignToHostOrigin), typeof(bool), typeof(BlurConsumerView), false);
+
+    /// <inheritdoc cref="AlignToHostOriginProperty"/>
+    public bool AlignToHostOrigin
+    {
+        get => (bool)GetValue(AlignToHostOriginProperty);
+        set => SetValue(AlignToHostOriginProperty, value);
+    }
 }

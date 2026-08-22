@@ -138,6 +138,7 @@ half4 main(float2 coord) {
     bool _blurEnabled = true;
     bool _liquidGlass;
     float _cornerRadiusPx;
+    bool _alignToHostOrigin;
 
     // API 33+ liquid glass resources — null on older devices
     RuntimeShader? _lensShader;
@@ -164,6 +165,7 @@ half4 main(float2 coord) {
 
     public void SetTintColor(int argb) { _tintColor = argb; Invalidate(); }
     public void SetBlurEnabled(bool enabled) { _blurEnabled = enabled; Invalidate(); }
+    public void SetAlignToHostOrigin(bool align) { _alignToHostOrigin = align; Invalidate(); }
     public void AttachEngine(BlurEngine engine) => _engine = engine;
     public void DetachEngine() => _engine = null;
 
@@ -250,9 +252,13 @@ half4 main(float2 coord) {
                 var (vLeft, vTop, sx, sy) = VisualOrigin();
                 int[] hostLoc = new int[2];
                 _engine.GetHostLocationInWindow(hostLoc);
+                // AlignToHostOrigin：侧栏位于宿主左侧，宿主内容并不物理延伸到侧栏背后，
+                // 若按自身屏幕位置对齐（consLeft 为负）会把模糊内容平移出可视区。
+                // 改为对齐宿主原点（偏移 0），显示宿主内容从左侧边缘开始，形成内容延伸进侧栏的错觉。
+                int offsetX = _alignToHostOrigin ? 0 : (int)(vLeft - hostLoc[0]);
+                int offsetY = _alignToHostOrigin ? 0 : (int)(vTop  - hostLoc[1]);
                 _engine.DrawBlurOnto(canvas,
-                    (int)(vLeft - hostLoc[0]),
-                    (int)(vTop  - hostLoc[1]),
+                    offsetX, offsetY,
                     Width, Height,
                     _tintColor,
                     sx, sy);

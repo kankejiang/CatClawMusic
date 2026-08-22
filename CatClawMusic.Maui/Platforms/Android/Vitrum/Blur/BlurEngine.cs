@@ -28,7 +28,7 @@ public class BlurEngine
     RenderNode? _blurNode;
     RenderNode? _rawNode;
     float _lastDensity;
-    float _blurRadiusDp = 60f;
+    float _blurRadiusDp = 24f;
     int _captureBackground = 0;
     // 捕获节流：宿主 DispatchDraw 与每个消费者 DispatchDraw 都会触发 CaptureLive，
     // 同一帧内可能重复捕获 3 次（1 宿主 + 2 消费者）。按时间节流后每 33ms 至多捕获一次，

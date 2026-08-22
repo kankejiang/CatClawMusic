@@ -391,6 +391,19 @@ FodyWeavers.xsd
 /ui_dump*.xml
 /.workbuddy/verify
 
+# 侧栏/播放器毛玻璃调试产物（截图、对比脚本、帧统计日志）
+/*.png
+/compare_*.py
+/parse_*.py
+/framestats*.txt
+/gfxinfo*.txt
+/logcat*.txt
+/*.xaml.bak
+/.decompile/
+/META-INF/
+/androidx/
+/store_*.so
+
 # WorkBuddy 本地缓存（截图/脚本，非项目文件）
 .workbuddy/cache/
 
