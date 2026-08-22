@@ -59,7 +59,7 @@
                             <TapGestureRecognizer Tapped="OnNavDiscoverTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="&#x1f50d;" FontSize="16" VerticalOptions="Center" />
+                            <Image Source="{helpers:ThemedIcon Light=ic_home_light, Dark=ic_home}" WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
                             <Label x:Name="NavDiscoverLabel" Grid.Column="1" Text="发现" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
@@ -76,7 +76,7 @@
                             <TapGestureRecognizer Tapped="OnNavPlaylistsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="&#x1f4cb;" FontSize="16" VerticalOptions="Center" />
+                            <Image Source="{helpers:ThemedIcon Light=ic_playlist_light, Dark=ic_playlist}" WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
                             <Label x:Name="NavPlaylistsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[TabPlaylists]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
@@ -93,7 +93,7 @@
                             <TapGestureRecognizer Tapped="OnNavLibraryTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="&#x1f3b5;" FontSize="16" VerticalOptions="Center" />
+                            <Image Source="{helpers:ThemedIcon Light=ic_library_light, Dark=ic_library}" WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
                             <Label x:Name="NavLibraryLabel" Grid.Column="1" Text="音乐库" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
@@ -135,7 +135,7 @@
                             <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Label Text="&#x2699;&#xfe0f;" FontSize="16" VerticalOptions="Center" />
+                            <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
                             <Label x:Name="SettingsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}" FontSize="14"
                                    TextColor="{DynamicResource TextPrimaryColor}"
                                    VerticalOptions="Center" />
