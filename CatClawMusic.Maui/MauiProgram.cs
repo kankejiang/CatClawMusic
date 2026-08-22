@@ -55,6 +55,8 @@ public static class MauiProgram
 #if ANDROID
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.FrostedBackground),
                     typeof(CatClawMusic.Maui.Platforms.Android.FrostedBackgroundHandler));
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.BackdropBlur),
+                    typeof(CatClawMusic.Maui.Platforms.Android.BackdropBlurHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
                     typeof(CatClawMusic.Maui.Platforms.Android.KaraokeLabelHandler));
                 // 原生 ViewPager2 分页容器（承载 5 个 MAUI 页，GPU 合成水平滑动）
@@ -75,6 +77,8 @@ public static class MauiProgram
                     typeof(CatClawMusic.Maui.Platforms.Windows.FrostedBackgroundHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.KaraokeLabel),
                     typeof(CatClawMusic.Maui.Platforms.Windows.KaraokeLabelHandler));
+                handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.BackdropBlur),
+                    typeof(CatClawMusic.Maui.Platforms.Windows.BackdropBlurHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.SwapChainHost),
                     typeof(CatClawMusic.Maui.Platforms.Windows.SwapChainHostHandler));
 #endif
