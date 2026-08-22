@@ -160,22 +160,14 @@ public partial class MainPage : ContentPage
         _nativePager.PageSelected += (s, e) => OnNativePageSelected(e);
         _nativePager.ScrollStateChanged += (s, e) => OnNativeScrollStateChanged(e);
 
-        // 放入主网格第 0 行（与 ViewPagerGrid 同区域），隐藏旧的手动容器。
-        // 外层包一个 IsClippedToBounds 容器：ViewPager2 若测量/绘制越界，内容被裁剪在 Row 0 内。
-        // 关键：必须 Insert 到 MiniPlayer 之前（MAUI Grid 按 Children 顺序绘制，后加在 Z 上层），
-        // 否则后加的 pagerHost 会覆盖 Row 1 MiniPlayer 的封面/按钮区。
-        if (this.Content is Grid rootGrid)
-        {
-            var pagerHost = new Grid { IsClippedToBounds = true };
-            Grid.SetRow(pagerHost, 0);
-            pagerHost.Children.Add(_nativePager);
-
-            // 找到 MiniPlayer 的索引位置，pagerHost 插入到它前一位
-            var miniIdx = rootGrid.Children.IndexOf(MiniPlayer);
-            if (miniIdx < 0) miniIdx = rootGrid.Children.Count;
-            rootGrid.Children.Insert(miniIdx, pagerHost);
-        }
-        ViewPagerGrid.IsVisible = false;
+        // 放入 ViewPagerGrid（BlurHostView 的内容），让 BlurHostView 能捕获到 NativeTabPager
+        // 的实际内容用于真毛玻璃。原实现插入 rootGrid 且 ViewPagerGrid 隐藏，导致
+        // BlurHostView 捕获的是空容器，毛玻璃只剩纯色 tint。
+        var pagerHost = new Grid { IsClippedToBounds = true };
+        pagerHost.Children.Add(_nativePager);
+        ViewPagerGrid.Children.Add(pagerHost);
+        // Android 下页面滑动由 NativeTabPager 处理，移除 ViewPagerGrid 的 Pan 手势避免冲突
+        ViewPagerGrid.GestureRecognizers.Clear();
 #else
         // ── 手动 TranslationX 路径（Windows 兜底）──
         foreach (var page in pages)
@@ -519,6 +511,11 @@ public partial class MainPage : ContentPage
     /// <summary>更新当前页±1 的 TranslationX，offset 为滑动偏移量（懒加载：远页不参与）</summary>
     private void UpdatePagePositions(double offset)
     {
+#if ANDROID
+        // Android 路径分页位置由 NativeTabPager（ViewPager2）管理，无需手动 TranslationX。
+        // ViewPagerGrid 现承载 pagerHost，若在此移动会把整个 pagerHost 移出屏幕。
+        return;
+#else
         var width = ViewPagerGrid.Width;
         if (width <= 0) return;
 
@@ -528,6 +525,7 @@ public partial class MainPage : ContentPage
             if (ViewPagerGrid.Children[i] is VisualElement view)
                 view.TranslationX = (i - _currentIndex) * width + offset;
         }
+#endif
     }
 
     /// <summary>

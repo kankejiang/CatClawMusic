@@ -12,18 +12,22 @@ using View = Android.Views.View;
 namespace CatClawMusic.Maui.Platforms.Android;
 
 /// <summary>
-/// 真毛玻璃背景视图：实时抓取其下层（Target 视图）中与本视图重叠的内容区域，
-/// 通过 RenderEffect 做 GPU 高斯模糊，实现"悬浮栏透出下层列表内容"的效果。
-/// 依赖下层 Target 的实际内容（如滚动的列表），因此必须让内容区延伸到栏位背后。
+/// 真毛玻璃背景视图：在 OnDraw 中平移画布后直接让下层目标视图把自己画到本视图的 canvas 上，
+/// 再用 RenderEffect 对本视图做 GPU 高斯模糊，实现"悬浮栏透出下层列表内容"的效果。
+///
+/// 关键设计：
+/// 1. 不加任何 OnDraw/OnScroll 监听 → 不会形成 Invalidate 递归
+/// 2. 只在 SetTarget / OnSizeChanged 时触发一次抓帧式重绘
+/// 3. 列表滚动等需要更新场景由外部显式调用 Refresh()
+/// 4. 目标不在 XAML 里用 x:Reference 绑定，而是代码后置延迟赋值 → 避免布局阶段递归 measure
 /// </summary>
 public class BackdropBlurView : View
 {
-    private View? _target;          // 下层内容视图（同一窗口内的兄弟/祖先）
-    private ViewTreeObserver.IOnDrawListener? _drawListener;
-    private bool _invalidating;     // 防止递归失效
+    private View? _target;
     private float _blurRadiusDp = 24f;
     private readonly int[] _selfLoc = new int[2];
     private readonly int[] _targetLoc = new int[2];
+    private bool _attached;
 
     public BackdropBlurView(Context context) : base(context)
     {
@@ -33,58 +37,23 @@ public class BackdropBlurView : View
 
     protected override void OnAttachedToWindow()
     {
+        _attached = true;
         base.OnAttachedToWindow();
-        ApplyNativeBlur();
-        // 监听下层内容的重绘：列表滚动/内容变化时刷新毛玻璃快照
-        var root = FindRootContent();
-        if (root != null && _drawListener == null)
-        {
-            _drawListener = new BlurDrawListener(this);
-            root.ViewTreeObserver?.AddOnDrawListener(_drawListener);
-        }
+        ApplyBlur();
+        if (_target != null) Invalidate();
     }
 
     protected override void OnDetachedFromWindow()
     {
-        if (_drawListener != null)
-        {
-            var root = FindRootContent();
-            root?.ViewTreeObserver?.RemoveOnDrawListener(_drawListener);
-            _drawListener = null;
-        }
+        _attached = false;
         base.OnDetachedFromWindow();
-    }
-
-    /// <summary>在层次树中找一个合适的根 ViewGroup 挂 OnDrawListener（优先目标视图的父级，跨 handler 监听）</summary>
-    private ViewGroup? FindRootContent()
-    {
-        // 先尝试从 Target 出发向上找其父容器（内容区的布局根）
-        if (_target != null)
-        {
-            var p = _target.Parent as ViewGroup;
-            if (p != null) return p;
-        }
-        // 兜底：从自身向上找顶层 ViewGroup
-        var cur = Parent as ViewGroup;
-        if (cur == null) return null;
-        while (cur.Parent is ViewGroup p2)
-            cur = p2;
-        return cur;
     }
 
     public void SetTarget(View? target)
     {
+        if (ReferenceEquals(_target, target)) return;
         _target = target;
-        if (target != null)
-        {
-            // 目标与毛玻璃可能分属不同 handler 层，确保监听挂在能感知目标重绘的父级上
-            var root = FindRootContent();
-            if (_drawListener != null && root != null)
-            {
-                root.ViewTreeObserver?.AddOnDrawListener(_drawListener);
-            }
-            Invalidate();
-        }
+        if (_attached) Invalidate();
     }
 
     /// <summary>设置模糊半径（dp）</summary>
@@ -92,12 +61,20 @@ public class BackdropBlurView : View
     {
         if (_blurRadiusDp == (float)dp) return;
         _blurRadiusDp = (float)Math.Max(1, dp);
-        ApplyNativeBlur();
+        ApplyBlur();
+        if (_attached) Invalidate();
     }
 
-    private void ApplyNativeBlur()
+    /// <summary>手动触发重绘（列表滚动/内容变化时调用）</summary>
+    public void Refresh()
     {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.S) return; // minSdk=31，通常恒真
+        if (_attached && _target != null)
+            PostInvalidate();
+    }
+
+    private void ApplyBlur()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.S) return;
         try
         {
             var density = Resources?.DisplayMetrics?.Density ?? 2f;
@@ -106,7 +83,6 @@ public class BackdropBlurView : View
         }
         catch
         {
-            // 兼容性降级：不做模糊，仅透出内容
             try { SetRenderEffect(null); } catch { }
         }
     }
@@ -116,31 +92,21 @@ public class BackdropBlurView : View
         base.OnDraw(canvas);
         if (canvas == null || _target == null) return;
 
-        // 只有在下层内容存在且与本视图有重叠时才绘制
+        // 把画布平移到目标视图坐标系，然后让目标视图把自己画到本画布上
         GetLocationInWindow(_selfLoc);
         _target.GetLocationInWindow(_targetLoc);
 
         canvas.Save();
-        // 把目标视图在其窗口坐标处的内容，平移到本视图坐标系绘制
-        canvas.Translate(-(_selfLoc[0] - _targetLoc[0]), -(_selfLoc[1] - _targetLoc[1]));
+        canvas.Translate(_targetLoc[0] - _selfLoc[0], _targetLoc[1] - _selfLoc[1]);
         _target.Draw(canvas);
         canvas.Restore();
     }
 
-    /// <summary>刷新毛玻璃快照（由 OnDrawListener 在内容每次绘制前触发）</summary>
-    internal void RequestRefresh()
+    protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
     {
-        if (_invalidating) return;
-        _invalidating = true;
-        try { Invalidate(); }
-        finally { _invalidating = false; }
-    }
-
-    private sealed class BlurDrawListener : Java.Lang.Object, ViewTreeObserver.IOnDrawListener
-    {
-        private readonly BackdropBlurView _owner;
-        public BlurDrawListener(BackdropBlurView owner) => _owner = owner;
-        public void OnDraw() => _owner.RequestRefresh();
+        base.OnSizeChanged(w, h, oldw, oldh);
+        if (w != oldw || h != oldh)
+            Invalidate();
     }
 }
 
@@ -173,23 +139,20 @@ public class BackdropBlurHandler : ViewHandler<BackdropBlur, BackdropBlurView>
         base.DisconnectHandler(platformView);
     }
 
-    /// <summary>订阅目标元素的 HandlerChanged，目标原生视图延迟就绪时自动重映射透明视图。</summary>
     private void SubscribeTarget()
     {
         if (VirtualView.Target is not Element t) return;
         UnsubscribeTarget();
         _targetSub = t;
-        // 目标 handler 已就绪则无需订阅（ConnectHandler 时已直连）
         if (t.Handler != null) return;
         _targetHandlerChangedSub = (_, _) =>
         {
-            View? nv = _targetSub?.Handler?.PlatformView is View v ? v : null;
+            var nv = _targetSub?.Handler?.PlatformView as View;
             PlatformView.SetTarget(nv);
         };
         t.HandlerChanged += _targetHandlerChangedSub;
     }
 
-    /// <summary>解除目标订阅。返回 true 表示存在需要清理的订阅。</summary>
     private bool UnsubscribeTarget()
     {
         if (_targetSub != null && _targetHandlerChangedSub != null)

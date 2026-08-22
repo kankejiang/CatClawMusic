@@ -228,8 +228,7 @@
 	      RID，让 AndroidSupportedAbis 自动派生为单一 ABI（避免双 ABI 重复打包 FFmpeg 约 20MB），
 	      且不级联到引用的 Core/Data 项目（命令行 -p:RuntimeIdentifiers 会级联导致 MSB3030）。
 	     不传 ReleaseAbi 时维持默认双 RID。 -->
-	<Target Name="SelectReleaseAbi" BeforeTargets="_ResolveAndroidTooling"
-	        Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(ReleaseAbi)' != ''">
+	<Target Name="SelectReleaseAbi" BeforeTargets="_ResolveAndroidTooling" Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' And '$(DesignTimeBuild)' != 'true' And '$(ReleaseAbi)' != ''">
 		<PropertyGroup Condition="'$(ReleaseAbi)' == 'arm64'">
 			<RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
 		</PropertyGroup>

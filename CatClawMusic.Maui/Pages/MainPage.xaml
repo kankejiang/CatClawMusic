@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:vitrum="clr-namespace:Vitrum"
              x:Class="CatClawMusic.Maui.Pages.MainPage"
              Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
              Shell.NavBarIsVisible="False"
@@ -15,15 +16,19 @@
 
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动。
              延伸到屏幕底部（RowSpan=3），使滚动内容可滚到播放栏/导航栏背后，
-             供悬浮栏的 BackdropBlur 真毛玻璃透出其下层内容。 -->
-        <Grid x:Name="ViewPagerGrid" Grid.Row="0" Grid.RowSpan="3"
-              BackgroundColor="Transparent"
-              IsClippedToBounds="True"
-              SafeAreaEdges="None">
-            <Grid.GestureRecognizers>
-                <PanGestureRecognizer PanUpdated="OnPanUpdated" />
-            </Grid.GestureRecognizers>
-        </Grid>
+             供悬浮栏的 BlurConsumerView 真毛玻璃透出其下层内容。
+             BlurHostView 包裹背景内容，BlurConsumerView 必须是其 Grid 兄弟（不能在其内容子树内）。 -->
+        <vitrum:BlurHostView Grid.Row="0" Grid.RowSpan="3"
+                             BlurRadius="24">
+            <Grid x:Name="ViewPagerGrid"
+                  BackgroundColor="Transparent"
+                  IsClippedToBounds="True"
+                  SafeAreaEdges="None">
+                <Grid.GestureRecognizers>
+                    <PanGestureRecognizer PanUpdated="OnPanUpdated" />
+                </Grid.GestureRecognizers>
+            </Grid>
+        </vitrum:BlurHostView>
 
         <!-- 迷你播放器：圆角悬浮胶囊（左右留白 18，与 TabBar 间距 2） -->
         <Grid Grid.Row="1" x:Name="MiniPlayer"
@@ -37,16 +42,12 @@
                     Stroke="{DynamicResource BottomBarStrokeColor}"
                     Background="Transparent">
 
-                <Grid>
-                    <!-- 真毛玻璃背景：实时抓取下层 ViewPager 内容做高斯模糊（透列表内容，非封面） -->
-                    <controls:BackdropBlur Target="{x:Reference ViewPagerGrid}"
-                                            BlurRadius="24"
-                                            InputTransparent="True"
-                                            HorizontalOptions="Fill"
-                                            VerticalOptions="Fill" />
-                    <!-- 半透明底色保底（弱化毛玻璃下的凌乱，确保文字/图标可读） -->
-                    <BoxView Color="{DynamicResource CardBackgroundColor}" InputTransparent="True" Opacity="0.35" />
-
+                <!-- 真毛玻璃背景：BlurConsumerView 实时模糊下层 BlurHostView 内容（透列表内容，非封面） -->
+                <vitrum:BlurConsumerView>
+                    <vitrum:BlurConsumerView.TintColor>
+                        <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                    </vitrum:BlurConsumerView.TintColor>
+                    <Grid>
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
                           ColumnSpacing="16"
                           Padding="14,10,14,10"
@@ -138,7 +139,8 @@
                              VerticalOptions="End"
                              HorizontalOptions="Fill"
                              Margin="0,0,0,-2" />
-                </Grid>
+                    </Grid>
+                </vitrum:BlurConsumerView>
             </Border>
         </Grid>
 
@@ -147,21 +149,15 @@
               Margin="18,0,18,4"
               SafeAreaEdges="None">
 
-            <!-- 圆角胶囊容器：毛玻璃由内层 Border 圆角裁剪 -->
+            <!-- 圆角胶囊容器：BlurConsumerView 真毛玻璃（透出下层列表内容），圆角由外层 Border 裁剪 -->
 <Border StrokeThickness="1.5"
                     StrokeShape="RoundRectangle 16"
                     Stroke="{DynamicResource BottomBarStrokeColor}"
                     Background="Transparent">
-                <Grid>
-            <!-- 真毛玻璃背景：实时抓取下层 ViewPager 内容做高斯模糊（透列表内容，非封面） -->
-            <controls:BackdropBlur Target="{x:Reference ViewPagerGrid}"
-                                    BlurRadius="24"
-                                    InputTransparent="True"
-                                    HorizontalOptions="Fill"
-                                    VerticalOptions="Fill" />
-            <!-- 半透明底色保底（弱化毛玻璃下的凌乱，确保文字/图标可读） -->
-            <BoxView Color="{DynamicResource CardBackgroundColor}" InputTransparent="True" Opacity="0.35" />
-
+                <vitrum:BlurConsumerView>
+                    <vitrum:BlurConsumerView.TintColor>
+                        <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                    </vitrum:BlurConsumerView.TintColor>
             <Grid ColumnDefinitions="*,*,*,*"
                   Padding="4,0,4,0"
                   Background="Transparent">
@@ -270,7 +266,7 @@
                     </VerticalStackLayout>
                 </Grid>
             </Grid>
-                </Grid>
+                </vitrum:BlurConsumerView>
             </Border>
         </Grid>
 

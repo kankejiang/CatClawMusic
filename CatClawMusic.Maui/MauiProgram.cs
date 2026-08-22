@@ -7,6 +7,7 @@ using CatClawMusic.Maui.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Net.Security;
+using Vitrum;
 
 namespace CatClawMusic.Maui;
 
@@ -45,6 +46,7 @@ public static class MauiProgram
         StartupLog("Step 2: UseMauiApp");
         builder
             .UseMauiApp<App>()
+            .UseVitrum()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

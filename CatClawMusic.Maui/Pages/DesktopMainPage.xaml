@@ -205,8 +205,8 @@
                                         UseNativeBlur="True"
                                         Aspect="AspectFill"
                                         InputTransparent="True" />
-            <!-- 半透明叠加层（毛玻璃表面色调） -->
-            <BoxView Grid.RowSpan="2" Color="{DynamicResource TabBarBackgroundColor}" InputTransparent="True" />
+            <!-- 卡片底色保底（毛玻璃未启用时也有清晰分层） -->
+            <BoxView Grid.RowSpan="2" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
             <BoxView Grid.Row="0" HeightRequest="1"
                      Color="{DynamicResource BottomBarStrokeColor}"
                      VerticalOptions="Start" />
