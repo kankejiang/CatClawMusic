@@ -440,9 +440,11 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         return card;
     }
 
-    /// <summary>构建英雄卡（方形渐变 + 标签/标题/描述 + 播放按钮）。</summary>
+    /// <summary>构建英雄卡（方形渐变 + 标签/标题/描述 + 播放按钮）。
+    /// 横屏紧凑档为扁宽 16:9 卡，文本靠左、播放按钮右下，字号/行数按档位收敛避免溢出。</summary>
     private View CreateHeroCardView(HeroCardItem item)
     {
+        bool wide = _currentPreset != LayoutPreset.Regular;
         var card = new Border
         {
             HeightRequest = 150,
@@ -460,57 +462,59 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         var tap = new TapGestureRecognizer();
         tap.Tapped += OnHeroCardTapped;
         card.GestureRecognizers.Add(tap);
+        // 标记英雄卡：LayoutHeroCards 据此只对英雄卡应用扁宽比例，AI/快捷入口卡保持方形
+        card.ClassId = "hero";
 
-        var grid = new Grid { Padding = new Thickness(18) };
+        var grid = new Grid { Padding = wide ? new Thickness(16) : new Thickness(18) };
 
         var textStack = new VerticalStackLayout
         {
             VerticalOptions = LayoutOptions.Center,
-            Spacing = 6,
+            Spacing = wide ? 4 : 6,
         };
         textStack.Children.Add(new Border
         {
-            Padding = new Thickness(8, 3),
+            Padding = new Thickness(wide ? 7 : 8, wide ? 2 : 3),
             StrokeThickness = 0,
             StrokeShape = new RoundRectangle { CornerRadius = 999 },
             BackgroundColor = Color.FromArgb("#30FFFFFF"),
             HorizontalOptions = LayoutOptions.Start,
-            Content = new Label { Text = item.Tag, FontSize = 9.5, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
+            Content = new Label { Text = item.Tag, FontSize = wide ? 8.5 : 9.5, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
         });
         textStack.Children.Add(new Label
         {
             Text = item.Title,
-            FontSize = 19,
+            FontSize = wide ? 15 : 19,
             FontFamily = "OpenSansSemibold",
             FontAttributes = FontAttributes.Bold,
             TextColor = Colors.White,
-            MaxLines = 2,
-            Margin = new Thickness(0, 4, 56, 0),
+            MaxLines = wide ? 1 : 2,
+            Margin = new Thickness(0, wide ? 2 : 4, 56, 0),
         });
         textStack.Children.Add(new Label
         {
             Text = item.Description,
-            FontSize = 11.5,
+            FontSize = wide ? 10 : 11.5,
             TextColor = Color.FromArgb("#CCFFFFFF"),
-            MaxLines = 3,
-            Margin = new Thickness(0, 2, 56, 0),
+            MaxLines = wide ? 1 : 3,
+            Margin = new Thickness(0, wide ? 1 : 2, 56, 0),
         });
         grid.Children.Add(textStack);
 
         var playBtn = new Border
         {
-            WidthRequest = 42,
-            HeightRequest = 42,
+            WidthRequest = wide ? 34 : 42,
+            HeightRequest = wide ? 34 : 42,
             StrokeThickness = 0,
-            StrokeShape = new RoundRectangle { CornerRadius = 21 },
+            StrokeShape = new RoundRectangle { CornerRadius = wide ? 17 : 21 },
             BackgroundColor = Color.FromArgb("#50FFFFFF"),
             HorizontalOptions = LayoutOptions.End,
             VerticalOptions = LayoutOptions.End,
             Content = new ImageButton
             {
                 Source = item.PlayIcon,
-                WidthRequest = 20,
-                HeightRequest = 20,
+                WidthRequest = wide ? 16 : 20,
+                HeightRequest = wide ? 16 : 20,
                 BackgroundColor = Colors.Transparent,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
@@ -548,9 +552,12 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
         foreach (View child in HeroTrack.Children)
         {
-            // 方形卡片：宽高一致（覆盖模板中的固定高度）
+            // 英雄卡（Tag="hero"）在紧凑档应用扁宽 16:9 比例，降低 Hero 区高度、提升信息密度；
+            // AI 卡 / 插件快捷入口卡保持方形观感；常规档（PC 大窗）全部保持方形。
             child.WidthRequest = cardW;
-            child.HeightRequest = cardW;
+            child.HeightRequest = (_currentPreset != LayoutPreset.Regular && child.ClassId == "hero")
+                ? cardW * 9 / 16
+                : cardW;
         }
     }
 
@@ -599,13 +606,16 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 元组：(AI 歌单行高, AI 卡宽, 每日行高, 每日卡宽, 艺人行高, 艺人卡宽, Hero 卡宽上限)
         (double aiRowH, double aiCardW, double dailyRowH, double dailyCardW, double artistRowH, double artistCardW, double heroCap) = preset switch
         {
-            LayoutPreset.Compact => (236, 184, 142, 104, 100, 66, 176),
-            LayoutPreset.SuperCompact => (186, 144, 114, 84, 82, 54, 136),
+            LayoutPreset.Compact => (110, 250, 142, 104, 100, 66, 176),
+            LayoutPreset.SuperCompact => (96, 220, 114, 84, 82, 54, 136),
             _ => (310, 240, 184, 136, 128, 82, 210)
         };
 
         if (presetChanged)
         {
+            // ── Hero 轨道：按新档位重建（扁宽/方形内容差异在 CreateHeroCardView 内按 preset 决定）──
+            RebuildHeroTrack();
+
             // ── AI 歌单横滑行 ──
             AiPlaylistRow.HeightRequest = aiRowH;
             AiPlaylistRow.ItemTemplate = BuildAiPlaylistCardTemplate(aiCardW);
@@ -640,6 +650,34 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
                 : preset == LayoutPreset.Compact
                     ? new Thickness(22, 3, 22, 22)
                     : new Thickness(26, 4, 26, 26);
+
+            // 区块标题行：紧凑档收紧上下边距，释放纵向空间
+            AiSectionHeader.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 2, 0, 6)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(0, 4, 0, 8)
+                    : new Thickness(0, 6, 0, 12);
+            AlbumSectionHeader.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 4, 0, 6)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(0, 6, 0, 8)
+                    : new Thickness(0, 10, 0, 12);
+            DailySectionHeader.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 2, 0, 4)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(0, 3, 0, 6)
+                    : new Thickness(0, 4, 0, 8);
+            ArtistSectionHeader.Margin = preset == LayoutPreset.SuperCompact
+                ? new Thickness(0, 2, 0, 4)
+                : preset == LayoutPreset.Compact
+                    ? new Thickness(0, 3, 0, 6)
+                    : new Thickness(0, 4, 0, 8);
+
+            // 横滑行右侧边距：紧凑档收紧（箭头悬浮覆盖，内容多占宽度）
+            double rightPad = preset == LayoutPreset.Regular ? 40 : 28;
+            DailyList.Margin = new Thickness(0, 0, rightPad, 16);
+            ArtistsRow.Margin = new Thickness(0, 0, rightPad, 16);
+            AiPlaylistRow.Margin = new Thickness(0, 0, rightPad, 16);
         }
 
         // Hero 卡按新上限重排（无论 preset 是否变化都需要，因为宽度可能改变）
@@ -648,71 +686,148 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
     private DataTemplate BuildAiPlaylistCardTemplate(double cardW)
     {
+        bool horizontal = _currentPreset != LayoutPreset.Regular;
         return new DataTemplate(() =>
         {
-            var cover = new Border
+            if (horizontal)
+            {
+                // 横屏紧凑档：横向布局——封面居左（小方形），文字居右，卡片高度大幅降低
+                var cover = new Border
+                {
+                    WidthRequest = 84,
+                    HeightRequest = 84,
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12, 0, 0, 12) },
+                    StrokeThickness = 0,
+                };
+                cover.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
+                var coverImg = new Image { Aspect = Aspect.AspectFill };
+                coverImg.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
+                cover.Content = coverImg;
+
+                var name = new Label
+                {
+                    FontFamily = "OpenSansSemibold",
+                    FontSize = 12.5,
+                    MaxLines = 1
+                };
+                name.SetBinding(Label.TextProperty, "Name");
+                name.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
+
+                var reason = new Label
+                {
+                    FontSize = 10,
+                    MaxLines = 1,
+                    LineBreakMode = LineBreakMode.TailTruncation
+                };
+                reason.SetBinding(Label.TextProperty, "Reason");
+                reason.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
+
+                var subtitle = new Label
+                {
+                    FontSize = 9.5,
+                    MaxLines = 1,
+                    LineBreakMode = LineBreakMode.TailTruncation
+                };
+                subtitle.SetBinding(Label.TextProperty, "Subtitle");
+                subtitle.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
+
+                var body = new VerticalStackLayout
+                {
+                    Padding = new Thickness(10, 8, 10, 8),
+                    Spacing = 3,
+                    VerticalOptions = LayoutOptions.Center,
+                    Children = { name, reason, subtitle }
+                };
+
+                var root = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitionCollection
+                    {
+                        new ColumnDefinition(GridLength.Auto),
+                        new ColumnDefinition(GridLength.Star),
+                    }
+                };
+                root.Add(cover, 0, 0);
+                root.Add(body, 1, 0);
+
+                var card = new Border
+                {
+                    WidthRequest = cardW,
+                    StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                    StrokeThickness = 1,
+                    Content = root
+                };
+                card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+                card.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += OnAiPlaylistTapped;
+                card.GestureRecognizers.Add(tap);
+                return card;
+            }
+
+            var coverV = new Border
             {
                 WidthRequest = cardW,
                 HeightRequest = cardW,
                 StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16, 16, 0, 0) },
                 StrokeThickness = 0,
             };
-            cover.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
-            var coverImg = new Image { Aspect = Aspect.AspectFill };
-            coverImg.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
-            cover.Content = coverImg;
+            coverV.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
+            var coverImgV = new Image { Aspect = Aspect.AspectFill };
+            coverImgV.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
+            coverV.Content = coverImgV;
 
-            var name = new Label
+            var nameV = new Label
             {
                 FontFamily = "OpenSansSemibold",
                 FontSize = cardW >= 200 ? 14 : 12.5,
                 MaxLines = 1
             };
-            name.SetBinding(Label.TextProperty, "Name");
-            name.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
+            nameV.SetBinding(Label.TextProperty, "Name");
+            nameV.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
 
-            var reason = new Label
+            var reasonV = new Label
             {
                 FontSize = cardW >= 200 ? 11 : 10,
                 MaxLines = cardW >= 200 ? 2 : 1,
                 LineBreakMode = LineBreakMode.TailTruncation
             };
-            reason.SetBinding(Label.TextProperty, "Reason");
-            reason.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
+            reasonV.SetBinding(Label.TextProperty, "Reason");
+            reasonV.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
 
-            var subtitle = new Label
+            var subtitleV = new Label
             {
                 FontSize = cardW >= 200 ? 10.5 : 9.5,
                 MaxLines = 1,
                 LineBreakMode = LineBreakMode.TailTruncation
             };
-            subtitle.SetBinding(Label.TextProperty, "Subtitle");
-            subtitle.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
+            subtitleV.SetBinding(Label.TextProperty, "Subtitle");
+            subtitleV.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
 
-            var body = new VerticalStackLayout
+            var bodyV = new VerticalStackLayout
             {
                 Padding = new Thickness(cardW >= 200 ? 12 : 9, cardW >= 200 ? 10 : 7, cardW >= 200 ? 12 : 9, cardW >= 200 ? 12 : 9),
                 Spacing = Math.Max(2, (cardW >= 200 ? 4 : 2)),
-                Children = { name, reason, subtitle }
+                Children = { nameV, reasonV, subtitleV }
             };
 
-            var root = new VerticalStackLayout { Spacing = 0 };
-            root.Children.Add(cover);
-            root.Children.Add(body);
+            var rootV = new VerticalStackLayout { Spacing = 0 };
+            rootV.Children.Add(coverV);
+            rootV.Children.Add(bodyV);
 
-            var card = new Border
+            var cardV = new Border
             {
                 WidthRequest = cardW,
                 StrokeShape = new RoundRectangle { CornerRadius = 16 },
                 StrokeThickness = 1,
-                Content = root
+                Content = rootV
             };
-            card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
-            card.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
-            var tap = new TapGestureRecognizer();
-            tap.Tapped += OnAiPlaylistTapped;
-            card.GestureRecognizers.Add(tap);
-            return card;
+            cardV.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+            cardV.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
+            var tapV = new TapGestureRecognizer();
+            tapV.Tapped += OnAiPlaylistTapped;
+            cardV.GestureRecognizers.Add(tapV);
+            return cardV;
         });
     }
 

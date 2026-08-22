@@ -214,7 +214,7 @@
 
                 <!-- AI 歌单（开启智能推荐且有数据/正在生成时显示；由 AI 每天生成一次） -->
                 <VerticalStackLayout Spacing="0" IsVisible="{Binding IsAiPlaylistsSectionVisible}">
-                    <Grid Margin="0,6,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Grid x:Name="AiSectionHeader" Margin="0,6,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                         <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -283,7 +283,7 @@
                 </VerticalStackLayout>
 
                 <!-- 推荐专辑网格（4×2 封面网格，点击进专辑） -->
-                <Grid Margin="0,10,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Grid x:Name="AlbumSectionHeader" Margin="0,10,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -322,7 +322,7 @@
                 </CollectionView>
 
                 <!-- 每日推荐横滑（左右箭头导航） -->
-                <Grid Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Grid x:Name="DailySectionHeader" Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -366,7 +366,7 @@
                 </Grid>
 
                 <!-- 推荐艺人横滑（左右箭头导航） -->
-                <Grid Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Grid x:Name="ArtistSectionHeader" Margin="0,4,0,8" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <Border WidthRequest="4" HeightRequest="16" StrokeThickness="0" StrokeShape="RoundRectangle 2" VerticalOptions="Center">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">

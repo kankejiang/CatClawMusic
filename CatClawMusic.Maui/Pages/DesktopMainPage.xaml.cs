@@ -69,11 +69,19 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 #if ANDROID
         // 隐藏侧栏顶部的 App Logo 区，降低底部播放器高度，并压缩手机横屏下的控件尺寸
         SidebarLogo.IsVisible = false;
-        RootGrid.RowDefinitions[2].Height = new GridLength(72);
+        RootGrid.RowDefinitions[2].Height = new GridLength(64);
         ApplyCompactPlayerBarMetrics();
-
-        // 初始侧栏宽度直接设为较窄值，避免首次渲染闪烁
-        RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+        // Android 端此页仅横屏复用：侧栏直接以 64dp 图标栏首帧呈现（与 ApplyResponsiveLayout 一致），
+        // 折叠分支隐藏的文字标签也同步隐藏，避免首帧图标栏出现文字溢出。
+        _compact = true;
+        RootGrid.ColumnDefinitions[0].Width = new GridLength(64);
+        LogoText.IsVisible = false;
+        NavDiscoverLabel.IsVisible = false;
+        NavLibraryLabel.IsVisible = false;
+        NavPlaylistsLabel.IsVisible = false;
+        SettingsLabel.IsVisible = false;
+        PlaylistHeader.IsVisible = false;
+        AddPlaylistButton.IsVisible = false;
 #endif
 
         // 顶部搜索/命令栏在两个平台都移除：发现页已有独立搜索框，顶部为重复入口
@@ -247,7 +255,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             _embeddedSubPage = null;
             PlayerBarBorder.IsVisible = true;
 #if ANDROID
-            RootGrid.RowDefinitions[2].Height = new GridLength(72);
+            RootGrid.RowDefinitions[2].Height = new GridLength(64);
             ApplyContentAreaSafeArea(); // 恢复 tab 内容的顶部状态栏安全区
 #else
             RootGrid.RowDefinitions[2].Height = new GridLength(100);
@@ -834,9 +842,9 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     {
         if (Width <= 0) return;
 #if ANDROID
-        // 横屏手机宽度通常 800~930px，应展示完整侧栏以保持 PC 观感；仅极窄（竖屏）才折叠为图标栏
-        const double AndroidCompactThreshold = 640;
-        bool compact = Width < AndroidCompactThreshold;
+        // 手机横屏复用桌面布局：横屏宽度宽但高度稀缺，侧栏始终折叠为 64dp 图标栏，
+        // 把释放的横向空间让给内容区（歌单等次级入口叠入"我的歌单"列表，见折叠分支）。
+        const bool compact = true;
 #else
         bool compact = Width < CompactThreshold;
 #endif
@@ -847,6 +855,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         {
             RootGrid.ColumnDefinitions[0].Width = new GridLength(64);
             LogoText.IsVisible = false;
+            NavHeader.IsVisible = false;
             NavDiscoverLabel.IsVisible = false;
             NavLibraryLabel.IsVisible = false;
             NavPlaylistsLabel.IsVisible = false;
@@ -863,6 +872,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             RootGrid.ColumnDefinitions[0].Width = new GridLength(SidebarWidth);
 #endif
             LogoText.IsVisible = true;
+            NavHeader.IsVisible = true;
             NavDiscoverLabel.IsVisible = true;
             NavLibraryLabel.IsVisible = true;
             NavPlaylistsLabel.IsVisible = true;
@@ -878,21 +888,45 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     private void ApplyCompactPlayerBarMetrics()
     {
         // 歌曲信息区
-        PlayerInfoGrid.Padding = new Thickness(12, 0);
-        PlayerInfoGrid.WidthRequest = 160;
-        PlayerCoverBorder.WidthRequest = 36;
-        PlayerCoverBorder.HeightRequest = 36;
-        PlayerCover.WidthRequest = 36;
-        PlayerCover.HeightRequest = 36;
+        PlayerInfoGrid.Padding = new Thickness(10, 0);
+        PlayerInfoGrid.WidthRequest = 140;
+        PlayerCoverBorder.WidthRequest = 32;
+        PlayerCoverBorder.HeightRequest = 32;
+        PlayerCover.WidthRequest = 32;
+        PlayerCover.HeightRequest = 32;
 
         // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤
-        PlayerControlsGrid.Padding = new Thickness(8, 0);
-        DesktopProgressSlider.MinimumWidthRequest = 160;
+        PlayerControlsGrid.Padding = new Thickness(6, 0);
+        DesktopProgressSlider.MinimumWidthRequest = 140;
 
-        // 音量区：compact 模式下保持 160 宽，Slider 至少 120
-        VolumeGrid.WidthRequest = 160;
-        VolumeGrid.MinimumWidthRequest = 120;
-        VolumeSlider.MinimumWidthRequest = 120;
+        // 控制按钮行：主播放键 46→40、其余 32→28，适配 64 行高（40+4+进度≈64）
+        if (PlayerControlsGrid.Children.Count > 0 && PlayerControlsGrid.Children[0] is Grid btnRow)
+        {
+            foreach (var child in btnRow.Children)
+            {
+                if (child is Grid playGrid)
+                {
+                    playGrid.WidthRequest = 40;
+                    playGrid.HeightRequest = 40;
+                    if (playGrid.Children.Count > 0 && playGrid.Children[0] is Image playIcon)
+                    {
+                        playIcon.WidthRequest = 22;
+                        playIcon.HeightRequest = 22;
+                    }
+                }
+                else if (child is Image img)
+                {
+                    img.WidthRequest = 28;
+                    img.HeightRequest = 28;
+                }
+            }
+            btnRow.ColumnSpacing = 10;
+        }
+
+        // 音量区：compact 模式下保持 140 宽，Slider 至少 100
+        VolumeGrid.WidthRequest = 140;
+        VolumeGrid.MinimumWidthRequest = 100;
+        VolumeSlider.MinimumWidthRequest = 100;
     }
 
     /// <summary>隐藏系统状态栏，让子页面内容延伸到屏幕顶部（沉浸式）。</summary>

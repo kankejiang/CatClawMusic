@@ -397,7 +397,6 @@ public partial class SearchViewModel : ObservableObject
     public event EventHandler<ChatHistoryLoadedEventArgs>? ChatHistoryLoaded;
 
     /// <summary>进入聊天模式时加载最近30条历史记录（倒序存储：index 0 = 最新）</summary>
-    /// </summary>
     /// <summary>根据当前 SearchQuery 重新过滤各分区集合（供 PC 端顶栏搜索调用）</summary>
     public void ApplyFilters()
     {

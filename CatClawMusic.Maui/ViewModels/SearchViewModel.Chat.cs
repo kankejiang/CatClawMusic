@@ -135,7 +135,7 @@ public partial class SearchViewModel
     /// <summary>
     /// 异步加载探索数据：每日推荐、艺术家、专辑、最多播放、最新音乐。
     /// 同日重复加载时跳过每日推荐生成，仅刷新随播放变化的列表。
-
+    /// </summary>
     public async Task SendMessageFromSearchAsync(string message)
     {
         EnterChatMode();

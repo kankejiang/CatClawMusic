@@ -378,7 +378,7 @@ public partial class ArtistsViewModel : ObservableObject
         ApplyFiltersAndSort();
     }
 
-    /// <partial name="IsGridView"/>变化时更新颜色</summary>
+    /// <summary>IsGridView 变化时更新颜色</summary>
     partial void OnIsGridViewChanged(bool value) => UpdateViewToggleColors();
 
     /// <summary>更新视图切换按钮颜色</summary>
