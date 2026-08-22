@@ -180,10 +180,22 @@
         <!-- 注意：Windows 平台 Border 不会把测量尺寸传递给其内容，导致内部 Grid 高度为 0。
              因此这里直接使用 Grid（与 TopBar 一致），并在顶部放一条 1px 的分隔线代替 Border 的 Stroke。 -->
         <Grid x:Name="PlayerBarBorder" Grid.Row="2" Grid.Column="1"
-              RowDefinitions="1,*"
-              Background="{DynamicResource HeroBrush}">
+              RowDefinitions="1,*">
+            <!-- 毛玻璃背景层 -->
+            <controls:FrostedBackground Grid.RowSpan="2"
+                                        Source="{DynamicResource ThemeBackgroundImage}"
+                                        IsActive="{DynamicResource ThemeBackgroundEnabled}"
+                                        IsVisible="{DynamicResource ThemeBackgroundEnabled}"
+                                        TintOpacity="{DynamicResource BottomBarTintOpacity}"
+                                        DimAmount="{DynamicResource BottomBarDimAmount}"
+                                        TintColor="{DynamicResource TabBarGlassTint}"
+                                        UseNativeBlur="True"
+                                        Aspect="AspectFill"
+                                        InputTransparent="True" />
+            <!-- 半透明叠加层（毛玻璃表面色调） -->
+            <BoxView Grid.RowSpan="2" Color="{DynamicResource TabBarBackgroundColor}" InputTransparent="True" />
             <BoxView Grid.Row="0" HeightRequest="1"
-                     Color="#30FFFFFF"
+                     Color="{DynamicResource BottomBarStrokeColor}"
                      VerticalOptions="Start" />
             <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
 
