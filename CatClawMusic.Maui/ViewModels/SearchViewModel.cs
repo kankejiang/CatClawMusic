@@ -403,29 +403,35 @@ public partial class SearchViewModel : ObservableObject
         var query = SearchQuery?.Trim();
         var hasQuery = !string.IsNullOrWhiteSpace(query);
 
-        DailyRecommendSongs = new ObservableCollection<Song>(
-            FilterSongs(_allDailyRecommendSongs, query));
-        Artists = new ObservableCollection<SearchArtistItem>(
-            hasQuery
-                ? _allArtists.Where(a =>
-                    a.Name.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
-                    a.Subtitle.Contains(query!, StringComparison.OrdinalIgnoreCase))
-                : _allArtists);
-        Albums = new ObservableCollection<SearchAlbumItem>(
-            hasQuery
-                ? _allAlbums.Where(a =>
-                    a.Title.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
-                    a.ArtistName.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
-                    a.Subtitle.Contains(query!, StringComparison.OrdinalIgnoreCase))
-                : _allAlbums);
+        // 注意：必须原地更新既有 ObservableCollection（Clear + Add），而非重新赋值一个新实例。
+        // .NET 11 WinUI 的 ItemsView2 对直接替换 ItemsSource 的新实例可能不触发渲染（表现为
+        // 数据已填充但界面空白）；而 AiPlaylists 等原地更新集合的分区能正常显示。
+        UpdateCollection(DailyRecommendSongs, FilterSongs(_allDailyRecommendSongs, query));
+        UpdateCollection(Artists, hasQuery
+            ? _allArtists.Where(a =>
+                a.Name.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
+                a.Subtitle.Contains(query!, StringComparison.OrdinalIgnoreCase))
+            : _allArtists);
+        UpdateCollection(Albums, hasQuery
+            ? _allAlbums.Where(a =>
+                a.Title.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
+                a.ArtistName.Contains(query!, StringComparison.OrdinalIgnoreCase) ||
+                a.Subtitle.Contains(query!, StringComparison.OrdinalIgnoreCase))
+            : _allAlbums);
         // 首页"推荐歌单"网格只取前 8 张（4 列 × 2 行），与专辑 tab 的全量网格分开
-        RecommendAlbums = new ObservableCollection<SearchAlbumItem>(Albums.Take(8));
-        TopPlayedSongs = new ObservableCollection<Song>(
-            FilterSongs(_allTopPlayedSongs, query));
-        RecentAddedSongs = new ObservableCollection<Song>(
-            FilterSongs(_allRecentAddedSongs, query));
+        UpdateCollection(RecommendAlbums, Albums.Take(8));
+        UpdateCollection(TopPlayedSongs, FilterSongs(_allTopPlayedSongs, query));
+        UpdateCollection(RecentAddedSongs, FilterSongs(_allRecentAddedSongs, query));
 
         RefreshEmptyState();
+    }
+
+    /// <summary>原地重置 ObservableCollection&lt;T&gt; 内容，避免替换 ItemsSource 新实例在 WinUI 下不渲染。</summary>
+    private static void UpdateCollection<T>(ObservableCollection<T> target, IEnumerable<T> source)
+    {
+        target.Clear();
+        foreach (var item in source)
+            target.Add(item);
     }
 
     private IEnumerable<Song> FilterSongs(IEnumerable<Song> songs, string? query)
