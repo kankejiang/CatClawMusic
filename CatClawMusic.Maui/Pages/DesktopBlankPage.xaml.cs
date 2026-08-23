@@ -67,7 +67,6 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         Instance = this;
 
         InitVolumeSlider();
-        UpdateDesktopLyricIcon();
 
         // 构造时仅创建默认 tab 内容（发现页），不触发生命周期
         _currentTab = DesktopTab.Discover;
@@ -216,12 +215,45 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     private void UpdateNavHighlight()
     {
-        var activeColor = (Color)(Application.Current?.Resources["ChipActiveColor"] ?? Colors.Purple);
+        var res = Application.Current?.Resources;
+        var highlightBg = (res?["NavHighlightBrush"] as Brush) ?? new SolidColorBrush(Colors.Purple);
+        var highlightFg = (Color)(res?["NavHighlightTextColor"] ?? Color.FromArgb("#0F0F14"));
+        var normalFg = (Color)(res?["TextPrimaryColor"] ?? Colors.White);
 
-        NavDiscover.BackgroundColor = _currentTab == DesktopTab.Discover ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavLibrary.BackgroundColor = _currentTab == DesktopTab.Library ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavPlaylists.BackgroundColor = _currentTab == DesktopTab.Playlists ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavSettings.BackgroundColor = _currentTab == DesktopTab.Settings ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
+        ApplyNavState(NavDiscover, NavDiscoverLabel, NavDiscoverIcon, "ic_home",
+            _currentTab == DesktopTab.Discover, highlightBg, highlightFg, normalFg);
+        ApplyNavState(NavPlaylists, NavPlaylistsLabel, NavPlaylistsIcon, "ic_playlist",
+            _currentTab == DesktopTab.Playlists, highlightBg, highlightFg, normalFg);
+        ApplyNavState(NavLibrary, NavLibraryLabel, NavLibraryIcon, "ic_library",
+            _currentTab == DesktopTab.Library, highlightBg, highlightFg, normalFg);
+        // 设置入口已迁移至顶栏齿轮按钮（方案A晨雾框架侧栏仅保留三大导航+歌单）
+    }
+
+    /// <summary>方案A晨雾框架导航选中态（与安卓横屏 DesktopMainPage 同款）。图标跟随文字颜色切换：
+    /// <para>浅色模式：未选中项用主题色文字 + 主题色图标，选中项用白色文字 + 白色图标（渐变高亮底上白字清晰）。</para>
+    /// <para>深色模式：选中用深色文字 + <c>_light</c> 深色图标，未选中用主题文字色。</para></summary>
+    private void ApplyNavState(Border border, Label? label, Image icon, string baseIcon,
+        bool active, Brush highlightBg, Color highlightFg, Color normalFg)
+    {
+        var isLight = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Light;
+        border.Background = active ? highlightBg : Brush.Transparent;
+
+        if (isLight)
+        {
+            // 浅色模式：未选中=主题色文字+主题色图标；选中=白色文字+白色图标
+            if (label != null) label.TextColor = active ? Colors.White : (Color)(Application.Current?.Resources?["PrimaryColor"] ?? Colors.Purple);
+            icon.Source = active
+                ? ImageSourceHelper.FromName(baseIcon)                     // 原版白色图标
+                : ImageSourceHelper.FromNamePlayerCtrl(baseIcon, baseIcon + "_light"); // 主题色变体，缺时回退深色图标
+        }
+        else
+        {
+            // 深色模式：保持原逻辑
+            if (label != null) label.TextColor = active ? highlightFg : normalFg;
+            icon.Source = active
+                ? ImageSourceHelper.FromName(baseIcon + "_light")
+                : ImageSourceHelper.FromNameThemed(baseIcon);
+        }
     }
 
     // ─── Sidebar Playlists ───
@@ -496,43 +528,18 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             new Binding("Progress", BindingMode.TwoWay));
     }
 
-    // ─── 音量：hover 弹出垂直音量条 ───
-
-    private void OnVolumePointerEntered(object? sender, PointerEventArgs e) => VolumePop.IsVisible = true;
-
-    private void OnVolumePointerExited(object? sender, PointerEventArgs e) => VolumePop.IsVisible = false;
+    // ─── 音量：内联横向滑条（方案A晨雾框架播放卡右侧）───
 
     private void InitVolumeSlider()
     {
         try
         {
-            VolumePopSlider.Value = _audioPlayer.Volume;
-            VolumePctLabel.Text = $"{_audioPlayer.Volume * 100:0}%";
-            VolumePopSlider.ValueChanged += (_, e) =>
-            {
-                _audioPlayer.Volume = e.NewValue;
-                VolumePctLabel.Text = $"{e.NewValue * 100:0}%";
-            };
+            VolumeSlider.Value = _audioPlayer.Volume;
+            VolumeSlider.ValueChanged += (_, e) => _audioPlayer.Volume = e.NewValue;
         }
         catch (Exception ex)
         {
             Log.Debug("DesktopBlankPage.xaml", $"[Desktop] InitVolumeSlider failed: {ex}");
-        }
-    }
-
-    /// <summary>主页底部播放器歌词按钮图标：安卓通知栏媒体控件同款 ic_notif_lyric_on
-    /// （主题感知：深色=白色原版，浅色=主题色变体，与 VM 播放控件图标同一机制）。</summary>
-    private void UpdateDesktopLyricIcon()
-    {
-        try
-        {
-            if (DesktopLyricIcon == null) return;
-            DesktopLyricIcon.Source =
-                ImageSourceHelper.FromNamePlayerCtrl("ic_notif_lyric_on", "ic_notif_lyric_on");
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] UpdateDesktopLyricIcon failed: {ex}");
         }
     }
 
@@ -615,11 +622,36 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         PlayerOverlay.IsVisible = false;
     }
 
-    // ─── 预留按钮：歌词 / 更多（后续接入功能）───
+    // ─── 顶栏：搜索 / 歌词 ───
 
+    /// <summary>顶栏搜索提交：切到发现页并把关键词下发给其 SearchViewModel。</summary>
+    private void OnSearchSubmitted(object? sender, EventArgs e)
+    {
+        var q = SearchEntry.Text?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(q)) return;
+
+        SwitchTab(DesktopTab.Discover);
+
+        if (_pageCache.TryGetValue(DesktopTab.Discover, out var view)
+            && view.BindingContext is SearchViewModel svm)
+        {
+            svm.SearchQuery = q;
+            svm.ApplyFilters();
+        }
+    }
+
+    /// <summary>顶栏歌词按钮：全屏歌词页（PushEmbed 覆盖内容区）。</summary>
     private void OnLyricsTapped(object? sender, TappedEventArgs e)
     {
-        // 预留：后续接歌词面板/歌词页（BlankPage 不在 Shell 导航栈，不能直接 PushAsync）
+        try
+        {
+            var page = _services.GetRequiredService<FullLyricsPage>();
+            DesktopNavigation.PushEmbed(page);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] OpenLyrics failed: {ex}");
+        }
     }
 
     // ─── 原生标题栏（TitlbarWinUI3 同款）───
@@ -636,8 +668,8 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     /// <summary>
     /// 原生拖动区（物理像素矩形，DPI 换算）：
-    /// 仅顶部标题栏可拖（X 从导航区 + 分割线右边缘开始）。
-    /// 左侧导航区已取消拖拽绑定（2026-08-09，用户要求——导航区后续放可交互的导航项）。
+    /// 仅顶栏中段空白（TitleBarHost，位于搜索框与按钮簇之间）可拖。
+    /// X = 侧栏列宽（244：浮层卡 232 + 左留边 12）。
     /// </summary>
     private void UpDateTitlebar()
     {
@@ -651,9 +683,11 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             if (appWindow?.TitleBar == null) return;
 
             var scale = Win32.GetScaleAdjustment(nativeWindow);
+            var colDef = BlankRoot.ColumnDefinitions[0];
+            var sidebarWidth = colDef.Width.IsAbsolute ? colDef.Width.Value : NavArea.Width;
             var rect = new global::Windows.Graphics.RectInt32
             {
-                X = (int)((NavArea.Width + NavDivider.Width) * scale),
+                X = (int)(sidebarWidth * scale),
                 Y = 0,
                 Width = (int)(TitleBarHost.Width * scale),
                 Height = (int)(TitleBarHost.Height * scale),
