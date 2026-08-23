@@ -927,29 +927,35 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         PlayerCover.WidthRequest = 32;
         PlayerCover.HeightRequest = 32;
 
-        // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤；保留上下留边使进度条/控件不贴卡片边缘
-        PlayerControlsGrid.Padding = new Thickness(6, 10, 6, 12);
+        // 播放控制区：上下留边交给外层内容 Grid(Padding 24,8,24,8) 统一控制，避免两层叠加溢出被 Center 裁剪；
+        // 此处仅保留左右内边距与行距。
+        PlayerControlsGrid.Padding = new Thickness(6, 0, 6, 0);
+        PlayerControlsGrid.RowSpacing = 4;
         DesktopProgressSlider.MinimumWidthRequest = 140;
+        DesktopProgressSlider.HeightRequest = 20;
+        // 进度区时间标签微调，让进度条居中时上下留白更均匀
+        //（高度保持自动按行内容）
 
-        // 控制按钮行：主播放键 46→40、其余 32→28，适配 64 行高（40+4+进度≈64）
+        // 控制按钮行：主播放键 40→34、其余 32→28→24，进度条压到 20 高、
+        // 行距 6→4，整体在 76 行高内为上下留边腾出真实空间（避免 Center 溢出裁剪掉边距）
         if (PlayerControlsGrid.Children.Count > 0 && PlayerControlsGrid.Children[0] is Grid btnRow)
         {
             foreach (var child in btnRow.Children)
             {
                 if (child is Grid playGrid)
                 {
-                    playGrid.WidthRequest = 40;
-                    playGrid.HeightRequest = 40;
+                    playGrid.WidthRequest = 34;
+                    playGrid.HeightRequest = 34;
                     if (playGrid.Children.Count > 0 && playGrid.Children[0] is Image playIcon)
                     {
-                        playIcon.WidthRequest = 22;
-                        playIcon.HeightRequest = 22;
+                        playIcon.WidthRequest = 20;
+                        playIcon.HeightRequest = 20;
                     }
                 }
                 else if (child is Image img)
                 {
-                    img.WidthRequest = 28;
-                    img.HeightRequest = 28;
+                    img.WidthRequest = 24;
+                    img.HeightRequest = 24;
                 }
             }
             btnRow.ColumnSpacing = 10;

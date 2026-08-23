@@ -195,7 +195,7 @@
                 <vitrum:BlurConsumerView.TintColor>
                     <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
                 </vitrum:BlurConsumerView.TintColor>
-                <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,0" ColumnSpacing="24">
+                <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,8,24,8" ColumnSpacing="24">
 
                 <!-- Song Info (left) -->
                 <!-- Windows 上嵌套布局的 TapGestureRecognizer 不可靠，
