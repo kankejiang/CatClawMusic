@@ -133,7 +133,20 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         if (content != null)
             ContentArea.Children.Add(content);
 
+        // 初始即应用底部预留（播放条高度 Android 64 / Windows 100），使发现页推荐艺人可滚到播放条上方
+        UpdateDiscoverBottomReserve();
+
         _ = LoadPlaylistsAsync();
+    }
+
+    /// <summary>随底部播放条当前高度联动调整发现页滚动内容底部预留，避免推荐艺人被播放条遮挡。</summary>
+    private void UpdateDiscoverBottomReserve()
+    {
+        if (_pageHostCache.TryGetValue(DesktopTab.Discover, out var host)
+            && host is DesktopDiscoverPage discover)
+        {
+            discover.SetBottomReservedHeight(RootGrid.RowDefinitions[2].Height.Value);
+        }
     }
 
     private bool _isFirstAppearing = true;
@@ -253,6 +266,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             RootGrid.RowDefinitions[2].Height = new GridLength(100);
 #endif
             ShowSystemStatusBar();
+            UpdateDiscoverBottomReserve();
         }
 
         // 通知旧 tab 消失（触发数据加载等生命周期）
@@ -276,6 +290,9 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // 通知新 tab 显示（SearchPage/LibraryPage 等在此加载数据）
         if (_pageHostCache.TryGetValue(tab, out var newHost))
             InvokeLifecycle(newHost, "OnAppearing");
+
+        // 播放条高度可能已变化，切页后按当前高度刷新发现页底部预留
+        UpdateDiscoverBottomReserve();
     }
 
     private View? CreatePageContent(DesktopTab tab)

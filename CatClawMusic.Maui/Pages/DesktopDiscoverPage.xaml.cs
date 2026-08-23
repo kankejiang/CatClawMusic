@@ -95,6 +95,19 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         InitializePluginUi();
     }
 
+    /// <summary>
+    /// 由 DesktopMainPage 调用：随底部播放条高度联动调整发现页滚动内容底部预留，
+    /// 使推荐艺人等底部区块能完整滚到播放条上方露出，避免被遮挡无法点选。
+    /// </summary>
+    public void SetBottomReservedHeight(double extra)
+    {
+        if (RootStack == null) return;
+        var basePad = 26.0;
+        var target = Math.Max(basePad, extra);
+        if (Math.Abs(RootStack.Padding.Bottom - target) < 0.5) return;
+        RootStack.Padding = new Thickness(RootStack.Padding.Left, RootStack.Padding.Top, RootStack.Padding.Right, target);
+    }
+
     // === 基类抽象属性实现 ===
 
     protected override SearchViewModel Vm => _vm;
