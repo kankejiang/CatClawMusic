@@ -664,20 +664,6 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             ArtistsRow.ItemTemplate = BuildArtistCardTemplate(artistCardW);
             ForceReloadItems(ArtistsRow);
 
-            // ── 推荐专辑网格：横屏紧凑档增加列数缩小卡片（Regular 4 列；横屏紧凑档统一 6 列，
-            //    避免 8 列过密导致专辑标题截断）──
-            var albumSpan = preset switch
-            {
-                LayoutPreset.SuperCompact => 6,
-                LayoutPreset.Compact => 6,
-                _ => 4
-            };
-            if (RecommendAlbumLayout != null && RecommendAlbumLayout.Span != albumSpan)
-            {
-                RecommendAlbumLayout.Span = albumSpan;
-                ForceReloadItems(RecommendAlbumGrid);
-            }
-
             // ── Hero 区 / 各分区间距同步收紧 ──
             HeroWrap.Margin = preset == LayoutPreset.SuperCompact
                 ? new Thickness(0, 0, 0, 2)

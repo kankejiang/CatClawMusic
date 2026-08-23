@@ -297,23 +297,24 @@
                     </Label>
                 </Grid>
                 <CollectionView x:Name="RecommendAlbumGrid" ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
-                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView" Margin="0,0,40,16" HeightRequest="180">
                     <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
-                    <CollectionView.ItemsLayout><GridItemsLayout x:Name="RecommendAlbumLayout" Orientation="Vertical" Span="4" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
+                    <!-- 推荐专辑改为单行横滑（与每日推荐/推荐艺人一致），避免 6+2 断行网格 -->
+                    <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <VerticalStackLayout Spacing="8">
-                                <Border StrokeShape="RoundRectangle 14" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
-                                    <!-- 正方形封面：宽=高，随列宽自适应 -->
-                                    <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill">
-                                        <Image.Behaviors>
-                                            <controls:SquareBehavior />
-                                        </Image.Behaviors>
-                                    </Image>
-                                </Border>
-                                <Label Text="{Binding Title}" FontSize="13" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
-                                <Label Text="{Binding ArtistName}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
-                            </VerticalStackLayout>
+                            <Border WidthRequest="136" StrokeShape="RoundRectangle 14" StrokeThickness="1"
+                                    Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                                <VerticalStackLayout Spacing="0">
+                                    <Border WidthRequest="136" HeightRequest="136" StrokeShape="RoundRectangle 14 14 0 0" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                        <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="136" HeightRequest="136" />
+                                    </Border>
+                                    <VerticalStackLayout Padding="8,6,8,8" Spacing="2">
+                                        <Label Text="{Binding Title}" FontSize="12.5" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" MaxLines="1" />
+                                        <Label Text="{Binding ArtistName}" FontSize="11" TextColor="{DynamicResource TextSecondaryColor}" MaxLines="1" />
+                                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
