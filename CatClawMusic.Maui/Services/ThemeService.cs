@@ -320,7 +320,7 @@ public class ThemeService : IThemeService
             // 浅色模式下拇指与已播进度使用当前主题主色（避免固定深色"黑点"难看，跟随 5 套主题）
             app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
             app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
-            app.Resources["PlayerSliderTrack"] = isDark ? Color.FromArgb("#40FFFFFF") : Color.FromArgb("#1F000000");
+            app.Resources["PlayerSliderTrack"] = isDark ? Color.FromArgb("#40FFFFFF") : Color.FromArgb("#33000000");
             app.Resources["PlayerSliderTrackDim"] = isDark ? Color.FromArgb("#24FFFFFF") : Color.FromArgb("#14000000");
 
             if (isDark)
