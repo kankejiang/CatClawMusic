@@ -378,18 +378,31 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // 设置入口已从侧栏移入各页面（发现页头部右上角），侧栏不再渲染/高亮设置项
     }
 
-    /// <summary>方案A晨雾框架导航选中态：主题色渐变高亮胶囊 + 深色文字；非选中态为透明底 + 主题文字色。
-    /// 图标跟随文字颜色切换（MAUI Image 无 TintColor，靠换深/浅图标源）：
-    /// 选中用 _light 深色变体，非选中用主题感知原版（浅色=深色/深色=白色）。
-    /// label 可为 null（如顶栏纯图标入口，仅切换图标源）。</summary>
+    /// <summary>方案A晨雾框架导航选中态。图标跟随文字颜色切换（MAUI Image 无 TintColor，靠换深/浅图标源）：
+    /// <para>浅色模式：未选中项用主题色文字 + 深色图标，选中项用白色文字 + 白色图标（渐变高亮底上白字清晰）。</para>
+    /// <para>深色模式：选中用深色文字 + <c>_light</c> 深色图标，未选中用主题文字色。</para></summary>
     private void ApplyNavState(Border border, Label? label, Image icon, string baseIcon,
         bool active, Brush highlightBg, Color highlightFg, Color normalFg)
     {
+        var isLight = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Light;
         border.Background = active ? highlightBg : Brush.Transparent;
-        if (label != null) label.TextColor = active ? highlightFg : normalFg;
-        icon.Source = active
-            ? ImageSourceHelper.FromName(baseIcon + "_light")
-            : ImageSourceHelper.FromNameThemed(baseIcon);
+
+        if (isLight)
+        {
+            // 浅色模式：未选中=主题色文字+深色图标；选中=白色文字+白色图标
+            if (label != null) label.TextColor = active ? Colors.White : (Color)(Application.Current?.Resources?["PrimaryColor"] ?? Colors.Purple);
+            icon.Source = active
+                ? ImageSourceHelper.FromName(baseIcon)                 // 原版白色图标
+                : ImageSourceHelper.FromName(baseIcon + "_light");     // 深色图标
+        }
+        else
+        {
+            // 深色模式：保持原逻辑
+            if (label != null) label.TextColor = active ? highlightFg : normalFg;
+            icon.Source = active
+                ? ImageSourceHelper.FromName(baseIcon + "_light")
+                : ImageSourceHelper.FromNameThemed(baseIcon);
+        }
     }
 
     // ─── Sidebar Playlists ───
