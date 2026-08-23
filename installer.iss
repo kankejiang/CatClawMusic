@@ -20,7 +20,12 @@ Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "D:\Code\CatClawMusic\CatClawMusic.Maui\bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "D:\Code\CatClawMusic\CatClawMusic.Maui\bin\winpub6\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; 覆盖安装时清理旧版本残留（旧 resources.pri / libffmpeg.so / Platforms 等会导致
+; 新 exe 加载旧资源崩溃 0xC000027B），先删旧文件再装新文件
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\*"
 
 [Icons]
 Name: "{group}\猫爪音乐"; Filename: "{app}\CatClawMusic.Maui.exe"; WorkingDir: "{app}"

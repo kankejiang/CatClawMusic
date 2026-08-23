@@ -29,7 +29,7 @@ function Pause-And-Exit {
 # === 配置 ===
 $ProjectPath = "CatClawMusic.Maui\CatClawMusic.Maui.csproj"
 $Config = "Release"
-$Tfm = "net10.0-windows10.0.19041.0"
+$Tfm = "net11.0-windows10.0.19041.0"
 $Rid = "win-x64"
 $IssFile = "build-win-setup.iss"
 $DotNetPath = "C:\Program Files\dotnet\dotnet.exe"
@@ -92,6 +92,28 @@ $publishDir = "CatClawMusic.Maui\$OutDir\publish"
 if (-not (Test-Path "$publishDir\CatClawMusic.Maui.exe")) {
     Write-Host "未找到发布产物: $publishDir\CatClawMusic.Maui.exe" -ForegroundColor Red
     Pause-And-Exit 1
+}
+
+# [1.5/2] 生成 resources.pri（.NET 11 preview.7 下 MakePri 不会自动生成应用 PRI，
+#         缺失会导致安装后加载旧 resources.pri 崩溃 0xC000027B）
+Write-Host ""
+Write-Host "[1.5/2] 生成 resources.pri（MakePri）..." -ForegroundColor Yellow
+$priconfig = "CatClawMusic.Maui\$ObjDir\priconfig.xml"
+$makepri = ""
+foreach ($v in @("10.0.22621.756", "10.0.22621.1")) {
+    $cand = "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.buildtools\$v\bin\10.0.22621.0\x86\makepri.exe"
+    if (Test-Path $cand) { $makepri = $cand; break }
+}
+if (-not $makepri -or -not (Test-Path $priconfig)) {
+    Write-Host "  警告: 未找到 makepri.exe 或 priconfig.xml，跳过 resources.pri 生成" -ForegroundColor Yellow
+} else {
+    $projRoot = (Resolve-Path "CatClawMusic.Maui").Path
+    & $makepri new /pr $projRoot /cf $priconfig /o /of "$publishDir\resources.pri" | Out-Null
+    if (Test-Path "$publishDir\resources.pri") {
+        Write-Host "  resources.pri 生成完成" -ForegroundColor Green
+    } else {
+        Write-Host "  警告: resources.pri 生成失败" -ForegroundColor Yellow
+    }
 }
 
 # [2/2] 编译安装程序
