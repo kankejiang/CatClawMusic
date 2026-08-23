@@ -27,7 +27,7 @@
         <!-- ═══ 底层：主内容区（跨两列铺满，作为所有毛玻璃浮层的"画布"）═══ -->
         <!-- Padding 为侧栏/顶栏/播放条浮层留出空间，子页面内容不会被遮住；
              但 MainArea 的背景色会延伸到浮层下方 → 毛玻璃下能看到统一色调 + 内容层次。 -->
-        <Grid x:Name="MainArea" IsClippedToBounds="True"
+        <Grid x:Name="MainArea" Grid.ColumnSpan="2" IsClippedToBounds="True"
               BackgroundColor="{DynamicResource WindowBackgroundColor}"
               Padding="256,68,24,100" />
 

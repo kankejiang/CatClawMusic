@@ -755,11 +755,13 @@ public class ThemeService : IThemeService
     private static Color Blend(Color baseColor, Color overlay)
     {
         var a = overlay.Alpha;
+        // 保留 base 的 alpha：毛玻璃 TintColor 必须保持半透明才能透出下层背景。
+        // 若强制 alpha=1 会变成不透明实心色块，把毛玻璃通感完全盖死。
         return new Color(
             baseColor.Red * (1 - a) + overlay.Red * a,
             baseColor.Green * (1 - a) + overlay.Green * a,
             baseColor.Blue * (1 - a) + overlay.Blue * a,
-            1f);
+            baseColor.Alpha);
     }
 
     private void ApplyCustomBackground(ResourceDictionary resources, bool isDark)
