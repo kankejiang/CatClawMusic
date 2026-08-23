@@ -638,6 +638,29 @@ public partial class App : Application
         StartupLog("CreateWindow: creating Window");
 
 #if WINDOWS
+        // ═══ WinUI 层未处理异常（stowed exception，0xc000027b）捕获 ═══
+        // 这类崩溃在 WinRT/COM interop 层抛出，AppDomain.UnhandledException 捕获不到、
+        // 也不写 crash.log。这里用 Microsoft.UI.Xaml.Application.UnhandledException
+        // 把完整堆栈落盘到 crash.log，用于定位 NAS 离线/WebDAV 不可达等导致的闪退。
+        try
+        {
+            if (Microsoft.UI.Xaml.Application.Current != null)
+            {
+                Microsoft.UI.Xaml.Application.Current.UnhandledException += (_, e) =>
+                {
+                    try
+                    {
+                        var ex = e.Exception;
+                        var text = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] XamlUnhandledException\n{ex}\nSTACK:\n{ex.StackTrace}\nINNER:\n{ex.InnerException}";
+                        File.WriteAllText(Path.Combine(FileSystem.AppDataDirectory, "crash_xaml.log"), text);
+                    }
+                    catch { }
+                };
+            }
+        }
+        catch { }
+#endif
+#if WINDOWS
         // ═══ 桌面端重建设计：全新空白画布，从零开始逐步搭建 ═══
         // 无边框窗口：不走 Shell（ShellContent 会包一层容器，可能带默认留白产生顶部白条），
         // 直接 Window(Page) 让页面铺满窗口。
