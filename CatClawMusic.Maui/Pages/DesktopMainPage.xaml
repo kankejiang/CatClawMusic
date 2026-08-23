@@ -25,12 +25,12 @@
                 Stroke="#1AFFFFFF"
                 StrokeShape="RoundRectangle 16"
                 BackgroundColor="Transparent">
-            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="0,0,0,0">
+            <Grid RowDefinitions="Auto,Auto,*" Padding="0,0,0,0">
                 <!-- Windows 无 Vitrum handler 时的兜底底色（浅色半透明毛玻璃色调，Android 被下方模糊层完全覆盖） -->
-                <BoxView Grid.RowSpan="5" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
+                <BoxView Grid.RowSpan="3" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
                 <!-- 真毛玻璃背景：BlurConsumerView 实时模糊 BlurHostView 内容，并按 16dp 圆角裁剪贴合浮层卡。
                      AlignToHostOrigin：侧栏在宿主左侧，对齐宿主原点以显示内容区内容从左侧延伸进侧栏 -->
-                <vitrum:BlurConsumerView Grid.RowSpan="5" AlignToHostOrigin="True" ClipCornerRadius="16">
+                <vitrum:BlurConsumerView Grid.RowSpan="3" AlignToHostOrigin="True" ClipCornerRadius="16">
                     <vitrum:BlurConsumerView.TintColor>
                         <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
                     </vitrum:BlurConsumerView.TintColor>
@@ -136,25 +136,6 @@
                     <ScrollView x:Name="PlaylistScroll">
                         <VerticalStackLayout x:Name="PlaylistHost" Spacing="2" />
                     </ScrollView>
-                </VerticalStackLayout>
-
-                <!-- Settings at bottom -->
-                <VerticalStackLayout Grid.Row="3" Spacing="2" Padding="8,0,8,12">
-                    <Border x:Name="NavSettings" StrokeThickness="0" StrokeShape="RoundRectangle 11"
-                            Padding="12,7" BackgroundColor="Transparent">
-                        <Border.Behaviors>
-                            <controls:PressFeedbackBehavior />
-                        </Border.Behaviors>
-<Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
-                        </Border.GestureRecognizers>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <Image x:Name="NavSettingsIcon" Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="20" HeightRequest="20" VerticalOptions="Center" />
-                            <Label x:Name="SettingsLabel" Grid.Column="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[Settings]}" FontSize="14"
-                                   TextColor="{DynamicResource TextPrimaryColor}"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                    </Border>
                 </VerticalStackLayout>
             </Grid>
         </Border>

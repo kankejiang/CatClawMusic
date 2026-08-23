@@ -1388,6 +1388,12 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             : "\u2600\uFE0F";  // ☀️
     }
 
+    /// <summary>右上角设置按钮：切换到设置页面（设置入口已从侧栏移出）。</summary>
+    private void OnSettingsButtonClicked(object? sender, EventArgs e)
+    {
+        DesktopMainPage.Instance?.SwitchToNamedTab("settings");
+    }
+
     // === Shuffle：换批后回到开头并刷新箭头 ===
 
     private void OnShuffleDailyClicked(object? sender, EventArgs e)

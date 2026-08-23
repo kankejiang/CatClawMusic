@@ -375,18 +375,18 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             _currentTab == DesktopTab.Playlists, highlightBg, highlightFg, normalFg);
         ApplyNavState(NavLibrary, NavLibraryLabel, NavLibraryIcon, "ic_library",
             _currentTab == DesktopTab.Library, highlightBg, highlightFg, normalFg);
-        ApplyNavState(NavSettings, SettingsLabel, NavSettingsIcon, "ic_settings",
-            _currentTab == DesktopTab.Settings, highlightBg, highlightFg, normalFg);
+        // 设置入口已从侧栏移入各页面（发现页头部右上角），侧栏不再渲染/高亮设置项
     }
 
     /// <summary>方案A晨雾框架导航选中态：主题色渐变高亮胶囊 + 深色文字；非选中态为透明底 + 主题文字色。
     /// 图标跟随文字颜色切换（MAUI Image 无 TintColor，靠换深/浅图标源）：
-    /// 选中用 _light 深色变体，非选中用主题感知原版（浅色=深色/深色=白色）。</summary>
-    private void ApplyNavState(Border border, Label label, Image icon, string baseIcon,
+    /// 选中用 _light 深色变体，非选中用主题感知原版（浅色=深色/深色=白色）。
+    /// label 可为 null（如顶栏纯图标入口，仅切换图标源）。</summary>
+    private void ApplyNavState(Border border, Label? label, Image icon, string baseIcon,
         bool active, Brush highlightBg, Color highlightFg, Color normalFg)
     {
         border.Background = active ? highlightBg : Brush.Transparent;
-        label.TextColor = active ? highlightFg : normalFg;
+        if (label != null) label.TextColor = active ? highlightFg : normalFg;
         icon.Source = active
             ? ImageSourceHelper.FromName(baseIcon + "_light")
             : ImageSourceHelper.FromNameThemed(baseIcon);
@@ -893,7 +893,6 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             NavDiscoverLabel.IsVisible = false;
             NavLibraryLabel.IsVisible = false;
             NavPlaylistsLabel.IsVisible = false;
-            SettingsLabel.IsVisible = false;
             PlaylistHeader.IsVisible = false;
             AddPlaylistButton.IsVisible = false;
             foreach (var l in _playlistNameLabels) l.IsVisible = false;
@@ -910,7 +909,6 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             NavDiscoverLabel.IsVisible = true;
             NavLibraryLabel.IsVisible = true;
             NavPlaylistsLabel.IsVisible = true;
-            SettingsLabel.IsVisible = true;
             PlaylistHeader.IsVisible = true;
             AddPlaylistButton.IsVisible = true;
             foreach (var l in _playlistNameLabels) l.IsVisible = true;

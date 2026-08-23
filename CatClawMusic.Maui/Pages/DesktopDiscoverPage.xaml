@@ -53,6 +53,15 @@
                             <TapGestureRecognizer Tapped="OnThemeToggleClicked" />
                         </Border.GestureRecognizers>
                     </Border>
+                    <!-- 设置入口：侧栏已移除，改放页面右上角 -->
+                    <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
+                            BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSettingsButtonClicked" />
+                        </Border.GestureRecognizers>
+                        <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}"
+                               WidthRequest="16" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
                 </HorizontalStackLayout>
             </Grid>
 
