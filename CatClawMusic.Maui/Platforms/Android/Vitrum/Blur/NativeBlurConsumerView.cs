@@ -138,6 +138,7 @@ half4 main(float2 coord) {
     bool _blurEnabled = true;
     bool _liquidGlass;
     float _cornerRadiusPx;
+    float _clipCornerRadiusPx;
     bool _alignToHostOrigin;
 
     // API 33+ liquid glass resources — null on older devices
@@ -166,6 +167,9 @@ half4 main(float2 coord) {
     public void SetTintColor(int argb) { _tintColor = argb; Invalidate(); }
     public void SetBlurEnabled(bool enabled) { _blurEnabled = enabled; Invalidate(); }
     public void SetAlignToHostOrigin(bool align) { _alignToHostOrigin = align; Invalidate(); }
+    // 纯圆角裁剪（非 liquid glass）：对普通模糊内容按像素圆角半径做 Path clip，
+    // 让浮层卡的模糊底与圆角描边贴合。px 由其自身屏幕圆角半径换算。
+    public void SetClipCornerRadius(float px) { _clipCornerRadiusPx = px; Invalidate(); }
     public void AttachEngine(BlurEngine engine) => _engine = engine;
     public void DetachEngine() => _engine = null;
 
@@ -257,11 +261,31 @@ half4 main(float2 coord) {
                 // 改为对齐宿主原点（偏移 0），显示宿主内容从左侧边缘开始，形成内容延伸进侧栏的错觉。
                 int offsetX = _alignToHostOrigin ? 0 : (int)(vLeft - hostLoc[0]);
                 int offsetY = _alignToHostOrigin ? 0 : (int)(vTop  - hostLoc[1]);
-                _engine.DrawBlurOnto(canvas,
-                    offsetX, offsetY,
-                    Width, Height,
-                    _tintColor,
-                    sx, sy);
+                // 圆角浮层卡：先按圆角矩形裁剪，再绘制模糊底与色调，使模糊贴合卡片的圆角描边。
+                if (_clipCornerRadiusPx > 0f)
+                {
+                    canvas.Save();
+                    using var clipPath = new global::Android.Graphics.Path();
+                    clipPath.AddRoundRect(
+                        new global::Android.Graphics.RectF(0, 0, Width, Height),
+                        _clipCornerRadiusPx, _clipCornerRadiusPx,
+                        global::Android.Graphics.Path.Direction.Cw);
+                    canvas.ClipPath(clipPath);
+                    _engine.DrawBlurOnto(canvas,
+                        offsetX, offsetY,
+                        Width, Height,
+                        _tintColor,
+                        sx, sy);
+                    canvas.Restore();
+                }
+                else
+                {
+                    _engine.DrawBlurOnto(canvas,
+                        offsetX, offsetY,
+                        Width, Height,
+                        _tintColor,
+                        sx, sy);
+                }
             }
         }
 

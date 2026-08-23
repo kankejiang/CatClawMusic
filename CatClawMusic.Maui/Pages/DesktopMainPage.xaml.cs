@@ -69,7 +69,8 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 #if ANDROID
         // 隐藏侧栏顶部的 App Logo 区，降低底部播放器高度，并压缩手机横屏下的控件尺寸
         SidebarLogo.IsVisible = false;
-        RootGrid.RowDefinitions[2].Height = new GridLength(64);
+        // 浮层化后播放条含底部 16dp 留白（Margin），行高 76 → 卡片可视高 60（接近原 64dp 播放条）
+        RootGrid.RowDefinitions[2].Height = new GridLength(76);
         ApplyCompactPlayerBarMetrics();
         // Android 横屏复用桌面布局：侧栏保持完整宽度（与竖屏版一致），不折叠为图标栏
         _compact = false;
@@ -265,7 +266,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             _embeddedSubPage = null;
             PlayerBarBorder.IsVisible = true;
 #if ANDROID
-            RootGrid.RowDefinitions[2].Height = new GridLength(64);
+            RootGrid.RowDefinitions[2].Height = new GridLength(76);
             ApplyContentAreaSafeArea(); // 恢复 tab 内容的顶部状态栏安全区
 #else
             RootGrid.RowDefinitions[2].Height = new GridLength(100);
@@ -363,12 +364,32 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 
     private void UpdateNavHighlight()
     {
-        var activeColor = (Color)(Application.Current?.Resources["ChipActiveColor"] ?? Colors.Purple);
+        var res = Application.Current?.Resources;
+        var highlightBg = (res?["NavHighlightBrush"] as Brush) ?? new SolidColorBrush(Colors.Purple);
+        var highlightFg = (Color)(res?["NavHighlightTextColor"] ?? Color.FromArgb("#0F0F14"));
+        var normalFg = (Color)(res?["TextPrimaryColor"] ?? Colors.White);
 
-        NavDiscover.BackgroundColor = _currentTab == DesktopTab.Discover ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavLibrary.BackgroundColor = _currentTab == DesktopTab.Library ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavPlaylists.BackgroundColor = _currentTab == DesktopTab.Playlists ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
-        NavSettings.BackgroundColor = _currentTab == DesktopTab.Settings ? activeColor.WithAlpha(0.15f) : Colors.Transparent;
+        ApplyNavState(NavDiscover, NavDiscoverLabel, NavDiscoverIcon, "ic_home",
+            _currentTab == DesktopTab.Discover, highlightBg, highlightFg, normalFg);
+        ApplyNavState(NavPlaylists, NavPlaylistsLabel, NavPlaylistsIcon, "ic_playlist",
+            _currentTab == DesktopTab.Playlists, highlightBg, highlightFg, normalFg);
+        ApplyNavState(NavLibrary, NavLibraryLabel, NavLibraryIcon, "ic_library",
+            _currentTab == DesktopTab.Library, highlightBg, highlightFg, normalFg);
+        ApplyNavState(NavSettings, SettingsLabel, NavSettingsIcon, "ic_settings",
+            _currentTab == DesktopTab.Settings, highlightBg, highlightFg, normalFg);
+    }
+
+    /// <summary>方案A晨雾框架导航选中态：主题色渐变高亮胶囊 + 深色文字；非选中态为透明底 + 主题文字色。
+    /// 图标跟随文字颜色切换（MAUI Image 无 TintColor，靠换深/浅图标源）：
+    /// 选中用 _light 深色变体，非选中用主题感知原版（浅色=深色/深色=白色）。</summary>
+    private void ApplyNavState(Border border, Label label, Image icon, string baseIcon,
+        bool active, Brush highlightBg, Color highlightFg, Color normalFg)
+    {
+        border.Background = active ? highlightBg : Brush.Transparent;
+        label.TextColor = active ? highlightFg : normalFg;
+        icon.Source = active
+            ? ImageSourceHelper.FromName(baseIcon + "_light")
+            : ImageSourceHelper.FromNameThemed(baseIcon);
     }
 
     // ─── Sidebar Playlists ───
@@ -580,7 +601,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // 恢复底部播放栏
         PlayerBarBorder.IsVisible = true;
 #if ANDROID
-        RootGrid.RowDefinitions[2].Height = new GridLength(72);
+        RootGrid.RowDefinitions[2].Height = new GridLength(76);
 #else
         RootGrid.RowDefinitions[2].Height = new GridLength(100);
 #endif

@@ -17,6 +17,7 @@ public class BlurConsumerViewHandler : ContentViewHandler
             [nameof(BlurConsumerView.TintColor)] = MapTintColor,
             [nameof(BlurConsumerView.LiquidGlass)] = MapLiquidGlass,
             [nameof(BlurConsumerView.LiquidGlassCornerRadius)] = MapLiquidGlass,
+            [nameof(BlurConsumerView.ClipCornerRadius)] = MapClipCornerRadius,
             [nameof(BlurConsumerView.BlurEnabled)] = MapBlurEnabled,
             [nameof(BlurConsumerView.AlignToHostOrigin)] = MapAlignToHostOrigin,
         };
@@ -80,6 +81,12 @@ public class BlurConsumerViewHandler : ContentViewHandler
 
     static void MapBlurEnabled(BlurConsumerViewHandler handler, BlurConsumerView view)
         => handler.PlatformView.SetBlurEnabled(view.BlurEnabled);
+
+    static void MapClipCornerRadius(BlurConsumerViewHandler handler, BlurConsumerView view)
+    {
+        float density = handler.Context.Resources!.DisplayMetrics!.Density;
+        handler.PlatformView.SetClipCornerRadius(view.ClipCornerRadius * density);
+    }
 
     static void MapAlignToHostOrigin(BlurConsumerViewHandler handler, BlurConsumerView view)
         => handler.PlatformView.SetAlignToHostOrigin(view.AlignToHostOrigin);

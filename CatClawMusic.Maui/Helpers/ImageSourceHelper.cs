@@ -34,6 +34,8 @@ public static class ImageSourceHelper
         "ic_repeat_all", "ic_repeat_one", "ic_shuffle", "ic_infinite",
         "ic_search", "ic_refresh",
         "ic_arrow_forward", "ic_arrow_left", "ic_check",
+        // 侧栏导航/设置图标：浅色模式用深色 _light 变体，深色模式用白色原版（与 XAML ThemedIcon 一致）
+        "ic_home", "ic_playlist", "ic_library", "ic_settings",
     };
 
     public static ImageSource? FromName(string? name)

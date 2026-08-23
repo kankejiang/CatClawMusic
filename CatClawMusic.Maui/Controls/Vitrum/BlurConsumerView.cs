@@ -67,6 +67,21 @@ public class BlurConsumerView : ContentView
     }
 
     /// <summary>
+    /// Corner radius in dp used to Path-clip the plain (non-liquid) blurred texture and tint.
+    /// Set this to the visual corner radius of a floating frosted card so the blur底 follows
+    /// the rounded border instead of sticking out as a rectangle. Works on all Android versions.
+    /// </summary>
+    public static readonly BindableProperty ClipCornerRadiusProperty =
+        BindableProperty.Create(nameof(ClipCornerRadius), typeof(float), typeof(BlurConsumerView), 0f);
+
+    /// <inheritdoc cref="ClipCornerRadiusProperty"/>
+    public float ClipCornerRadius
+    {
+        get => (float)GetValue(ClipCornerRadiusProperty);
+        set => SetValue(ClipCornerRadiusProperty, value);
+    }
+
+    /// <summary>
     /// When false, blur and liquid glass rendering is skipped entirely.
     /// The view draws only the tint overlay over a transparent background.
     /// Use this for the "None" performance mode to avoid GPU capture costs.
