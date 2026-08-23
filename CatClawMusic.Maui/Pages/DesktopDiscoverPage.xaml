@@ -21,7 +21,8 @@
                     <Label Text="发现" FontSize="24" FontFamily="OpenSansSemibold" TextColor="{DynamicResource TextPrimaryColor}" />
                     <Label Text="{Binding GreetingText}" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" />
                 </VerticalStackLayout>
-                <HorizontalStackLayout x:Name="PluginEntriesBar" Grid.Column="1" VerticalOptions="Center" Spacing="8">
+                <HorizontalStackLayout x:Name="PluginEntriesBar" Grid.Column="1" VerticalOptions="Center" Spacing="8"
+                               Margin="{OnPlatform WinUI='0,0,28,0', Default='0'}">
                 <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
                     <Label Text="智能推荐" FontSize="12" TextColor="{DynamicResource TextSecondaryColor}" VerticalOptions="Center" />
                     <Border BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}" StrokeThickness="0" StrokeShape="RoundRectangle 999" WidthRequest="20" HeightRequest="20">
