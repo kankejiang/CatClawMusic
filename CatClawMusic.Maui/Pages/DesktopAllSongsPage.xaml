@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
@@ -126,7 +126,7 @@
         <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Padding="12,10,12,10" ColumnSpacing="8">
 
             <!-- 列表视图（默认）：完整显示歌名/歌手/专辑/时长 -->
-            <CollectionView Grid.Column="0" x:Name="SongListView"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0" x:Name="SongListView"
                             ItemsSource="{Binding Songs}"
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView, Converter={StaticResource InvertedBoolConverter}}">
@@ -197,7 +197,7 @@
             </CollectionView>
 
             <!-- 网格视图：4 列布局 -->
-            <CollectionView Grid.Column="0" x:Name="GridSongView"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0" x:Name="GridSongView"
                             ItemsSource="{Binding Songs}"
                             SelectionMode="None"
                             IsVisible="{Binding IsGridView}">
@@ -239,7 +239,7 @@
             </CollectionView>
 
             <!-- A-Z 索引条 -->
-            <CollectionView Grid.Column="1" ItemsSource="{Binding GroupHeaders}"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="1" ItemsSource="{Binding GroupHeaders}"
                             IsVisible="{Binding ShowIndexRail}"
                             HorizontalOptions="End" VerticalOptions="Center"
                             WidthRequest="18"

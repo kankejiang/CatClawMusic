@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
@@ -92,7 +92,7 @@
                                FontSize="12"
                                TextColor="{DynamicResource TextSecondaryColor}" />
 
-                        <CollectionView ItemsSource="{Binding MusicFolders}"
+                        <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" ItemsSource="{Binding MusicFolders}"
                                         SelectionMode="None">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>

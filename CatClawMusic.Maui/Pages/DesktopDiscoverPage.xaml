@@ -80,7 +80,7 @@
                     <VerticalStackLayout Spacing="0">
                         <VerticalStackLayout IsVisible="{Binding SearchArtistResults.Count, Converter={StaticResource CountToBoolConverter}}">
                             <Label Text="歌手" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,12,16,4" />
-                            <CollectionView ItemsSource="{Binding SearchArtistResults}" SelectionMode="Single" SelectionChanged="OnSearchArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchArtistResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                            <CollectionView ItemsSource="{Binding SearchArtistResults}" SelectionMode="Single" SelectionChanged="OnSearchArtistSelected" ItemsUpdatingScrollMode="KeepScrollOffset" HeightRequest="{Binding SearchArtistResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
@@ -100,7 +100,7 @@
                         <VerticalStackLayout IsVisible="{Binding SearchAlbumResults.Count, Converter={StaticResource CountToBoolConverter}}">
                             <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
                             <Label Text="专辑" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
-                            <CollectionView ItemsSource="{Binding SearchAlbumResults}" SelectionMode="Single" SelectionChanged="OnSearchAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchAlbumResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                            <CollectionView ItemsSource="{Binding SearchAlbumResults}" SelectionMode="Single" SelectionChanged="OnSearchAlbumSelected" ItemsUpdatingScrollMode="KeepScrollOffset" HeightRequest="{Binding SearchAlbumResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
@@ -120,7 +120,7 @@
                         <VerticalStackLayout IsVisible="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}">
                             <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
                             <Label Text="歌曲" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
-                            <CollectionView ItemsSource="{Binding SearchResults}" SelectionMode="Single" SelectionChanged="OnSearchSongSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding SearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                            <CollectionView ItemsSource="{Binding SearchResults}" SelectionMode="Single" SelectionChanged="OnSearchSongSelected" ItemsUpdatingScrollMode="KeepScrollOffset" HeightRequest="{Binding SearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
@@ -142,7 +142,7 @@
                         <VerticalStackLayout IsVisible="{Binding HasOnlineSearchResults}">
                             <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="16,4" />
                             <Label Text="在线音乐" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource TextHintColor}" CharacterSpacing="2" Padding="16,8,16,4" />
-                            <CollectionView ItemsSource="{Binding OnlineSearchResults}" SelectionMode="Single" SelectionChanged="OnOnlineSearchResultSelected" ItemsUpdatingScrollMode="KeepItemsInView" HeightRequest="{Binding OnlineSearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
+                            <CollectionView ItemsSource="{Binding OnlineSearchResults}" SelectionMode="Single" SelectionChanged="OnOnlineSearchResultSelected" ItemsUpdatingScrollMode="KeepScrollOffset" HeightRequest="{Binding OnlineSearchResults.Count, Converter={StaticResource SearchSectionHeightConverter}}">
                                 <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate>
@@ -255,7 +255,7 @@
                                Margin="24,0,24,12" />
                     </Grid>
 
-                    <CollectionView x:Name="AiPlaylistRow" Margin="0,0,40,16" HeightRequest="366"
+                    <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" x:Name="AiPlaylistRow" Margin="0,0,40,16" HeightRequest="366"
                                     ItemsSource="{Binding AiPlaylists}" SelectionMode="None"
                                     IsVisible="{Binding IsAiPlaylistsLoading, Converter={StaticResource InvertedBoolConverter}}">
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
@@ -306,7 +306,7 @@
                     </Label>
                 </Grid>
                 <CollectionView x:Name="RecommendAlbumGrid" ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
-                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView" Margin="0,0,40,16" HeightRequest="180">
+                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepScrollOffset" Margin="0,0,40,16" HeightRequest="180">
                     <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                     <!-- 推荐专辑改为单行横滑（与每日推荐/推荐艺人一致），避免 6+2 断行网格 -->
                     <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
@@ -345,7 +345,7 @@
                 <Grid x:Name="DailyWrap">
                     <CollectionView x:Name="DailyList" Margin="0,0,40,16" HeightRequest="206"
                                     ItemsSource="{Binding DailyRecommendSongs}" SelectionMode="Single"
-                                    SelectionChanged="OnDailySongSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                    SelectionChanged="OnDailySongSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                         <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
@@ -389,7 +389,7 @@
                 <Grid x:Name="ArtistsWrap">
                     <CollectionView x:Name="ArtistsRow" Margin="0,0,40,16" HeightRequest="142"
                                     ItemsSource="{Binding Artists}" SelectionMode="Single"
-                                    SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                    SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                         <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
@@ -419,7 +419,7 @@
                 <VerticalStackLayout Grid.Column="0" Spacing="0">
                     <Label Text="最多播放" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,10" />
                     <CollectionView x:Name="TopPlayedList" ItemsSource="{Binding TopPlayedSongs}" SelectionMode="Single"
-                                    SelectionChanged="OnTopPlayedSongSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                    SelectionChanged="OnTopPlayedSongSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                         <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
@@ -453,7 +453,7 @@
                 <VerticalStackLayout Grid.Column="1" Spacing="0">
                     <Label Text="我的最爱 ★" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,10" />
                     <CollectionView x:Name="FavoriteList" ItemsSource="{Binding FavoriteSongs}" SelectionMode="Single"
-                                    SelectionChanged="OnFavoriteSongSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                    SelectionChanged="OnFavoriteSongSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                         <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
@@ -493,7 +493,7 @@
                             BackgroundColor="Transparent" TextColor="{DynamicResource TextSecondaryColor}" Padding="8,0" Clicked="OnArtistsViewAllClicked" />
                 </Grid>
                 <CollectionView x:Name="ArtistGrid" ItemsSource="{Binding Artists}" SelectionMode="Single"
-                                SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                     <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                     <CollectionView.ItemsLayout><GridItemsLayout Orientation="Vertical" Span="8" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
@@ -517,7 +517,7 @@
                 </Grid>
                 <Label Text="从你的曲库里随机挑出的专辑 · 帮你重新发现" FontSize="11.5" TextColor="{DynamicResource TextHintColor}" Margin="0,0,0,10" />
                 <CollectionView x:Name="AlbumGrid" ItemsSource="{Binding Albums}" SelectionMode="Single"
-                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
+                                SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
                     <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
                     <CollectionView.ItemsLayout><GridItemsLayout Orientation="Vertical" Span="6" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
@@ -577,7 +577,7 @@
             <CollectionView x:Name="ChatMessagesList" Grid.Row="1" Margin="0,0,0,0"
                         ItemsSource="{Binding ChatMessages}"
                         SelectionMode="None"
-                            ItemsUpdatingScrollMode="KeepItemsInView"
+                            ItemsUpdatingScrollMode="KeepScrollOffset"
                             Scrolled="OnChatMessagesScrolled"
                             Rotation="180">
                 <CollectionView.ItemTemplate>
@@ -626,7 +626,7 @@
                                                    TextColor="{DynamicResource TextSecondaryColor}"
                                                    LineBreakMode="WordWrap"
                                                    IsVisible="{Binding IsThinkingExpanded}" />
-                                            <CollectionView IsVisible="{Binding IsThinkingExpanded}" ItemsSource="{Binding ThinkingSteps}"
+                                            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" IsVisible="{Binding IsThinkingExpanded}" ItemsSource="{Binding ThinkingSteps}"
                                                             MaximumHeightRequest="160" Margin="0,2,0,0">
                                                 <CollectionView.ItemTemplate>
                                                     <DataTemplate>

@@ -233,7 +233,7 @@
                 </Grid>
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" IsVisible="{Binding HasCompare}">
                     <CollectionView Grid.ColumnSpan="3" ItemsSource="{Binding CompareItems}"
-                                    SelectionMode="None" ItemsUpdatingScrollMode="KeepItemsInView">
+                                    SelectionMode="None" ItemsUpdatingScrollMode="KeepScrollOffset">
                         <CollectionView.ItemsLayout>
                             <GridItemsLayout Orientation="Vertical" Span="3" VerticalItemSpacing="10" HorizontalItemSpacing="10" />
                         </CollectionView.ItemsLayout>
@@ -342,7 +342,7 @@
                 <CollectionView ItemsSource="{Binding TopSongs}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnTopSongSelected"
-                                ItemsUpdatingScrollMode="KeepItemsInView">
+                                ItemsUpdatingScrollMode="KeepScrollOffset">
                     <CollectionView.Behaviors>
                         <controls:ScrollPerformanceBehavior />
                     </CollectionView.Behaviors>
@@ -388,7 +388,7 @@
             <Border Style="{StaticResource GlassCardStyle}" Padding="14,14">
                 <CollectionView ItemsSource="{Binding TopArtists}"
                                 SelectionMode="None"
-                                ItemsUpdatingScrollMode="KeepItemsInView"
+                                ItemsUpdatingScrollMode="KeepScrollOffset"
                                 HeightRequest="138">
                     <CollectionView.Behaviors>
                         <controls:ScrollPerformanceBehavior />
@@ -431,7 +431,7 @@
                 <CollectionView ItemsSource="{Binding RecentSongs}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnRecentSongSelected"
-                                ItemsUpdatingScrollMode="KeepItemsInView">
+                                ItemsUpdatingScrollMode="KeepScrollOffset">
                     <CollectionView.Behaviors>
                         <controls:ScrollPerformanceBehavior />
                     </CollectionView.Behaviors>

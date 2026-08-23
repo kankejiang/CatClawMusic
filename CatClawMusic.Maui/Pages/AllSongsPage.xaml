@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
@@ -92,7 +92,7 @@
                                ChipFontSize="12.5" />
 
             <!-- 歌曲列表 -->
-            <CollectionView Grid.Row="1" x:Name="SongListView" ItemsSource="{Binding Songs}"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Row="1" x:Name="SongListView" ItemsSource="{Binding Songs}"
                             SelectionMode="None">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:Song">
@@ -161,7 +161,7 @@
             </CollectionView>
 
             <!-- A-Z 索引条 -->
-            <CollectionView Grid.Row="1" ItemsSource="{Binding GroupHeaders}"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Row="1" ItemsSource="{Binding GroupHeaders}"
                             IsVisible="{Binding ShowIndexRail}"
                             HorizontalOptions="End" VerticalOptions="Center"
                             Margin="0,0,6,0" WidthRequest="20"

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
@@ -40,7 +40,7 @@
 
         <Grid Grid.Row="1" RowDefinitions="*,Auto">
             <Grid Grid.Row="0" Margin="16,8,16,0">
-                <CollectionView ItemsSource="{Binding Items}"
+                <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" ItemsSource="{Binding Items}"
                                 SelectionMode="Single"
                                 SelectionChanged="OnItemSelected">
                     <CollectionView.ItemTemplate>

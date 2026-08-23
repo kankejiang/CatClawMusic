@@ -88,7 +88,7 @@
             <!-- 歌曲列表 -->
             <CollectionView Grid.Row="1" x:Name="SongListView" ItemsSource="{Binding Songs}"
                             SelectionMode="None"
-                            ItemsUpdatingScrollMode="KeepItemsInView">
+                            ItemsUpdatingScrollMode="KeepScrollOffset">
                 <CollectionView.Behaviors>
                     <controls:ScrollPerformanceBehavior />
                 </CollectionView.Behaviors>
@@ -162,7 +162,7 @@
             </CollectionView>
 
             <!-- A-Z 索引条 -->
-            <CollectionView Grid.Row="1" ItemsSource="{Binding GroupHeaders}"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Row="1" ItemsSource="{Binding GroupHeaders}"
                             IsVisible="{Binding ShowIndexRail}"
                             HorizontalOptions="End" VerticalOptions="Center"
                             Margin="0,0,6,0" WidthRequest="20"

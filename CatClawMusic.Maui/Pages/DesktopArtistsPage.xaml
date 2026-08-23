@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
@@ -181,7 +181,7 @@
         <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Padding="12,10,12,10" ColumnSpacing="8">
 
             <!-- 网格视图：4 列布局 -->
-            <CollectionView Grid.Column="0"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0"
                             x:Name="GridCollectionView"
                             ItemsSource="{Binding FilteredArtists}"
                             SelectionMode="None"
@@ -234,7 +234,7 @@
             </CollectionView>
 
             <!-- 列表视图 -->
-            <CollectionView Grid.Column="0"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0"
                             x:Name="ListCollectionView"
                             ItemsSource="{Binding FilteredArtists}"
                             SelectionMode="None"

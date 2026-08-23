@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
@@ -81,7 +81,7 @@
         <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Padding="0,0,0,8" ColumnSpacing="0">
 
             <!-- 网格视图 -->
-            <CollectionView Grid.Column="0"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0"
                             x:Name="GridCollectionView"
                             ItemsSource="{Binding FilteredAlbums}"
                             SelectionMode="None"
@@ -138,7 +138,7 @@
             </CollectionView>
 
             <!-- 列表视图（与 AllSongsPage 样式一致） -->
-            <CollectionView Grid.Column="0"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Column="0"
                             x:Name="ListCollectionView"
                             ItemsSource="{Binding FilteredAlbums}"
                             SelectionMode="None"

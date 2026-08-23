@@ -19,6 +19,10 @@ public partial class App : Application
     public static Microsoft.UI.Windowing.AppWindow? CurrentAppWindow { get; set; }
     public static Microsoft.UI.Xaml.Window? CurrentNativeWindow { get; set; }
     private static IntPtr _appHwnd;
+    // 临时诊断字段（定位 stowed exception）
+    private static int _mainThreadId;
+    private static string _fceLogPath = "";
+    private static bool _dumpWritten;
 
     /// <summary>MAUI 官方 TitleBar 控件实例（Windows 自定义标题栏；主题切换时更新配色）</summary>
     private static Microsoft.Maui.Controls.TitleBar? _mauiTitleBar;
@@ -142,6 +146,52 @@ public partial class App : Application
     protected override void OnStart()
     {
         base.OnStart();
+
+        // ═══ 临时诊断：FirstChanceException 全量捕获（定位 0xc000027b stowed exception 的根源托管异常）═══
+#if WINDOWS
+        try
+        {
+            _mainThreadId = Environment.CurrentManagedThreadId;
+            _fceLogPath = Path.Combine(FileSystem.AppDataDirectory, "firstchance.log");
+            try
+            {
+                var fce0 = Path.Combine(FileSystem.AppDataDirectory, "firstchance.log");
+                if (File.Exists(fce0)) File.Delete(fce0);
+            }
+            catch { }
+            AppDomain.CurrentDomain.FirstChanceException += (_, fce) =>
+            {
+                try
+                {
+                    var ex = fce.Exception;
+                    var type = ex?.GetType().FullName ?? "null";
+                    var msg = ex?.Message?.Split('\n')[0] ?? "";
+                    var stack = ex?.StackTrace ?? "";
+                    var curStack = Environment.StackTrace ?? "";
+                    var line = $"[{DateTime.Now:HH:mm:ss.fff}] thread={Environment.CurrentManagedThreadId} {type}: {msg}\n{stack}\nFULL:\n{curStack}\n---\n";
+                    File.AppendAllText(_fceLogPath, line);
+                    // 主线程上的 COMException → 极可能是 stowed exception 的根源，立即抓 minidump
+                    if (!_dumpWritten && type?.Contains("COMException") == true
+                        && Environment.CurrentManagedThreadId == _mainThreadId)
+                    {
+                        _dumpWritten = true;
+                        var dmp = Path.Combine(FileSystem.AppDataDirectory, "com_crash.dmp");
+                        try { if (File.Exists(dmp)) File.Delete(dmp); } catch { }
+                        var t = new System.Threading.Thread(() =>
+                        {
+                            try { WriteMiniDump(dmp); Log.Debug("App", $"[Diag] minidump 已写入 {dmp}"); }
+                            catch (Exception de) { Log.Debug("App", $"[Diag] minidump 失败: {de.Message}"); }
+                        });
+                        t.IsBackground = true;
+                        t.Start();
+                    }
+                }
+                catch { }
+            };
+            Log.Debug("App", $"[Diag] FirstChance 捕获已挂载 -> {_fceLogPath}");
+        }
+        catch (Exception dex) { Log.Debug("App", $"[Diag] FirstChance 挂载失败: {dex.Message}"); }
+#endif
 
         // 冷启动时清理 MAUI Share 框架遗留的中转缓存（external cache 下 <固定uuid>/<随机uuid>/ 目录）。
         // 放在冷启动而非"分享完成后"，是因为接收端 App 是异步读取 content URI 的，
@@ -849,6 +899,26 @@ public partial class App : Application
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    // 临时诊断：进程内抓取 minidump（dbghelp.dll 已被系统加载，此调用通常成功）
+    [System.Runtime.InteropServices.DllImport("dbghelp.dll")]
+    private static extern bool MiniDumpWriteDump(IntPtr hProcess, uint processId, IntPtr hFile, uint dumpType,
+        IntPtr exType, IntPtr exInfo, IntPtr userStream);
+
+    private static void WriteMiniDump(string path)
+    {
+#if WINDOWS
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            // MiniDumpWithFullMemory=0x2 | MiniDumpWithThreadInfo=0x1000 | MiniDumpWithHandleData=0x4
+            var proc = System.Diagnostics.Process.GetCurrentProcess();
+            MiniDumpWriteDump(proc.Handle, (uint)proc.Id, fs.SafeFileHandle.DangerousGetHandle(),
+                0x00000002 | 0x00001000 | 0x00000004, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        }
+        catch { }
+#endif
+    }
 
     // Win32 原生无标题栏：直接移除窗口 WS_CAPTION 样式（比 MAUI TitleBar/SetBorderAndTitleBar 更彻底）
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]

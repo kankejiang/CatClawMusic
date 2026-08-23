@@ -82,7 +82,7 @@
             </Grid>
         </Border>
 
-        <CollectionView Grid.Row="2"
+        <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" Grid.Row="2"
                         ItemsSource="{Binding Albums}"
                         IsVisible="{Binding IsAlbumsTabVisible}"
                         SelectionMode="Single"
@@ -132,7 +132,7 @@
                         IsVisible="{Binding IsSongsTabVisible}"
                         SelectionMode="Single"
                         SelectionChanged="OnSongSelected"
-                        ItemsUpdatingScrollMode="KeepItemsInView"
+                        ItemsUpdatingScrollMode="KeepScrollOffset"
                         ItemTemplate="{StaticResource SongItemTemplate}">
             <CollectionView.Behaviors>
                 <controls:ScrollPerformanceBehavior />

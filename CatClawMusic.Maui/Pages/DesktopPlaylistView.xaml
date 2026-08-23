@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -117,7 +117,7 @@
                    IsVisible="{Binding IsLoading}" />
 
             <!-- Playlist List（横屏双列 + AllSongs 紧凑风格） -->
-            <CollectionView x:Name="PlaylistsList"
+            <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" x:Name="PlaylistsList"
                             Grid.Row="3"
                             ItemsSource="{Binding Playlists}"
                             SelectionMode="Single"
