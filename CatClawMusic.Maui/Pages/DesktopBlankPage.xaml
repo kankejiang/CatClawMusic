@@ -164,7 +164,9 @@
             </Grid>
 
             <!-- ═══ 主内容区占位（真实 MainArea 已移到根 Grid 最底层跨两列铺满）═══ -->
-            <Grid Grid.Row="1" />
+            <!-- InputTransparent：占位层必须放行命中，否则会拦截下方 MainArea 内容区的全部点击
+                 （顶部标签/歌曲卡片等 TapGesture 与 CollectionView Selection 均无法触发） -->
+            <Grid Grid.Row="1" InputTransparent="True" />
 
             <!-- ═══ 底部播放条浮层卡（仅右列宽，方案A晨雾框架）═══ -->
             <Border x:Name="PlayerArea" Grid.Row="2"
