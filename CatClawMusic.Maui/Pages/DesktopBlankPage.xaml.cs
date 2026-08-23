@@ -621,38 +621,6 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         PlayerOverlay.IsVisible = false;
     }
 
-    // ─── 顶栏：搜索 / 歌词 ───
-
-    /// <summary>顶栏搜索提交：切到发现页并把关键词下发给其 SearchViewModel。</summary>
-    private void OnSearchSubmitted(object? sender, EventArgs e)
-    {
-        var q = SearchEntry.Text?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(q)) return;
-
-        SwitchTab(DesktopTab.Discover);
-
-        if (_pageCache.TryGetValue(DesktopTab.Discover, out var view)
-            && view.BindingContext is SearchViewModel svm)
-        {
-            svm.SearchQuery = q;
-            svm.ApplyFilters();
-        }
-    }
-
-    /// <summary>顶栏歌词按钮：全屏歌词页（PushEmbed 覆盖内容区）。</summary>
-    private void OnLyricsTapped(object? sender, TappedEventArgs e)
-    {
-        try
-        {
-            var page = _services.GetRequiredService<FullLyricsPage>();
-            DesktopNavigation.PushEmbed(page);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] OpenLyrics failed: {ex}");
-        }
-    }
-
     // ─── 原生标题栏（TitlbarWinUI3 同款）───
 
 #if WINDOWS
@@ -667,7 +635,7 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     /// <summary>
     /// 原生拖动区（物理像素矩形，DPI 换算）：
-    /// 仅顶栏中段空白（TitleBarHost，位于搜索框与按钮簇之间）可拖。
+    /// 顶栏整行可拖（TitleBarHost 铺满顶栏，顶栏上无任何按钮）。
     /// X = 侧栏列宽（244：浮层卡 232 + 左留边 12）。
     /// </summary>
     private void UpDateTitlebar()

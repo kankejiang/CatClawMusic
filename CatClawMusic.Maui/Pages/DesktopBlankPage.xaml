@@ -151,50 +151,9 @@
         <!-- ═══ 右列：顶栏 / 内容区 / 播放条浮层卡 ═══ -->
         <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
 
-            <!-- ═══ 顶栏：搜索框 · 中段拖动区 · 歌词/设置/头像 ═══ -->
-            <Grid x:Name="TopBar" Grid.Row="0"
-                  ColumnDefinitions="420,*,Auto"
-                  Padding="18,14,18,6">
-                <!-- 搜索框 -->
-                <Border x:Name="SearchBox" Grid.Column="0"
-                        HeightRequest="36"
-                        StrokeShape="RoundRectangle 10"
-                        StrokeThickness="1"
-                        Stroke="#14FFFFFF"
-                        BackgroundColor="#0AFFFFFF"
-                        Padding="12,0"
-                        VerticalOptions="Center">
-                    <Entry x:Name="SearchEntry"
-                           Placeholder="搜索歌曲、歌手、专辑…"
-                           PlaceholderColor="{DynamicResource TextHintColor}"
-                           BackgroundColor="Transparent"
-                           VerticalOptions="Center"
-                           FontSize="13"
-                           ReturnType="Search"
-                           Completed="OnSearchSubmitted" />
-                </Border>
-
-                <!-- 中段空白 = 原生拖动区（SetDragRectangles） -->
-                <Grid x:Name="TitleBarHost" Grid.Column="1" />
-
-                <!-- 歌词 / 设置 / 用户 -->
-                <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
-                    <Border WidthRequest="36" HeightRequest="34"
-                            StrokeShape="RoundRectangle 10"
-                            StrokeThickness="0"
-                            BackgroundColor="#0AFFFFFF">
-                        <Border.Behaviors>
-                            <controls:PressFeedbackBehavior />
-                        </Border.Behaviors>
-                        <Image Source="{helpers:ThemedIcon Name=ic_lyrics, Original=True}"
-                               WidthRequest="20" HeightRequest="20"
-                               HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnLyricsTapped" />
-                            </Image.GestureRecognizers>
-                        </Image>
-                    </Border>
-                    </HorizontalStackLayout>
+            <!-- ═══ 顶栏：整行作原生拖动区（SetDragRectangles） ═══ -->
+            <Grid x:Name="TopBar" Grid.Row="0" Padding="18,14,18,6">
+                <Grid x:Name="TitleBarHost" />
             </Grid>
 
             <!-- ═══ 主页内容区（tab 内容/子页面嵌入）═══ -->
