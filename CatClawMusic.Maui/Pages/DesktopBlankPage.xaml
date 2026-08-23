@@ -24,14 +24,10 @@
          ════════════════════════════════════════════════════════════════ -->
     <Grid x:Name="BlankRoot" ColumnDefinitions="244,*">
 
-        <!-- ═══ 底层：主内容区（跨两列铺满，作为所有毛玻璃浮层的"画布"）═══ -->
-        <!-- Padding 为侧栏/顶栏/播放条浮层留出空间，子页面内容不会被遮住；
-             但 MainArea 的背景色会延伸到浮层下方 → 毛玻璃下能看到统一色调 + 内容层次。 -->
-        <Grid x:Name="MainArea" Grid.ColumnSpan="2" IsClippedToBounds="True"
-              BackgroundColor="{DynamicResource WindowBackgroundColor}"
-              Padding="256,68,24,100" />
-
         <!-- ═══ 左：侧栏浮层卡（Logo + 三大导航 + 我的歌单）═══ -->
+        <!-- 说明：主内容区（MainArea）已移入右列内容行（row 1），成为 TopBar/PlayerArea 的
+             同级而非其下层。这样内容区上方不再有任何透明容器覆盖，点击/滚动可直接命中，避开
+             「右列 Grid 覆盖 MainArea 导致整块内容无法交互」的问题。 -->
         <Border x:Name="NavArea" Grid.Column="0"
                 Margin="12,12,0,12"
                 StrokeThickness="1"
@@ -163,10 +159,12 @@
                 <Grid x:Name="TitleBarHost" HeightRequest="40" />
             </Grid>
 
-            <!-- ═══ 主内容区占位（真实 MainArea 已移到根 Grid 最底层跨两列铺满）═══ -->
-            <!-- InputTransparent：占位层必须放行命中，否则会拦截下方 MainArea 内容区的全部点击
-                 （顶部标签/歌曲卡片等 TapGesture 与 CollectionView Selection 均无法触发） -->
-            <Grid Grid.Row="1" InputTransparent="True" />
+            <!-- ═══ 主内容区（真实内容宿主，位于右列内容行）═══ -->
+            <!-- 作为 TopBar/PlayerArea 的同级 child，处于自己的 row 1 中，
+                 上方无任何覆盖容器 → 点击 / CollectionView Selection / 滚动均正常命中。
+                 背景色与页面同色，作为内容底色。 -->
+            <Grid x:Name="MainArea" Grid.Row="1" IsClippedToBounds="True"
+                  BackgroundColor="{DynamicResource WindowBackgroundColor}" />
 
             <!-- ═══ 底部播放条浮层卡（仅右列宽，方案A晨雾框架）═══ -->
             <Border x:Name="PlayerArea" Grid.Row="2"
