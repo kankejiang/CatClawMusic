@@ -194,38 +194,7 @@
                             </Image.GestureRecognizers>
                         </Image>
                     </Border>
-                    <Border WidthRequest="36" HeightRequest="34"
-                            StrokeShape="RoundRectangle 10"
-                            StrokeThickness="0"
-                            BackgroundColor="#0AFFFFFF">
-                        <Border.Behaviors>
-                            <controls:PressFeedbackBehavior />
-                        </Border.Behaviors>
-                        <Image Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}"
-                               WidthRequest="20" HeightRequest="20"
-                               HorizontalOptions="Center" VerticalOptions="Center">
-                            <Image.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnNavSettingsTapped" />
-                            </Image.GestureRecognizers>
-                        </Image>
-                    </Border>
-                    <!-- 用户头像（展示用） -->
-                    <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8" Margin="6,0,0,0" VerticalOptions="Center">
-                        <Border WidthRequest="32" HeightRequest="32"
-                                StrokeShape="RoundRectangle 9"
-                                StrokeThickness="0"
-                                Background="{DynamicResource HeroBrush}">
-                            <Label Text="&#x1f43e;" FontSize="15"
-                                   HorizontalOptions="Center" VerticalOptions="Center" />
-                        </Border>
-                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                            <Label Text="游客" FontSize="12.5" FontFamily="OpenSansSemibold"
-                                   TextColor="{DynamicResource TextPrimaryColor}" />
-                            <Label Text="免费账户" FontSize="9"
-                                   TextColor="{DynamicResource TextHintColor}" />
-                        </VerticalStackLayout>
-                    </Grid>
-                </HorizontalStackLayout>
+                    </HorizontalStackLayout>
             </Grid>
 
             <!-- ═══ 主页内容区（tab 内容/子页面嵌入）═══ -->
