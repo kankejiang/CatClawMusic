@@ -234,7 +234,7 @@
 
                 <!-- Controls + Progress (center) -->
                 <Grid x:Name="PlayerControlsGrid" Grid.Column="1" RowDefinitions="Auto,Auto"
-                      VerticalOptions="Center" RowSpacing="6" Padding="0">
+                      VerticalOptions="Center" RowSpacing="6" Padding="0,10,0,12">
                     <!-- Control buttons（Image 而非 ImageButton：ImageButton 无 TintColor 属性，
                          明暗主题着色用 Image.TintColor + DynamicResource） -->
                     <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto"

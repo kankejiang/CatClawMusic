@@ -927,8 +927,8 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         PlayerCover.WidthRequest = 32;
         PlayerCover.HeightRequest = 32;
 
-        // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤
-        PlayerControlsGrid.Padding = new Thickness(6, 0);
+        // 播放控制区：减少两侧内边距，避免横屏手机横向拥挤；保留上下留边使进度条/控件不贴卡片边缘
+        PlayerControlsGrid.Padding = new Thickness(6, 10, 6, 12);
         DesktopProgressSlider.MinimumWidthRequest = 140;
 
         // 控制按钮行：主播放键 46→40、其余 32→28，适配 64 行高（40+4+进度≈64）
