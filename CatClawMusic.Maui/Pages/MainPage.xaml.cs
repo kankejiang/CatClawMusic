@@ -27,6 +27,9 @@ public partial class MainPage : ContentPage
     private readonly IServiceProvider _services;
     private readonly List<ContentPage> _tabPages = new();
     private readonly NowPlayingViewModel _nowPlayingVm;
+    private readonly double _discoverBaseBottomPadding;
+    // 发现页实例，用于随迷你播放器/TabBar 显隐联动调整其滚动内容底部预留，避免推荐艺人被悬浮条遮挡
+    private SearchPage? _searchPage;
     private readonly SearchViewModel? _searchVm;
     private readonly Services.IInteractionStateService? _interactionState;
     // ViewPager 布局: [FullLyrics(0), NowPlaying(1), Search(2), Playlist(3), Library(4)]
@@ -87,6 +90,8 @@ public partial class MainPage : ContentPage
         _searchVm = services.GetService<SearchViewModel>();
 
         SetupPages();
+        // 初始即应用底部预留（TabBar 常驻显隐由 UpdateSafeAreaPadding 维护，此处随页就绪联动一次）
+        UpdateDiscoverBottomReserve();
         ViewPagerGrid.SizeChanged += OnViewPagerSizeChanged;
 
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
@@ -136,6 +141,8 @@ public partial class MainPage : ContentPage
             _services.GetRequiredService<PlaylistPage>(),
             _services.GetRequiredService<LibraryPage>(),
         };
+        // 复用 SetupPages 创建的实例（SearchPage 为 AddTransient，直接再解析会得到不同实例）
+        _searchPage = pages.OfType<SearchPage>().FirstOrDefault();
 
 #if ANDROID
         // ── 原生 ViewPager2 路径 ──
@@ -1051,6 +1058,7 @@ public partial class MainPage : ContentPage
                 this.Content?.InvalidateMeasure();
             });
         }
+        UpdateDiscoverBottomReserve();
     }
 
     /// <summary>迷你播放器仅在有当前歌曲且非全屏页、非聊天模式时显示（聊天模式下迷你播放器显示在聊天界面输入框上方）</summary>
@@ -1064,6 +1072,19 @@ public partial class MainPage : ContentPage
         _lastMiniPlayerVisible = visible;
         MiniPlayer.IsVisible = visible;
         MiniPlayer.HeightRequest = visible ? 52 : 0;
+        UpdateDiscoverBottomReserve();
+    }
+
+    /// <summary>根据迷你播放器与 TabBar 当前显隐/高度，联动调整发现页滚动内容底部预留，
+    /// 使推荐艺人在播放时也能滚到悬浮条上方完整露出。</summary>
+    private void UpdateDiscoverBottomReserve()
+    {
+        if (_searchPage == null) return;
+        var mini = MiniPlayer.IsVisible ? MiniPlayer.HeightRequest : 0;
+        var tab = TabBar.IsVisible ? TabBar.HeightRequest : 0;
+        // 预留 = 迷你播放器高度 + 其底部间距(2) + 与TabBar间距(2) + TabBar高度
+        var extra = mini + tab + (mini > 0 ? 4 : 0) + (tab > 0 ? 2 : 0);
+        _searchPage.SetBottomReservedHeight(extra);
     }
 
     /// <summary>ViewModel 属性变化时更新迷你播放器显隐</summary>

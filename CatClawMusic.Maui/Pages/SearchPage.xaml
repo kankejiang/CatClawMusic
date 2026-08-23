@@ -17,7 +17,7 @@
                     IsVisible="{Binding IsChatMode, Converter={StaticResource InvertedBoolConverter}}"
                     Orientation="Vertical">
             <ScrollView.Behaviors><controls:ScrollPerformanceBehavior /></ScrollView.Behaviors>
-            <VerticalStackLayout Padding="0,0,0,24" Spacing="0">
+            <VerticalStackLayout x:Name="DiscoverContent" Padding="0,0,0,24" Spacing="0">
                     <Grid Margin="18,16,18,10" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <VerticalStackLayout VerticalOptions="Center">
                             <Label Text="发现" Style="{StaticResource PageTitleStyle}" />

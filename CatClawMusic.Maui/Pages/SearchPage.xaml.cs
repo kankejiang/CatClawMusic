@@ -372,6 +372,19 @@ public partial class SearchPage : DiscoverPageBase
         }
     }
 
+    /// <summary>
+    /// 由 MainPage 调用：随迷你播放器/TabBar 显隐联动调整发现页滚动内容底部预留高度，
+    /// 使推荐艺人等底部区块能完整滚到悬浮条上方露出，避免被遮挡无法点选。
+    /// </summary>
+    public void SetBottomReservedHeight(double extra)
+    {
+        if (DiscoverContent == null) return;
+        var basePad = 24.0;
+        var target = Math.Max(basePad, extra);
+        if (Math.Abs(DiscoverContent.Padding.Bottom - target) < 0.5) return;
+        DiscoverContent.Padding = new Thickness(DiscoverContent.Padding.Left, DiscoverContent.Padding.Top, DiscoverContent.Padding.Right, target);
+    }
+
     /// <summary>点击"前往音乐库"按钮时触发，切换到主界面的音乐库标签页。</summary>
     private void OnGoLibraryClicked(object? sender, EventArgs e)
     {
