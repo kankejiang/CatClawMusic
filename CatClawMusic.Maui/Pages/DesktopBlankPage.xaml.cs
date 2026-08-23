@@ -159,6 +159,9 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             InvokeLifecycle(newHost, "OnAppearing");
     }
 
+    /// <summary>由入口按钮切换到设置页（如发现页右上角齿轮）。</summary>
+    public void SwitchToSettings() => SwitchTab(DesktopTab.Settings);
+
     private View? CreatePageContent(DesktopTab tab)
     {
         ContentPage? page = tab switch
