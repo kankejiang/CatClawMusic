@@ -427,7 +427,7 @@ public partial class App : Application
         }
     }
 
-    /// <summary>强制进入横屏：锁定 SensorLandscape，延迟一帧切换 Shell 布局。</summary>
+    /// <summary>强制进入横屏：锁定 SensorLandscape，延迟到旋转完成后切换 Shell 布局。</summary>
     public void ForceLandscape()
     {
         _manualLandscape = true;
@@ -440,8 +440,17 @@ public partial class App : Application
                 activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorLandscape;
         }
         catch (Exception ex) { Log.Debug("App", $"强制横屏失败: {ex.Message}"); }
-        // 延迟到下一个消息循环，让当前按钮事件处理完毕后再切 Shell 根页面
-        MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
+        // 显示已处于横屏（物理旋转已到位）：无需等旋转回调，直接切换
+        if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Landscape)
+        {
+            MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
+        }
+        else
+        {
+            // 等旋转完成（OnDisplayOrientationChanged 延迟调用）后再切 Shell 根页面，
+            // 避免 ViewPager2 布局期间替换 ShellContent 导致 fragment 重建失败（白屏）。
+            _ = ApplyOrientationAfterRotationFallbackAsync();
+        }
     }
 
     /// <summary>强制进入竖屏（返回键 / 再次点旋转按钮）：锁定 SensorPortrait，切回竖屏手机布局。</summary>
@@ -457,8 +466,26 @@ public partial class App : Application
                 activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorPortrait;
         }
         catch (Exception ex) { Log.Debug("App", $"恢复竖屏失败: {ex.Message}"); }
-        // 直接切回手机布局，不依赖 DisplayOrientation 是否已经变为 Portrait
-        MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
+        // 显示已处于竖屏：无需等旋转回调，直接切换
+        if (DeviceDisplay.Current.MainDisplayInfo.Orientation == DisplayOrientation.Portrait)
+        {
+            MainThread.BeginInvokeOnMainThread(async () => await ApplyOrientationLayout());
+        }
+        else
+        {
+            _ = ApplyOrientationAfterRotationFallbackAsync();
+        }
+    }
+
+    /// <summary>旋转回调未触发时的兜底：超时后强制切换布局（幂等，已正确则跳过）。</summary>
+    private async Task ApplyOrientationAfterRotationFallbackAsync()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            await ApplyOrientationLayout();
+        }
+        catch { }
     }
 
     /// <summary>切换横竖屏（播放页旋转按钮）：横屏与竖屏切换。</summary>
@@ -477,7 +504,18 @@ public partial class App : Application
             _manualLandscape = false; // 已实际到达横屏，释放强制横屏
         else if (_manualPortrait && orientation == DisplayOrientation.Portrait)
             _manualPortrait = false; // 已实际到达竖屏，释放强制竖屏
-        _ = ApplyOrientationLayout();
+        // 延迟到旋转动画结束后再切换布局：旋转过渡期间 ViewPager2 正在布局，
+        // 此时替换 ShellContent 会触发 SafeNotifyDataSetChanged 的 Post 分支，
+        // fragment 重建偶发失败导致新页面 Handler 不挂载（白屏）。
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                await Task.Delay(300);
+                await ApplyOrientationLayout();
+            }
+            catch { }
+        });
     }
 
     /// <summary>按当前方向直选 Shell 根页面：横屏→DesktopMainPage（桌面侧栏），竖屏→MainPage（手机 Tab）。
