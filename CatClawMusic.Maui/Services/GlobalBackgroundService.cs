@@ -1,3 +1,4 @@
+#if ANDROID
 using Android.App;
 using Android.Graphics;
 using Android.Graphics.Drawables;
@@ -188,3 +189,4 @@ public static class GlobalBackgroundService
         catch { }
     }
 }
+#endif
