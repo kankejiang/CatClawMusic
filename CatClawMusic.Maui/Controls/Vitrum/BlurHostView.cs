@@ -10,11 +10,11 @@ namespace Vitrum;
 public class BlurHostView : ContentView
 {
     /// <summary>
-    /// Blur sigma in dp. Default 60 is tuned for high-performance devices.
+    /// Blur sigma in dp. Default 90 gives a strongly frosted effect.
     /// Increase for heavier blur (text less readable), decrease for lighter effect.
     /// </summary>
     public static readonly BindableProperty BlurRadiusProperty =
-        BindableProperty.Create(nameof(BlurRadius), typeof(float), typeof(BlurHostView), 60f);
+        BindableProperty.Create(nameof(BlurRadius), typeof(float), typeof(BlurHostView), 90f);
 
     public float BlurRadius
     {

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -20,6 +21,12 @@ public partial class AlbumsViewModel : ObservableObject
     /// <summary>筛选后的专辑列表（列表视图 + 网格视图共用）</summary>
     [ObservableProperty]
     private ObservableCollection<AlbumWithCount> _filteredAlbums = new();
+
+    /// <summary>网格分块行：外层 CollectionView 虚拟化行，每行水平排 N 张固定卡片。</summary>
+    [ObservableProperty]
+    private ObservableCollection<GridChunkRow> _albumGridRows = new();
+
+    private double _albumGridWidth = 168 * 4;
 
     // === UI 状态 ===
     /// <summary>是否正在加载专辑数据</summary>
@@ -95,6 +102,21 @@ public partial class AlbumsViewModel : ObservableObject
         InitializeFilterChips();
         InitializeSortOptions();
         UpdateViewToggleColors();
+        _filteredAlbums.CollectionChanged += (_, _) => RebuildAlbumGrid(_albumGridWidth);
+    }
+
+    /// <summary>网格列数随可用宽度变化实时重排。</summary>
+    public void SetAlbumGridWidth(double width)
+    {
+        _albumGridWidth = width;
+        RebuildAlbumGrid(width);
+    }
+
+    public void RebuildAlbumGrid(double width)
+    {
+        if (width <= 0) width = _albumGridWidth;
+        var span = ChunkGridHelper.ComputeSpan(width, 168, 12, 8);
+        ChunkGridHelper.Chunk(FilteredAlbums.Select(a => (object)a).ToList(), span, AlbumGridRows);
     }
 
     /// <summary>初始化筛选 chip</summary>

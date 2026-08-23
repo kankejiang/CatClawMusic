@@ -23,6 +23,27 @@ public class BlurConsumerView : ContentView
     /// Controls the tint hue and opacity of the frosted-glass effect.
     /// </summary>
     /// <remarks>
+    /// Windows 播放条等浮层卡：当捕获源应是「窗口内部的下层内容」而非窗口外的桌面背景时，
+    /// 设置 <see cref="ContentSource"/> 指向被覆盖的内容视图（如主内容区 MainArea）。
+    /// 平台 handler 会用它通过 <c>CompositionVisualSurface</c> 捕获该视图底带并模糊。
+    /// 不设置时（侧栏/顶部）回退为 <c>BackdropBrush</c> 捕获窗口背后的桌面背景。
+    /// </remarks>
+    public static readonly BindableProperty ContentSourceProperty =
+        BindableProperty.Create(nameof(ContentSource), typeof(Microsoft.Maui.Controls.VisualElement),
+            typeof(BlurConsumerView), null);
+
+    /// <inheritdoc cref="ContentSourceProperty"/>
+    public Microsoft.Maui.Controls.VisualElement? ContentSource
+    {
+        get => (Microsoft.Maui.Controls.VisualElement?)GetValue(ContentSourceProperty);
+        set => SetValue(ContentSourceProperty, value);
+    }
+
+    /// <summary>
+    /// Semi-transparent ARGB color drawn on top of the blurred texture.
+    /// Controls the tint hue and opacity of the frosted-glass effect.
+    /// </summary>
+    /// <remarks>
     /// <c>#B21C1C25</c> (70% opacity navy) works well for dark-theme action bars and input areas.
     /// For a lighter glass on light themes, try <c>#B2FFFFFF</c>.
     /// The default <c>#661C1C25</c> is 40% opacity — increase alpha for a denser frost.

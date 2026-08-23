@@ -25,6 +25,15 @@ public partial class DesktopAllSongsPage : ContentPage, ISongContextMenuHost
     {
         base.OnAppearing();
         _ = _vm.LoadAsync(Source);
+        // 网格列数按容器宽度实时重排；首次进入与窗口缩放都用宽度驱动
+        var w = GridSongView.Width > 0 ? GridSongView.Width : (GridSongView.Bounds.Width > 0 ? GridSongView.Bounds.Width : -1);
+        if (w > 0) _vm.SetGridWidth(w);
+    }
+
+    private void OnGridResized(object? sender, EventArgs e)
+    {
+        var w = GridSongView.Width;
+        if (w > 0) _vm.SetGridWidth(w);
     }
 
     // === 事件处理 ===

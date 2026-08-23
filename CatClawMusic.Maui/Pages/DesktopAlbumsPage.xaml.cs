@@ -30,6 +30,12 @@ public partial class DesktopAlbumsPage : ContentPage
         }
     }
 
+    private void OnGridResized(object? sender, EventArgs e)
+    {
+        var w = GridAlbumView.Width;
+        if (w > 0) _viewModel.SetAlbumGridWidth(w);
+    }
+
     // === 事件处理 ===
 
     private void OnBackTapped(object? sender, EventArgs e)

@@ -1,5 +1,6 @@
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
@@ -19,6 +20,12 @@ public partial class ArtistsViewModel : ObservableObject
     /// <summary>筛选后的艺术家列表</summary>
     [ObservableProperty]
     private ObservableCollection<ArtistWithCount> _filteredArtists = new();
+
+    /// <summary>网格分块行：外层 CollectionView 虚拟化行，每行水平排 N 张固定卡片。</summary>
+    [ObservableProperty]
+    private ObservableCollection<GridChunkRow> _artistGridRows = new();
+
+    private double _artistGridWidth = 168 * 4;
 
     // === UI 状态 ===
     /// <summary>是否正在加载艺术家数据</summary>
@@ -108,6 +115,21 @@ public partial class ArtistsViewModel : ObservableObject
         InitializeFilterChips();
         InitializeSortOptions();
         UpdateViewToggleColors();
+        _filteredArtists.CollectionChanged += (_, _) => RebuildArtistGrid(_artistGridWidth);
+    }
+
+    /// <summary>网格列数随可用宽度变化实时重排。</summary>
+    public void SetArtistGridWidth(double width)
+    {
+        _artistGridWidth = width;
+        RebuildArtistGrid(width);
+    }
+
+    public void RebuildArtistGrid(double width)
+    {
+        if (width <= 0) width = _artistGridWidth;
+        var span = ChunkGridHelper.ComputeSpan(width, 168, 12, 8);
+        ChunkGridHelper.Chunk(FilteredArtists.Select(a => (object)a).ToList(), span, ArtistGridRows);
     }
 
     /// <summary>初始化筛选 chip</summary>

@@ -74,6 +74,11 @@
     <Color x:Key="DividerColor">#1FFFFFFF</Color>
     <Color x:Key="GlassStrokeColor">#28FFFFFF</Color>
     <Color x:Key="GlassStrokeStrongColor">#4AFFFFFF</Color>
+    <!-- 桌面浮层卡（侧栏/播放条）毛玻璃配色（ThemeService 深浅模式下分别覆盖） -->
+    <Color x:Key="GlassCardTintColor">#B81A1838</Color>
+    <Color x:Key="GlassCardStrokeColor">#1AFFFFFF</Color>
+    <Color x:Key="GlassCardHighlightColor">#21FFFFFF</Color>
+    <Color x:Key="GlassCardButtonBgColor">#14FFFFFF</Color>
     <Color x:Key="ChipInactiveColor">#15FFFFFF</Color>
     <Color x:Key="ChipActiveColor">#FF6C5CE7</Color>
     <Color x:Key="ChipInactiveTextColor">#B8C0E0</Color>

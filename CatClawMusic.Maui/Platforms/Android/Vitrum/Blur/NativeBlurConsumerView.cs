@@ -371,7 +371,7 @@ half4 main(float2 coord) {
                 _lensNode.SetRenderEffect(
                     RenderEffect.CreateChainEffect(
                         RenderEffect.CreateRuntimeShaderEffect(_lensShader, "content"),
-                        RenderEffect.CreateBlurEffect(30f, 30f, Shader.TileMode.Clamp!)));
+                        RenderEffect.CreateBlurEffect(50f, 50f, Shader.TileMode.Clamp!)));
         }
     }
 }

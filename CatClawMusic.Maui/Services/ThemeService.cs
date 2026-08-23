@@ -610,7 +610,10 @@ public class ThemeService : IThemeService
         var primaryTint = primary.WithAlpha(0.18f);
         var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.1f);
 
-        resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩
+        resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩（Android）
+#if WINDOWS
+        resources["WindowBackgroundColor"] = Color.FromArgb("#12102B"); // Windows 无独立背景层，用主题深色底替换原生灰
+#endif
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#1E1C42");
         resources["SurfaceColor"] = Color.FromArgb("#2A2755");
         // 卡片/玻璃：深/浅模式下都尽量"不着色"，避免叠加出横贯半透明白边（尤其底部贴边卡片）
@@ -622,6 +625,11 @@ public class ThemeService : IThemeService
         resources["DividerColor"] = Color.FromArgb("#14FFFFFF");
         resources["GlassStrokeColor"] = Color.FromArgb("#14FFFFFF");            // 白描边从 16% 降到 8%
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#24FFFFFF");
+        // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂基底 + 主题色微光
+        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.12f), primary.WithAlpha(0.07f));
+        resources["GlassCardStrokeColor"] = primary.WithAlpha(0.18f);
+        resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.22f);
+        resources["GlassCardButtonBgColor"] = Colors.White.WithAlpha(0.10f);
         resources["ChipInactiveColor"] = Color.FromArgb("#15FFFFFF");
         resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
         resources["ChipInactiveTextColor"] = Color.FromArgb("#C8CDE8");
@@ -678,7 +686,10 @@ public class ThemeService : IThemeService
         var primaryWash = primaryLight.WithAlpha(0.6f);
         var accent = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.22f);
 
-        resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩
+        resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩（Android）
+#if WINDOWS
+        resources["WindowBackgroundColor"] = Color.FromArgb("#F8F7FF"); // Windows 无独立背景层，用主题浅色底替换原生白
+#endif
         resources["WindowBackgroundAltColor"] = Color.FromArgb("#EEEBFF");
         resources["SurfaceColor"] = Color.FromArgb("#FFFFFFFF");
         // 浅色模式卡片改为半透明毛玻璃（透出背景图，与深色模式一致）
@@ -690,6 +701,11 @@ public class ThemeService : IThemeService
         resources["DividerColor"] = Color.FromArgb("#1A000000");
         resources["GlassStrokeColor"] = Color.FromArgb("#28000000");
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#50000000");
+        // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂 + 淡主题色调
+        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.70f), primary.WithAlpha(0.08f));
+        resources["GlassCardStrokeColor"] = primary.WithAlpha(0.16f);
+        resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.85f);
+        resources["GlassCardButtonBgColor"] = Colors.Black.WithAlpha(0.05f);
         resources["ChipInactiveColor"] = Color.FromArgb("#E8ECFF");
         resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
         resources["ChipInactiveTextColor"] = Color.FromArgb("#4A5278");

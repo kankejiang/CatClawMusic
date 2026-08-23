@@ -29,6 +29,12 @@ public partial class DesktopArtistsPage : ContentPage
         }
     }
 
+    private void OnGridResized(object? sender, EventArgs e)
+    {
+        var w = GridArtistView.Width;
+        if (w > 0) _viewModel.SetArtistGridWidth(w);
+    }
+
     // === 事件处理 ===
 
     private void OnBackTapped(object? sender, EventArgs e)

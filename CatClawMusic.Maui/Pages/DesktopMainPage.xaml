@@ -171,7 +171,7 @@
              供播放栏的 BlurConsumerView 真毛玻璃透出其下层内容。
              BlurConsumerView 必须是其 Grid 兄弟（不能在其内容子树内）。 -->
         <vitrum:BlurHostView Grid.Row="0" Grid.RowSpan="3" Grid.Column="1"
-                             BlurRadius="60">
+                             BlurRadius="90">
             <Grid x:Name="ContentArea"
                   Background="{DynamicResource PageBackgroundBrush}"
                   IsClippedToBounds="True" />

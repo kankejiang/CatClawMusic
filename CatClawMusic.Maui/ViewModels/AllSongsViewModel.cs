@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Data;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
 using CatClawMusic.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -36,6 +37,22 @@ public partial class AllSongsViewModel : ObservableObject
             option.IsActive = option.Key == _sortKey;
 
         UpdateViewButtonColors();
+
+        _songs.CollectionChanged += (_, _) => RebuildGrid(_gridSpanWidth);
+    }
+
+    /// <summary>网格列数随可用宽度变化实时重排（窗口拉宽 → 行内卡片数增加）。</summary>
+    public void SetGridWidth(double width)
+    {
+        _gridSpanWidth = width;
+        RebuildGrid(width);
+    }
+
+    public void RebuildGrid(double width)
+    {
+        if (width <= 0) width = _gridSpanWidth;
+        var span = ChunkGridHelper.ComputeSpan(width, 168, 12, 8);
+        ChunkGridHelper.Chunk(Songs.Select(s => (object)s).ToList(), span, GridRows);
     }
 
     // === 歌曲列表内存缓存（跨页实例共享，避免每次进入都全量重查 DB） ===
@@ -118,6 +135,11 @@ public partial class AllSongsViewModel : ObservableObject
     // 用 ObservableRangeCollection：搜索/排序时 ReplaceAll（复用实例 + 单次 Reset 通知），
     // 避免重建集合引用导致 CollectionView 失活全部行、丢失滚动位置
     [ObservableProperty] private ObservableRangeCollection<Song> _songs = new();    [ObservableProperty] private Song? _selectedSong;
+
+    /// <summary>网格分块行：外层 CollectionView 虚拟化行，每行水平排 N 张固定卡片。</summary>
+    [ObservableProperty] private ObservableCollection<GridChunkRow> _gridRows = new();
+
+    private double _gridSpanWidth = 168 * 4;
 
     /// <summary>A-Z 分组标签列表（按标题排序时显示）</summary>
     [ObservableProperty] private ObservableCollection<GroupHeader> _groupHeaders = new();
