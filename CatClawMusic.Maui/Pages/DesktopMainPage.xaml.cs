@@ -142,10 +142,11 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     /// <summary>随底部播放条当前高度联动调整发现页滚动内容底部预留，避免推荐艺人被播放条遮挡。</summary>
     private void UpdateDiscoverBottomReserve()
     {
+        var barHeight = RootGrid.RowDefinitions[2].Height.Value;
         if (_pageHostCache.TryGetValue(DesktopTab.Discover, out var host)
             && host is DesktopDiscoverPage discover)
         {
-            discover.SetBottomReservedHeight(RootGrid.RowDefinitions[2].Height.Value);
+            discover.SetBottomReservedHeight(barHeight);
         }
     }
 
@@ -208,6 +209,10 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             if (_pageHostCache.TryGetValue(_currentTab, out var host))
                 InvokeLifecycle(host, "OnAppearing");
         }
+
+        // 单例页面复用：每次显示都按当前播放条高度重设发现页底部预留，
+        // 防止横竖屏切换后 ApplyResponsiveMetrics 或高度变化导致推荐艺人被遮挡
+        UpdateDiscoverBottomReserve();
     }
 
 #if ANDROID

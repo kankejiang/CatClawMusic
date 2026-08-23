@@ -296,10 +296,10 @@
                         </Label.GestureRecognizers>
                     </Label>
                 </Grid>
-                <CollectionView ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
+                <CollectionView x:Name="RecommendAlbumGrid" ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
                                 SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepItemsInView">
                     <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
-                    <CollectionView.ItemsLayout><GridItemsLayout Orientation="Vertical" Span="4" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
+                    <CollectionView.ItemsLayout><GridItemsLayout x:Name="RecommendAlbumLayout" Orientation="Vertical" Span="4" VerticalItemSpacing="14" HorizontalItemSpacing="12" /></CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <VerticalStackLayout Spacing="8">

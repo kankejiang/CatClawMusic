@@ -36,6 +36,11 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     private LayoutPreset _currentPreset = LayoutPreset.Regular;
     private enum LayoutPreset { Regular, Compact, SuperCompact }
 
+    /// <summary>底部预留高度（播放条高度），ApplyResponsiveMetrics 重置 Padding 时必须保留，否则推荐艺人会被播放条遮挡</summary>
+    private double _bottomReserved = 26.0;
+    /// <summary>播放条高度之外额外预留的缓冲，确保滚动到底时艺人名字完全露出在播放条上方（而非恰好顶到播放条上沿）</summary>
+    private const double BottomReserveBuffer = 40;
+
     /// <summary>英雄卡在 HeroTrack 中的起始下标（0=AI 卡，其后为插件快捷入口卡，英雄卡从 _heroStartIndex 开始）</summary>
     private int _heroStartIndex = 1;
 
@@ -103,9 +108,27 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     {
         if (RootStack == null) return;
         var basePad = 26.0;
-        var target = Math.Max(basePad, extra);
-        if (Math.Abs(RootStack.Padding.Bottom - target) < 0.5) return;
-        RootStack.Padding = new Thickness(RootStack.Padding.Left, RootStack.Padding.Top, RootStack.Padding.Right, target);
+        _bottomReserved = Math.Max(basePad, extra) + BottomReserveBuffer;
+        ApplyRootStackPadding();
+    }
+
+    /// <summary>按当前预设的左右上边距 + 底部预留高度统一设置 RootStack.Padding。
+    /// ApplyResponsiveMetrics 与 SetBottomReservedHeight 共用，避免档位切换时覆盖掉底部预留。</summary>
+    private void ApplyRootStackPadding()
+    {
+        if (RootStack == null) return;
+        var (left, top, right) = _currentPreset switch
+        {
+            LayoutPreset.SuperCompact => (20.0, 2.0, 20.0),
+            LayoutPreset.Compact => (22.0, 3.0, 22.0),
+            _ => (26.0, 4.0, 26.0)
+        };
+        var target = new Thickness(left, top, right, _bottomReserved);
+        if (Math.Abs(RootStack.Padding.Left - left) < 0.5
+            && Math.Abs(RootStack.Padding.Top - top) < 0.5
+            && Math.Abs(RootStack.Padding.Right - right) < 0.5
+            && Math.Abs(RootStack.Padding.Bottom - _bottomReserved) < 0.5) return;
+        RootStack.Padding = target;
     }
 
     // === 基类抽象属性实现 ===
@@ -641,6 +664,20 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             ArtistsRow.ItemTemplate = BuildArtistCardTemplate(artistCardW);
             ForceReloadItems(ArtistsRow);
 
+            // ── 推荐专辑网格：横屏紧凑档增加列数缩小卡片（Regular 4 列；横屏紧凑档统一 6 列，
+            //    避免 8 列过密导致专辑标题截断）──
+            var albumSpan = preset switch
+            {
+                LayoutPreset.SuperCompact => 6,
+                LayoutPreset.Compact => 6,
+                _ => 4
+            };
+            if (RecommendAlbumLayout != null && RecommendAlbumLayout.Span != albumSpan)
+            {
+                RecommendAlbumLayout.Span = albumSpan;
+                ForceReloadItems(RecommendAlbumGrid);
+            }
+
             // ── Hero 区 / 各分区间距同步收紧 ──
             HeroWrap.Margin = preset == LayoutPreset.SuperCompact
                 ? new Thickness(0, 0, 0, 2)
@@ -655,11 +692,8 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
                 : preset == LayoutPreset.Compact
                     ? new Thickness(0, 10, 0, 12)
                     : new Thickness(0, 16, 0, 16);
-            RootStack.Padding = preset == LayoutPreset.SuperCompact
-                ? new Thickness(20, 2, 20, 18)
-                : preset == LayoutPreset.Compact
-                    ? new Thickness(22, 3, 22, 22)
-                    : new Thickness(26, 4, 26, 26);
+            // 底部预留高度（播放条高度）由 _bottomReserved 统一管理，档位切换不覆盖
+            ApplyRootStackPadding();
 
             // 区块标题行：紧凑档收紧上下边距，释放纵向空间
             AiSectionHeader.Margin = preset == LayoutPreset.SuperCompact
