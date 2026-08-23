@@ -389,11 +389,11 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 
         if (isLight)
         {
-            // 浅色模式：未选中=主题色文字+深色图标；选中=白色文字+白色图标
+            // 浅色模式：未选中=主题色文字+主题色图标；选中=白色文字+白色图标
             if (label != null) label.TextColor = active ? Colors.White : (Color)(Application.Current?.Resources?["PrimaryColor"] ?? Colors.Purple);
             icon.Source = active
-                ? ImageSourceHelper.FromName(baseIcon)                 // 原版白色图标
-                : ImageSourceHelper.FromName(baseIcon + "_light");     // 深色图标
+                ? ImageSourceHelper.FromName(baseIcon)                     // 原版白色图标
+                : ImageSourceHelper.FromNamePlayerCtrl(baseIcon, baseIcon + "_light"); // 主题色变体，缺时回退深色图标
         }
         else
         {
