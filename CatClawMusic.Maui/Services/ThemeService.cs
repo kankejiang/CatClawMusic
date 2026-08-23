@@ -626,7 +626,7 @@ public class ThemeService : IThemeService
         resources["GlassStrokeColor"] = Color.FromArgb("#14FFFFFF");            // 白描边从 16% 降到 8%
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#24FFFFFF");
         // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂基底 + 主题色微光
-        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.12f), primary.WithAlpha(0.07f));
+        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.30f), primary.WithAlpha(0.07f));
         resources["GlassCardStrokeColor"] = primary.WithAlpha(0.18f);
         resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.22f);
         resources["GlassCardButtonBgColor"] = Colors.White.WithAlpha(0.10f);
@@ -702,7 +702,7 @@ public class ThemeService : IThemeService
         resources["GlassStrokeColor"] = Color.FromArgb("#28000000");
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#50000000");
         // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂 + 淡主题色调
-        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.70f), primary.WithAlpha(0.08f));
+        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.85f), primary.WithAlpha(0.08f));
         resources["GlassCardStrokeColor"] = primary.WithAlpha(0.16f);
         resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.85f);
         resources["GlassCardButtonBgColor"] = Colors.Black.WithAlpha(0.05f);

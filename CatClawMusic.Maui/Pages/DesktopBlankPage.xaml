@@ -183,9 +183,11 @@
                              InputTransparent="True" />
                     <!-- 真毛玻璃背景：捕获 MainArea 主内容区 → 模糊 → 叠着色。
                          播放条玻璃下能看到下层主内容的模糊，色调与侧栏统一。 -->
+                    <!-- 真毛玻璃背景：作为背景 sibling（内容 Grid 独立在上层，避免被
+                          Composition 着色层 InsertAtTop 盖住控件 → 控件视觉消失） -->
                     <vitrum:BlurConsumerView x:Name="_PlayerBlur" Grid.Row="1" ClipCornerRadius="16"
-                                             TintColor="{DynamicResource GlassCardTintColor}">
-                        <Grid ColumnDefinitions="Auto,*,Auto" Padding="20,10,20,10" ColumnSpacing="18">
+                                             TintColor="{DynamicResource GlassCardTintColor}" />
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="20,10,20,10" ColumnSpacing="18">
 
                             <!-- ① 左：封面 + 歌名/艺术家（空白点击 → 播放页覆盖层） -->
                             <Grid x:Name="PlayerInfoGrid" Grid.Column="0" ColumnDefinitions="Auto,Auto" ColumnSpacing="12"
@@ -327,7 +329,6 @@
                                         VerticalOptions="Center" />
                             </Grid>
                         </Grid>
-                    </vitrum:BlurConsumerView>
                 </Grid>
             </Border>
         </Grid>
