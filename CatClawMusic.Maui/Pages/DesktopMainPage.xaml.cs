@@ -930,7 +930,8 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // 播放控制区：上下留边交给外层内容 Grid(Padding 24,8,24,8) 统一控制，避免两层叠加溢出被 Center 裁剪；
         // 此处仅保留左右内边距与行距。
         PlayerControlsGrid.Padding = new Thickness(6, 0, 6, 0);
-        PlayerControlsGrid.RowSpacing = 4;
+        // 按钮行与进度条贴近：行距 4→0（紧凑卡片内控件与进度更紧凑）
+        PlayerControlsGrid.RowSpacing = 0;
         DesktopProgressSlider.MinimumWidthRequest = 140;
         DesktopProgressSlider.HeightRequest = 20;
         // 进度区时间标签微调，让进度条居中时上下留白更均匀
