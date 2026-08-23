@@ -20,7 +20,7 @@ Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "D:\Code\CatClawMusic\CatClawMusic.Maui\bin\Release\net11.0-windows10.0.19041.0\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "D:\Code\CatClawMusic\CatClawMusic.Maui\bin\Release\net11.0-windows10.0.19041.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\猫爪音乐"; Filename: "{app}\CatClawMusic.Maui.exe"; WorkingDir: "{app}"
