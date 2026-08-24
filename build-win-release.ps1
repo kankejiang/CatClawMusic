@@ -8,8 +8,8 @@
 
 param(
     [switch]$NoPause,   # 静默模式：不等待按键（CI/命令行用）
-    [string]$OutDir = "bin\winpub3",   # 输出目录（相对 Maui 项目目录，可自定义）
-    [string]$ObjDir = "obj\winpub3"    # 中间目录（相对 Maui 项目目录，可自定义）
+    [string]$OutDir = "bin\win-release",   # 输出目录（固定，相对 Maui 项目目录，可自定义）
+    [string]$ObjDir = "obj\win-release"    # 中间目录（固定，相对 Maui 项目目录，可自定义）
 )
 
 $ErrorActionPreference = "Stop"

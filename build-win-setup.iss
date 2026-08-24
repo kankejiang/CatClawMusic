@@ -1,13 +1,13 @@
 ; 猫爪音乐 Windows 安装程序脚本（Inno Setup 6.3+/7）
 ; 用法: "C:\Program Files (x86)\Inno Setup 7\ISCC.exe" build-win-setup.iss
-; 打包源: CatClawMusic.Maui\bin\winpub3\publish（self-contained 绿色目录发布）
+; 打包源: CatClawMusic.Maui\bin\win-release\publish（self-contained 绿色目录发布）
 
 #define MyAppName "猫爪音乐"
 #ifndef MyAppVersion
 #define MyAppVersion "1.8.0"
 #endif
 #ifndef MyPublishDir
-#define MyPublishDir "CatClawMusic.Maui\bin\winpub3\publish"
+#define MyPublishDir "CatClawMusic.Maui\bin\win-release\publish"
 #endif
 #define MyAppPublisher "CatClawMusic"
 #define MyAppExeName "CatClawMusic.Maui.exe"
