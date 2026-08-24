@@ -11,9 +11,12 @@ public class HideScrollBarBehavior : Behavior<View>
     protected override void OnAttachedTo(View bindable)
     {
         base.OnAttachedTo(bindable);
+#if ANDROID
         bindable.HandlerChanged += OnHandlerChanged;
+#endif
     }
 
+#if ANDROID
     private void OnHandlerChanged(object? sender, EventArgs e)
     {
         if (sender is not View view || view.Handler?.PlatformView is not Android.Views.View platform)
@@ -33,10 +36,13 @@ public class HideScrollBarBehavior : Behavior<View>
         }
         catch { }
     }
+#endif
 
     protected override void OnDetachingFrom(View bindable)
     {
+#if ANDROID
         bindable.HandlerChanged -= OnHandlerChanged;
+#endif
         base.OnDetachingFrom(bindable);
     }
 }
