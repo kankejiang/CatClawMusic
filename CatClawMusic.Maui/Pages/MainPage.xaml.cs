@@ -380,7 +380,8 @@ public partial class MainPage : ContentPage
 
         InvokeLifecycle(_tabPages[_currentIndex], "OnAppearing");
 
-        // 首次加载：显示遮罩，预加载启动目标 tab 的 ViewModel 数据
+        // 首次加载：后台预加载启动目标 tab 的 ViewModel 数据（不显示全屏遮罩，
+        // 每个 tab 页面自带加载指示，直接进入即可）
         if (_isFirstLoad)
         {
             _isFirstLoad = false;
@@ -388,7 +389,8 @@ public partial class MainPage : ContentPage
             var startupIdx = Preferences.Default.Get("StartupPageIndex", 2);
             var targetTabIdx = AppearanceSettingsViewModel.MapStartupIndexToTabIndex(startupIdx);
 
-            await PreloadTabDataAsync(targetTabIdx);
+            // 预加载放后台执行，不阻塞 UI；数据就绪后由各页面自行刷新
+            _ = PreloadTabDataAsync(targetTabIdx);
 
             if (targetTabIdx != 0)
             {
@@ -397,17 +399,25 @@ public partial class MainPage : ContentPage
         }
     }
 
-    /// <summary>预加载启动目标 tab 的 ViewModel 数据，加载完成后隐藏遮罩。
+    /// <summary>后台预加载启动目标 tab 的 ViewModel 数据。
     /// TabBar 按钮语义（按钮 t → ViewPager t+1）：0=播放、1=发现、2=歌单、3=音乐库；
     /// MapStartupIndexToTabIndex 仅产出 {0,1,3}，歌单(2)永不是启动目标。
-    /// 音乐库(3)：预加载其数据，避免启动页为音乐库时的首屏空白
-    /// （LibraryPage.OnAppearing 首次会自加载，无 Count 守卫，预加载收益被兜底覆盖但遮罩
-    /// 在数据就绪后才隐藏，空白窗口消除）。
-    /// 播放(0)：预加载封面/歌词；发现(1)：预加载发现页——SearchPage.OnAppearing 有 Count 守卫会跳过重复加载。</summary>
+    /// 播放(0)：预加载封面/歌词；发现(1)：预加载发现页——SearchPage.OnAppearing 有 Count 守卫会跳过重复加载。
+    /// 采用后台执行（非 await），不阻碍主界面进入。</summary>
     private async Task PreloadTabDataAsync(int targetTabIdx)
     {
-        LoadingOverlay.IsVisible = true;
+        try
+        {
+            await PreloadTabDataCoreAsync(targetTabIdx);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("MainPage.xaml", $"[MainPage] 预加载失败: {ex.Message}");
+        }
+    }
 
+    private async Task PreloadTabDataCoreAsync(int targetTabIdx)
+    {
         try
         {
             var searchVm = _services.GetRequiredService<SearchViewModel>();
@@ -425,10 +435,6 @@ public partial class MainPage : ContentPage
         catch (Exception ex)
         {
             Log.Debug("MainPage.xaml", $"[MainPage] 预加载失败: {ex.Message}");
-        }
-        finally
-        {
-            LoadingOverlay.IsVisible = false;
         }
     }
 

@@ -270,30 +270,6 @@
             </Border>
         </Grid>
 
-        <!-- 启动加载页：纯文字品牌 Splash Screen -->
-        <Grid x:Name="LoadingOverlay"
-              Grid.RowSpan="3"
-              Background="{DynamicResource PageBackgroundBrush}"
-              IsVisible="False"
-              InputTransparent="False"
-              ZIndex="999">
-            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="16">
-                <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"
-                       FontSize="42"
-                       FontFamily="OpenSansSemibold"
-                       TextColor="{DynamicResource TextPrimaryColor}"
-                       HorizontalOptions="Center" />
-                <Label Text="CatClaw Music"
-                       FontSize="16"
-                       TextColor="{DynamicResource TextSecondaryColor}"
-                       HorizontalOptions="Center" />
-                <ActivityIndicator IsRunning="True"
-                                   Color="{DynamicResource PrimaryColor}"
-                                   WidthRequest="36" HeightRequest="36"
-                                   Margin="0,32,0,0" />
-            </VerticalStackLayout>
-        </Grid>
-
     </Grid>
 </ContentPage>
 

@@ -258,6 +258,7 @@
                     <CollectionView ItemsUpdatingScrollMode="KeepScrollOffset" x:Name="AiPlaylistRow" Margin="0,0,40,16" HeightRequest="366"
                                     ItemsSource="{Binding AiPlaylists}" SelectionMode="None"
                                     IsVisible="{Binding IsAiPlaylistsLoading, Converter={StaticResource InvertedBoolConverter}}">
+                        <CollectionView.Behaviors><controls:HideScrollBarBehavior /></CollectionView.Behaviors>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
@@ -307,7 +308,10 @@
                 </Grid>
                 <CollectionView x:Name="RecommendAlbumGrid" ItemsSource="{Binding RecommendAlbums}" SelectionMode="Single"
                                 SelectionChanged="OnAlbumSelected" ItemsUpdatingScrollMode="KeepScrollOffset" Margin="0,0,40,16" HeightRequest="180">
-                    <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                    <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                        <controls:HideScrollBarBehavior />
+                    </CollectionView.Behaviors>
                     <!-- 推荐专辑改为单行横滑（与每日推荐/推荐艺人一致），避免 6+2 断行网格 -->
                     <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
                     <CollectionView.ItemTemplate>
@@ -346,7 +350,10 @@
                     <CollectionView x:Name="DailyList" Margin="0,0,40,16" HeightRequest="206"
                                     ItemsSource="{Binding DailyRecommendSongs}" SelectionMode="Single"
                                     SelectionChanged="OnDailySongSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
-                        <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                        <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                        <controls:HideScrollBarBehavior />
+                    </CollectionView.Behaviors>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
@@ -390,7 +397,10 @@
                     <CollectionView x:Name="ArtistsRow" Margin="0,0,40,16" HeightRequest="142"
                                     ItemsSource="{Binding Artists}" SelectionMode="Single"
                                     SelectionChanged="OnArtistSelected" ItemsUpdatingScrollMode="KeepScrollOffset">
-                        <CollectionView.Behaviors><controls:ScrollPerformanceBehavior /></CollectionView.Behaviors>
+                        <CollectionView.Behaviors>
+                        <controls:ScrollPerformanceBehavior />
+                        <controls:HideScrollBarBehavior />
+                    </CollectionView.Behaviors>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Horizontal" ItemSpacing="14" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
