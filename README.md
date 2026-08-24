@@ -7,7 +7,7 @@
 **萌系跨平台本地音乐播放器 · Android & Windows**
 
 [![Release](https://img.shields.io/github/v/release/kankejiang/CatClawMusic?color=76b6a9)](https://github.com/kankejiang/CatClawMusic/releases)
-[.NET](https://img.shields.io/badge/.NET-11.0-512bd4)
+![.NET](https://img.shields.io/badge/.NET-11.0-512bd4)
 ![平台](https://img.shields.io/badge/平台-Android%20%2F%20Windows-green)
 ![语言](https://img.shields.io/badge/C%23-13.0-blue)
 ![最低版本](https://img.shields.io/badge/Android-12%20(API%2031)-orange)
