@@ -1,11 +1,13 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Maui.Services;
 
 #if ANDROID
-/// <summary>Android FFmpeg 音频转码服务 — 使用 APK 内置 libffmpeg.so</summary>
-public class FFmpegService : IDisposable
+/// <summary>Android FFmpeg 音频转码服务 — 使用 APK 内置 libffmpeg.so；并实现 EBU R128 响度分析（ReplayGain）</summary>
+public class FFmpegService : IDisposable, ILoudnessAnalyzer
 {
     private string? _ffmpegPath;
     private bool _initAttempted;
@@ -48,6 +50,116 @@ public class FFmpegService : IDisposable
 
         Log.Debug("FFmpegService", "[FFmpeg] libffmpeg.so 未找到");
         return false;
+    }
+
+    // ═══════════════ EBU R128 响度分析（ReplayGain） ═══════════════
+
+    /// <summary>分析单个音频文件的响度（整体 LUFS + 真实峰值），换算为 ReplayGain 增益。</summary>
+    /// <param name="uri">音频文件 URI（content:// 或本地绝对路径）</param>
+    public async Task<LoudnessResult?> AnalyzeAsync(string uri, CancellationToken ct = default)
+    {
+        if (_ffmpegPath == null && !await InitializeAsync()) return null;
+        if (string.IsNullOrWhiteSpace(uri)) return null;
+
+        string? tmp = null;
+        try
+        {
+            var path = uri;
+            if (uri.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                tmp = await CopyContentToTempAsync(uri, ct);
+                if (tmp == null) return null;
+                path = tmp;
+            }
+            if (!File.Exists(path)) return null;
+
+            var args = $"-i \"{path}\" -af \"ebur128=peak=true\" -f null -";
+            var stderr = await RunFFmpegCaptureAsync(args, ct);
+            if (stderr == null) return null;
+            return ParseEbur128(stderr);
+        }
+        finally { if (tmp != null) SafeDelete(tmp); }
+    }
+
+    /// <summary>执行 ffmpeg 并捕获标准错误输出，成功（退出码 0）返回 stderr 文本，失败返回 null。</summary>
+    private async Task<string?> RunFFmpegCaptureAsync(string args, CancellationToken ct)
+    {
+        if (_ffmpegPath == null) return null;
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = args,
+                WorkingDirectory = GetSafeWorkDir(),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            };
+            using var p = Process.Start(psi);
+            if (p == null) return null;
+            var errTask = p.StandardError.ReadToEndAsync(ct);
+            var outTask = p.StandardOutput.ReadToEndAsync(ct); // 丢弃 stdout 文本
+            try { await p.WaitForExitAsync(ct); }
+            catch (OperationCanceledException) { try { p.Kill(true); } catch { } return null; }
+            var err = await errTask;
+            _ = outTask;
+            return p.ExitCode == 0 ? err : null;
+        }
+        catch (OperationCanceledException) { return null; }
+        catch (Exception ex) { Log.Debug("FFmpegService", $"[FFmpeg] R128 捕获异常: {ex.Message}"); return null; }
+    }
+
+    /// <summary>把 SAF content:// URI 复制到临时文件，返回本地路径；失败返回 null。</summary>
+    private static async Task<string?> CopyContentToTempAsync(string uri, CancellationToken ct)
+    {
+        try
+        {
+            var ctx = global::Android.App.Application.Context;
+            using var src = ctx.ContentResolver?.OpenInputStream(global::Android.Net.Uri.Parse(uri));
+            if (src == null) return null;
+            var ext = ".tmp";
+            var name = Path.GetFileName(uri);
+            if (!string.IsNullOrEmpty(name) && Path.HasExtension(name) && Path.GetExtension(name).Length <= 5)
+                ext = Path.GetExtension(name);
+            var tmp = Path.Combine(Path.GetTempPath(), $"cc_loud_{Guid.NewGuid():N}{ext}");
+            using var dst = File.Create(tmp);
+            await src.CopyToAsync(dst, ct);
+            return tmp;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>解析 ebur128 滤镜的 Summary 输出，得到整体响度与真实峰值。</summary>
+    private static LoudnessResult? ParseEbur128(string stderr)
+    {
+        try
+        {
+            double integrated = double.NaN;
+            double peak = 1.0;
+
+            // Integrated loudness: 行 "    I:         -13.8 LUFS"
+            var iMatch = Regex.Match(stderr, @"(?m)^\s*I:\s+([-+]?\d+(?:\.\d+)?)\s*LUFS");
+            if (iMatch.Success && double.TryParse(iMatch.Groups[1].Value,
+                    System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var iv))
+                integrated = iv;
+            if (double.IsNaN(integrated)) return null;
+
+            // True peak: 行 "    Peak:        0.998630"
+            var pMatch = Regex.Match(stderr, @"(?m)^\s*Peak:\s+([-+]?\d+(?:\.\d+)?)\s*$");
+            if (pMatch.Success && double.TryParse(pMatch.Groups[1].Value,
+                    System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pv)
+                && pv >= 0) peak = pv;
+
+            return new LoudnessResult
+            {
+                IntegratedLufs = integrated,
+                TrackGainDb = -18.0 - integrated, // 参考 89 dB / -18 LUFS
+                TrackPeak = peak,
+            };
+        }
+        catch { return null; }
     }
 
     /// <summary>判断指定文件是否需要通过 FFmpeg 转码（按扩展名匹配）</summary>

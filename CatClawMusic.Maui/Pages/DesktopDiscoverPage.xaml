@@ -218,6 +218,10 @@
                               IndicatorColor="{DynamicResource TextHintColor}" SelectedIndicatorColor="{DynamicResource PrimaryColor}"
                               IndicatorsShape="Circle" HorizontalOptions="Center" />
 
+                <!-- 扩展区：IViewContributorPlugin 整页入口（插件贡献，有插件时由代码填充并可见） -->
+                <VerticalStackLayout x:Name="PluginExtensionsBox" Spacing="0" IsVisible="False" Margin="0,0,0,6">
+                </VerticalStackLayout>
+
                 <!-- AI 歌单（开启智能推荐且有数据/正在生成时显示；由 AI 每天生成一次） -->
                 <VerticalStackLayout Spacing="0" IsVisible="{Binding IsAiPlaylistsSectionVisible}">
                     <Grid x:Name="AiSectionHeader" Margin="0,6,0,12" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">

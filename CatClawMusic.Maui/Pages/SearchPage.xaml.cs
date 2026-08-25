@@ -135,7 +135,7 @@ public partial class SearchPage : DiscoverPageBase
 
     protected override IServiceProvider Services => _services;
     protected override Grid CategoryTabBarControl => CategoryTabBar;
-    protected override Layout PluginEntriesRootControl => PluginEntriesBar;
+    protected override VerticalStackLayout PluginExtensionsRootControl => PluginExtensionsBox;
 
     /// <summary>覆盖基类播放逻辑：确保被点击的歌曲（如 AI 推荐歌）一定在播放队列里，
     /// 否则 PlayQueue.SelectSong 找不到该 Id 会把 CurrentSong 置空，导致声音在播但歌词/封面无法刷新。</summary>

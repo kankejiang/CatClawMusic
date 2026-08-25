@@ -37,8 +37,10 @@ public abstract class DiscoverPageBase : ContentPage
     /// <summary>发现页顶部分类 Tab 栏（Grid），插件子 tab 动态插入"推荐"右侧。</summary>
     protected abstract Grid CategoryTabBarControl { get; }
 
-    /// <summary>顶栏插件入口按钮容器（HorizontalStackLayout），IViewContributorPlugin 入口动态加入。</summary>
-    protected abstract Layout PluginEntriesRootControl { get; }
+    /// <summary>扩展区根容器（Hero 区下方"🧩 扩展"区，含标题与入口列表），IViewContributorPlugin 整页入口动态加入。
+    /// 子类将其放到发现页推荐面板 Hero 卡片下方，XAML 默认 IsVisible=False；
+    /// 有插件时初始化逻辑填充入口并置可见，无插件时整区保持隐藏。</summary>
+    protected abstract VerticalStackLayout PluginExtensionsRootControl { get; }
 
     // === 插件子 tab / 整页入口状态（开放所有接口） ===
 
@@ -208,33 +210,100 @@ public abstract class DiscoverPageBase : ContentPage
     }
 
     /// <summary>
-    /// 渲染 IViewContributorPlugin 整页入口：在顶栏按钮区为每个已启用的视图贡献者插件
-    /// 动态添加入口按钮，点击后调用 CreateEntryPage 并 Push 到导航栈。
+    /// 渲染 IViewContributorPlugin 整页入口：在 Hero 区下方的"🧩 扩展"区为每个已启用的
+    /// 视图贡献者插件动态添加入口项，点击后调用 CreateEntryPage 并 Push 到导航栈。
+    /// 无插件时扩展区保持隐藏。旧顶栏按钮入口已移除，统一收敛到扩展区。
     /// </summary>
     private void InitializePluginEntries()
     {
         if (Services.GetService(typeof(IPluginManager)) is not IPluginManager pluginManager) return;
         var contributors = pluginManager.GetEnabledPlugins<IViewContributorPlugin>().ToList();
+        if (contributors.Count == 0) return;
+
+        var root = PluginExtensionsRootControl;
+        // 扩展区标题（与页面 SectionTitleStyle 一致观感）
+        root.Children.Add(new Label
+        {
+            Text = "🧩 扩展",
+            Style = (Style)Application.Current!.Resources["SectionTitleStyle"],
+            Margin = new Thickness(0, 4, 0, 10),
+        });
+
+        // 入口卡片横向排列（与发现页英雄卡一致：一排可横滑）
+        var cardStack = new HorizontalStackLayout { Spacing = 10 };
         foreach (var contributor in contributors)
         {
-            var entryButton = new Border
-            {
-                WidthRequest = 32,
-                HeightRequest = 32,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-                StrokeThickness = 1,
-                VerticalOptions = LayoutOptions.Center,
-                Content = CreateEntryIcon(contributor.EntryIcon)
-            };
-            entryButton.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
-            entryButton.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundColor");
-            ToolTipProperties.SetText(entryButton, contributor.EntryTitle);
-            var captured = contributor;
-            var tap = new TapGestureRecognizer();
-            tap.Tapped += async (_, _) => await OpenPluginEntryAsync(captured);
-            entryButton.GestureRecognizers.Add(tap);
-            PluginEntriesRootControl.Children.Insert(0, entryButton);
+            var entryItem = CreateExtensionEntryItem(contributor);
+            cardStack.Children.Add(entryItem);
         }
+        root.Children.Add(new ScrollView
+        {
+            Orientation = ScrollOrientation.Horizontal,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
+            VerticalOptions = LayoutOptions.Start,
+            Content = cardStack,
+        });
+        root.IsVisible = true;
+    }
+
+    /// <summary>构建扩展区单个插件入口卡（固定宽高 + 图标/标题/副标题，横向排列，点击打开插件整页）。</summary>
+    private View CreateExtensionEntryItem(IViewContributorPlugin contributor)
+    {
+        var item = new Border
+        {
+            WidthRequest = 96,
+            HeightRequest = 96,
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+            Padding = new Thickness(8),
+        };
+        item.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
+        item.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundColor");
+
+        var cardLayout = new VerticalStackLayout
+        {
+            Spacing = 5,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        // 正方形图标居中（emoji/文字/图片源兼容 —— 复用原有 CreateEntryIcon 判定逻辑）
+        var icon = CreateEntryIcon(contributor.EntryIcon);
+        if (icon is Label labelIcon)
+        {
+            labelIcon.FontSize = 22;
+            labelIcon.HorizontalTextAlignment = TextAlignment.Center;
+            labelIcon.VerticalTextAlignment = TextAlignment.Center;
+        }
+        cardLayout.Children.Add(new Border
+        {
+            WidthRequest = 44,
+            HeightRequest = 44,
+            StrokeThickness = 0,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+            BackgroundColor = Color.FromArgb("#14FFFFFF"),
+            HorizontalOptions = LayoutOptions.Center,
+            Content = icon,
+        });
+
+        var titleLabel = new Label
+        {
+            Text = contributor.EntryTitle,
+            FontSize = 12,
+            FontFamily = "OpenSansSemibold",
+            MaxLines = 1,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            HorizontalTextAlignment = TextAlignment.Center,
+        };
+        titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
+        cardLayout.Children.Add(titleLabel);
+
+        item.Content = cardLayout;
+        var captured = contributor;
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await OpenPluginEntryAsync(captured);
+        item.GestureRecognizers.Add(tap);
+        return item;
     }
 
     /// <summary>

@@ -25,6 +25,12 @@ public partial class ListeningStatsView : ContentView
     private const int BarTrackHeight = 100;
     private const int BarTopPadding = 20;
 
+    // 趋势图柱子尺寸批量去抖状态：首次布局时每个 trackGrid 的 SizeChanged 都会触发，
+    // 若直接改 WidthRequest/HeightRequest 会反过来触发父级重新测量，30 根柱子并发重测形成
+    // 级联布局风暴（专清 30 天切换时卡顿/ANR）。改为统一在一个布局周期里批量应用一次尺寸。
+    private bool _trendLayoutFlushPending;
+    private readonly List<(Border bar, Border glow, double barHeight, double trackWidth, double barWidth, double glowWidth)> _trendPendingSizes = new();
+
     // 缓存趋势图刷子，避免每次 RebuildTrendChart 重新分配 GradientStopCollection 等对象
     private static readonly LinearGradientBrush BarBrush = new()
     {
@@ -100,6 +106,10 @@ public partial class ListeningStatsView : ContentView
     {
         var grid = TrendChartGrid;
         if (grid == null) return;
+
+        // 丢弃上一轮遗留的待应用尺寸，避免应用到已销毁的栅格/柱子
+        _trendPendingSizes.Clear();
+        _trendLayoutFlushPending = false;
 
         grid.ColumnDefinitions.Clear();
         grid.Children.Clear();
@@ -185,9 +195,12 @@ public partial class ListeningStatsView : ContentView
                 if (colWidth <= 0) return;
                 double bw = Math.Max(count > 20 ? 5 : 6, colWidth * barWidthRatio);
                 double gw = bw + 10;
-                barBorder.WidthRequest = bw;
-                glowBorder.WidthRequest = gw;
-                glowBorder.HeightRequest = barHeight + 10;
+
+                // 收集本次所需尺寸，统一本轮布局周期批量应用，避免逐根柱子 set 反复触发重测
+                _trendPendingSizes.Add((barBorder, glowBorder, barHeight, colWidth, bw, gw));
+                if (_trendLayoutFlushPending) return;
+                _trendLayoutFlushPending = true;
+                MainThread.BeginInvokeOnMainThread(FlushTrendPendingSizes);
             };
 
             stack.Children.Add(trackGrid);
@@ -204,6 +217,22 @@ public partial class ListeningStatsView : ContentView
             Grid.SetColumn(stack, i);
             grid.Children.Add(stack);
         }
+    }
+
+    /// <summary>批量应用趋势图柱子尺寸：一次布局周期内把收集到的所有柱子宽/高/辉光统一设好，
+    /// 避免逐根 set WidthRequest/HeightRequest 触发父级重新测量造成级联布局风暴。</summary>
+    private void FlushTrendPendingSizes()
+    {
+        _trendLayoutFlushPending = false;
+        if (_trendPendingSizes.Count == 0) return;
+        foreach (var (bar, glow, barHeight, _, barWidth, glowWidth) in _trendPendingSizes)
+        {
+            if (bar.Parent == null || glow.Parent == null) continue; // 栅格/柱子已被重建则跳过
+            bar.WidthRequest = barWidth;
+            glow.WidthRequest = glowWidth;
+            glow.HeightRequest = barHeight + 10;
+        }
+        _trendPendingSizes.Clear();
     }
 
     private async void OnTopSongSelected(object? sender, SelectionChangedEventArgs e)

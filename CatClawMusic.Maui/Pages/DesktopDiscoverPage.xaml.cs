@@ -150,7 +150,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
     protected override IServiceProvider Services => _services;
     protected override Grid CategoryTabBarControl => CategoryTabBar;
-    protected override Layout PluginEntriesRootControl => PluginEntriesBar;
+    protected override VerticalStackLayout PluginExtensionsRootControl => PluginExtensionsBox;
 
     // === Hero carousel（横屏专属：ScrollView + BindableLayout 多卡同屏） ===
 

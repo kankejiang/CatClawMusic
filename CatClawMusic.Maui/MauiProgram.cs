@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Data;
@@ -249,6 +249,7 @@ public static class MauiProgram
         services.AddSingleton<SleepTimerService>();
 #if ANDROID
         services.AddSingleton<Services.FFmpegService>();
+        services.AddSingleton<Core.Interfaces.ILoudnessAnalyzer>(sp => sp.GetRequiredService<Services.FFmpegService>());
 #endif
 
         // ═══════════════════════════════════════════════════
@@ -375,6 +376,11 @@ public static class MauiProgram
         services.AddSingleton<LocalizationService>();
         services.AddSingleton<IMainThreadDispatcher, MainThreadDispatcher>();
         services.AddSingleton<ILogService, LogService>();
+
+        // 音频文件操作服务：标签/封面/歌词写入、重命名、删除。
+        // 真实文件路径走文件系统；Android SAF content:// URI 由 Platforms/Android 部分实现。
+        // 供插件（Lyrico 式标签编辑/批量整理）经 IServiceProvider 解析使用。
+        services.AddSingleton<Core.Interfaces.IAudioFileService, AudioFileService>();
 
         // 桌面歌词服务（Android 使用 WindowManager 悬浮窗；Windows 使用独立悬浮歌词窗口；其他平台空实现）
 #if ANDROID
