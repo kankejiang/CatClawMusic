@@ -45,14 +45,14 @@ public partial class LyricsService : ILyricsService
     private const int MaxLyricsParseSize = 1 * 1024 * 1024;
 
     /// <summary>
-    /// 获取歌词（优先级：Navidrome API > 同名 .lrc > 嵌入歌词 > 插件）
+    /// 获取歌词（优先级：Navidrome API > 在线音乐插件 > 同名 .lrc > 嵌入歌词 > 歌词插件）
     /// 注意：Navidrome API 必须先于内嵌歌词，否则会触发 RemoteUrlStreamOpener
     /// 下载整个音频文件（最大 50MB）到 LOS 堆，导致大量 GC。
     /// 内嵌/外挂模式下（sourceMode != Auto）严格只读指定本地来源，跳过全部网络歌词链路。
     /// </summary>
     public async Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto)
     {
-        // 仅内嵌/仅外挂：跳过网络歌词来源（Navidrome API / 在线插件 / 网易云匹配 / 歌词插件）
+        // 仅内嵌/仅外挂：跳过网络歌词来源（Navidrome API / 在线音乐插件 / 歌词插件）
         bool localOnly = sourceMode != LyricsSourceMode.Auto;
         string fpPreview;
         if (song.FilePath == null)
@@ -99,20 +99,6 @@ public partial class LyricsService : ILyricsService
             var onlineId = parts.Length > 1 ? parts[1] : null;
             if (!string.IsNullOrEmpty(onlineId))
             {
-                // 网易云：宿主直连歌词（原文+译文+罗马音，yrc/lrc/tlyric/romalrc 直接解析并入），
-                // 不依赖插件；失败时静默回退插件路径（保持原有能力）。
-                if (string.Equals(platform, "netease", StringComparison.OrdinalIgnoreCase)
-                    && long.TryParse(onlineId, out var neteaseSongId))
-                {
-                    var hostLyrics = await NetEaseLyricsService.GetLyricsAsync(neteaseSongId);
-                    if (hostLyrics != null && hostLyrics.Lines.Count > 0)
-                    {
-                        Log.Debug("LyricsService", $"[Lyrics] 网易云直连歌词成功: {hostLyrics.Lines.Count} 行");
-                        CacheOnlineLyrics(song, hostLyrics);
-                        return hostLyrics;
-                    }
-                }
-
                 foreach (var provider in PluginManager.GetEnabledPlugins<IOnlineMusicPlugin>())
                 {
                     if (!string.Equals(provider.PlatformName, platform, StringComparison.OrdinalIgnoreCase)) continue;
@@ -161,25 +147,7 @@ public partial class LyricsService : ILyricsService
             skipExternal: sourceMode == LyricsSourceMode.Embedded);
         if (lyrics != null) return lyrics;
 
-        // 在线模式：本地无歌词时按标题+歌手去网易云匹配歌词（宿主直连，原文+译文/罗马音已并入）
-        if (!localOnly && !string.IsNullOrWhiteSpace(song.Title))
-        {
-            try
-            {
-                var netease = await NetEaseLyricsService.MatchLocalSongAsync(song.Title, song.Artist);
-                if (netease != null && netease.Lines.Count > 0)
-                {
-                    Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词成功: {song.Title} ({netease.Lines.Count} 行)");
-                    CacheOnlineLyrics(song, netease);
-                    return netease;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Debug("LyricsService", $"[Lyrics] 网易云匹配歌词失败: {ex.Message}");
-            }
-        }
-
+        // 在线模式：本地无歌词时由歌词插件兜底（如 LRCLIB / 网易云歌词插件）
         if (!localOnly && PluginManager != null)
         {
             var providers = PluginManager.GetEnabledPlugins<ILyricsProviderPlugin>();
