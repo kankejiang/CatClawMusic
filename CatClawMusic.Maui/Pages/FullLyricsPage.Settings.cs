@@ -9,19 +9,10 @@ namespace CatClawMusic.Maui.Pages;
 /// <summary>全屏歌词页 —— partial 分域文件。</summary>
 public partial class FullLyricsPage
 {
-    /// <summary>上次构建设置弹窗时扩展歌词能力是否可用（插件加载状态变化时重建弹窗内容）</summary>
-    private bool _extendedLyricsSectionBuilt;
-
     private void OnLyricsSettingsClicked(object? sender, EventArgs e)
     {
-        // 扩展歌词功能由插件提供：检测到已启用的扩展歌词插件时才构建该分区，
-        // 插件安装/卸载/启停后再次打开弹窗会自动重建（与上次构建状态不同时清空重建）
-        var extendedAvailable = LyricsSettingsService.ExtendedLyricsAvailable;
-        if (LyricsSettingsPopup.PopupContent.Children.Count <= 1 || _extendedLyricsSectionBuilt != extendedAvailable)
+        if (LyricsSettingsPopup.PopupContent.Children.Count <= 1)
         {
-            if (LyricsSettingsPopup.PopupContent.Children.Count > 1)
-                LyricsSettingsPopup.ClearContent();
-            _extendedLyricsSectionBuilt = extendedAvailable;
             var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
             var inactiveColor = (Color)Application.Current.Resources["ChipInactiveColor"];
             var textSecondary = (Color)Application.Current.Resources["TextSecondaryColor"];
@@ -84,30 +75,26 @@ public partial class FullLyricsPage
                 },
                 primaryColor, textSecondary, textHint));
 
-            if (extendedAvailable)
-            {
-                var extendedTitle = LyricsSettingsService.ExtendedLyricsPlugin?.ExtensionTitle ?? "扩展歌词";
-                LyricsSettingsPopup.AddContent(BuildSpacer(16));
-                LyricsSettingsPopup.AddContent(BuildSectionLabel(extendedTitle, textHint));
-                LyricsSettingsPopup.AddContent(BuildToggleSwitch(
-                    "显示歌词译文",
-                    _settings.ShowTranslation,
-                    value =>
-                    {
-                        _settings.ShowTranslation = value;
-                        RebuildLyricsView();
-                    },
-                    primaryColor, textSecondary, textHint));
-                LyricsSettingsPopup.AddContent(BuildToggleSwitch(
-                    "显示罗马音",
-                    _settings.ShowRoma,
-                    value =>
-                    {
-                        _settings.ShowRoma = value;
-                        RebuildLyricsView();
-                    },
-                    primaryColor, textSecondary, textHint));
-            }
+            LyricsSettingsPopup.AddContent(BuildSpacer(16));
+            LyricsSettingsPopup.AddContent(BuildSectionLabel("扩展歌词（lx-music 格式）", textHint));
+            LyricsSettingsPopup.AddContent(BuildToggleSwitch(
+                "显示歌词译文",
+                _settings.ShowTranslation,
+                value =>
+                {
+                    _settings.ShowTranslation = value;
+                    RebuildLyricsView();
+                },
+                primaryColor, textSecondary, textHint));
+            LyricsSettingsPopup.AddContent(BuildToggleSwitch(
+                "显示罗马音",
+                _settings.ShowRoma,
+                value =>
+                {
+                    _settings.ShowRoma = value;
+                    RebuildLyricsView();
+                },
+                primaryColor, textSecondary, textHint));
         }
 
         LyricsSettingsPopup.Open();

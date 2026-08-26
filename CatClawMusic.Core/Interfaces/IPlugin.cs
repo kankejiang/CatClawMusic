@@ -131,21 +131,6 @@ public interface IViewContributorPlugin : IPlugin
 }
 
 /// <summary>
-/// 扩展歌词能力插件接口：声明插件提供扩展歌词（译文 / 罗马音）显示能力。
-/// <para>
-/// 宿主歌词设置弹窗检测到已启用的本接口实现时，才显示「扩展歌词」分区
-/// （显示歌词译文 / 显示罗马音开关），译文/罗马音也参与歌词渲染；
-/// 未加载提供该能力的插件时，分区隐藏且译文/罗马音不显示。
-/// 扩展歌词功能由插件自治（宿主空壳架构）。
-/// </para>
-/// </summary>
-public interface IExtendedLyricsPlugin : IPlugin
-{
-    /// <summary>歌词设置弹窗中的分区标题（如「扩展歌词」）</summary>
-    string ExtensionTitle { get; }
-}
-
-/// <summary>
 /// 菜单项条目
 /// </summary>
 public class MenuItemEntry

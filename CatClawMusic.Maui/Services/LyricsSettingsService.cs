@@ -1,4 +1,3 @@
-using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 
 namespace CatClawMusic.Maui.Services;
@@ -110,35 +109,17 @@ public class LyricsSettingsService
         set => Preferences.Set(KeyRemoveEmptyLines, value);
     }
 
-    /// <summary>
-    /// 已启用的扩展歌词能力插件（译文/罗马音显示能力的提供者，未加载时为 null）。
-    /// 宿主空壳架构：扩展歌词功能由插件自治，插件安装/卸载/启停后即时生效。
-    /// </summary>
-    public static IExtendedLyricsPlugin? ExtendedLyricsPlugin =>
-        MauiProgram.Services?.GetService(typeof(IPluginManager)) is IPluginManager pluginManager
-            ? pluginManager.GetEnabledPlugins<IExtendedLyricsPlugin>().FirstOrDefault()
-            : null;
-
-    /// <summary>扩展歌词能力是否可用（存在已启用的扩展歌词插件）</summary>
-    public static bool ExtendedLyricsAvailable => ExtendedLyricsPlugin != null;
-
-    /// <summary>
-    /// 是否显示歌词译文（行内译文 / 网易云 tlrc 流等扩展歌词）。
-    /// 需扩展歌词插件提供能力，未加载插件时恒为 false（不渲染也不显示设置开关）。
-    /// </summary>
+    /// <summary>是否显示歌词译文（lx-music 扩展歌词 tlrc 流 / 行内译文）</summary>
     public bool ShowTranslation
     {
-        get => ExtendedLyricsAvailable && Preferences.Get(KeyShowTranslation, true);
+        get => Preferences.Get(KeyShowTranslation, true);
         set => Preferences.Set(KeyShowTranslation, value);
     }
 
-    /// <summary>
-    /// 是否显示歌词罗马音（网易云 romalrc 流等扩展歌词）。
-    /// 需扩展歌词插件提供能力，未加载插件时恒为 false（不渲染也不显示设置开关）。
-    /// </summary>
+    /// <summary>是否显示歌词罗马音（网易云 romalrc 流）</summary>
     public bool ShowRoma
     {
-        get => ExtendedLyricsAvailable && Preferences.Get(KeyShowRoma, true);
+        get => Preferences.Get(KeyShowRoma, true);
         set => Preferences.Set(KeyShowRoma, value);
     }
 
