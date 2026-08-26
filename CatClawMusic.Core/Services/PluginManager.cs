@@ -114,6 +114,11 @@ public class PluginManager : IPluginManager
     private static readonly string IQuickEntryFullName = typeof(IQuickEntryPlugin).FullName!;
 
     /// <summary>
+    /// IExtendedLyricsPlugin 接口的全限定名，用于反射匹配扩展歌词能力插件（歌词设置分区门控）
+    /// </summary>
+    private static readonly string IExtendedLyricsFullName = typeof(IExtendedLyricsPlugin).FullName!;
+
+    /// <summary>
     /// IThemeProviderPlugin 接口的全限定名，用于反射匹配主题提供者插件
     /// </summary>
     private static readonly string IThemeProviderFullName = typeof(IThemeProviderPlugin).FullName!;
@@ -777,6 +782,8 @@ public class PluginManager : IPluginManager
                     wrappers.Add(new ViewContributorAdapter(rawInstance));
                 if (interfaceNames.Contains(IQuickEntryFullName))
                     wrappers.Add(new QuickEntryAdapter(rawInstance));
+                if (interfaceNames.Contains(IExtendedLyricsFullName))
+                    wrappers.Add(new ExtendedLyricsAdapter(rawInstance));
                 if (interfaceNames.Contains(IThemeProviderFullName))
                     wrappers.Add(new ThemeProviderAdapter(rawInstance));
                 if (interfaceNames.Contains(IPlayerPageFullName))

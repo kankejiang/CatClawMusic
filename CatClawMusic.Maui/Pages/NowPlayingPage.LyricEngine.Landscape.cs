@@ -110,7 +110,7 @@ public partial class NowPlayingPage
             };
             border.Content = host;
 
-            if (!string.IsNullOrEmpty(line.Translation))
+            if (!string.IsNullOrEmpty(line.Translation) && _settings.ShowTranslation)
             {
                 var stack = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Fill };
                 stack.Children.Add(border);

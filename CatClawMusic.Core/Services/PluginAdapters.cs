@@ -965,6 +965,24 @@ internal class QuickEntryAdapter : BasicPluginAdapter, IQuickEntryPlugin
     }
 
     /// <summary>
+    /// 扩展歌词能力适配器：通过反射代理不同版本的 IExtendedLyricsPlugin 实现。
+    /// <para>
+    /// 仅代理 ExtensionTitle 属性（string 类型，跨版本安全）；
+    /// 宿主通过 GetEnabledPlugins&lt;IExtendedLyricsPlugin&gt;() 检测能力是否可用。
+    /// </para>
+    /// </summary>
+    internal class ExtendedLyricsAdapter : BasicPluginAdapter, IExtendedLyricsPlugin
+    {
+        /// <summary>初始化扩展歌词能力适配器</summary>
+        /// <param name="target">要代理的目标插件对象实例</param>
+        public ExtendedLyricsAdapter(object target) : base(target) { }
+
+        /// <summary>歌词设置弹窗中的分区标题，通过反射读取</summary>
+        public string ExtensionTitle =>
+            (string?)_targetType.GetProperty("ExtensionTitle")?.GetValue(_target) ?? "扩展歌词";
+    }
+
+    /// <summary>
     /// 主题提供者适配器：通过反射代理不同版本的 IThemeProviderPlugin 实现。
     /// <para>
     /// ThemeId/ThemeName/ThemeOrder 属性通过反射读取；GetThemeColorsAsync/GetThemeBackgroundAsync
