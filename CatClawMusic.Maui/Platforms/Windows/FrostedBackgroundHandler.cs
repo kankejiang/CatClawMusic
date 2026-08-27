@@ -254,15 +254,18 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         // CPU 盒式模糊 + 色调增强：512 分辨率（PC 端更高品质），两次盒式逼近高斯，细腻雾面。
         // 注：曾尝试 Win2D GPU 高斯，但像素回读管线在本环境产出异常位图（黑图/不随封面变色），
         // 无法无 GUI 调试，故回退到确定稳定的 CPU 实现。
-        return ProcessWithCpu(buf, smallW, smallH);
+        var dominant = CatClawMusic.Core.ColorQuantize.DominantColor.FromBgra(buf, smallW, smallH);
+        return ProcessWithCpu(buf, smallW, smallH, dominant);
     }
 
     /// <summary>CPU 盒式模糊 + 色调增强，输出细腻雾面。</summary>
-    private static WriteableBitmap ProcessWithCpu(byte[] buf, int w, int h)
+    private static WriteableBitmap ProcessWithCpu(byte[] buf, int w, int h, CatClawMusic.Core.ColorQuantize.DominantColor.ColorTone? dominant)
     {
         BoxBlur(buf, w, h, Math.Max(8, w / 8));
         BoxBlur(buf, w, h, Math.Max(4, w / 16));
         AdjustTone(buf, 1.6f, 1.12f);
+        // 以封面主导色做一层半透明偏移，让雾面色调真正来自封面（保留明暗结构）
+        if (dominant is { } d) ApplyDominantTint(buf, d, 0.20f);
 
         var wb = new WriteableBitmap(w, h);
         using (Stream stream = wb.PixelBuffer.AsStream())
@@ -348,6 +351,21 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
             pixels[i + 1] = (byte)Math.Clamp(gf, 0, 255);
             pixels[i + 2] = (byte)Math.Clamp(rf, 0, 255);
             pixels[i + 3] = a;
+        }
+    }
+
+    /// <summary>逐像素朝封面主导色作线性偏移（保留明暗），使雾面色调源自封面主色。</summary>
+    private static void ApplyDominantTint(byte[] pixels, CatClawMusic.Core.ColorQuantize.DominantColor.ColorTone d, float alpha)
+    {
+        float ia = 1f - alpha;
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            byte b = pixels[i];
+            byte g = pixels[i + 1];
+            byte r = pixels[i + 2];
+            pixels[i] = (byte)(b * ia + d.B * alpha);
+            pixels[i + 1] = (byte)(g * ia + d.G * alpha);
+            pixels[i + 2] = (byte)(r * ia + d.R * alpha);
         }
     }
 

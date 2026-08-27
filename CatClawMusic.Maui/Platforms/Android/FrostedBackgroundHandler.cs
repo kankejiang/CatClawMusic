@@ -643,6 +643,9 @@ public class FrostedBackgroundView : View
 
         var small = Zoom(src, smallW, smallH);
 
+        // 步骤1.5：从缩小图提取封面主导色（median-cut），供雾面着色参考
+        var dominant = ExtractDominant(small);
+
         // 步骤2：高斯模糊（半径 20，迭代 3 次，增强雾化效果）
         var blurred1 = BoxBlur(small, Math.Max(3, smallW / 6));
         if (blurred1 != small) small.Recycle();
@@ -683,7 +686,47 @@ public class FrostedBackgroundView : View
         var final = AdjustTone(blurred2, 1.5f, 1.08f);
         blurred2.Recycle();
 
+        // 步骤9：以封面主导色做一层半透明偏移，让雾面色调真正来自封面（保留明暗）
+        if (dominant is { } d) final = ApplyDominantTint(final, d, 0.20f);
+
         return final;
+    }
+
+    /// <summary>从位图提取封面主导色（median-cut）。失败返回 null。</summary>
+    private static CatClawMusic.Core.ColorQuantize.DominantColor.ColorTone? ExtractDominant(Bitmap bm)
+    {
+        try
+        {
+            int w = bm.Width, h = bm.Height;
+            var pix = new int[w * h];
+            bm.GetPixels(pix, 0, w, 0, 0, w, h);
+            return CatClawMusic.Core.ColorQuantize.DominantColor.FromArgb(pix);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>逐像素朝封面主导色作线性偏移（保留明暗与透明度），返回同一位图。</summary>
+    private static Bitmap ApplyDominantTint(Bitmap bm, CatClawMusic.Core.ColorQuantize.DominantColor.ColorTone d, float alpha)
+    {
+        int w = bm.Width, h = bm.Height;
+        var pix = new int[w * h];
+        bm.GetPixels(pix, 0, w, 0, 0, w, h);
+        float ia = 1f - alpha;
+        for (int i = 0; i < pix.Length; i++)
+        {
+            int p = pix[i];
+            int a = (p >> 24) & 0xFF;
+            if (a == 0) continue;
+            int r = Math.Min(255, (int)(((p >> 16) & 0xFF) * ia + d.R * alpha));
+            int g = Math.Min(255, (int)(((p >> 8) & 0xFF) * ia + d.G * alpha));
+            int b = Math.Min(255, (int)((p & 0xFF) * ia + d.B * alpha));
+            pix[i] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+        bm.SetPixels(pix, 0, w, 0, 0, w, h);
+        return bm;
     }
 
     /// <summary>缩放位图到指定尺寸</summary>
