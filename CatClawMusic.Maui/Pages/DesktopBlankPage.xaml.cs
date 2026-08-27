@@ -607,14 +607,15 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             // 立即在同一逻辑块内设置 TranslationY + 启动动画会绑到尚未生效的层上 → 动画直接失效。
             // 因此把「初始定位 + 启动动画」推迟到下一帧（Dispatcher），待 visual 建立后再动。
             var overlayH = BlankRoot.Height;
-            UpdateOverlayClip();
             PlayerOverlay.IsVisible = true;
             // 待视觉层就绪后启动滑入（WinUI 下 IsVisible 后 visual 异步懒创建）。
+            // 此回调内覆盖层 Handler 已建立：此时才设置裁剪（Clip）能真正生效。
             // WinUI 优先用 Composition Offset 直接驱动视觉层（Vitrum 已验证该路径），
             // 非 Windows 回退 MAUI TranslateTo。
             Dispatcher.Dispatch(() =>
             {
                 PlayerOverlay.TranslationY = 0;
+                UpdateOverlayClip();
 #if WINDOWS
                 if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement fe)
                     Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(fe).Offset
