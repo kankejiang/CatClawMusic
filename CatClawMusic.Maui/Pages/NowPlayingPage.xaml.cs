@@ -518,6 +518,15 @@ public partial class NowPlayingPage : ContentPage
         _playerSurfaceToken?.Dispose();
         _playerSurfaceToken = null;
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
+#if WINDOWS
+        // 覆盖层关闭后页面实例被丢弃，但订阅仍挂在单例 VM 上：
+        // Progress 每 tick → OnViewModelPropertyChanged → 更新已断连的 WinUI 控件
+        // → COMException(0x800710dd) stowed → 0xc000027b 闪退。必须显式退订。
+        // 重开页面时 OnWindowsStageReady 会按 _winVmSubscribed 幂等重订。
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _winVmSubscribed = false;
+        StopWinEq(); // EQ DispatcherTimer 每 80ms 更新已断连控件，同样会被 stowed
+#endif
     }
 
     /// <summary>当系统主题发生变更时触发，在主线程上重建歌词视图以应用新主题颜色。</summary>

@@ -379,7 +379,9 @@ public partial class NowPlayingPage
                 Margin = new Thickness(0, 4, 18, 0),
                 IsVisible = false,
             };
-            dot.Shadow = new Microsoft.Maui.Controls.Shadow { Brush = Color.FromArgb("#FF5A5A"), Radius = 6f, Opacity = 0.9f };
+            // ⚠ 不要给红点设置 Shadow：WinUI 端 MAUI Shadow 走 SoftwareBitmap.CreateCopyFromBuffer
+            // 异步取 alpha mask，歌词行切换瞬间元素尺寸为 0 → ArgumentException(E_INVALIDARG)。
+            // 该异常发生在异步回调里无人 catch → COM stowed(0x800710dd) → 0xc000027b 闪退。
             Grid.SetRow(dot, 0); Grid.SetColumn(dot, 1);
 
             row.Children.Add(mainHost);

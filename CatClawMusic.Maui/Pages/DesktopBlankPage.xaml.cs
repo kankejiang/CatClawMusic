@@ -626,6 +626,12 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             InvokeLifecycle(_overlayPlayerPage, "OnDisappearing");
             _overlayPlayerPage = null;
         }
+        // 断开内容绑定的继承链：内容被摘出后其 XAML 绑定（CurrentTimeDisplay/TotalTimeDisplay 等）
+        // 仍挂在单例 VM 上，VM 每 tick 推值 → 更新已脱离视觉树的 WinUI 控件 → COM 断连异常。
+        // 重开时 OnPlayerSongInfoTapped 会重设 BindingContext，无副作用。
+        foreach (var child in PlayerOverlay.Children)
+            if (child is BindableObject bo && ReferenceEquals(bo.BindingContext, BindingContext))
+                bo.BindingContext = null;
         PlayerOverlay.Children.Clear();
         PlayerOverlay.IsVisible = false;
     }
