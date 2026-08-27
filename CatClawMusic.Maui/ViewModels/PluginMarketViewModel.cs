@@ -78,9 +78,15 @@ public partial class PluginMarketViewModel : ObservableObject
         ErrorText = "";
         try
         {
+            // 候选源：SHA 钉定直链（最新，绕过 jsDelivr 分支解析 TTL 缓存）→ @main CDN（可能滞后）→ raw 兜底
+            var urls = new List<string>(s_indexUrls);
+            var sha = await TryResolveHeadShaAsync();
+            if (sha.Length > 0)
+                urls.Insert(0, $"https://cdn.jsdelivr.net/gh/kankejiang/CatClawMusic.PluginMarket@{sha}/index.json");
+
             string json = "";
             var failures = new List<string>();
-            foreach (var url in s_indexUrls)
+            foreach (var url in urls)
             {
                 try
                 {
@@ -119,6 +125,28 @@ public partial class PluginMarketViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>从 GitHub API 解析市场仓库 main 分支 HEAD SHA（失败返回空，静默降级到 @main 直链）</summary>
+    private static async Task<string> TryResolveHeadShaAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var resp = await s_http.GetAsync(
+                "https://api.github.com/repos/kankejiang/CatClawMusic.PluginMarket/commits/main", cts.Token);
+            resp.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(cts.Token));
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("sha", out var shaEl)
+                && shaEl.ValueKind == JsonValueKind.String)
+                return shaEl.GetString() ?? "";
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginMarketViewModel", $"[PluginMarket] HEAD SHA 解析失败（降级 @main）: {ex.Message}");
+        }
+        return "";
     }
 
     /// <summary>解析市场清单 JSON（$meta 提取市场名，其余每个根键是一个插件条目）</summary>
