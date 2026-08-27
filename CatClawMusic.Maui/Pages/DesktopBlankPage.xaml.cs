@@ -556,6 +556,9 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     // 当前覆盖层里的播放页实例（关闭时通知 OnDisappearing）
     private ContentPage? _overlayPlayerPage;
 
+    // 关闭动画进行中标志（防重入：动画期间再次触发关闭直接忽略）
+    private bool _playerOverlayClosing;
+
     private void OnPlayerSongInfoTapped(object? sender, EventArgs e)
     {
         try
@@ -591,8 +594,20 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
             PlayerOverlay.Children.Clear();
             PlayerOverlay.Children.Add(content);
-            PlayerOverlay.IsVisible = true;
             _overlayPlayerPage = page;
+
+            // 底部向上滑入过渡：先置于窗口下方再显示（同一帧内，无闪现），再动画归位
+            var overlayH = BlankRoot.Height;
+            if (overlayH > 0)
+            {
+                PlayerOverlay.TranslationY = overlayH;
+                PlayerOverlay.IsVisible = true;
+                _ = SlidePlayerOverlayAsync(0, 320);
+            }
+            else
+            {
+                PlayerOverlay.IsVisible = true;
+            }
 
             // WindowsStage 的可见性由 ApplyWindowsLayout 控制（OnSizeAllocated / RootGrid.SizeChanged
             // 触发）。Content 被提取后这些事件可能不触发 → 布局完成后手动补触发一次初始化。
@@ -618,9 +633,60 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         }
     }
 
-    /// <summary>关闭播放页覆盖层（由播放页收起按钮触发）。</summary>
+    /// <summary>播放页覆盖层垂直滑动动画（打开归位/关闭滑出共用）。</summary>
+    private async Task SlidePlayerOverlayAsync(double targetY, uint duration)
+    {
+        try
+        {
+            await PlayerOverlay.TranslateTo(0, targetY, duration, Easing.SinOut);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] PlayerOverlay 动画异常: {ex.Message}");
+        }
+    }
+
+    /// <summary>关闭播放页覆盖层（由播放页收起按钮触发）：先向下滑出，动画结束后再清理内容。</summary>
     public void ClosePlayerOverlay()
     {
+        try
+        {
+            if (!PlayerOverlay.IsVisible) return;
+            if (_playerOverlayClosing) return; // 关闭动画进行中
+            _playerOverlayClosing = true;
+            // 中断进行中的打开滑入动画：关闭动画从当前位置继续滑出，视觉连续
+            PlayerOverlay.CancelAnimations();
+            var overlayH = BlankRoot.Height;
+            if (overlayH > 0)
+                _ = ClosePlayerOverlayAnimatedAsync(overlayH);
+            else
+                FinishClosePlayerOverlay();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] ClosePlayerOverlay failed: {ex.Message}");
+            FinishClosePlayerOverlay();
+        }
+    }
+
+    private async Task ClosePlayerOverlayAnimatedAsync(double overlayH)
+    {
+        try
+        {
+            await PlayerOverlay.TranslateTo(0, overlayH, 280, Easing.SinOut);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] PlayerOverlay 关闭动画异常: {ex.Message}");
+        }
+        FinishClosePlayerOverlay();
+    }
+
+    /// <summary>覆盖层关闭收尾：生命周期、绑定清理、内容卸载（动画完成后调用）。</summary>
+    private void FinishClosePlayerOverlay()
+    {
+        _playerOverlayClosing = false;
+        PlayerOverlay.TranslationY = 0;
         if (_overlayPlayerPage != null)
         {
             InvokeLifecycle(_overlayPlayerPage, "OnDisappearing");
