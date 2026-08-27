@@ -596,18 +596,13 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             PlayerOverlay.Children.Add(content);
             _overlayPlayerPage = page;
 
-            // 底部向上滑入过渡：先置于窗口下方再显示（同一帧内，无闪现），再动画归位
+            // 底部向上滑入过渡。注意：WinUI 下 IsVisible=true 后 Composition visual 是异步懒创建的，
+            // 立即在同一逻辑块内设置 TranslationY + 启动动画会绑到尚未生效的层上 → 动画直接失效。
+            // 因此把「初始定位 + 启动动画」推迟到下一帧（Dispatcher），待 visual 建立后再动。
             var overlayH = BlankRoot.Height;
-            if (overlayH > 0)
-            {
-                PlayerOverlay.TranslationY = overlayH;
-                PlayerOverlay.IsVisible = true;
-                _ = SlidePlayerOverlayAsync(0, 320);
-            }
-            else
-            {
-                PlayerOverlay.IsVisible = true;
-            }
+            PlayerOverlay.TranslationY = overlayH;
+            PlayerOverlay.IsVisible = true;
+            Dispatcher.Dispatch(() => _ = SlidePlayerOverlayAsync(0, 320));
 
             // WindowsStage 的可见性由 ApplyWindowsLayout 控制（OnSizeAllocated / RootGrid.SizeChanged
             // 触发）。Content 被提取后这些事件可能不触发 → 布局完成后手动补触发一次初始化。
