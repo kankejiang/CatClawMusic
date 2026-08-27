@@ -133,11 +133,40 @@ public partial class WebViewLoginPage : ContentPage
         catch { }
     }
 
-    /// <summary>页面离开：停止轮询，避免悬挂定时器</summary>
+    /// <summary>页面离开（Shell 导航栈弹出）：停止轮询并释放 WebView</summary>
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         StopCookiePolling();
+        CleanupWebView();
         base.OnNavigatedFrom(args);
+    }
+
+    /// <summary>页面离开：停止轮询并释放 WebView 资源，避免悬挂定时器和 COM 泄漏。
+    /// 桌面嵌入模式无 Shell 导航，OnNavigatedFrom 不会被触发；由 DesktopBlankPage.SwitchTab
+    /// 反射调用本方法（与 OpenEmbeddedPage 反射调 OnAppearing 对称）。</summary>
+    protected override void OnDisappearing()
+    {
+        StopCookiePolling();
+        CleanupWebView();
+        base.OnDisappearing();
+    }
+
+    /// <summary>释放 WebView 底层资源。登录页是 Transient 页面（用完即弃），
+    /// 直接关闭 WebView2 / 断开 Handler 安全。若不显式释放，Children.Clear() 后
+    /// 旧实例被 GC 时 WebView2 的异步回调（CookieManager 等）会访问已分离的 COM
+    /// 对象，抛 COMException（stowed exception）导致整个进程闪退。</summary>
+    private void CleanupWebView()
+    {
+        try { LoginWebView.Source = null; } catch { }
+        try
+        {
+#if WINDOWS
+            if (LoginWebView.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.WebView2 wv2)
+                wv2.Close();
+#endif
+            LoginWebView.Handler?.DisconnectHandler();
+        }
+        catch { }
     }
 
     /// <summary>返回按钮：直接返回上一页</summary>
@@ -217,6 +246,9 @@ public partial class WebViewLoginPage : ContentPage
                 && info.SuccessCookieNames.All(n => cookie.Contains(n + "=", StringComparison.OrdinalIgnoreCase)))
             {
                 StatusHint.Text = "登录成功，正在返回...";
+                // 提前停轮询：CompleteLoginAsync（网络请求）期间定时器会再次发起
+                // GetCookiesAsync，GoBack 关闭 WebView2 后该回调撞已释放 COM 对象即闪退
+                StopCookiePolling();
                 await _vm.CompleteLoginAsync(cookie);
                 DesktopNavigation.GoBack();
                 return;

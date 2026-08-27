@@ -139,6 +139,12 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
             InvokeLifecycle(oldHost, "OnDisappearing");
 
+        // 嵌入页离开（如 WebView 登录页）：先触发 OnDisappearing 让其停定时器/关闭 WebView2，
+        // 再 Children.Clear()。否则 WebView2 异步回调撞上被移除的控件会抛 COMException 闪退。
+        // 与 OpenEmbeddedPage 末尾的 InvokeLifecycle(page, "OnAppearing") 对称。
+        if (_embeddedPage != null)
+            InvokeLifecycle(_embeddedPage, "OnDisappearing");
+
         _embeddedPage = null;
         _currentTab = tab;
         UpdateNavHighlight();
