@@ -627,8 +627,8 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
                     // 矩形压到主界面成残影。动画中隐藏、归位后恢复，规避残影且无视觉损失。
                     SetFrostedFog(page, false);
                     await SlideOverlayToAsync(0, 360);
-                    // 归位后雾面淡入，平滑盖住主题渐变底
-                    SetFrostedFog(page, true, animate: true);
+                    // 归位后淡入恢复雾面；内置兜底把 Opacity 置回 1，确保透明卡点不残留（背景会一直静止）
+                    await RestoreFrostedFog(page);
                 }
                 catch (Exception ex)
                 {
@@ -761,23 +761,25 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         FinishClosePlayerOverlay();
     }
 
-    /// <summary>隐藏/显示覆盖层内播放页的雾面背景（动画期间隐藏防越界残影）。
-    /// 恢复时可选淡入，避免硬切到主题渐变底。</summary>
-    private static void SetFrostedFog(ContentPage? page, bool visible, bool animate = false)
+    /// <summary>即时隐藏或显示覆盖层内播放页的雾面背景（滑入/滑出动画期间隐藏防越界残影）。</summary>
+    private static void SetFrostedFog(ContentPage? page, bool visible)
     {
         if (page?.FindByName<FrostedBackground>("FrostedBg") is not FrostedBackground fog) return;
         if (visible)
-        {
-            if (animate)
-                _ = fog.FadeTo(1, 150);
-            else
-                fog.Opacity = 1;
-        }
+            fog.Opacity = 1;
         else
         {
             fog.CancelAnimations();
             fog.Opacity = 0;
         }
+    }
+
+    /// <summary>淡入恢复雾面背景，最后兜底把 Opacity 置回 1，确保可见且漂移动画运行、不留透明卡点。</summary>
+    private static async Task RestoreFrostedFog(ContentPage? page)
+    {
+        if (page?.FindByName<FrostedBackground>("FrostedBg") is not FrostedBackground fog) return;
+        try { await fog.FadeTo(1, 150); } catch { }
+        fog.Opacity = 1;
     }
 
     /// <summary>覆盖层关闭收尾：生命周期、绑定清理、内容卸载（动画完成后调用）。</summary>

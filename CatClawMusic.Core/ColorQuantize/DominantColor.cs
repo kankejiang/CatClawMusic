@@ -42,7 +42,11 @@ public static class DominantColor
         var pixels = tones.Select(t => new PixelRGBA(t.R, t.G, t.B, 255));
         try
         {
-            var c = ColorThief.GetColor(pixels);
+            // GetColor 内部用 colorCount=1，但 ColorThief 校验 colorCount∈[2,20] 会抛异常被吞成 null，
+            // 导致主色永不生效。改用 GetPalette(2) 取首个作主导色。
+            var palette = ColorThief.GetPalette(pixels, 2);
+            if (palette.Count == 0) return null;
+            var c = palette.First();
             return new ColorTone(c.R, c.G, c.B);
         }
         catch
