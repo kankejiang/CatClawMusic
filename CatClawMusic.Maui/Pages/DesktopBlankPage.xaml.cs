@@ -600,9 +600,20 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             // 立即在同一逻辑块内设置 TranslationY + 启动动画会绑到尚未生效的层上 → 动画直接失效。
             // 因此把「初始定位 + 启动动画」推迟到下一帧（Dispatcher），待 visual 建立后再动。
             var overlayH = BlankRoot.Height;
-            PlayerOverlay.TranslationY = overlayH;
             PlayerOverlay.IsVisible = true;
-            Dispatcher.Dispatch(() => _ = SlidePlayerOverlayAsync(0, 320));
+            // 待视觉层就绪后启动滑入（WinUI 下 IsVisible 后 visual 异步懒创建）。
+            // WinUI 优先用 Composition Offset 直接驱动视觉层（Vitrum 已验证该路径），
+            // 非 Windows 回退 MAUI TranslateTo。
+            Dispatcher.Dispatch(() =>
+            {
+                PlayerOverlay.TranslationY = 0;
+#if WINDOWS
+                if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement fe)
+                    Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(fe).Offset
+                        = new System.Numerics.Vector3(0, (float)overlayH, 0);
+#endif
+                _ = SlideOverlayToAsync(0, 360);
+            });
 
             // WindowsStage 的可见性由 ApplyWindowsLayout 控制（OnSizeAllocated / RootGrid.SizeChanged
             // 触发）。Content 被提取后这些事件可能不触发 → 布局完成后手动补触发一次初始化。
@@ -628,9 +639,44 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         }
     }
 
-    /// <summary>播放页覆盖层垂直滑动动画（打开归位/关闭滑出共用）。</summary>
-    private async Task SlidePlayerOverlayAsync(double targetY, uint duration)
+    /// <summary>
+    /// 播放页覆盖层垂直滑动动画（打开归位/关闭滑出共用）。
+    /// WinUI 用 Composition Offset 直接驱动视觉层（Vitrum 已验证可靠），
+    /// 非 Windows 回退 MAUI TranslateTo。
+    /// </summary>
+    private async Task SlideOverlayToAsync(double targetY, uint duration)
     {
+#if WINDOWS
+        if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement fe)
+        {
+            try
+            {
+                var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(fe);
+                var compositor = visual.Compositor;
+                var anim = compositor.CreateScalarKeyFrameAnimation();
+                anim.InsertKeyFrame(0f, (float)visual.Offset.Y);
+                anim.InsertKeyFrame(1f, (float)targetY, compositor.CreateCubicBezierEasingFunction(
+                    new System.Numerics.Vector2(0.2f, 0.8f), new System.Numerics.Vector2(0.2f, 1f)));
+                anim.Duration = TimeSpan.FromMilliseconds(duration);
+                // ScalarKeyFrameAnimation 无 Completed 事件；用 ScopedBatch 捕获动画批次完成
+                var tcs = new TaskCompletionSource();
+                var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
+                batch.Completed += (_, _) =>
+                {
+                    visual.Offset = new System.Numerics.Vector3(0, (float)targetY, 0);
+                    tcs.TrySetResult();
+                };
+                visual.StartAnimation("Offset.Y", anim);
+                batch.End();
+                await tcs.Task;
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("DesktopBlankPage.xaml", $"[Desktop] Composition 动画异常: {ex.Message}");
+            }
+        }
+#endif
         try
         {
             await PlayerOverlay.TranslateTo(0, targetY, duration, Easing.SinOut);
@@ -650,6 +696,7 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             if (_playerOverlayClosing) return; // 关闭动画进行中
             _playerOverlayClosing = true;
             // 中断进行中的打开滑入动画：关闭动画从当前位置继续滑出，视觉连续
+            // （WinUI Composition 端同属性 StartAnimation 会自动替换进行中的动画，无需手动取消）
             PlayerOverlay.CancelAnimations();
             var overlayH = BlankRoot.Height;
             if (overlayH > 0)
@@ -666,14 +713,8 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     private async Task ClosePlayerOverlayAnimatedAsync(double overlayH)
     {
-        try
-        {
-            await PlayerOverlay.TranslateTo(0, overlayH, 280, Easing.SinOut);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("DesktopBlankPage.xaml", $"[Desktop] PlayerOverlay 关闭动画异常: {ex.Message}");
-        }
+        await SlideOverlayToAsync(overlayH, 300);
+        PlayerOverlay.TranslationY = 0;
         FinishClosePlayerOverlay();
     }
 
