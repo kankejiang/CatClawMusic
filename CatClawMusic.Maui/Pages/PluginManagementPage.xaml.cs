@@ -44,4 +44,17 @@ public partial class PluginManagementPage : ContentPage
             Log.Debug("PluginManagementPage.xaml", $"[PluginPage] Switch toggled: {ex.Message}");
         }
     }
+
+    /// <summary>打开插件市场页（Shell 走路由；桌面无 Shell 嵌入主区域）。</summary>
+    private void OnMarketButtonTapped(object? sender, TappedEventArgs e)
+    {
+        try
+        {
+            Helpers.DesktopNavigation.GoOrEmbed("pluginmarket", typeof(Pages.PluginMarketPage));
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PluginManagementPage.xaml", $"[PluginPage] 打开插件市场失败: {ex.Message}");
+        }
+    }
 }

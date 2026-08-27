@@ -81,6 +81,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("musicfoldersettings", typeof(Pages.MusicFolderSettingsPage));
         Routing.RegisterRoute("remotemusicsettings", typeof(Pages.RemoteMusicSettingsPage));
         Routing.RegisterRoute("pluginmanagement", typeof(Pages.PluginManagementPage));
+        Routing.RegisterRoute("pluginmarket", typeof(Pages.PluginMarketPage));
         Routing.RegisterRoute("aisettings", typeof(Pages.AiSettingsPage));
         Routing.RegisterRoute("permissionmanagement", typeof(Pages.PermissionManagementPage));
         Routing.RegisterRoute("albumdetail", typeof(Pages.AlbumDetailPage));

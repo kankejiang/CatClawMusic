@@ -466,6 +466,7 @@ public static class MauiProgram
         services.AddTransient<PermissionManagementViewModel>();
         services.AddTransient<RemoteMusicSettingsViewModel>();
         services.AddTransient<PluginManagementViewModel>();
+        services.AddTransient<PluginMarketViewModel>();
         services.AddTransient<FolderBrowserViewModel>();
         services.AddTransient<ListeningStatsViewModel>();
         services.AddTransient<DownloadsViewModel>();
@@ -513,6 +514,7 @@ public static class MauiProgram
         services.AddTransient<Pages.MusicFolderSettingsPage>();
         services.AddTransient<Pages.RemoteMusicSettingsPage>();
         services.AddTransient<Pages.PluginManagementPage>();
+        services.AddTransient<Pages.PluginMarketPage>();
         services.AddTransient<Pages.AiSettingsPage>();
         services.AddTransient<Pages.PermissionManagementPage>();
         services.AddTransient<Pages.LogPage>();

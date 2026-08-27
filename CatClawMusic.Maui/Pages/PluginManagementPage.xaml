@@ -28,18 +28,30 @@
                                FontSize="12"
                                TextColor="#B8C7FF" />
                     </VerticalStackLayout>
-                    <Border Grid.Column="1"
-                            Style="{StaticResource GlassIconContainerStyle}"
-                            BackgroundColor="#24FFFFFF"
-                            Stroke="{DynamicResource GlassStrokeColor}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Command="{Binding AddPluginCommand}" />
-                        </Border.GestureRecognizers>
-                        <VerticalStackLayout Spacing="0" HorizontalOptions="Center" VerticalOptions="Center">
-                            <Label Text="＋" FontSize="18" HorizontalOptions="Center" />
-                            <Label Text="添加" FontSize="10" HorizontalOptions="Center" />
-                        </VerticalStackLayout>
-                    </Border>
+                    <HorizontalStackLayout Grid.Column="1" Spacing="10" VerticalOptions="Center">
+                        <Border Style="{StaticResource GlassIconContainerStyle}"
+                                BackgroundColor="#24FFFFFF"
+                                Stroke="{DynamicResource GlassStrokeColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnMarketButtonTapped" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="0" HorizontalOptions="Center" VerticalOptions="Center">
+                                <Image Source="ic_market.svg" WidthRequest="18" HeightRequest="18" />
+                                <Label Text="商店" FontSize="10" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Style="{StaticResource GlassIconContainerStyle}"
+                                BackgroundColor="#24FFFFFF"
+                                Stroke="{DynamicResource GlassStrokeColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding AddPluginCommand}" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="0" HorizontalOptions="Center" VerticalOptions="Center">
+                                <Label Text="＋" FontSize="18" HorizontalOptions="Center" />
+                                <Label Text="添加" FontSize="10" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </HorizontalStackLayout>
                 </Grid>
             </controls:HeroCard.CardContent>
         </controls:HeroCard>
