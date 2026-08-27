@@ -612,16 +612,27 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             // 此回调内覆盖层 Handler 已建立：此时才设置裁剪（Clip）能真正生效。
             // WinUI 优先用 Composition Offset 直接驱动视觉层（Vitrum 已验证该路径），
             // 非 Windows 回退 MAUI TranslateTo。
-            Dispatcher.Dispatch(() =>
+            Dispatcher.Dispatch(async () =>
             {
-                PlayerOverlay.TranslationY = 0;
-                UpdateOverlayClip();
+                try
+                {
+                    PlayerOverlay.TranslationY = 0;
+                    UpdateOverlayClip();
 #if WINDOWS
-                if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement fe)
-                    Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(fe).Offset
-                        = new System.Numerics.Vector3(0, (float)overlayH, 0);
+                    if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement fe)
+                        Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(fe).Offset
+                            = new System.Numerics.Vector3(0, (float)overlayH, 0);
 #endif
-                _ = SlideOverlayToAsync(0, 360);
+                    // 滑入动画期间隐藏雾面背景：雾面图放大1.72倍+旋转±15°，四角会越出覆盖层
+                    // 矩形压到主界面成残影。动画中隐藏、归位后恢复，规避残影且无视觉损失。
+                    SetFrostedFog(page, false);
+                    await SlideOverlayToAsync(0, 360);
+                    SetFrostedFog(page, true);
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("DesktopBlankPage.xaml", $"[Desktop] 滑入动画异常: {ex.Message}");
+                }
             });
 
             // WindowsStage 的可见性由 ApplyWindowsLayout 控制（OnSizeAllocated / RootGrid.SizeChanged
@@ -742,9 +753,18 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     private async Task ClosePlayerOverlayAnimatedAsync(double overlayH)
     {
+        // 滑出动画期间同样隐藏雾面背景，避免滑出途中四角越界残影
+        SetFrostedFog(_overlayPlayerPage, false);
         await SlideOverlayToAsync(overlayH, 300);
         PlayerOverlay.TranslationY = 0;
         FinishClosePlayerOverlay();
+    }
+
+    /// <summary>隐藏/显示覆盖层内播放页的雾面背景（动画期间隐藏防越界残影）。</summary>
+    private static void SetFrostedFog(ContentPage? page, bool visible)
+    {
+        if (page?.FindByName<FrostedBackground>("FrostedBg") is FrostedBackground fog)
+            fog.Opacity = visible ? 1d : 0d;
     }
 
     /// <summary>覆盖层关闭收尾：生命周期、绑定清理、内容卸载（动画完成后调用）。</summary>
