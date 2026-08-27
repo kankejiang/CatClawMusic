@@ -111,9 +111,16 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     }
 
 #if WINDOWS
-    private void OnSizeChanged(object? sender, EventArgs e) => UpDateTitlebar();
+    private void OnSizeChanged(object? sender, EventArgs e)
+    {
+        UpDateTitlebar();
+        if (PlayerOverlay.IsVisible) UpdateOverlayClip();
+    }
 #else
-    private void OnSizeChanged(object? sender, EventArgs e) { }
+    private void OnSizeChanged(object? sender, EventArgs e)
+    {
+        if (PlayerOverlay.IsVisible) UpdateOverlayClip();
+    }
 #endif
 
     protected override void OnAppearing()
@@ -600,6 +607,7 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             // 立即在同一逻辑块内设置 TranslationY + 启动动画会绑到尚未生效的层上 → 动画直接失效。
             // 因此把「初始定位 + 启动动画」推迟到下一帧（Dispatcher），待 visual 建立后再动。
             var overlayH = BlankRoot.Height;
+            UpdateOverlayClip();
             PlayerOverlay.IsVisible = true;
             // 待视觉层就绪后启动滑入（WinUI 下 IsVisible 后 visual 异步懒创建）。
             // WinUI 优先用 Composition Offset 直接驱动视觉层（Vitrum 已验证该路径），
@@ -640,7 +648,27 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     }
 
     /// <summary>
-    /// 播放页覆盖层垂直滑动动画（打开归位/关闭滑出共用）。
+    /// 将播放页覆盖层裁剪到自身边界。播放页雾面背景图放大 1.72 倍且带 ±15° 旋转，
+    /// 四角会伸出覆盖层矩形（全屏时被窗口边缘裁掉不可见）；滑入/滑出动画中覆盖层
+    /// 处于窗口中间，XAML Grid 又默认不裁剪子元素 → 溢出部分以斜向楔形压在主界面上，
+    /// 即滑动残影。裁剪后动画期间溢出被裁掉，静态显示不受影响。
+    /// </summary>
+    private void UpdateOverlayClip()
+    {
+        var w = BlankRoot.Width;
+        var h = BlankRoot.Height;
+        if (w <= 0 || h <= 0) return;
+#if WINDOWS
+        if (PlayerOverlay.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.Grid nativeGrid)
+            nativeGrid.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+                { Rect = new Windows.Foundation.Rect(0, 0, w, h) };
+#else
+        PlayerOverlay.Clip = new Microsoft.Maui.Controls.Shapes.RectangleGeometry
+            { Rect = new Rect(0, 0, w, h) };
+#endif
+    }
+
+    /// <summary>播放页覆盖层垂直滑动动画（打开归位/关闭滑出共用）。
     /// WinUI 用 Composition Offset 直接驱动视觉层（Vitrum 已验证可靠），
     /// 非 Windows 回退 MAUI TranslateTo。
     /// </summary>
