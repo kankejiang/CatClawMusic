@@ -334,8 +334,15 @@
         </Grid>
 
         <!-- ═══ 播放页覆盖层（全窗覆盖含侧栏/播放条——播放页不显示底部播放条）═══ -->
-        <Grid x:Name="PlayerOverlay" Grid.ColumnSpan="2"
-              IsVisible="False" BackgroundColor="Black">
+        <!-- 背景用跟随主题色的深色渐变（顶部主色→底部暗色）：滑入/滑出动画期间雾面隐藏时，
+             渐变底比纯黑更有层次、色调统一；归位后雾面淡入将其盖住。 -->
+        <Grid x:Name="PlayerOverlay" Grid.ColumnSpan="2" IsVisible="False">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Offset="0" Color="{DynamicResource PrimaryColor}" />
+                    <GradientStop Offset="1" Color="#000000" />
+                </LinearGradientBrush>
+            </Grid.Background>
             <!-- 内容由 code-behind 动态填充（NowPlayingPage 的 Content）；
                  关闭用播放页自带的收起按钮（WinCollapseBtn/CollapseButton，已 hook 到覆盖层关闭） -->
         </Grid>

@@ -627,7 +627,8 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
                     // 矩形压到主界面成残影。动画中隐藏、归位后恢复，规避残影且无视觉损失。
                     SetFrostedFog(page, false);
                     await SlideOverlayToAsync(0, 360);
-                    SetFrostedFog(page, true);
+                    // 归位后雾面淡入，平滑盖住主题渐变底
+                    SetFrostedFog(page, true, animate: true);
                 }
                 catch (Exception ex)
                 {
@@ -760,11 +761,23 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         FinishClosePlayerOverlay();
     }
 
-    /// <summary>隐藏/显示覆盖层内播放页的雾面背景（动画期间隐藏防越界残影）。</summary>
-    private static void SetFrostedFog(ContentPage? page, bool visible)
+    /// <summary>隐藏/显示覆盖层内播放页的雾面背景（动画期间隐藏防越界残影）。
+    /// 恢复时可选淡入，避免硬切到主题渐变底。</summary>
+    private static void SetFrostedFog(ContentPage? page, bool visible, bool animate = false)
     {
-        if (page?.FindByName<FrostedBackground>("FrostedBg") is FrostedBackground fog)
-            fog.Opacity = visible ? 1d : 0d;
+        if (page?.FindByName<FrostedBackground>("FrostedBg") is not FrostedBackground fog) return;
+        if (visible)
+        {
+            if (animate)
+                _ = fog.FadeTo(1, 150);
+            else
+                fog.Opacity = 1;
+        }
+        else
+        {
+            fog.CancelAnimations();
+            fog.Opacity = 0;
+        }
     }
 
     /// <summary>覆盖层关闭收尾：生命周期、绑定清理、内容卸载（动画完成后调用）。</summary>
