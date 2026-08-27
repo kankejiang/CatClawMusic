@@ -60,6 +60,13 @@
 		<RuntimeIdentifiers Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64;android-x64</RuntimeIdentifiers>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+		<!-- MAUI 11 Windows 默认启用 CV2（ItemsRepeater 处理器）。其滚动保持逻辑
+		     ItemsViewHandler2.ApplyItemsUpdatingScrollMode 在 DispatcherQueue 回调里调
+		     ItemsView.StartBringItemIntoView，集合在隐藏/未加载状态下变更时抛
+		     COMException(0x800710dd) → 无人捕获 → stowed 0xc000027b 进程闪退
+		     （dotnet/maui#36632，插件页点私人漫游/换列表必现）。退回旧 ListView 处理器
+		     （官方 UseWindowsCollectionView2Handler=false），等上游修复后再开。 -->
+		<UseWindowsCollectionView2Handler Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">false</UseWindowsCollectionView2Handler>
 
 		<!-- 运行时说明：.NET 11 Android 仅支持 CoreCLR（NETSDK1242 禁止 Mono）。CoreCLR Release 下
 		     FixAbstractMethodsStep 修补 R2R 预编译 binding 程序集时会报 XALNS7015（dotnet/android#11025）。
