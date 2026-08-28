@@ -741,6 +741,30 @@ public partial class AudioPlayerService
     }
 
     /// <summary>
+    /// 把原生 EQ 重新挂载到当前 ExoPlayer 的真实音频会话。播放进入 STATE_READY 后必须调用，
+    /// 因为 ExoPlayer 在 Build() 后、AudioTrack 创建前 AudioSessionId 还是 0（AUDIO_SESSION_ID_UNSET）、
+    /// 此时 Attach 会把 EQ 挂到全局会话 0，导致频段调节对歌曲不生效且之后不再更新。
+    /// AttachToSession 内部按音频会话去重，重复调用安全。
+    /// </summary>
+    private void AttachEqualizerToCurrentSession()
+    {
+        if (EqualizerSettings.UseFFmpegEq) return; // FFmpeg 烘焙式 EQ 不挂原生会话
+        try
+        {
+            if (_player == null) return;
+            var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+            if (sessionId <= 0) return; // 会话尚未分配（unset=0），等 STATE_READY 再挂
+            _eqService ??= new AndroidEqualizerService();
+            _eqService.AttachToSession(sessionId);
+            _eqService.ApplySettings();
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("AudioPlayerService.Android", $"[ExoPlayer] EQ 重新挂载到真实会话失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// FFmpeg 模式均衡器实时生效：防抖后重新烘焙当前曲（新滤镜）并从原进度重载。
     /// 防抖避免拖动滑块时每像素都触发一次重转码（重转码耗时数秒）。
     /// 也用于 FFmpeg 开关切换时把当前曲在「原生 ↔ FFmpeg 烘焙」路径间重载。
@@ -898,6 +922,9 @@ public partial class AudioPlayerService
                         // 若等 OnIsPlayingChanged(true) 才刷新，主线程拥塞期间通知栏会显示
                         // 00:00 数秒。STATE_READY 早于 IsPlaying 回调，在此推送可立即修正。
                         _owner.UpdateForegroundNotification();
+                        // 播放就绪：AudioTrack 已创建、AudioSessionId 已分配，把原生 EQ
+                        // 重新挂载到真实会话（修复 Build 后挂到全局会话 0 导致 EQ 不生效）。
+                        _owner.AttachEqualizerToCurrentSession();
                         // 双保险：若实际已在播放（如从解码错误自动恢复后 OnIsPlayingChanged
                         // 不再翻转为 true），确保进度定时器已启动，避免"歌在播进度条不走"。
                         if (_owner._player?.IsPlaying == true)
