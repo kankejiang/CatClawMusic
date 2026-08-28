@@ -131,6 +131,10 @@ public partial class FullLyricsPage : ContentPage
         // 锁屏解锁/回前台：立即重测 + 钉当前行（安卓 Handler 重建会导致旧锚点表过时）
         App.Resumed += OnAppResumed;
 
+        // 切页/滚屏交互结束并过宽限期后，VM 通知重测行高 + 重新钉行，
+        // 修复"从播放页切回全屏歌词页时歌词挤在一起、滚动下一行才恢复"。
+        _viewModel.LyricResumeRequested += OnLyricResumeRequested;
+
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期
         HandlerChanged += (_, _) =>
         {
@@ -142,6 +146,7 @@ public partial class FullLyricsPage : ContentPage
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
                 App.Resumed -= OnAppResumed;
+                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
             }
             else
             {
@@ -149,6 +154,8 @@ public partial class FullLyricsPage : ContentPage
                 _viewModel.PropertyChanged += OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
                 SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+                _viewModel.LyricResumeRequested += OnLyricResumeRequested;
             }
         };
     }
@@ -160,6 +167,19 @@ public partial class FullLyricsPage : ContentPage
             if (Handler == null) return;
             ForcePinActiveLine();
             ScheduleRetriedPinActive(3);
+        });
+    }
+
+    /// <summary>切页/滚屏交互结束并过宽限期后：重测行高 + 重新钉行。
+    /// 此时页面几何已稳定、行高就绪，修复"返回全屏歌词页时歌词挤在一起"。</summary>
+    private void OnLyricResumeRequested(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (Handler == null) return;
+            if (ActiveLyricRowViews.Count == 0) return;
+            ForcePinActiveLine();
+            ScheduleRetriedPinActive(2);
         });
     }
 

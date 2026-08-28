@@ -23,6 +23,9 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>完整音频缓存下载共享客户端（2 分钟超时，大文件）</summary>
     private static readonly HttpClient CacheHttpClient = new() { Timeout = TimeSpan.FromMinutes(2) };
 
+    /// <summary>交互（切页/滚屏）动画完全结束并过宽限期后触发，通知歌词页重测行高并重新钉行，修复返回时歌词挤在一起。</summary>
+    public event EventHandler? LyricResumeRequested;
+
     private readonly PlayQueue _queue;
     private readonly ILyricsService _lyrics;
     private readonly MusicDatabase _db;
@@ -46,6 +49,9 @@ public partial class NowPlayingViewModel : ObservableObject
     private bool _isStartupRestore;
     /// <summary>已触发预缓冲的歌曲ID，避免重复触发</summary>
     private int _preBufferedSongId = -1;
+    /// <summary>交互（切页/滚屏）完全结束的时刻（UTC）。结束时记录，
+    /// 之后 LyricResumeGraceSeconds 宽限期内仍视为交互中，避免切页动画归位后立即恢复歌词更新再卡一帧。</summary>
+    private DateTime _interactionEndedAtUtc = DateTime.MinValue;
 
     // === 听歌时长追踪 ===
     /// <summary>当前正在追踪时长的歌曲ID</summary>
@@ -316,15 +322,46 @@ public partial class NowPlayingViewModel : ObservableObject
         MainThread.BeginInvokeOnMainThread(() =>
             IsUserScrolling = isInteracting || (_interactionState?.IsUserScrolling ?? false));
 
+        if (!isInteracting)
+        {
+            // 记录交互完全结束时刻：此后 LyricResumeGraceSeconds 内歌词仍不更新，
+            // 让切页动画归位（Settling→Idle）后的卡顿帧平稳结束，再恢复逐字/Fill 着色。
+            _interactionEndedAtUtc = DateTime.UtcNow;
+        }
+
         if (!isInteracting && _audioService.IsPlaying && !_isSeeking)
         {
-            // 使用播放器实时位置而非 Progress，因为用户滚动期间 Progress 未被更新
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                UpdateLyricPosition(TimeSpan.FromSeconds(_audioService.CurrentPosition));
-            });
+            // 延迟 0.2s 后再用播放器实时位置补一次歌词定位，与宽限期对齐：
+            // 避免切页动画一归位就立刻重算歌词，此时帧尚未稳定、补算也会卡。
+            var pos = TimeSpan.FromSeconds(_audioService.CurrentPosition);
+            _ = DelayLyricRelocateAsync(pos);
         }
     }
+
+    /// <summary>延迟 0.2s 后补一次歌词定位（在 UI 线程执行），对齐歌词恢复宽限期。</summary>
+    private async Task DelayLyricRelocateAsync(TimeSpan position)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(LyricResumeGraceSeconds));
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (_isSeeking) return;
+                UpdateLyricPosition(position);
+                // 宽限期结束：通知歌词页重新测量行高并钉行，修复切回页面时歌词挤在一起。
+                // 此时页面几何已稳定、行高就绪，重测得到的锚点才是准确的。
+                LyricResumeRequested?.Invoke(this, EventArgs.Empty);
+            });
+        }
+        catch { }
+    }
+
+    /// <summary>交互结束后的歌词恢复宽限期（秒）。结束后才恢复逐字/Fill 着色。</summary>
+    private static readonly double LyricResumeGraceSeconds = 0.2;
+
+    /// <summary>是否处于"交互结束后宽限期"：切页/滚屏动画刚归位，歌词暂不更新。</summary>
+    private bool InLyricResumeGrace()
+        => (DateTime.UtcNow - _interactionEndedAtUtc).TotalSeconds < LyricResumeGraceSeconds;
 
     /// <summary>滚动状态变化：更新 IsUserScrolling，FrostedBackground 绑定此属性以暂停/恢复动画</summary>
     private void OnScrollStateChanged(object? sender, bool isScrolling)

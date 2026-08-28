@@ -101,11 +101,12 @@ public partial class NowPlayingViewModel
             TotalTimeDisplay = FormatTime(Duration);
         }
 
-        // 滑动列表时跳过非必要 UI 更新（Progress、CurrentTimeDisplay、歌词），
-        // 减少 PropertyChanged 绑定开销，让主线程专注处理列表渲染。
-        // 滑动停止后由 OnInteractionStateChanged 补一次 UpdateLyricPosition 同步歌词，
-        // Progress/CurrentTimeDisplay 会在下一个 tick 自动恢复。
+        // 滑动/切页交互中，或交互刚结束的宽限期（LyricResumeGraceSeconds）内，
+        // 跳过歌词逐字定位与 Fill 着色，减少主线程开销让切页动画帧平稳。
+        // 交互结束宽限期过后由 OnInteractionStateChanged 内延迟 0.2s 补一次定位，
+        // 之后每 tick 自然恢复。
         bool isUserInteracting = _interactionState?.IsUserInteracting ?? false;
+        bool inLyricGrace = InLyricResumeGrace();
 
         // 进度条与时间显示必须实时更新，不能因列表滚动 / Tab 滑动等交互状态被冻结。
         // 早期实现用「交互中直接 return」会卡死 Progress：一旦交互 refCount 没归零，
@@ -135,19 +136,17 @@ public partial class NowPlayingViewModel
             }
         }
 
-        // 仅在不交互（未滚动列表 / 未滑动 Tab）时更新歌词逐字定位，避免滑动时歌词抖动；
-        // 滑动停止后会由 OnInteractionStateChanged 用播放器实时位置补一次同步。
-        if (!isUserInteracting)
+        // 仅在不交互（未滚动列表 / 未滑动 Tab）/ 交互结束宽限期（LyricResumeGraceSeconds）内时，
+        // 才更新歌词逐字定位与紧凑着色；交互中（手指滑动/滚屏）完全跳过歌词更新，
+        // 减少主线程开销让切页动画帧更平稳，也避免拖动中歌词逐字/跳行抖动。
+        // 交互结束宽限期过后由 OnPositionChanged 补一次 UpdateLyricPosition 定位并着色，
+        // 之后每个 tick 自然恢复。
+        if (!isUserInteracting && !inLyricGrace)
         {
             UpdateLyricPosition(position);
         }
-        else
-        {
-            // 交互期间（含自动滚动跟随）仍持续更新当前行的逐字着色进度，
-            // 避免滚动冻结着色、结束后跳字；只是不切换行索引，避免滚动期间
-            // 触发新的 HighlightLine → ScrollToLine 循环。
-            UpdateFillProgressOnly(position);
-        }
+        // 交互中：不更新歌词着色（连 Fill 也跳过），把主线程让给渲染。
+        // 进度/时间显示仍实时更新，不受影响。
 
         // 预缓冲：距歌曲结束 PreBufferSeconds 秒时，开始缓冲下一首 + 预取元数据
         if (Duration > 0 && (Duration - position.TotalSeconds) <= AudioCacheService.PreBufferSeconds

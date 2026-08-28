@@ -91,6 +91,11 @@ public partial class NowPlayingPage : ContentPage
         App.Resumed -= OnAppResumed;
         App.Resumed += OnAppResumed;
 
+        // 切页/滚屏交互结束并过宽限期后，VM 通知歌词页重测行高并重新钉行，
+        // 修复"从其他页切回播放页时歌词挤在一起、滚动下一行才恢复"。
+        _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+        _viewModel.LyricResumeRequested += OnLyricResumeRequested;
+
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
         // 页面挂载时订阅、分离时取消，避免横竖屏切换后旧订阅残留或新挂载时漏订阅。
         HandlerChanged += (_, _) =>
@@ -102,6 +107,7 @@ public partial class NowPlayingPage : ContentPage
 #endif
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
             }
             else
             {
@@ -111,6 +117,8 @@ public partial class NowPlayingPage : ContentPage
                 _viewModel.PropertyChanged += OnViewModelPropertyChanged;
                 SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
                 SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+                _viewModel.LyricResumeRequested += OnLyricResumeRequested;
             }
         };
 
@@ -153,6 +161,26 @@ public partial class NowPlayingPage : ContentPage
             // 同时追加 3 次重试，兜底"Handler 重建/二次布局晚于本次回调"的情况。
             ForcePinCurrentLine();
             ScheduleRetriedPin(3);
+        });
+    }
+
+    /// <summary>切页/滚屏交互结束并过宽限期后：重测行高 + 重新钉行（无缓动）。
+    /// 此时页面几何已稳定、行高就绪，重测得到的锚点准确，修复"返回时歌词挤在一起"。</summary>
+    private void OnLyricResumeRequested(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isLandscape || _lyricRowViews.Count == 0) return;
+            if (LyricClip.Handler == null) return;
+            // 清空锚点快照强制重测（Geometry 稳定后重建准确锚点表），再立即钉当前行。
+            _lyricMeasureRetries = 0;
+            _lastMeasuredTops = Array.Empty<double>();
+            MeasureLyricRows();
+            var idx = _viewModel.CurrentLyricIndexObservable >= 0 ? _viewModel.CurrentLyricIndexObservable : 0;
+            if (_lyricRowTops.Length == _lyricRowViews.Count && idx < _lyricRowViews.Count)
+                PinLineNow(idx);
+            else
+                ScheduleRetriedPin(2);
         });
     }
 

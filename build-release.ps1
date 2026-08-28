@@ -11,7 +11,7 @@
 
 $ErrorActionPreference = "Stop"
 
-# === 暂停并退出（保持窗口不自动关闭） ===
+# === 暂停并退出（成功时等待 60 秒后自动退出，或按 Enter 立即退出；失败时不自动退出） ===
 function Pause-And-Exit {
     param(
         [int]$Code = 0
@@ -21,9 +21,27 @@ function Pause-And-Exit {
         Write-Host "构建流程结束。" -ForegroundColor Green
     } else {
         Write-Host "构建流程异常终止（退出码 $Code）。" -ForegroundColor Red
+        Write-Host "按 Enter 键关闭窗口..." -ForegroundColor Gray
+        Read-Host | Out-Null
+        exit $Code
     }
-    Write-Host "按 Enter 键关闭窗口..." -ForegroundColor Gray
-    Read-Host | Out-Null
+
+    # 构建成功：倒计时 60 秒自动退出；期间按 Enter 立即退出（有输入则提前关闭）
+    $countdown = 60
+    Write-Host "构建完毕，按 Enter 立即退出，或 $countdown 秒后自动退出..." -ForegroundColor Gray
+    try {
+        # 有可读主机：轮询是否按键（Enter），超时则自动退出
+        for ($i = $countdown; $i -gt 0; $i--) {
+            if ($Host.UI.RawUI.KeyAvailable) {
+                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                break
+            }
+            Start-Sleep -Seconds 1
+        }
+    } catch {
+        # 非交互主机（如 CI/终端工具）：读不到按键时直接等满 60 秒
+        Start-Sleep -Seconds $countdown
+    }
     exit $Code
 }
 
