@@ -8,6 +8,11 @@
     <!-- Android 13+ 音频权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />
 
+    <!-- 音频效果引擎（Equalizer/Virtualizer/BassBoost/LoudnessEnhancer）必需：
+         AudioEffect 构造时 framework 强制校验，缺失则效果引擎初始化失败（静默失效）。
+         normal 级权限，manifest 声明即自动授予。 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- Android 13+ 图片/视频权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" android:minSdkVersion="33" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" android:minSdkVersion="33" />
