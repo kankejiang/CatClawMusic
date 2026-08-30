@@ -66,34 +66,45 @@ public class AndroidEqualizerService : IDisposable
         ApplySettings();
     }
 
-    /// <summary>将 EqualizerSettings 中的设置应用到硬件音效</summary>
+    /// <summary>将 EqualizerSettings 中的设置应用到硬件音效。</summary>
+    /// <remarks>FFmpeg 工作模式下频段 EQ/低音/响度已由 FFmpeg 烘焙进音频，此处跳过以免双重叠加；
+    /// 但 Virtualizer（虚拟环绕）是 AudioFx 空间效果，与烘焙无关，无论何种模式都独立生效。</remarks>
     public void ApplySettings()
     {
         var enabled = EqualizerSettings.Enabled;
         var gains = EqualizerSettings.GetBandGains();
+        var ffmpegBaked = EqualizerSettings.UseFFmpegEq;
 
         try
         {
             if (_equalizer != null)
             {
-                _equalizer.SetEnabled(enabled);
-                if (enabled)
+                if (ffmpegBaked)
                 {
-                    // 将 7 段 UI 增益插值映射到设备实际频段
-                    for (short b = 0; b < DeviceBandCount; b++)
+                    // FFmpeg 已烘焙频段 EQ，禁用硬件均衡器，避免双重叠加
+                    _equalizer.SetEnabled(false);
+                }
+                else
+                {
+                    _equalizer.SetEnabled(enabled);
+                    if (enabled)
                     {
-                        var freq = DeviceBandFrequencies[b];
-                        var db = InterpolateGain(gains, freq);
-                        // 钳制到设备支持范围，转换为毫贝
-                        db = Math.Clamp(db, GainRangeDb[0], GainRangeDb[1]);
-                        _equalizer.SetBandLevel(b, (short)(db * 100));
+                        // 将 7 段 UI 增益插值映射到设备实际频段
+                        for (short b = 0; b < DeviceBandCount; b++)
+                        {
+                            var freq = DeviceBandFrequencies[b];
+                            var db = InterpolateGain(gains, freq);
+                            // 钳制到设备支持范围，转换为毫贝
+                            db = Math.Clamp(db, GainRangeDb[0], GainRangeDb[1]);
+                            _equalizer.SetBandLevel(b, (short)(db * 100));
+                        }
                     }
                 }
             }
 
             if (_bassBoost != null)
             {
-                var bassOn = enabled && EqualizerSettings.BassBoost > 0;
+                var bassOn = !ffmpegBaked && enabled && EqualizerSettings.BassBoost > 0;
                 _bassBoost.SetEnabled(bassOn);
                 if (bassOn)
                     _bassBoost.SetStrength((short)(EqualizerSettings.BassBoost * 10)); // 0-100 → 0-1000
@@ -101,20 +112,25 @@ public class AndroidEqualizerService : IDisposable
 
             if (_loudness != null)
             {
-                var loudOn = enabled && EqualizerSettings.Loudness > 0;
+                var loudOn = !ffmpegBaked && enabled && EqualizerSettings.Loudness > 0;
                 _loudness.SetEnabled(loudOn);
                 if (loudOn)
                     _loudness.SetTargetGain(EqualizerSettings.Loudness * 10); // 0-100 → 0-1000 mB
             }
 
+            // 虚拟环绕：独立于 FFmpeg 工作模式，始终覆盖
             if (_virtualizer != null)
             {
                 var spatialOn = EqualizerSettings.SpatialAudioEnabled;
                 try
                 {
+                    // 先 enable 再 setStrength：部分设备要求先启用、后调强度才生效
                     _virtualizer.SetEnabled(spatialOn);
                     if (spatialOn)
-                        _virtualizer.SetStrength(800); // 0-1000，中等强度 3D 环绕
+                        _virtualizer.SetStrength(900); // 0-1000，较强调度，多数设备上才听得出 3D 环绕
+                    ALog.Debug("EqualizerService",
+                        $"[EQ] 虚拟环绕: enabled={spatialOn}, session={_attachedSessionId}, " +
+                        $"effectEnabled={_virtualizer.Enabled}");
                 }
                 catch (Exception ex)
                 {

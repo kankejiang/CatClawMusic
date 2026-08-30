@@ -15,6 +15,7 @@ public partial class AudioPlayerService
 {
     /// <summary>ExoPlayer 播放器实例</summary>
     private SimpleExoPlayer? _player;
+
     /// <summary>当前音量（0.0 ~ 1.0）</summary>
     private float _volume = 1.0f;
     /// <summary>淡入淡出当前系数（0.0 ~ 1.0），与 _volume 相乘得到实际播放音量</summary>
@@ -168,15 +169,14 @@ public partial class AudioPlayerService
         _player.AddListener(_playerListener);
 
         // 挂载原生均衡器到 ExoPlayer 音频会话（实时处理所有解码后音频）
-        // FFmpeg 模式（10 段）下不挂原生 EQ，改由 FFmpeg 把均衡器烘焙进音频，避免双重 EQ
+        // 不因 FFmpeg 模式跳过：Virtualizer（虚拟环绕）需在任何模式下挂到会话生效
+        // 频段 EQ/低音是否应用由 ApplySettings 内部按 UseFFmpegEq 区分
         try
         {
-            if (!EqualizerSettings.UseFFmpegEq)
-            {
-                _eqService ??= new AndroidEqualizerService();
-                var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+            _eqService ??= new AndroidEqualizerService();
+            var sessionId = GetStableAudioSessionId();
+            if (sessionId > 0)
                 _eqService.AttachToSession(sessionId);
-            }
         }
         catch (Exception ex)
         {
@@ -184,6 +184,24 @@ public partial class AudioPlayerService
         }
 
         return _player;
+    }
+
+    /// <summary>读取 ExoPlayer 当前的音频会话 id（READY 后为有效正值，未就绪为 0）。
+    /// 调用方须已保证在主线程。附带打印日志，便于确认 EQ/Virtualizer 实际挂载到的会话。</summary>
+    private int GetStableAudioSessionId()
+    {
+        if (_player == null) return -1;
+        try
+        {
+            var sid = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+            ALog.Debug("AudioPlayerService.Android", $"[AudioSession] 当前音频会话: {sid}");
+            return sid;
+        }
+        catch (Exception ex)
+        {
+            ALog.Warn("AudioPlayerService.Android", $"[AudioSession] 读取会话失败: {ex.Message}");
+            return -1;
+        }
     }
 
     // ═══════════════════════════════════════
@@ -436,8 +454,9 @@ public partial class AudioPlayerService
                     if (_eqService == null && _player != null)
                     {
                         _eqService = new AndroidEqualizerService();
-                        var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
-                        _eqService.AttachToSession(sessionId);
+                        var sessionId = GetStableAudioSessionId();
+                        if (sessionId > 0)
+                            _eqService.AttachToSession(sessionId);
                     }
                     _eqService?.ApplySettings();
                 }
@@ -719,19 +738,24 @@ public partial class AudioPlayerService
         try { if (_player != null) _player.Volume = _volume * _xfadeFactor; } catch { }
     }
 
-    /// <summary>将当前均衡器设置应用到原生音效引擎（Equalizer/BassBoost/LoudnessEnhancer）</summary>
+    /// <summary>将当前均衡器设置应用到原生音效引擎（Equalizer/BassBoost/LoudnessEnhancer/Virtualizer）</summary>
     partial void ApplyEqualizerPlatform()
     {
-        // FFmpeg 模式（10 段）下均衡器由 FFmpeg 烘焙进音频，不挂原生 EQ
-        if (EqualizerSettings.UseFFmpegEq) return;
+        // 注意：不因 FFmpeg 模式整体 return——Virtualizer（虚拟环绕）仍需始终挂载生效；
+        // 频段 EQ/低音/响度是否应用由 AndroidEqualizerService.ApplySettings 内部按 UseFFmpegEq 区分。
+        // ExoPlayer 与 AudioFx 必须在主线程访问，否则报 Player accessed on wrong thread 且 EQ 挂载不稳定
+        if (Looper.MyLooper() != Looper.MainLooper)
+        {
+            _mainHandler.Post(ApplyEqualizerPlatform);
+            return;
+        }
         try
         {
-            if (_eqService == null && _player != null)
-            {
-                _eqService = new AndroidEqualizerService();
-                var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
+            _eqService ??= new AndroidEqualizerService();
+            // 应用前重挂到固定的音频会话：跨曲/交叉淡化时也稳定不漂移
+            var sessionId = GetStableAudioSessionId();
+            if (sessionId > 0)
                 _eqService.AttachToSession(sessionId);
-            }
             _eqService?.ApplySettings();
         }
         catch (Exception ex)
@@ -748,12 +772,18 @@ public partial class AudioPlayerService
     /// </summary>
     private void AttachEqualizerToCurrentSession()
     {
-        if (EqualizerSettings.UseFFmpegEq) return; // FFmpeg 烘焙式 EQ 不挂原生会话
+        // 注意：不因 FFmpeg 模式 return——Virtualizer 仍需在任何模式下挂到真实会话生效
+        // ExoPlayer/AudioFx 需在主线程访问
+        if (Looper.MyLooper() != Looper.MainLooper)
+        {
+            _mainHandler.Post(AttachEqualizerToCurrentSession);
+            return;
+        }
         try
         {
             if (_player == null) return;
-            var sessionId = ((AndroidX.Media3.ExoPlayer.IExoPlayer)_player).AudioSessionId;
-            if (sessionId <= 0) return; // 会话尚未分配（unset=0），等 STATE_READY 再挂
+            var sessionId = GetStableAudioSessionId();
+            if (sessionId <= 0) return; // 会话尚未分配，等 STATE_READY 再挂
             _eqService ??= new AndroidEqualizerService();
             _eqService.AttachToSession(sessionId);
             _eqService.ApplySettings();
