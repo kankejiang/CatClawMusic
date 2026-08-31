@@ -674,6 +674,10 @@ public partial class AudioPlayerService
         // 避免把上一首的实时位置透传到通知栏与 MediaSession，导致锁屏显示旧进度。
         if (!_isPrepared)
             return _cachedPositionMs / 1000.0;
+        // ExoPlayer 仅允许在其创建线程（主线程）访问：通知栏/锁屏/后台 Task 等非主线程调用
+        // 一律读缓存（由主线程位置定时器刷新，最大滞后一个 tick），修复 wrong-thread 异常
+        if (!MainThread.IsMainThread)
+            return _cachedPositionMs / 1000.0;
         try
         {
             if (_player != null)
@@ -698,6 +702,10 @@ public partial class AudioPlayerService
         // 未准备完成（切歌间隙）时回退缓存的有效时长，避免把时长透传为 0（通知栏 00:00）；
         // 切歌时缓存已被重置为 0，不会把上一首时长透传给新歌。
         if (!_isPrepared)
+            return _cachedDurationSec;
+        // ExoPlayer 仅允许在其创建线程（主线程）访问：后台线程（通知栏/锁屏/Task）读 Duration
+        // 会抛 "Player is accessed on the wrong thread"，一律读缓存（由主线程 tick/DurationChanged 刷新）
+        if (!MainThread.IsMainThread)
             return _cachedDurationSec;
         try
         {

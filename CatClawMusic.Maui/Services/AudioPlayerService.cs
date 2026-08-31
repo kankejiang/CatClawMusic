@@ -237,8 +237,10 @@ public partial class AudioPlayerService : IAudioPlayerService, IDisposable
 
     #region 进度定时器
 
-    /// <summary>歌词表面可见时的位置更新间隔（16ms ≈ 60fps，逐字歌词着色平滑）</summary>
-    private const int PositionIntervalVisibleMs = 16;
+    /// <summary>歌词表面可见时的位置更新间隔（33ms ≈ 30fps）。
+    /// 逐字歌词着色在 30fps 下视觉已足够平滑（1000/30≈33ms 每字步进人眼不可辨），
+    /// 相比 60fps 把主线程 UI 负载减半——60fps tick 与切页动画/滚动争抢主线程是播放页卡顿主因之一。</summary>
+    private const int PositionIntervalVisibleMs = 33;
 
     /// <summary>歌词表面不可见时的位置更新间隔（200ms = 5Hz）：
     /// 迷你播放器进度条/时间显示足够平滑，同时避免浏览音乐库等页面时
