@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
@@ -17,19 +17,16 @@
     <Grid>
         <!-- 雾面动态背景层（铺满整个页面，覆盖状态栏和导航栏区域） -->
         <controls:FrostedBackground x:Name="FrostedBg"
-                                    Source="{Binding CoverImage}"
-                                    CacheKey="{Binding CurrentCoverPath}"
                                     IsActive="{Binding IsPlaying}"
                                     IsScrolling="{Binding IsUserScrolling}"
                                     IsVisible="{DynamicResource FrostedBackgroundEnabled}"
-                                    TintColor="{DynamicResource PrimaryColor}"
-                                    TintOpacity="0.25"
-                                    DimAmount="0.15"
-                                    InputTransparent="True"
-                                    Aspect="AspectFill" />
+                                    TintColor="{Binding CoverTintColor}"
+                                    TintOpacity="0.60"
+                                    DimAmount="0.12"
+                                    CoverSource="{Binding CoverFlowSource}"
+                                    InputTransparent="True" />
 
-        <!-- 暗色遮罩层：在雾面背景上叠加一层半透明暗色，确保文字可读 -->
-        <BoxView Color="#70000000" InputTransparent="True" />
+        <!-- 无全屏暗色遮罩：Halcyon 式遮罩由 FrostedBackground 在封面流上方绘制（中间透明，仅上下轻镜面渐变） -->
 
         <!-- 内容层：3行Grid - 返回按钮/Auto, 主体/Star, 进度+控件/Auto -->
         <Grid x:Name="RootGrid"

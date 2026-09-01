@@ -497,6 +497,7 @@ public partial class NowPlayingPage : ContentPage
         ApplySafeArea();
         await _viewModel.LoadCurrentSongAsync();
         CrashReporter.MarkStage("NowPlayingPage.OnAppearing: LoadCurrentSongAsync 完成");
+        _ = _viewModel.RefreshCoverTintAsync();
 
         if (_viewModel.Duration > 0)
             ProgressSlider.Maximum = _viewModel.Duration;
@@ -514,6 +515,8 @@ public partial class NowPlayingPage : ContentPage
             LandscapeProgressSlider.Value = _viewModel.Progress;
 
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
+        // 雾面背景封面流的洗色/底色/scrim 均随深浅主题切换（Halcyon isDark），必须显式同步
+        FrostedBg.IsDark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
 
 #if WINDOWS
         // Windows 桌面端：构建 WindowsStage 歌词视图、同步滑块、初始化音量与图标
@@ -562,6 +565,7 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="e">主题变更事件参数。</param>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
+        FrostedBg.IsDark = e.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
 #if WINDOWS
         MainThread.BeginInvokeOnMainThread(BuildWindowsLyricViews);
 #else
@@ -743,6 +747,13 @@ public partial class NowPlayingPage : ContentPage
                 }
             }
 
+            if (e.PropertyName == nameof(NowPlayingViewModel.CurrentCoverPath))
+            {
+                // 切歌成功后从封面提取主导色，让流光背景随封面着色
+                _ = _viewModel.RefreshCoverTintAsync();
+                return;
+            }
+
             if (e.PropertyName == nameof(NowPlayingViewModel.CoverImage))
             {
                 // 切歌时封面新图异步加载，在线封面（Clip/URI）无自定义服务的 CenterCrop
@@ -847,13 +858,22 @@ public partial class NowPlayingPage : ContentPage
     }
 
     /// <summary>
-    /// 横屏布局右上角收起按钮：
-    /// DesktopMainPage 为 Shell 根页面，播放页经 PushAsync 入栈，PopAsync 返回即可。
-    /// 普通手机竖屏（播放页为 MainPage 内浮层）则收起播放页回到发现页。
+    /// 横屏布局右上角收起按钮。
+    /// Android 横屏：播放页内嵌在桌面内容区（横屏舞台），收起 = 关闭内嵌回桌面主页；
+    /// Windows 桌面：播放页经 PushAsync 入栈，PopAsync 返回即可；
+    /// 竖屏：播放页是 ViewPager tab，收起 = 切回发现 tab。
     /// </summary>
     private void OnLandscapeCollapseTapped(object? sender, TappedEventArgs e)
     {
-#if ANDROID || WINDOWS
+#if ANDROID
+        // 横屏桌面舞台：播放页内嵌在桌面内容区，收起 = 关闭内嵌回桌面主页
+        if (MainPage.Instance?.IsDesktopActive == true)
+        {
+            MauiProgram.Services.GetService<DesktopMainPage>()?.CloseEmbeddedSubPage("discover");
+            return;
+        }
+#endif
+#if WINDOWS
         var shell = DesktopNavigation.TryGetShell();
         if (shell != null && shell.Navigation.NavigationStack.Count > 1)
             _ = shell.Navigation.PopAsync();
@@ -866,16 +886,19 @@ public partial class NowPlayingPage : ContentPage
 #endif
     }
 
-    /// <summary>点击歌词按钮：横屏下 PushAsync 推入 FullLyricsPage（复用竖屏歌词滚动逻辑），竖屏下走 ViewPager 切换</summary>
+    /// <summary>点击歌词按钮：跳全屏歌词页（Android 横屏桌面内嵌替换；Android 竖屏/Windows 走原路径）</summary>
     private void OnOpenLyricsClicked(object? sender, EventArgs e)
     {
-        if (_isLandscape)
+#if ANDROID
+        // 横屏桌面舞台：播放页内嵌在桌面内容区，歌词页同样内嵌替换
+        if (MainPage.Instance?.IsDesktopActive == true)
         {
-            var fullLyricsPage = MauiProgram.Services.GetRequiredService<Pages.FullLyricsPage>();
-            DesktopNavigation.PushEmbed(fullLyricsPage);
+            MauiProgram.Services.GetService<DesktopMainPage>()?
+                .OpenSubPageEmbedded(MauiProgram.Services.GetRequiredService<FullLyricsPage>());
+            return;
         }
-        else
-            GoToFullLyrics();
+#endif
+        GoToFullLyrics();
     }
 
     // ═══════════════════════════════════════

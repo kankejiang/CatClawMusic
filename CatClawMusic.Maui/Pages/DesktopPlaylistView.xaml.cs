@@ -249,22 +249,7 @@ public partial class DesktopPlaylistView : ContentPage
         DesktopNavigation.OpenEmbedded(page);
         return;
 #else
-        if (App.IsLandscapeMode())
-        {
-            Type desktopType = pageType.Name switch
-            {
-                nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
-                _ => pageType
-            };
-
-            var page = (ContentPage)_sp.GetRequiredService(desktopType);
-            if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
-                desktopAllSongs.Source = source;
-
-            DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
-            return;
-        }
-
+        // Android 原生旋转方案：不再有横屏 DesktopMainPage，一律走 Shell 导航
         _ = Shell.Current.GoToAsync(fallbackRoute);
 #endif
     }

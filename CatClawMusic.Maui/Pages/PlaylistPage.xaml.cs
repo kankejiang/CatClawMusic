@@ -264,10 +264,12 @@ public partial class PlaylistPage : ContentPage
     }
 
     /// <summary>
-    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏复用桌面布局并嵌入 ContentArea。
+    /// 打开音乐库二级页：竖屏走 Shell 导航；Windows 桌面复用桌面布局并嵌入 ContentArea。
+    /// Android 原生旋转方案下不再有横屏 DesktopMainPage，一律走 Shell 导航。
     /// </summary>
     private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
     {
+#if WINDOWS
         if (App.IsLandscapeMode())
         {
             Type desktopType = pageType.Name switch
@@ -283,6 +285,7 @@ public partial class PlaylistPage : ContentPage
             DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
             return;
         }
+#endif
 
         DesktopNavigation.TryGoToShell(fallbackRoute);
     }

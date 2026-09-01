@@ -127,6 +127,9 @@ public partial class FullLyricsPage : ContentPage
 
         // 监听尺寸变化以切换横竖屏布局
         SizeChanged += OnPageSizeChanged;
+        // ⚠ 横屏内嵌模式（桌面舞台借入本页 Content）下页面自身收不到尺寸事件，
+        // 改用内容根 Grid 的 SizeChanged 判断方向（与 NowPlayingPage 同机制）。
+        RootGrid.SizeChanged += OnRootGridSizeChanged;
 
         // 锁屏解锁/回前台：立即重测 + 钉当前行（安卓 Handler 重建会导致旧锚点表过时）
         App.Resumed += OnAppResumed;
@@ -287,6 +290,15 @@ public partial class FullLyricsPage : ContentPage
     {
         var w = Width;
         var h = Height;
+        if (w > 0 && h > 0)
+            ApplyLayoutForOrientation(w, h);
+    }
+
+    /// <summary>内容根 Grid 尺寸变化时按宽高比切换横竖屏布局（覆盖横屏内嵌模式：页面不可见、自身 SizeChanged 不触发）。</summary>
+    private void OnRootGridSizeChanged(object? sender, EventArgs e)
+    {
+        var w = RootGrid.Width;
+        var h = RootGrid.Height;
         if (w > 0 && h > 0)
             ApplyLayoutForOrientation(w, h);
     }
@@ -472,12 +484,24 @@ public partial class FullLyricsPage : ContentPage
         try
         {
 #if ANDROID
-            if (Handler?.PlatformView is Android.Views.View av && !av.IsAttachedToWindow)
+            // 附加性守卫：横屏桌面舞台内嵌模式下页面本体的 PlatformView 已不在窗口
+            // （Content 被 DesktopMainPage.OpenSubPageEmbedded 借走），真正 attached 的是内容根 RootGrid。
+            // 因此以内容根为准：内容根也未附加（真正不可见）才跳过更新——
+            // 否则横屏全屏歌词页的歌词会因守卫误拦而完全停更。
+            var contentAttached = (RootGrid.Handler?.PlatformView as Android.Views.View)?.IsAttachedToWindow ?? false;
+            if (!contentAttached && Handler?.PlatformView is Android.Views.View av && !av.IsAttachedToWindow)
             {
-                Android.Util.Log.Info("FLP", "[FullLyricsPage] PropertyChanged({0}) 跳过：PlatformView未附加", e.PropertyName);
+                Android.Util.Log.Info("FLP", "[FullLyricsPage] PropertyChanged({0}) 跳过：PlatformView与内容根均未附加", e.PropertyName);
                 return;
             }
 #endif
+            if (e.PropertyName == nameof(NowPlayingViewModel.CurrentCoverPath))
+            {
+                // 切歌成功后从封面提取主导色，让流光背景随封面着色
+                _ = _viewModel.RefreshCoverTintAsync();
+                return;
+            }
+
             if (e.PropertyName == nameof(NowPlayingViewModel.AllLyricLines) ||
                 e.PropertyName == nameof(NowPlayingViewModel.HasLyrics))
             {
@@ -522,6 +546,8 @@ public partial class FullLyricsPage : ContentPage
 #endif
         ApplySafeArea();
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
+        // 雾面背景封面流的洗色/底色/scrim 均随深浅主题切换（Halcyon isDark），必须显式同步
+        FrostedBg.IsDark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
 
         if (_viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)
         {
@@ -554,6 +580,7 @@ public partial class FullLyricsPage : ContentPage
     /// <summary>主题变更时重建歌词视图</summary>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
+        FrostedBg.IsDark = e.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
         MainThread.BeginInvokeOnMainThread(BuildLyricViews);
     }
 
@@ -566,6 +593,15 @@ public partial class FullLyricsPage : ContentPage
     /// <summary>返回播放页</summary>
     private void OnBackClicked(object? sender, EventArgs e)
     {
+#if ANDROID
+        // 横屏桌面舞台：歌词页内嵌在桌面内容区，返回 = 内嵌替换回播放页
+        if (MainPage.Instance?.IsDesktopActive == true)
+        {
+            MauiProgram.Services.GetService<DesktopMainPage>()?
+                .OpenSubPageEmbedded(MauiProgram.Services.GetRequiredService<NowPlayingPage>());
+            return;
+        }
+#endif
         var shell = DesktopNavigation.TryGetShell();
         if (shell != null && shell.Navigation.NavigationStack.Count > 1)
         {
@@ -577,6 +613,7 @@ public partial class FullLyricsPage : ContentPage
 #if WINDOWS
             _ = shell.GoToAsync("//main");
 #else
+            // Android 竖屏：歌词页是 MainPage 的 ViewPager tab，返回 = 切回播放 tab
             MainPage.Instance?.SwitchToTab(0);
 #endif
             return;

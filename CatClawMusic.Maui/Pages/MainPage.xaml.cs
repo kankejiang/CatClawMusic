@@ -62,6 +62,10 @@ public partial class MainPage : ContentPage
     private const double HorizontalRatio = 1.4;
     /// <summary>看门狗间隔：手指停顿超过此毫秒数且无新 Running 事件时，强制弹回当前页，防止页面卡在中间</summary>
     private const int PanWatchdogInterval = 400;
+    // ═══ 横屏桌面舞台：Android 横屏时 MainPage 借入 DesktopMainPage 的桌面布局（与 Windows 同界面）═══
+    private DesktopMainPage? _desktopPage;
+    private Grid? _desktopRoot;
+    private bool _desktopActive;
 
     /// <summary>全局实例，供外部调用 SwitchToTab</summary>
     public static MainPage? Instance { get; private set; }
@@ -93,6 +97,10 @@ public partial class MainPage : ContentPage
         // 初始即应用底部预留（TabBar 常驻显隐由 UpdateSafeAreaPadding 维护，此处随页就绪联动一次）
         UpdateDiscoverBottomReserve();
         ViewPagerGrid.SizeChanged += OnViewPagerSizeChanged;
+
+        // 原生旋转：页面尺寸变化（横竖屏）时切换 chrome（左侧图标导航栏 ↔ 底部 TabBar），
+        // 不换根页面——tab/页面状态全部原地保留
+        SizeChanged += OnMainPageSizeChanged;
 
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
         // 页面挂载时订阅、分离时取消，并释放交互令牌防止 IsUserInteracting 卡死。
@@ -446,10 +454,28 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>
-    /// 系统返回键处理：聊天模式下退出聊天，全屏歌词/播放页返回发现页，否则不拦截（交由系统处理）。
+    /// 系统返回键处理：聊天模式下退出聊天，全屏歌词/播放页返回发现页，
+    /// 主 tab 上手动锁定横屏时退出横屏锁定，否则不拦截（交由系统处理）。
     /// </summary>
     protected override bool OnBackButtonPressed()
     {
+#if ANDROID
+        // 横屏桌面舞台：桌面内嵌子页优先关闭回桌面主页，否则解锁横屏回竖屏
+        if (_desktopActive)
+        {
+            if (_desktopPage is not null && _desktopPage.HasEmbeddedSubPage)
+            {
+                _desktopPage.CloseEmbeddedSubPage("discover");
+                return true;
+            }
+            if (Application.Current is App app && app.ManualLandscape)
+            {
+                app.ReleaseManualLandscape();
+                return true;
+            }
+            return true; // 主 tab 的横屏：返回键兜底解锁
+        }
+#endif
         var searchVm = _services.GetService<SearchViewModel>();
         if (searchVm?.IsChatMode == true)
         {
@@ -877,17 +903,105 @@ public partial class MainPage : ContentPage
         else if (sender == TabItem3) SwitchToVpIndex(4);
     }
 
-    /// <summary>全屏歌词页和播放页时隐藏 TabBar 和迷你播放器；AI 聊天模式仅隐藏 TabBar</summary>
+    /// <summary>页面尺寸变化（横竖屏旋转/首布局）：切换舞台。原生旋转唯一入口。</summary>
+    private void OnMainPageSizeChanged(object? sender, EventArgs e)
+    {
+        if (Width <= 0 || Height <= 0) return;
+        if (Width > Height) ShowDesktopStage();
+        else ShowMobileStage();
+    }
+
+    /// <summary>进入横屏舞台：把 DesktopMainPage 的 Content 借入本页 DesktopStage（与 Windows 桌面同一布局）。
+    /// 借入后手动触发 OnAppearing 生命周期（页面自身不可见，需反射调用）。</summary>
+    private void ShowDesktopStage()
+    {
+        if (_desktopActive) return;
+        _desktopActive = true;
+        try
+        {
+            var desktop = _desktopPage ??= _services.GetRequiredService<DesktopMainPage>();
+            if (_desktopRoot == null && desktop.Content is Grid root)
+                _desktopRoot = root;
+
+            if (_desktopRoot != null)
+            {
+                // ⚠ 先 detach：ContentPage.Content 的 Parent 是页面本身（非 null），
+                // 只有置 null 后 Parent 才变 null，才能加入舞台。
+                desktop.Content = null;
+                if (_desktopRoot.Parent == null)
+                {
+                    DesktopStage.Children.Add(_desktopRoot);
+                    if (_currentIndex == 0)
+                    {
+                        // 竖屏在歌词页转横屏 → 桌面舞台自动内嵌全屏歌词页（横屏布局）
+                        desktop.OpenSubPageEmbedded(_services.GetRequiredService<FullLyricsPage>());
+                    }
+                    else if (_currentIndex == 1)
+                    {
+                        // 竖屏在播放页转横屏 → 桌面舞台自动内嵌播放页（横屏布局）
+                        desktop.OpenSubPageEmbedded(_services.GetRequiredService<NowPlayingPage>());
+                    }
+                    else
+                    {
+                        // 其它 tab → 桌面侧栏对应 tab
+                        string tab = _currentIndex switch
+                        {
+                            3 => "playlists",
+                            4 => "library",
+                            _ => "discover"
+                        };
+                        desktop.SwitchToNamedTab(tab);
+                    }
+                    // 播放/歌词页全屏沉浸：舞台不垫安全区（页面自身处理刘海）；桌面主页左侧垫刘海/状态栏安全区
+                    DesktopStage.Padding = _currentIndex <= 1
+                        ? new Thickness(0)
+                        : new Thickness(SafeAreaHelper.LeftInset, 0, 0, 0);
+                    InvokeLifecycle(desktop, "OnAppearing");
+                }
+            }
+            DesktopStage.IsVisible = true;
+            MobileStage.IsVisible = false;
+        }
+        catch (Exception ex)
+        {
+            _desktopActive = false;
+#if ANDROID
+            Android.Util.Log.Error("CatClaw", $"[Stage] ShowDesktopStage 失败: {ex}");
+#endif
+        }
+    }
+
+    /// <summary>当前是否处于横屏桌面舞台（供播放页/歌词页按钮判断横屏承载方式）。</summary>
+    public bool IsDesktopActive => _desktopActive;
+
+    /// <summary>回到竖屏移动舞台：把桌面布局归还 DesktopMainPage，恢复 ViewPager/MiniPlayer/TabBar 显示。</summary>
+    private void ShowMobileStage()
+    {
+        if (!_desktopActive) return;
+        _desktopActive = false;
+        if (_desktopPage != null && _desktopRoot != null && _desktopRoot.Parent != null)
+        {
+            // 页面不可视前通知 OnDisappearing（停止桌面持续性工作），再归还 Content
+            InvokeLifecycle(_desktopPage, "OnDisappearing");
+            DesktopStage.Children.Remove(_desktopRoot);
+            _desktopPage.Content = _desktopRoot;
+        }
+        DesktopStage.IsVisible = false;
+        MobileStage.IsVisible = true;
+    }
+
+    /// <summary>全屏歌词页和播放页时隐藏导航栏和迷你播放器；AI 聊天模式仅隐藏导航栏。
+    /// 仅竖屏移动舞台使用（横屏时整个舞台被桌面布局替换）。</summary>
     private void UpdateTabBarVisibility()
     {
         // index 0 = 全屏歌词, index 1 = 播放页，两者都全屏
         var isFullScreen = _currentIndex <= 1;
-        // AI 聊天模式：隐藏 TabBar，但保留迷你播放器（显示在输入框上方）
+        // AI 聊天模式：隐藏导航栏，但保留迷你播放器（显示在输入框上方）
         var searchVm = _services.GetService<SearchViewModel>();
         var isChatMode = searchVm?.IsChatMode == true;
-        var hideTabBar = isFullScreen || isChatMode;
+        var hideNav = isFullScreen || isChatMode;
         // MAUI 11: IsVisible=false 在 Auto 行中可能不收缩行高，需要同时设置 HeightRequest=0
-        TabBar.IsVisible = !hideTabBar;
+        TabBar.IsVisible = !hideNav;
         UpdateMiniPlayerVisibility();
         UpdateSafeAreaPadding();
     }

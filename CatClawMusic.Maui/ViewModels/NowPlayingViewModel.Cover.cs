@@ -3,6 +3,8 @@ using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Services;
+using CatClawMusic.Maui.Services.Frosted;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 
@@ -11,8 +13,81 @@ namespace CatClawMusic.Maui.ViewModels;
 /// <summary>正在播放 ViewModel —— partial 分域文件。</summary>
 public partial class NowPlayingViewModel
 {
+    /// <summary>最近一次在线封面下载的内存字节（用于色调提取，用完即弃，不落盘）。</summary>
+    private byte[]? _pendingOnlineCoverBytes;
+
+    /// <summary>当前已加载封面的歌曲 Id：用于换歌时作废旧歌的背景色调/封面流数据。</summary>
+    private int _loadedCoverSongId = -1;
+
+    /// <summary>封面流源数据（ARGB，供 FrostedBackground 封面流渲染）。随封面切换更新。</summary>
+    [ObservableProperty]
+    private CoverFlowProcessor.CoverSource _coverFlowSource = default;
+
+    /// <summary>从当前封面提取主导色，更新 CoverTintColor（供流光背景随封面着色）。
+    /// 本地封面走文件提取；在线封面（http/https 直显）走内存字节提取，均不写缓存。
+    /// ⚠ 失败/数据缺失时保留当前背景（不清空）：在线封面内存字节是"一次性消费"，切走再切回时
+    /// 已无字节可用，若此时置空 CoverFlowSource 会让背景在黑/流光间闪变（切回背景色丢失的根因）。
+    /// 真正需要清空旧色的时机是"换歌"——由 LoadCoverAsync 换歌检测负责。</summary>
+    public async Task RefreshCoverTintAsync()
+    {
+        var path = CurrentCoverPath;
+        var onlineBytes = _pendingOnlineCoverBytes;
+        _pendingOnlineCoverBytes = null; // 一次性消费，避免陈旧字节污染后续本地歌曲
+
+        // 在线封面（http/https 直显、不落盘）：优先用内存字节提取主导色
+        if (!string.IsNullOrEmpty(path) && _onlineCoverRef(path))
+        {
+            if (onlineBytes is { Length: > 0 })
+            {
+                var c = await Task.Run(() => CoverTintExtractor.Extract(onlineBytes));
+                var cf = await Task.Run(() => CoverTintExtractor.ExtractCoverSource(onlineBytes));
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    CoverTintColor = c ?? Colors.Transparent;
+                    CoverFlowSource = cf;
+                });
+                return;
+            }
+            // 内存字节已被消费（切走切回）且没有新字节：保留当前已生效的背景，等封面重新下载
+            return;
+        }
+
+        // 本地封面文件
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            // 封面取不到（无封面歌曲）：保留当前背景，由换歌清空逻辑负责作废旧色
+            return;
+        }
+
+        var extracted = await Task.Run(() => CoverTintExtractor.Extract(path));
+        var coverFlow = await Task.Run(() => CoverTintExtractor.ExtractCoverSource(path));
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            CoverTintColor = extracted ?? Colors.Transparent;
+            CoverFlowSource = coverFlow;
+        });
+    }
+
+    /// <summary>判断是否在线封面标识（http/https URL）。与 LoadCoverAsync 判定保持一致。</summary>
+    private static bool _onlineCoverRef(string path)
+        => path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+           || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
     private async Task LoadCoverAsync(Song song, CancellationToken ct)
     {
+        // 换歌（Id 不同）：旧歌的封面流背景数据必须立刻作废，
+        // 否则新歌提取完成前背景会残留上一首歌的颜色（且 Refresh 失败分支已改为保留旧值，
+        // 这里必须显式清空才能让"无封面/提取中"期间背景正确回流光/底色）。
+        if (_loadedCoverSongId != song.Id)
+        {
+            _loadedCoverSongId = song.Id;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                CoverTintColor = Colors.Transparent;
+                CoverFlowSource = default;
+            });
+        }
+
         Log.Debug("AppViewModels", $"[CoverArt] 开始加载封面: {song.Title} (Id={song.Id}, Protocol={song.Protocol}, CoverArtPath={song.CoverArtPath?[..Math.Min(60, song.CoverArtPath?.Length ?? 0)] ?? "null"})");
         string? coverPath = null;
 
@@ -72,6 +147,7 @@ public partial class NowPlayingViewModel
                 if (bytes != null && bytes.Length > 0)
                 {
                     onlineCoverBytes = bytes;          // 内存暂存，不写缓存目录
+                    _pendingOnlineCoverBytes = bytes;  // 供色调提取复用（一次性消费）
                     coverPath = song.CoverArtPath;     // 保持 URL，作为封面标识走内存直显
                 }
             }

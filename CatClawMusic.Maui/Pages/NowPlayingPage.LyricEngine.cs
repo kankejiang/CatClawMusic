@@ -406,9 +406,9 @@ public partial class NowPlayingPage
                     mainLblH = lbl.Height > 0 ? lbl.Height : 14;
                 if (mainLblH <= 0) mainLblH = 14;
 
-                double oldRowH = row.Height > 0 ? row.Height : mainLblH;
-                // 容器高补上放大溢出 + 上下各 6px 呼吸，兜住 descender/外描边不被裁
-                double newRowH = oldRowH + mainLblH * (LyricCurrentScale - 1.0) + LyricGapExtra * 2;
+                // ⚠ 容器高直接 = label真实高 × 倍率 + 呼吸，不依赖 oldRowH：
+                // label 重测前 oldRowH 还是未 wrap 时的旧行高，换行多行时容器高度不足 → 第二行被裁。
+                double newRowH = mainLblH * (float)LyricCurrentScale + LyricGapExtra * 2;
 
                 // 1) 容器加高（动画插值）
                 if (Math.Abs(row.HeightRequest - newRowH) > 0.5)
@@ -416,7 +416,7 @@ public partial class NowPlayingPage
                     row.AbortAnimation("GrowRowH");
                     if (animate)
                     {
-                        double startH = row.HeightRequest > 0 ? row.HeightRequest : oldRowH;
+                        double startH = row.HeightRequest > 0 ? row.HeightRequest : mainLblH;
                         row.Animate("GrowRowH", t =>
                         {
                             row.HeightRequest = startH + (newRowH - startH) * t;
@@ -548,18 +548,26 @@ public partial class NowPlayingPage
         Dispatcher.Dispatch(() =>
         {
             if (LyricClip.Handler == null) return;
-            // 2) 清空锚点快照，强制 MeasureLyricRows 不做 stable 快速跳过
-            _lastMeasuredTops = Array.Empty<double>();
-            _lyricMeasureRetries = 0;
-            MeasureLyricRows();
-            if (_lyricRowTops.Length == _lyricRowViews.Count && index >= 0 && index < _lyricRowViews.Count)
+            // 2) label 已按新宽度（屏宽/倍率）重新测量 → mainLblH 才是真实多行高度，
+            //    此时再应用一次行高，容器 HeightRequest 才够，避免换行第二行被裁
+            ApplyLyricRowGap(index, animate: false);
+            LyricStack.InvalidateMeasure();
+            Dispatcher.Dispatch(() =>
             {
-                // 3) 以新锚点 + 新行高重新定位：切句时缓动（保持平滑），构建/恢复时立即钉
-                if (animate)
-                    ScrollToLine(index);
-                else
-                    PinLineNow(index);
-            }
+                if (LyricClip.Handler == null) return;
+                // 3) 清空锚点快照，强制 MeasureLyricRows 不做 stable 快速跳过
+                _lastMeasuredTops = Array.Empty<double>();
+                _lyricMeasureRetries = 0;
+                MeasureLyricRows();
+                if (_lyricRowTops.Length == _lyricRowViews.Count && index >= 0 && index < _lyricRowViews.Count)
+                {
+                    // 4) 以新锚点 + 新行高重新定位：切句时缓动（保持平滑），构建/恢复时立即钉
+                    if (animate)
+                        ScrollToLine(index);
+                    else
+                        PinLineNow(index);
+                }
+            });
         });
     }
 

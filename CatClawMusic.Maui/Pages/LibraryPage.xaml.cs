@@ -1146,27 +1146,9 @@ public partial class LibraryPage : ContentPage
 
         DesktopNavigation.OpenEmbedded(page);
         return;
-#else
-        if (App.IsLandscapeMode())
-        {
-            Type desktopType = pageType.Name switch
-            {
-                nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
-                nameof(ArtistsPage) => typeof(DesktopArtistsPage),
-                nameof(AlbumsPage) => typeof(DesktopAlbumsPage),
-                _ => pageType
-            };
-
-            var page = (ContentPage)_sp.GetRequiredService(desktopType);
-            if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
-                desktopAllSongs.Source = source;
-
-            // 嵌入 ContentArea 而非全屏 Push，保持侧边栏和播放栏可见
-            DesktopMainPage.Instance?.OpenSubPageEmbedded(page);
-            return;
-        }
-
+# else
+        // Android 原生旋转方案：不再有横屏 DesktopMainPage，一律走 Shell 导航
         _ = Shell.Current.GoToAsync(fallbackRoute);
-#endif
+# endif
     }
 }

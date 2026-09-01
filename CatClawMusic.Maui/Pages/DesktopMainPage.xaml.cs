@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using CatClawMusic.Core.Interfaces;
@@ -264,6 +264,13 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         {
             InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
             _embeddedSubPage = null;
+            // 恢复侧栏与列宽（播放/歌词页全屏内嵌时被隐藏）
+            SidebarBorder.IsVisible = true;
+#if ANDROID
+            RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+#else
+            RootGrid.ColumnDefinitions[0].Width = new GridLength(SidebarWidth);
+#endif
             PlayerBarBorder.IsVisible = true;
 #if ANDROID
             RootGrid.RowDefinitions[2].Height = new GridLength(76);
@@ -568,9 +575,18 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     }
 
     /// <summary>将音乐库子页面（DesktopAllSongsPage/DesktopArtistsPage/DesktopAlbumsPage）嵌入 ContentArea，
-    /// 同时隐藏底部播放栏以最大化内容区域。点击侧边栏任意 tab 或子页面返回按钮即可恢复。</summary>
+    /// 同时隐藏底部播放栏以最大化内容区域。点击侧边栏任意 tab 或子页面返回按钮即可恢复。
+    /// 播放页/全屏歌词页内嵌时为全屏沉浸：隐藏左侧栏并把内容区横向拉满整个舞台。</summary>
     public void OpenSubPageEmbedded(ContentPage page)
     {
+        // 播放/歌词页全屏沉浸：隐藏侧栏 + 列宽归零（Android 横屏播放页不带侧栏）
+        bool immersivePlayer = page is NowPlayingPage or FullLyricsPage;
+        if (immersivePlayer)
+        {
+            SidebarBorder.IsVisible = false;
+            RootGrid.ColumnDefinitions[0].Width = new GridLength(0);
+        }
+
         // 通知当前嵌入的子页面 OnDisappearing（连续打开多个子页面时）
         if (_embeddedSubPage != null)
             InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
@@ -602,6 +618,9 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         InvokeLifecycle(page, "OnAppearing");
     }
 
+    /// <summary>当前是否有全屏子页面占据内容区（播放/歌词页横屏内嵌时为 true）。</summary>
+    public bool HasEmbeddedSubPage => _embeddedSubPage != null;
+
     /// <summary>关闭嵌入的子页面，恢复到指定 tab（默认音乐库）并恢复底部播放栏显示。</summary>
     public void CloseEmbeddedSubPage(string returnTab = "library")
     {
@@ -610,6 +629,14 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
             _embeddedSubPage = null;
         }
+
+        // 恢复侧栏与列宽（播放/歌词页全屏内嵌时被隐藏）
+        SidebarBorder.IsVisible = true;
+#if ANDROID
+        RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+#else
+        RootGrid.ColumnDefinitions[0].Width = new GridLength(SidebarWidth);
+#endif
 
         // 恢复底部播放栏
         PlayerBarBorder.IsVisible = true;
@@ -735,8 +762,14 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     /// DesktopMainPage 是 Shell 根页面，播放页用 PushAsync 覆盖全屏。</summary>
     private void OnPlayerSongInfoTapped(object? sender, EventArgs e)
     {
+#if ANDROID
+        // 横屏桌面舞台：播放页内嵌到内容区（全屏沉浸），不 push Shell 导航栈
+        //（push 会绕过 MainPage 舞台机制并残留导航栈，旋转回竖屏时覆盖 ViewPager）
+        OpenSubPageEmbedded(_services.GetRequiredService<NowPlayingPage>());
+#else
         var page = _services.GetRequiredService<NowPlayingPage>();
         DesktopNavigation.PushEmbed(page);
+#endif
     }
 
     private void InitVolumeSlider()

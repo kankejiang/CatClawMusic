@@ -168,10 +168,14 @@ public class KaraokePlatformView : AView
         if (layoutWidth <= 0) layoutWidth = 1;
 
         var oldLayout = _layout;
+        // includeFontPadding=false：与 DrawAllLines 的 baseline 换算（lineTop - Ascent）保持自洽。
         _layout = new StaticLayout(text, _measurePaint!, layoutWidth, ToLayoutAlignment(_view.HorizontalTextAlignment), 1f, 0f, false);
         oldLayout?.Dispose();
 
-        var desiredHeight = _layout.Height + paddingTop + paddingBottom;
+        // 底部安全余量：换行多行时末行的 descender（g/y/p/q 尾部）会贴近布局底边，
+        // 不加余量会在 view bbox 处被裁掉一小截。取 ~0.4 行下降高，避免破坏基线换算。
+        float safeBottom = _measurePaint.Descent() * 0.4f;
+        var desiredHeight = _layout.Height + paddingTop + paddingBottom + (int)Math.Ceiling(safeBottom);
         var finalWidth = ResolveSize(width > 0 ? width : (int)(_layout.Width + paddingLeft + paddingRight), widthMeasureSpec);
         var finalHeight = ResolveSize((int)desiredHeight, heightMeasureSpec);
         SetMeasuredDimension(finalWidth, finalHeight);

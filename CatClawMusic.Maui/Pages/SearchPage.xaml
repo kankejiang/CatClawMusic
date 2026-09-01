@@ -849,15 +849,12 @@
 
                 <!-- 毛玻璃模糊层：模糊主题背景图并压暗；半透明，透出下方被遮罩压暗的发现页，形成通透的磨砂质感 -->
                 <controls:FrostedBackground
-                    Source="{DynamicResource ThemeBackgroundImage}"
                     IsActive="{DynamicResource ThemeBackgroundEnabled}"
                     IsVisible="{DynamicResource ThemeBackgroundEnabled}"
                     TintColor="{DynamicResource TabBarGlassTint}"
                     TintOpacity="0.45"
                     DimAmount="0.25"
                     Opacity="0.8"
-                    Aspect="AspectFill"
-                    UseNativeBlur="True"
                     InputTransparent="True" />
 
                 <!-- 玻璃面板描边层：实心玻璃底 + 描边 + 圆角 + 投影（无内容，纯视觉，避免与模糊层同置于带阴影 Border 内导致不渲染） -->

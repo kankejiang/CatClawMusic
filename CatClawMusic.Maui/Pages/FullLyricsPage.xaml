@@ -12,19 +12,16 @@
 
         <!-- 雾面动态背景层（铺满整个页面） -->
         <controls:FrostedBackground x:Name="FrostedBg"
-                                    Source="{Binding CoverImage}"
-                                    CacheKey="{Binding CurrentCoverPath}"
                                     IsActive="{Binding IsPlaying}"
                                     IsScrolling="{Binding IsUserScrolling}"
                                     IsVisible="{DynamicResource FrostedBackgroundEnabled}"
-                                    TintColor="{DynamicResource PrimaryColor}"
-                                    TintOpacity="0.25"
-                                    DimAmount="0.15"
-                                    InputTransparent="True"
-                                    Aspect="AspectFill" />
+                                    TintColor="{Binding CoverTintColor}"
+                                    TintOpacity="0.60"
+                                    DimAmount="0.12"
+                                    CoverSource="{Binding CoverFlowSource}"
+                                    InputTransparent="True" />
 
-        <!-- 暗色遮罩层：确保歌词文字可读 -->
-        <BoxView Color="#70000000" InputTransparent="True" />
+        <!-- 无全屏暗色遮罩：文字可读性由 FrostedBackground 封面流上方的 Halcyon 镜面 scrim 保证（对比 NowPlayingPage） -->
 
         <!-- ═══ 竖屏内容：顶部 HeroCard + 全宽歌词 ═══ -->
         <Grid x:Name="PortraitContent" RowDefinitions="Auto,*">

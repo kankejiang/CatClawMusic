@@ -85,6 +85,8 @@ public partial class NowPlayingViewModel : ObservableObject
     [ObservableProperty] private bool _hasCover;
     /// <summary>当前封面图片的本地文件路径（供取色和跨实例缓存共享用）</summary>
     [ObservableProperty] private string? _currentCoverPath;
+    /// <summary>当前封面主导色（供流光背景按封面着色；无封面或取色失败时为透明）</summary>
+    [ObservableProperty] private Color _coverTintColor = Colors.Transparent;
 
     // === Playback State ===
     /// <summary>是否正在播放</summary>

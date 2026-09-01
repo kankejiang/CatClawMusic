@@ -427,23 +427,9 @@ public partial class NowPlayingPage
     private void OnRotateClicked(object? sender, EventArgs e)
     {
 #if ANDROID
-        if (Application.Current is not App app) return;
-
-        bool goingToLandscape = !app.ManualLandscape;
-        app.ToggleManualLandscape();
-
-        if (goingToLandscape)
-        {
-            // ForceLandscape 内部通过 BeginInvokeOnMainThread 延迟切 Shell 根页面，
-            // 这里再排一帧：Shell 切完 DesktopMainPage 后把播放页推到导航栈顶，
-            // 用户不会跳到发现页。
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                var page = MauiProgram.Services.GetRequiredService<NowPlayingPage>();
-                if (DesktopNavigation.TryGetShell()?.Navigation is { } nav)
-                    _ = nav.PushAsync(page);
-            });
-        }
+        // 原生旋转：只切系统方向，布局由页面自身 OnSizeAllocated 自适应（横竖屏就地切换）
+        if (Application.Current is App app)
+            app.ToggleManualLandscape();
 #endif
     }
 

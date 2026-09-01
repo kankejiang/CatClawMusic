@@ -340,9 +340,10 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
         // 同时读取多种 inset 类型并取最大值，适配车机/全面屏各种系统 UI。
         // 每种类型用 try-catch 包裹：不同 AndroidX Core 版本和 API level 支持的方法不同，
         // 避免因某类型不存在（NoSuchMethodError）导致整个应用崩溃。
-        int top = 0, bottom = 0;
-        try { var sb = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()); top = Math.Max(top, sb.Top); bottom = Math.Max(bottom, sb.Bottom); } catch { }
-        try { var nb = insets.GetInsets(WindowInsetsCompat.Type.NavigationBars()); top = Math.Max(top, nb.Top); bottom = Math.Max(bottom, nb.Bottom); } catch { }
+        int top = 0, bottom = 0, left = 0;
+        try { var sb = insets.GetInsets(WindowInsetsCompat.Type.SystemBars()); top = Math.Max(top, sb.Top); bottom = Math.Max(bottom, sb.Bottom); left = Math.Max(left, sb.Left); } catch { }
+        try { var nb = insets.GetInsets(WindowInsetsCompat.Type.NavigationBars()); top = Math.Max(top, nb.Top); bottom = Math.Max(bottom, nb.Bottom); left = Math.Max(left, nb.Left); } catch { }
+        try { var dc = insets.GetInsets(WindowInsetsCompat.Type.DisplayCutout()); left = Math.Max(left, dc.Left); } catch { }
         try { var mg = insets.GetInsets(WindowInsetsCompat.Type.MandatorySystemGestures()); top = Math.Max(top, mg.Top); bottom = Math.Max(bottom, mg.Bottom); } catch { }
         try { var sg = insets.GetInsets(WindowInsetsCompat.Type.SystemGestures()); top = Math.Max(top, sg.Top); bottom = Math.Max(bottom, sg.Bottom); } catch { }
         try { var so = insets.GetInsets(WindowInsetsCompat.Type.SystemOverlays()); top = Math.Max(top, so.Top); bottom = Math.Max(bottom, so.Bottom); } catch { }
@@ -357,9 +358,10 @@ internal class EdgeToEdgeInsets : Java.Lang.Object, IOnApplyWindowInsetsListener
             var density = activity?.Resources?.DisplayMetrics?.Density ?? 1f;
             var topDp = top / density;
             var bottomDp = bottom / density;
+            var leftDp = left / density;
 
             Microsoft.Maui.ApplicationModel.MainThread.BeginInvokeOnMainThread(() =>
-                SafeAreaHelper.UpdateInsets(topDp, bottomDp));
+                SafeAreaHelper.UpdateInsets(topDp, bottomDp, leftDp));
         }
         catch { }
 

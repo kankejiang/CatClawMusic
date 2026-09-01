@@ -10,9 +10,19 @@
              BackgroundColor="{DynamicResource WindowBackgroundColor}"
              SafeAreaEdges="None">
 
-    <Grid RowDefinitions="*,Auto,Auto"
-          Background="{DynamicResource PageBackgroundBrush}"
+    <Grid Background="{DynamicResource PageBackgroundBrush}"
           SafeAreaEdges="None">
+
+        <!-- ═══ 横屏桌面舞台：横屏时 MainPage 借入 DesktopMainPage 的完整桌面布局
+             （左 220/168 侧栏 + 内容区 + 底部播放栏），与 Windows 桌面端同一界面。 ═══ -->
+        <Grid x:Name="DesktopStage"
+              IsVisible="False"
+              SafeAreaEdges="None" />
+
+        <!-- ═══ 竖屏移动舞台：ViewPager 区域 + 迷你播放器 + 底部 TabBar ═══ -->
+        <Grid x:Name="MobileStage"
+              RowDefinitions="*,Auto,Auto"
+              SafeAreaEdges="None">
 
         <!-- ViewPager 区域：所有 tab 页面水平排列，滑动时同时移动。
              延伸到屏幕底部（RowSpan=3），使滚动内容可滚到播放栏/导航栏背后，
@@ -268,6 +278,8 @@
             </Grid>
                 </vitrum:BlurConsumerView>
             </Border>
+        </Grid>
+
         </Grid>
 
     </Grid>

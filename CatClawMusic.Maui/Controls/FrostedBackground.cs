@@ -1,20 +1,15 @@
 using Microsoft.Maui.Controls;
-using CatClawMusic.Maui.Services;
 
 namespace CatClawMusic.Maui.Controls;
 
 /// <summary>
-/// 雾面动态背景控件：将封面图片进行4分块旋转、多重模糊和色调处理，
-/// 生成雾面玻璃质感的动态背景。用于播放页和歌词页面。
+/// 流光喷发动态背景控件（Halcyon / Apple Music 风格，程序化生成，不读封面）。
+/// 用共享的 FrostedFlowProcessor 在两端同一套数学渲染：4 个光点随时间漂移 + Perlin 噪声扰动 +
+/// HSV 降饱和 + 提亮 + 颗粒，颜色在若干阶段间缓慢过渡。用于播放页、全屏歌词页及主题背景页。
 /// </summary>
 public class FrostedBackground : View
 {
-    /// <summary>封面图片源</summary>
-    public static readonly BindableProperty SourceProperty =
-        BindableProperty.Create(nameof(Source), typeof(ImageSource), typeof(FrostedBackground), null,
-            propertyChanged: OnSourceChanged);
-
-    /// <summary>是否激活（关闭时隐藏背景）</summary>
+    /// <summary>是否激活（关闭时隐藏背景）。绑定播放状态：非播放时不跑动画。</summary>
     public static readonly BindableProperty IsActiveProperty =
         BindableProperty.Create(nameof(IsActive), typeof(bool), typeof(FrostedBackground), true,
             propertyChanged: OnIsActiveChanged);
@@ -34,75 +29,24 @@ public class FrostedBackground : View
         BindableProperty.Create(nameof(DimAmount), typeof(double), typeof(FrostedBackground),
             0.35, propertyChanged: OnTintChanged);
 
-    /// <summary>填充模式（AspectFill / AspectFit / Fill）</summary>
-    public static readonly BindableProperty AspectProperty =
-        BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(FrostedBackground),
-            Aspect.AspectFill, propertyChanged: OnAspectChanged);
+    /// <summary>是否使用深色流光预设（浅色柔和高亮 vs 深色深邃光源）</summary>
+    public static readonly BindableProperty IsDarkProperty =
+        BindableProperty.Create(nameof(IsDark), typeof(bool), typeof(FrostedBackground), false,
+            propertyChanged: OnIsDarkChanged);
+
+    /// <summary>封面源数据（ARGB 像素数组及尺寸，供封面流渲染）。有封面时背景切换为"模糊+过饱和封面流"</summary>
+    public static readonly BindableProperty CoverSourceProperty =
+        BindableProperty.Create(nameof(CoverSource), typeof(CatClawMusic.Maui.Services.Frosted.CoverFlowProcessor.CoverSource),
+            typeof(FrostedBackground), default(CatClawMusic.Maui.Services.Frosted.CoverFlowProcessor.CoverSource),
+            propertyChanged: OnCoverSourceChanged);
 
     /// <summary>
-    /// 缓存键（可选）：用于跨实例共享处理后的位图。
-    /// NowPlayingPage 和 FullLyricsPage 两个实例绑定到同一封面时，
-    /// 通过相同的 CacheKey 命中缓存，避免重复进行 CPU 密集的 mesh+模糊处理。
-    /// 通常绑定到封面文件路径或歌曲 ID。
-    /// </summary>
-    public static readonly BindableProperty CacheKeyProperty =
-        BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(FrostedBackground), null,
-            propertyChanged: OnCacheKeyChanged);
-
-    // Release+裁剪下 DynamicResource 对 Source 的运行时推送不可靠（Source 根本不随之更新）。
-    // 因此在 Source 首次被赋为主题背景资源时【捕获资源键】，订阅 ThemeService.StaticApplied；
-    // 收到通知后直接从资源读回当前值 set 到控件，绕过 DynamicResource 的失效路径，实现立即生效。
-    // 播放页封面（绑定到 CoverImage，非主题背景资源且带 CacheKey）不会被捕获，避免重复重绘。
-    private string? _themeKey;
-    private bool _themeRefreshSubscribed;
-    private void CaptureThemeKeyIfThemeBound()
-    {
-        if (_themeKey != null) return;
-        if (Source != null && Application.Current?.Resources?.TryGetValue("ThemeBackgroundImage", out var s) == true
-            && ReferenceEquals(s, Source))
-        {
-            _themeKey = "ThemeBackgroundImage";
-        }
-    }
-
-    private void EnsureThemeRefreshSubscription()
-    {
-        if (_themeKey == null) return;   // 非主题背景：不订阅
-        if (_themeRefreshSubscribed) return;
-        ThemeService.StaticApplied += OnThemeStaticApplied;
-        _themeRefreshSubscribed = true;
-    }
-
-    /// <summary>收到主题刷新通知：从资源读回当前背景源并显式 set，绕过失效的 DynamicResource。</summary>
-    private void OnThemeStaticApplied()
-    {
-        if (_themeKey == null || Handler == null) return;
-        try
-        {
-            if (Application.Current?.Resources?.TryGetValue(_themeKey, out var s) == true && s is ImageSource current
-                && !ReferenceEquals(current, Source))
-            {
-                // 显式赋值为资源当前值；触发 OnSourceChanged → Handler.UpdateValue → 原生重载
-                SetValue(SourceProperty, current);
-            }
-        }
-        catch { }
-    }
-
-    /// <summary>
-    /// 用户是否正在滑动列表。滑动时暂停流体动画以释放主线程/GPU 资源，提升滑动流畅度。
+    /// 用户是否正在滑动列表。滑动时暂停流光动画（释放主线程/CPU 资源），提升滑动流畅度。
     /// 通常绑定到 IInteractionStateService.IsUserScrolling。
     /// </summary>
     public static readonly BindableProperty IsScrollingProperty =
         BindableProperty.Create(nameof(IsScrolling), typeof(bool), typeof(FrostedBackground), false,
             propertyChanged: OnIsScrollingChanged);
-
-    /// <summary>封面图片源</summary>
-    public ImageSource? Source
-    {
-        get => (ImageSource?)GetValue(SourceProperty);
-        set => SetValue(SourceProperty, value);
-    }
 
     /// <summary>是否激活</summary>
     public bool IsActive
@@ -132,18 +76,18 @@ public class FrostedBackground : View
         set => SetValue(DimAmountProperty, value);
     }
 
-    /// <summary>填充模式</summary>
-    public Aspect Aspect
+    /// <summary>深色流光预设</summary>
+    public bool IsDark
     {
-        get => (Aspect)GetValue(AspectProperty);
-        set => SetValue(AspectProperty, value);
+        get => (bool)GetValue(IsDarkProperty);
+        set => SetValue(IsDarkProperty, value);
     }
 
-    /// <summary>缓存键（用于跨实例共享处理后的位图）</summary>
-    public string? CacheKey
+    /// <summary>封面源数据（有值时背景切为封面流）</summary>
+    public CatClawMusic.Maui.Services.Frosted.CoverFlowProcessor.CoverSource CoverSource
     {
-        get => (string?)GetValue(CacheKeyProperty);
-        set => SetValue(CacheKeyProperty, value);
+        get => (CatClawMusic.Maui.Services.Frosted.CoverFlowProcessor.CoverSource)GetValue(CoverSourceProperty);
+        set => SetValue(CoverSourceProperty, value);
     }
 
     /// <summary>用户是否正在滑动列表（滑动时暂停动画）</summary>
@@ -151,32 +95,6 @@ public class FrostedBackground : View
     {
         get => (bool)GetValue(IsScrollingProperty);
         set => SetValue(IsScrollingProperty, value);
-    }
-
-    /// <summary>
-    /// 是否使用原生 GPU 模糊（Android 12+ RenderEffect，静态磨砂、无流体动画），
-    /// 适用于设置抽屉/底栏等静态毛玻璃面板，比 CPU 流光管线更轻量。
-    /// 默认 false：保持流光溢彩流体效果（播放页/全屏歌词页使用）。
-    /// </summary>
-    public static readonly BindableProperty UseNativeBlurProperty =
-        BindableProperty.Create(nameof(UseNativeBlur), typeof(bool), typeof(FrostedBackground), false,
-            propertyChanged: OnUseNativeBlurChanged);
-
-    /// <summary>是否使用原生 GPU 模糊（静态磨砂）</summary>
-    public bool UseNativeBlur
-    {
-        get => (bool)GetValue(UseNativeBlurProperty);
-        set => SetValue(UseNativeBlurProperty, value);
-    }
-
-    private static void OnSourceChanged(BindableObject bindable, object oldValue, object newValue)
-    {
-        if (bindable is FrostedBackground fb)
-        {
-            fb.CaptureThemeKeyIfThemeBound();
-            fb.EnsureThemeRefreshSubscription();
-            fb.Handler?.UpdateValue(nameof(Source));
-        }
     }
 
     private static void OnIsActiveChanged(BindableObject bindable, object oldValue, object newValue)
@@ -195,17 +113,10 @@ public class FrostedBackground : View
         }
     }
 
-    private static void OnAspectChanged(BindableObject bindable, object oldValue, object newValue)
+    private static void OnIsDarkChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is FrostedBackground fb)
-            fb.Handler?.UpdateValue(nameof(Aspect));
-    }
-
-    private static void OnCacheKeyChanged(BindableObject bindable, object oldValue, object newValue)
-    {
-        // CacheKey 变化时触发 Source 重新映射（让 Handler 使用新的 cache key）
-        if (bindable is FrostedBackground fb)
-            fb.Handler?.UpdateValue(nameof(Source));
+            fb.Handler?.UpdateValue(nameof(IsDark));
     }
 
     private static void OnIsScrollingChanged(BindableObject bindable, object oldValue, object newValue)
@@ -214,9 +125,9 @@ public class FrostedBackground : View
             fb.Handler?.UpdateValue(nameof(IsScrolling));
     }
 
-    private static void OnUseNativeBlurChanged(BindableObject bindable, object oldValue, object newValue)
+    private static void OnCoverSourceChanged(BindableObject bindable, object oldValue, object newValue)
     {
         if (bindable is FrostedBackground fb)
-            fb.Handler?.UpdateValue(nameof(UseNativeBlur));
+            fb.Handler?.UpdateValue(nameof(CoverSource));
     }
 }
