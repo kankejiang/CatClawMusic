@@ -23,7 +23,7 @@ def parse_elf_alignment(data: bytes) -> list[tuple[int, int]]:
             if p_type != 1:  # PT_LOAD
                 continue
             p_offset = struct.unpack_from("<Q", data, off + 0x08)[0]
-            p_align = struct.unpack_from("<Q", data, off + 0x20)[0]
+            p_align = struct.unpack_from("<Q", data, off + 0x30)[0]  # Phdr64: p_align @ 0x30
             out.append((p_offset, p_align))
         return out
     else:
