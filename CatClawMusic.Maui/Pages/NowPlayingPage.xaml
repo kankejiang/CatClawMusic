@@ -811,11 +811,6 @@
 
         </Grid>
 
-        <!-- 播放列表弹窗（预定义，默认隐藏） -->
-        <controls:AppPopup x:Name="PlaylistPopup"
-                           Title="播放列表"
-                           CloseOnMaskTapped="True" />
-
         <!-- 定时停止音乐弹窗 -->
         <controls:AppPopup x:Name="SleepTimerPopup"
                            Title="定时停止音乐"
@@ -830,10 +825,5 @@
         <controls:AppPopup x:Name="LyricsSettingsPopup"
                            Title="歌词设置"
                            CloseOnMaskTapped="True" />
-
-        <!-- FM 模式选择抽屉（私人漫游时点击模式按钮弹出） -->
-        <controls:AppBottomSheet x:Name="FmModeSheet"
-                                 SheetMode="Bottom"
-                                 CloseOnMaskTapped="True" />
     </Grid>
 </ContentPage>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             x:Class="CatClawMusic.Maui.Pages.NowPlayingQueuePage"
+             Title="播放列表"
+             BackgroundColor="{DynamicResource PageBackgroundBrush}">
+
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,*">
+
+        <!-- 顶部标题栏 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto"
+              Padding="8,10,16,10"
+              ColumnSpacing="4">
+            <ImageButton Grid.Column="0"
+                         Source="{helpers:ThemedIcon Name=ic_back, Original=True}"
+                         WidthRequest="40" HeightRequest="40"
+                         BackgroundColor="Transparent"
+                         Padding="10"
+                         CornerRadius="0"
+                         Clicked="OnBackClicked" />
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                <Label Text="播放列表"
+                       FontSize="17" FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}" />
+                <Label x:Name="CountLabel"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextHintColor}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- 队列列表 -->
+        <CollectionView Grid.Row="1"
+                        x:Name="QueueList"
+                        SelectionMode="None"
+                        Margin="12,0,12,12"
+                        VerticalScrollBarVisibility="Default" />
+
+    </Grid>
+</ContentPage>

@@ -16,9 +16,15 @@ public partial class AppPopup : ContentView
     public static readonly BindableProperty CloseOnMaskTappedProperty =
         BindableProperty.Create(nameof(CloseOnMaskTapped), typeof(bool), typeof(AppPopup), true);
 
+    /// <summary>是否在打开时对弹窗背后的兄弟视图施加实时模糊（默认 true）。
+    /// ⚡ 播放页等带有动画背景的宿主可设为 false：背景每帧变化都会触发全屏模糊重算，是弹窗滚动卡顿的主要来源。</summary>
+    public static readonly BindableProperty BlurSiblingsProperty =
+        BindableProperty.Create(nameof(BlurSiblings), typeof(bool), typeof(AppPopup), true);
+
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public bool ShowCloseButton { get => (bool)GetValue(ShowCloseButtonProperty); set => SetValue(ShowCloseButtonProperty, value); }
     public bool CloseOnMaskTapped { get => (bool)GetValue(CloseOnMaskTappedProperty); set => SetValue(CloseOnMaskTappedProperty, value); }
+    public bool BlurSiblings { get => (bool)GetValue(BlurSiblingsProperty); set => SetValue(BlurSiblingsProperty, value); }
 
     public event EventHandler? Closed;
 
@@ -227,6 +233,7 @@ public partial class AppPopup : ContentView
     /// <summary>对弹窗背后的兄弟视图应用高斯模糊 RenderEffect</summary>
     private void ApplyBlurToSiblings()
     {
+        if (!BlurSiblings) return;   // 阅读型弹窗（播放列表等）关闭模糊：避免动画背景每帧触发全屏重模糊
         _blurredViews.Clear();
 
         if (this.Parent is Microsoft.Maui.Controls.Layout layout)

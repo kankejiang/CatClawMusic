@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             x:Class="CatClawMusic.Maui.Pages.FmModeSelectPage"
+             Title="私人漫游模式"
+             BackgroundColor="{DynamicResource PageBackgroundBrush}">
+
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,*">
+
+        <!-- 顶部标题栏（样式参考播放列表页 NowPlayingQueuePage） -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto"
+              Padding="8,10,16,10"
+              ColumnSpacing="4">
+            <ImageButton Grid.Column="0"
+                         Source="{helpers:ThemedIcon Name=ic_back, Original=True}"
+                         WidthRequest="40" HeightRequest="40"
+                         BackgroundColor="Transparent"
+                         Padding="10"
+                         CornerRadius="0"
+                         Clicked="OnBackClicked" />
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                <Label Text="私人漫游模式"
+                       FontSize="17" FontFamily="OpenSansSemibold"
+                       TextColor="{DynamicResource TextPrimaryColor}" />
+                <Label x:Name="SubtitleLabel"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextHintColor}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- 模式列表区（内容由 code-behind 按插件返回的模式构建） -->
+        <ScrollView Grid.Row="1"
+                    x:Name="ContentScroll"
+                    Margin="0,0,0,12"
+                    VerticalScrollBarVisibility="Default">
+            <VerticalStackLayout x:Name="ContentRoot"
+                                 Padding="16,8,16,24"
+                                 Spacing="16" />
+        </ScrollView>
+
+    </Grid>
+</ContentPage>

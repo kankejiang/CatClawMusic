@@ -1,4 +1,4 @@
-using CatClawMusic.Core.Interfaces;
+﻿using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
@@ -80,8 +80,8 @@ public partial class NowPlayingPage : ContentPage
         _desktopLyricManager = desktopLyricManager;
         BindingContext = _viewModel;
 
-        // FM 模式选择抽屉：VM 加载完模式列表后触发事件，页面动态构建抽屉内容
-        _viewModel.FmModeDrawerRequested += OnFmModeDrawerRequested;
+        // FM 模式选择：VM 触发事件后打开全屏模式选择页（样式参考播放列表页）
+        _viewModel.FmModePageRequested += OnFmModePageRequested;
 
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
@@ -924,185 +924,14 @@ public partial class NowPlayingPage : ContentPage
         if (DesktopNavigation.TryGoToShell($"songdetail?songId={song.Id}")) return;
         DesktopNavigation.OpenSongDetail(song.Id.ToString());
     }
-    /// <summary>点击播放列表按钮：弹出播放队列弹窗</summary>
+    /// <summary>点击播放列表按钮：推入独立全屏播放队列页。
+    /// ⚡ 独立页推入后播放页整体进入后台（动态背景/毛玻璃/歌词定时器全部停止），
+    /// 队列滚动不再与底层渲染抢 GPU——替代覆盖式弹窗/Sheet（背景持续渲染导致卡顿）。</summary>
     private void OnOpenPlaylistClicked(object? sender, EventArgs e)
     {
-        BuildPlaylistPopupContent();
-        PlaylistPopup.Open();
-
-        // 延迟滚动到当前歌曲
-        _ = Task.Delay(300).ContinueWith(_ =>
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                try
-                {
-                    var currentSong = _viewModel.CurrentSong;
-                    if (currentSong != null && _playlistCollectionView != null)
-                    {
-                        var songs = _viewModel.GetQueueSongs();
-                        var idx = songs.ToList().FindIndex(s => s.Id == currentSong.Id);
-                        if (idx >= 0)
-                            _playlistCollectionView.ScrollTo(idx, position: ScrollToPosition.Center, animate: false);
-                    }
-                }
-                catch { }
-            }));
+        DesktopNavigation.PushEmbed(MauiProgram.Services.GetRequiredService<Pages.NowPlayingQueuePage>());
     }
 
-    private CollectionView? _playlistCollectionView;
-    /// <summary>播放列表弹窗的响应式数据源：删歌时单行移除（保持滚动位置），避免整弹窗重建</summary>
-    private ObservableCollection<Song>? _playlistPopupItems;
-    private Label? _playlistCountLabel;
-
-    /// <summary>构建播放列表弹窗内容：歌曲列表 + 每项可点击播放/滑动删除</summary>
-    private void BuildPlaylistPopupContent()
-    {
-        PlaylistPopup.ClearContent();
-
-        var songs = _viewModel.GetQueueSongs();
-        var currentSong = _viewModel.CurrentSong;
-        var primaryColor = (Color)Application.Current!.Resources["PrimaryColor"];
-        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
-        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
-        var textHint = (Color)Application.Current!.Resources["TextHintColor"];
-
-        // 歌曲数量标签
-        var countLabel = new Label
-        {
-            Text = $"{songs.Count} 首歌曲",
-            FontSize = 13,
-            TextColor = textHint,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        _playlistCountLabel = countLabel;
-        PlaylistPopup.AddContent(countLabel);
-
-        // ⚡ 性能：用 ObservableCollection 承载队列——删除歌曲时只移除单行（保持滚动位置），
-        // 替代原先"删一首 → ClearContent + 重建 CollectionView + ItemsSource 重置"（滚动丢失 + 大队列卡顿）
-        _playlistPopupItems = new ObservableCollection<Song>(songs);
-
-        // 歌曲列表 CollectionView（高度限制 400，可滚动）
-        _playlistCollectionView = new CollectionView
-        {
-            SelectionMode = SelectionMode.None,
-            HeightRequest = Math.Min(songs.Count * 56, 400),
-            VerticalScrollBarVisibility = ScrollBarVisibility.Default,
-            ItemsSource = _playlistPopupItems,
-            ItemTemplate = new DataTemplate(() =>
-            {
-                var grid = new Grid
-                {
-                    ColumnDefinitions = new ColumnDefinitionCollection
-                    {
-                        new() { Width = GridLength.Auto },       // 播放指示器
-                        new() { Width = new GridLength(1, GridUnitType.Star) }, // 歌曲信息
-                        new() { Width = GridLength.Auto }         // 删除按钮
-                    },
-                    HeightRequest = 52,
-                    Padding = new Thickness(0, 4),
-                    ColumnSpacing = 10
-                };
-
-                // 播放指示器（当前歌曲显示小图标）
-                var indicator = new Image
-                {
-                    WidthRequest = 16,
-                    HeightRequest = 16,
-                    Aspect = Aspect.AspectFit,
-                    Source = ImageSourceHelper.FromNameOriginal("ic_play_dark"),
-                    IsVisible = false,
-                    VerticalOptions = LayoutOptions.Center
-                };
-                grid.Add(indicator, 0);
-
-                // 歌曲信息
-                var infoStack = new VerticalStackLayout
-                {
-                    Spacing = 2,
-                    VerticalOptions = LayoutOptions.Center
-                };
-                var titleLabel = new Label
-                {
-                    FontSize = 14,
-                    FontFamily = "OpenSansSemibold",
-                    MaxLines = 1,
-                    LineBreakMode = LineBreakMode.TailTruncation,
-                    VerticalOptions = LayoutOptions.Center
-                };
-                titleLabel.SetBinding(Label.TextProperty, "Title");
-                var artistLabel = new Label
-                {
-                    FontSize = 12,
-                    TextColor = textSecondary,
-                    MaxLines = 1,
-                    LineBreakMode = LineBreakMode.TailTruncation
-                };
-                artistLabel.SetBinding(Label.TextProperty, "Artist");
-                infoStack.Children.Add(titleLabel);
-                infoStack.Children.Add(artistLabel);
-                grid.Add(infoStack, 1);
-
-                // 删除按钮
-                var removeBtn = new ImageButton
-                {
-                    WidthRequest = 32,
-                    HeightRequest = 32,
-                    CornerRadius = 16,
-                    Padding = 6,
-                    Aspect = Aspect.AspectFit,
-                    BackgroundColor = Colors.Transparent,
-                    Source = ImageSourceHelper.FromNameOriginal("ic_close"),
-                    VerticalOptions = LayoutOptions.Center
-                };
-                grid.Add(removeBtn, 2);
-
-                // 绑定上下文加载后设置当前歌曲高亮
-                grid.BindingContextChanged += (s, _) =>
-                {
-                    if (s is Grid g && g.BindingContext is Song song)
-                    {
-                        var isCurrent = currentSong != null && song.Id == currentSong.Id;
-                        titleLabel.TextColor = isCurrent ? primaryColor : textPrimary;
-                        indicator.IsVisible = isCurrent;
-                        if (isCurrent)
-                            titleLabel.FontAttributes = FontAttributes.Bold;
-                    }
-                };
-
-                // 点击播放
-                var tapGesture = new TapGestureRecognizer();
-                tapGesture.Tapped += (_, _) =>
-                {
-                    if (grid.BindingContext is Song song)
-                    {
-                        _ = PlaylistPopup.CloseAsync();
-                        _ = _viewModel.PlaySongFromQueueCommand.ExecuteAsync(song);
-                    }
-                };
-                grid.GestureRecognizers.Add(tapGesture);
-
-                // 删除按钮点击
-                removeBtn.Clicked += (_, _) =>
-                {
-                    if (grid.BindingContext is Song song)
-                    {
-                        _ = _viewModel.RemoveSongFromQueueCommand.ExecuteAsync(song);
-                        // ⚡ 单行移除替代整弹窗重建：滚动位置保留、无全量重排
-                        if (_playlistPopupItems != null)
-                        {
-                            _playlistPopupItems.Remove(song);
-                            if (_playlistCountLabel != null)
-                                _playlistCountLabel.Text = $"{_playlistPopupItems.Count} 首歌曲";
-                        }
-                    }
-                };
-
-                return grid;
-            })
-        };
-        _playlistCollectionView.Behaviors.Add(new Controls.ScrollPerformanceBehavior());
-        PlaylistPopup.AddContent(_playlistCollectionView);
-    }
 
 #if WINDOWS
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -1114,165 +943,19 @@ public partial class NowPlayingPage : ContentPage
     private void OnWinDesktopLyricTapped(object? sender, EventArgs e) { }
 #endif
 
-    // === FM 模式选择抽屉 ===
+    // === FM 模式选择（全屏页面）===
 
-    /// <summary>VM 加载完模式列表后触发：动态构建抽屉内容并打开</summary>
-    private void OnFmModeDrawerRequested(List<FmModeCategory> categories, string currentLabel)
+    /// <summary>VM 请求打开模式选择：直推全屏 FmModeSelectPage（样式参考播放列表页），
+    /// 不再用底部弹窗——全屏页推入后播放页整体进后台，动态渲染停止，滚动不卡。</summary>
+    private void OnFmModePageRequested()
     {
-        Log.Debug("NowPlaying", $"[FM] drawer requested: categories={categories?.Count ?? 0}, current={currentLabel}");
-        MainThread.BeginInvokeOnMainThread(() =>
+        try
         {
-            BuildFmModeSheetContent(categories, currentLabel);
-            Log.Debug("NowPlaying", $"[FM] sheet content built, opening...");
-            FmModeSheet.Open();
-            Log.Debug("NowPlaying", $"[FM] sheet Open() returned, IsVisible={FmModeSheet.IsVisible}");
-        });
-    }
-
-    /// <summary>构建 FM 模式抽屉内容：顶部 3 个推荐模式卡 + 下方场景模式 4 列网格</summary>
-    private void BuildFmModeSheetContent(List<FmModeCategory> categories, string currentLabel)
-    {
-        FmModeSheet.ClearContent();
-
-        // 一次性缓存资源查找，避免每个元素都走字典查找
-        var res = Application.Current!.Resources;
-        var textPrimary = (Color)res["TextPrimaryColor"];
-        var textSecondary = (Color)res["TextSecondaryColor"];
-        var cardBg = (Color)res["CardBackgroundColor"];
-        var stroke = (Color)res["GlassStrokeColor"];
-        var accentPink = Color.FromArgb("#f953c6");
-        var accentBg = Color.FromArgb("#1Af953c6");
-
-        var container = new VerticalStackLayout { Spacing = 16, Padding = new Thickness(0, 4, 0, 0) };
-
-        // 标题
-        container.Children.Add(new Label
-        {
-            Text = "私人漫游模式",
-            FontSize = 16, FontAttributes = FontAttributes.Bold,
-            TextColor = textPrimary,
-            HorizontalOptions = LayoutOptions.Start,
-        });
-
-        var modes = categories.Where(c => c.Type == "mode").ToList();
-        var scenes = categories.Where(c => c.Type == "scene").ToList();
-
-        // 推荐模式（3 个横排卡片）
-        if (modes.Count > 0)
-        {
-            container.Children.Add(new Label
-            {
-                Text = "推荐模式",
-                FontSize = 12,
-                TextColor = textSecondary,
-                HorizontalOptions = LayoutOptions.Start,
-            });
-            // 3 个推荐模式卡用 3 等分 Grid 并排排布，避免 HorizontalStackLayout+Fill 把后面的卡挤出屏幕
-            var modeRow = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) } };
-            for (int i = 0; i < modes.Count; i++)
-            {
-                var isCurrent = modes[i].Title == currentLabel;
-                var card = CreateFmModeCard(modes[i], isCurrent, textPrimary, textSecondary, cardBg, stroke, accentPink, accentBg);
-                Grid.SetColumn(card, i);
-                modeRow.Add(card);
-            }
-            container.Children.Add(modeRow);
+            DesktopNavigation.PushEmbed(new FmModeSelectPage(_viewModel));
         }
-
-        // 场景模式（4 列网格）
-        if (scenes.Count > 0)
+        catch (Exception ex)
         {
-            container.Children.Add(new Label
-            {
-                Text = "场景模式",
-                FontSize = 12,
-                Margin = new Thickness(0, 8, 0, 0),
-                TextColor = textSecondary,
-                HorizontalOptions = LayoutOptions.Start,
-            });
-            int cols = 4;
-            int rows = (int)Math.Ceiling(scenes.Count / (double)cols);
-            var grid = new Grid
-            {
-                RowSpacing = 10,
-                ColumnSpacing = 10,
-            };
-            for (int r = 0; r < rows; r++)
-                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            for (int c = 0; c < cols; c++)
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-            for (int i = 0; i < scenes.Count; i++)
-            {
-                var s = scenes[i];
-                var isCurrent = s.Title == currentLabel;
-                var chip = CreateFmSceneChip(s, isCurrent, textPrimary, cardBg, accentPink, accentBg);
-                grid.Add(chip, i % cols, i / cols);
-            }
-            container.Children.Add(grid);
+            Log.Debug("NowPlaying", $"[FM] open FmModeSelectPage failed: {ex.Message}");
         }
-
-        FmModeSheet.AddContent(container);
-    }
-
-    /// <summary>推荐模式卡（带标题+副标题+图标，选中高亮）</summary>
-    private Border CreateFmModeCard(FmModeCategory m, bool isCurrent,
-        Color textPrimary, Color textSecondary, Color cardBg, Color stroke, Color accentPink, Color accentBg)
-    {
-        var border = new Border
-        {
-            Padding = new Thickness(14, 10),
-            StrokeShape = new RoundRectangle { CornerRadius = 14 },
-            StrokeThickness = isCurrent ? 2 : 1,
-            Stroke = isCurrent ? accentPink : stroke,
-            BackgroundColor = isCurrent ? accentBg : cardBg,
-            HorizontalOptions = LayoutOptions.Fill,
-        };
-        border.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-            {
-                await _viewModel.SelectFmModeAsync(m.Code);
-                await FmModeSheet.CloseAsync();
-            }),
-        });
-        var stack = new VerticalStackLayout { Spacing = 4 };
-        stack.Children.Add(new Label { Text = $"{m.Icon} {m.Title}", FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = textPrimary });
-        if (!string.IsNullOrEmpty(m.SubTitle))
-            stack.Children.Add(new Label { Text = m.SubTitle, FontSize = 10, TextColor = textSecondary, MaxLines = 2 });
-        border.Content = stack;
-        return border;
-    }
-
-    /// <summary>场景模式 Chip（圆角小卡片，选中高亮）</summary>
-    private Border CreateFmSceneChip(FmModeCategory s, bool isCurrent,
-        Color textPrimary, Color cardBg, Color accentPink, Color accentBg)
-    {
-        var border = new Border
-        {
-            Padding = new Thickness(10, 8),
-            StrokeShape = new RoundRectangle { CornerRadius = 12 },
-            StrokeThickness = isCurrent ? 2 : 0,
-            Stroke = isCurrent ? accentPink : Colors.Transparent,
-            BackgroundColor = isCurrent ? accentBg : cardBg,
-            HorizontalOptions = LayoutOptions.Fill,
-        };
-        border.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-            {
-                await _viewModel.SelectFmModeAsync(s.Code);
-                await FmModeSheet.CloseAsync();
-            }),
-        });
-        border.Content = new Label
-        {
-            Text = s.Title,
-            FontSize = 12,
-            FontAttributes = isCurrent ? FontAttributes.Bold : FontAttributes.None,
-            TextColor = textPrimary,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
-        };
-        return border;
     }
 }

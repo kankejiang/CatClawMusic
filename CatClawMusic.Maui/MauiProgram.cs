@@ -488,6 +488,7 @@ public static class MauiProgram
         services.AddSingleton<Pages.DesktopMainPage>();
         services.AddSingleton<Pages.DesktopBlankPage>(); // 桌面端重建主窗口页
         services.AddTransient<Pages.NowPlayingPage>();
+        services.AddTransient<Pages.NowPlayingQueuePage>();
         services.AddTransient<Pages.LibraryPage>();
         services.AddTransient<Pages.SearchPage>();
         services.AddTransient<Pages.WebViewLoginPage>();

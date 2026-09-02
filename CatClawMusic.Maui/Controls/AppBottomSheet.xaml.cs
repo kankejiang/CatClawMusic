@@ -25,8 +25,14 @@ public partial class AppBottomSheet : ContentView
     public static readonly BindableProperty SheetModeProperty =
         BindableProperty.Create(nameof(SheetMode), typeof(BottomSheetMode), typeof(AppBottomSheet), BottomSheetMode.Bottom);
 
+    /// <summary>是否在打开时对弹窗背后的兄弟视图施加实时模糊（默认 true）。
+    /// ⚡ 播放页等带有动画背景的宿主可设为 false：背景每帧变化都会触发全屏模糊重算，是滚动卡顿的主要来源。</summary>
+    public static readonly BindableProperty BlurSiblingsProperty =
+        BindableProperty.Create(nameof(BlurSiblings), typeof(bool), typeof(AppBottomSheet), true);
+
     /// <summary>弹出位置：Bottom=底部抽屉（默认），Center=屏幕居中弹窗。</summary>
     public BottomSheetMode SheetMode { get => (BottomSheetMode)GetValue(SheetModeProperty); set => SetValue(SheetModeProperty, value); }
+    public bool BlurSiblings { get => (bool)GetValue(BlurSiblingsProperty); set => SetValue(BlurSiblingsProperty, value); }
 
     public event EventHandler? Closed;
 
@@ -339,6 +345,7 @@ public partial class AppBottomSheet : ContentView
 
     private void ApplyBlurToSiblings()
     {
+        if (!BlurSiblings) return;   // 阅读型列表（播放列表等）关闭模糊：避免动画背景每帧触发全屏重模糊
         _blurredViews.Clear();
         if (this.Parent is Microsoft.Maui.Controls.Layout layout)
         {
