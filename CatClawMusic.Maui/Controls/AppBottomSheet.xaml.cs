@@ -119,11 +119,14 @@ public partial class AppBottomSheet : ContentView
         this.IsVisible = true;
         this.Opacity = 1;
 
+#if DEBUG
+        // 布局诊断（logcat FMDBG）：Release 不做视觉树字符串拼接，也不留 1.5s 的延迟任务
         DumpState("open");
         _ = Task.Delay(1500).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
         {
             DumpState("settled");
         }));
+#endif
 
         MainThread.BeginInvokeOnMainThread(async () =>
         {

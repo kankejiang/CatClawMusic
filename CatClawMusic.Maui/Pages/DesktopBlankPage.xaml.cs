@@ -140,7 +140,7 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     private void OnNavLibraryTapped(object? sender, TappedEventArgs e) => SwitchTab(DesktopTab.Library);
     private void OnNavPlaylistsTapped(object? sender, TappedEventArgs e) => SwitchTab(DesktopTab.Playlists);
 
-    private void SwitchTab(DesktopTab tab)
+    private void SwitchTab(DesktopTab tab, bool animate = true)
     {
         // 通知旧 tab 消失（触发数据保存等生命周期）
         if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
@@ -163,9 +163,18 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
                 _pageCache[tab] = content;
         }
 
+        // fade-through 过渡：旧 tab 内容顶层快速淡出揭幕（内容被 _pageCache 缓存复用，动画后复位）
+        View? oldContent = animate && content != null && MainArea.Children.Count > 0 && MainArea.Width > 10
+            ? MainArea.Children[^1] as View : null;
+
         MainArea.Children.Clear();
         if (content != null)
             MainArea.Children.Add(content);
+        if (oldContent != null)
+        {
+            MainArea.Children.Add(oldContent);
+            DesktopTransitions.FadeThrough(MainArea, content!, oldContent);
+        }
 
         // 通知新 tab 显示（页面在此加载数据）
         if (_pageHostCache.TryGetValue(tab, out var newHost))
@@ -404,11 +413,20 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             content.VerticalOptions = LayoutOptions.Fill;
             content.HorizontalOptions = LayoutOptions.Fill;
 
+            // shared-axis X 推入：详情页从右侧滑入 + 淡入，旧内容视差滑出
+            View? outgoing = MainArea.Children.Count > 0 && MainArea.Width > 10
+                ? MainArea.Children[^1] as View : null;
+
             MainArea.Children.Clear();
+            if (outgoing != null)
+                MainArea.Children.Add(outgoing); // 旧内容垫底（视差滑出层）
             MainArea.Children.Add(content);
             _embeddedPage = page;
 
             InvokeLifecycle(page, "OnAppearing");
+
+            if (outgoing != null)
+                DesktopTransitions.PushSwap(MainArea, content, outgoing, fromLeft: false);
         }
         catch (Exception ex)
         {
@@ -421,7 +439,15 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     {
         try
         {
-            SwitchTab(_currentTab);
+            // 过渡：详情页从右侧滑出揭幕（与推入方向对称），底层直接恢复 tab 内容
+            View? outgoing = _embeddedPage != null && MainArea.Width > 10 && MainArea.Children.Count > 0
+                ? MainArea.Children[^1] as View : null;
+            SwitchTab(_currentTab, animate: false);
+            if (outgoing != null)
+            {
+                MainArea.Children.Add(outgoing);
+                DesktopTransitions.PushExit(MainArea, outgoing, exitLeft: false);
+            }
         }
         catch (Exception ex)
         {
@@ -454,10 +480,18 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
             content.VerticalOptions = LayoutOptions.Fill;
             content.HorizontalOptions = LayoutOptions.Fill;
 
+            View? outgoing = MainArea.Children.Count > 0 && MainArea.Width > 10
+                ? MainArea.Children[^1] as View : null;
+
             MainArea.Children.Clear();
+            if (outgoing != null)
+                MainArea.Children.Add(outgoing); // 旧内容垫底（视差滑出层）
             MainArea.Children.Add(content);
 
             InvokeLifecycle(page, "OnAppearing");
+
+            if (outgoing != null)
+                DesktopTransitions.PushSwap(MainArea, content, outgoing, fromLeft: false);
         }
         catch (Exception ex)
         {

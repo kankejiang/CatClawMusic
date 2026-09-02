@@ -142,10 +142,6 @@ public partial class AppPopup : ContentView
         PopupCard.Scale = 0.9;
         PopupCard.TranslationY = 20;
 
-#if ANDROID
-        ApplyBlurToSiblings();
-#endif
-
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             await Task.WhenAll(
@@ -154,6 +150,13 @@ public partial class AppPopup : ContentView
                 PopupCard.TranslateTo(0, 0, 280, Easing.CubicOut),
                 PopupCard.ScaleTo(1, 220, Easing.CubicOut)
             );
+
+#if ANDROID
+            // ⚡ 性能：模糊在入场动画完成后才施加（与 AppBottomSheet 同策略）。
+            // 模糊与滑入动画同帧启动会在 220ms 内互相抢占 GPU 造成开弹窗掉帧；
+            // 半径 24→14 覆盖效果差异肉眼很小，但每帧重模糊成本显著下降。
+            ApplyBlurToSiblings();
+#endif
         });
     }
 
@@ -236,7 +239,7 @@ public partial class AppPopup : ContentView
                 {
                     nativeView.SetRenderEffect(
                         global::Android.Graphics.RenderEffect.CreateBlurEffect(
-                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
+                            14, 14, global::Android.Graphics.Shader.TileMode.Clamp));
                     _blurredViews.Add(nativeView);
                 }
             }

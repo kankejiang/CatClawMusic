@@ -6,6 +6,7 @@ using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 
@@ -86,41 +87,17 @@ public partial class NowPlayingPage : ContentPage
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
         Loaded += OnPageLoaded;
 
-        // 锁屏解锁 / 从后台切回前台时，Activity/Handler 可能重建导致旧锚点失效；
-        // 监听全局 App.Resumed 事件，立即重测并把当前行钉回 1/3 处，修复"锁屏后高亮位置不对"。
-        App.Resumed -= OnAppResumed;
-        App.Resumed += OnAppResumed;
-
-        // 切页/滚屏交互结束并过宽限期后，VM 通知歌词页重测行高并重新钉行，
-        // 修复"从其他页切回播放页时歌词挤在一起、滚动下一行才恢复"。
-        _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
-        _viewModel.LyricResumeRequested += OnLyricResumeRequested;
-
-        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton）。
-        // 页面挂载时订阅、分离时取消，避免横竖屏切换后旧订阅残留或新挂载时漏订阅。
+        // VM/静态事件订阅：统一走 SetVmEventsSubscribed，生命周期跟随
+        // 「页面本体 Handler」与「内容根 RootGrid Handler」任一挂载。
+        // ⚠ 横屏桌面舞台内嵌（MainPage.ShowDesktopStage / 播放栏点击 → DesktopMainPage.OpenSubPageEmbedded）
+        // 只把本页 Content（即 RootGrid）借入桌面内容区，页面本体永不进入可视树、Handler 恒为 null；
+        // 若订阅只挂在 page.HandlerChanged 上，内嵌实例收不到任何 VM 更新 → 横屏歌词/进度完全冻结。
+        // （Windows 覆盖层嵌入此前已用 OnWindowsStageReady 补订阅，此处统一覆盖所有内嵌路径。）
+        SetVmEventsSubscribed(Handler != null || RootGrid.Handler != null);
         HandlerChanged += (_, _) =>
-        {
-            if (Handler == null)
-            {
-#if ANDROID
-                Android.Util.Log.Info("NPP", "[NowPlayingPage] Handler=null(取消订阅) #{0}", GetHashCode());
-#endif
-                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
-            }
-            else
-            {
-                // 挂载（或重新挂载）：订阅静态/单例事件
-                // 先 -= 再 += 避免重复订阅
-                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
-                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
-                _viewModel.LyricResumeRequested += OnLyricResumeRequested;
-            }
-        };
+            SetVmEventsSubscribed(Handler != null || RootGrid.Handler != null);
+        RootGrid.HandlerChanged += (_, _) =>
+            SetVmEventsSubscribed(Handler != null || RootGrid.Handler != null);
 
         // 监听 RootGrid 尺寸变化（Content 被 MainPage 提取后 OnSizeAllocated 不会触发）
         RootGrid.SizeChanged += OnRootSizeChanged;
@@ -138,6 +115,38 @@ public partial class NowPlayingPage : ContentPage
         // 在其 Handler 就绪后立即打标记，确保自定义图像服务对封面一律高分辨率解码（横竖屏一致）。
         ArtworkImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
         LandscapeCoverImage.HandlerChanged += (_, _) => TagPlayerCoverViews();
+    }
+
+    private bool _vmEventsSubscribed;
+
+    /// <summary>统一管理 VM/静态事件订阅（幂等，先 -= 再 += 防重复）。
+    /// 挂载判定 = 页面本体或内容根任一 Handler 非空：Shell push 时两者都会挂载，
+    /// 横屏/覆盖层内嵌时只有内容根会挂载。</summary>
+    private void SetVmEventsSubscribed(bool subscribed)
+    {
+        if (_vmEventsSubscribed == subscribed) return;
+        _vmEventsSubscribed = subscribed;
+#if ANDROID
+        Android.Util.Log.Info("NPP", "[NowPlayingPage] VM事件订阅 = {0} #{1}", subscribed, GetHashCode());
+#endif
+        if (subscribed)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+            SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+            App.Resumed -= OnAppResumed;
+            App.Resumed += OnAppResumed;
+            _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+            _viewModel.LyricResumeRequested += OnLyricResumeRequested;
+        }
+        else
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+            App.Resumed -= OnAppResumed;
+            _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+        }
     }
 
     private void OnRootSizeChanged(object? sender, EventArgs e)
@@ -553,8 +562,9 @@ public partial class NowPlayingPage : ContentPage
         // 覆盖层关闭后页面实例被丢弃，但订阅仍挂在单例 VM 上：
         // Progress 每 tick → OnViewModelPropertyChanged → 更新已断连的 WinUI 控件
         // → COMException(0x800710dd) stowed → 0xc000027b 闪退。必须显式退订。
+        // 统一走 SetVmEventsSubscribed(false) 保持 _vmEventsSubscribed 状态位同步；
         // 重开页面时 OnWindowsStageReady 会按 _winVmSubscribed 幂等重订。
-        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        SetVmEventsSubscribed(false);
         _winVmSubscribed = false;
         StopWinEq(); // EQ DispatcherTimer 每 80ms 更新已断连控件，同样会被 stowed
 #endif
@@ -940,6 +950,9 @@ public partial class NowPlayingPage : ContentPage
     }
 
     private CollectionView? _playlistCollectionView;
+    /// <summary>播放列表弹窗的响应式数据源：删歌时单行移除（保持滚动位置），避免整弹窗重建</summary>
+    private ObservableCollection<Song>? _playlistPopupItems;
+    private Label? _playlistCountLabel;
 
     /// <summary>构建播放列表弹窗内容：歌曲列表 + 每项可点击播放/滑动删除</summary>
     private void BuildPlaylistPopupContent()
@@ -961,7 +974,12 @@ public partial class NowPlayingPage : ContentPage
             TextColor = textHint,
             Margin = new Thickness(0, 0, 0, 12)
         };
+        _playlistCountLabel = countLabel;
         PlaylistPopup.AddContent(countLabel);
+
+        // ⚡ 性能：用 ObservableCollection 承载队列——删除歌曲时只移除单行（保持滚动位置），
+        // 替代原先"删一首 → ClearContent + 重建 CollectionView + ItemsSource 重置"（滚动丢失 + 大队列卡顿）
+        _playlistPopupItems = new ObservableCollection<Song>(songs);
 
         // 歌曲列表 CollectionView（高度限制 400，可滚动）
         _playlistCollectionView = new CollectionView
@@ -969,7 +987,7 @@ public partial class NowPlayingPage : ContentPage
             SelectionMode = SelectionMode.None,
             HeightRequest = Math.Min(songs.Count * 56, 400),
             VerticalScrollBarVisibility = ScrollBarVisibility.Default,
-            ItemsSource = songs.ToList(),
+            ItemsSource = _playlistPopupItems,
             ItemTemplate = new DataTemplate(() =>
             {
                 var grid = new Grid
@@ -1069,8 +1087,13 @@ public partial class NowPlayingPage : ContentPage
                     if (grid.BindingContext is Song song)
                     {
                         _ = _viewModel.RemoveSongFromQueueCommand.ExecuteAsync(song);
-                        // 刷新列表
-                        BuildPlaylistPopupContent();
+                        // ⚡ 单行移除替代整弹窗重建：滚动位置保留、无全量重排
+                        if (_playlistPopupItems != null)
+                        {
+                            _playlistPopupItems.Remove(song);
+                            if (_playlistCountLabel != null)
+                                _playlistCountLabel.Text = $"{_playlistPopupItems.Count} 首歌曲";
+                        }
                     }
                 };
 

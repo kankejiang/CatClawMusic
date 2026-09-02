@@ -98,11 +98,13 @@ public partial class App : Application
         }
         catch (Exception ex) { StartupLog($"App.ctor: Theme failed - {ex.Message}"); }
 
-        // 设置 LyricsService 的 PluginManager 和 NetworkMusicServiceFactory（属性注入，避免循环依赖）
+        // 设置 LyricsService 的 PluginManager 和 NetworkMusicServiceFactory（属性注入，避免循环依赖）。
+        // ⚠ 性能：PluginManager 构造含 installed.json 读取 + 全部插件 DLL 的 Assembly.Load（磁盘 IO+反射），
+        // DownloadManager 构造连带 MonoTorrent ClientEngine（端口监听+DHT 启动）——均移入后台任务，
+        // 不再阻塞 UI 线程首帧。LyricsService.PluginManager 可空且内部已判空（歌词插件晚 ~1s 就绪无感知）。
         var lyricsService = MauiProgram.Services.GetService<ILyricsService>() as LyricsService;
         if (lyricsService != null)
         {
-            lyricsService.PluginManager = MauiProgram.Services.GetRequiredService<IPluginManager>();
             lyricsService.NetworkMusicServiceFactory = () => MauiProgram.Services.GetService<INetworkMusicService>();
         }
         // 在线歌词缓存目录：在线匹配到的歌词缓存为 .lrc，之后走本地歌词路线（离线可用）
@@ -113,29 +115,33 @@ public partial class App : Application
         }
         catch { }
 
-        // 急切实例化 DownloadManager 单例：其构造函数会赋值 DownloadAgentBridge.EnqueueDownload。
-        // 该桥接是 Agent 下载工具（kuwo_download/netease_download/download_file）的入口，
-        // 若不解析单例（懒加载），Agent 会报"下载功能未初始化"。
-        try
-        {
-            _ = MauiProgram.Services.GetRequiredService<Services.DownloadManager>();
-            StartupLog("App.ctor: DownloadManager initialized");
-        }
-        catch (Exception ex) { StartupLog($"App.ctor: DownloadManager failed - {ex.Message}"); }
-
-        // 初始化所有已启用的插件（fire-and-forget）
+        // 初始化所有已启用的插件（后台）。PluginManager 构造 + LyricsService 注入 + InitializeAllAsync 全在池线程，
+        // 完成后报告就绪（启动页的插件闸门等待此信号）；失败也放行，不因插件异常卡死启动页。
         _ = Task.Run(async () =>
         {
-            try { await MauiProgram.Services.GetRequiredService<IPluginManager>().InitializeAllAsync(); }
+            try
+            {
+                var pluginManager = MauiProgram.Services.GetRequiredService<IPluginManager>();
+                if (lyricsService != null)
+                    lyricsService.PluginManager = pluginManager;
+                await pluginManager.InitializeAllAsync();
+            }
             catch (Exception ex)
             {
                 Log.Debug("App.xaml", $"[CatClaw] PluginManager init failed: {ex.Message}");
             }
             finally
             {
-                // 无论成败都报告就绪：启动页不因插件异常而卡死
                 MauiProgram.Services.GetService<StartupCoordinator>()?.MarkPluginsReady();
             }
+        });
+
+        // DownloadManager 单例急切实例化（其构造函数会赋值 DownloadAgentBridge.EnqueueDownload，
+        // 是 Agent 下载工具的入口）。构造含 BT 引擎启动，移到后台；Agent 交互远晚于此时完成。
+        _ = Task.Run(() =>
+        {
+            try { _ = MauiProgram.Services.GetRequiredService<Services.DownloadManager>(); }
+            catch (Exception ex) { Log.Debug("App.xaml", $"[CatClaw] DownloadManager init failed: {ex.Message}"); }
         });
 
         StartupLog("App.ctor: done");
@@ -368,6 +374,10 @@ public partial class App : Application
     /// <param name="splash">启动加载页实例（用于感知其真正渲染上屏的时机）</param>
     private async Task EnterMainWhenReadyAsync(Shell shell, VisualElement splash)
     {
+        // 计时起点：最短展示时长与预加载并行计时（原实现预加载完成后还额外白等 1.2s）。
+        // 冷启动预加载通常 >1.2s → 最短展示自然被覆盖，零额外等待；预加载 <1.2s 时只补差值。
+        long startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
         // 并行化启动：数据库就绪后，音乐库数据预加载 / 封面歌词预加载 /
         // 插件+FFmpeg 就绪 三路同时进行（互不依赖），各自带超时兜底，
         // 替代原先「AllReady → 数据 → 封面歌词」的三段串行等待。
@@ -388,11 +398,12 @@ public partial class App : Application
         };
         // 封面/歌词预加载：上次播放歌曲的封面与歌词在启动页期间就绪，
         // 进入主界面/歌词页时直接显示，避免「启动页结束但封面歌词还在加载」。
+        // 弱网兜底从 10s 收窄到 5s：封面歌词非首屏必需，不值得为它把用户扣在启动页。
         try
         {
             var nowPlayingVm = MauiProgram.Services.GetService<ViewModels.NowPlayingViewModel>();
             if (nowPlayingVm != null)
-                preloadTasks.Add(Task.WhenAny(nowPlayingVm.PreloadMediaAsync(), Task.Delay(StartupWaitTimeout)));
+                preloadTasks.Add(Task.WhenAny(nowPlayingVm.PreloadMediaAsync(), Task.Delay(StartupWaitTimeout / 2)));
         }
         catch { }
         // 等待插件与 FFmpeg 就绪（与上方数据预加载并行，互不阻塞）
@@ -423,8 +434,10 @@ public partial class App : Application
         }
         catch { }
 
-        // 启动页最短展示时长：预加载很快时也保证启动页可见、过渡不突兀
-        await Task.Delay(MinSplashDuration);
+        // 启动页最短展示时长：只补「总耗时不足 1.2s」的差值（并行计时，不再额外白等）
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp);
+        if (elapsed < MinSplashDuration)
+            await Task.Delay(MinSplashDuration - elapsed);
 
         if (!_coreServicesReady)
         {
@@ -455,25 +468,38 @@ public partial class App : Application
             // 冷启动时后台单飞回填缺失的歌曲时长，修正音乐库总时长（扫描基于性能跳过读 duration）
             MauiProgram.Services.GetService<Services.LocalScanService>()?.TriggerDurationBackfill();
 
+            // ⚠ 放行闸门只等首屏必需项：协议列表 + 当前 tab 列表 + 总览聚合。
+            // 专辑/艺术家聚合与 VM 预热在闸门等待期间后台继续（见下方 fire-and-forget），
+            // 用户进入对应 tab 前通常已完成；没完成时页面按需加载兜底（与旧行为一致）。
             await Task.WhenAll(
                 libraryVm.RefreshProtocolsAsync(),
                 libraryVm.CurrentTab == "Local" ? libraryVm.LoadLocalAsync() : libraryVm.LoadNetworkAsync(),
                 libraryVm.LoadOverviewDataAsync());
 
-            // 预热专辑/艺术家聚合 + 列表页 VM 静态缓存（命中缓存后二次调用近零成本）
-            var explore = MauiProgram.Services.GetService<ExploreDataService>();
-            if (explore != null)
+            _ = Task.Run(async () =>
             {
-                await Task.WhenAll(explore.GetAllAlbumsAsync(), explore.GetAllArtistsAsync());
-                var albumsVm = MauiProgram.Services.GetService<ViewModels.AlbumsViewModel>();
-                var artistsVm = MauiProgram.Services.GetService<ViewModels.ArtistsViewModel>();
-                var warmVmTasks = new List<Task>();
-                if (albumsVm != null) warmVmTasks.Add(albumsVm.LoadAsync());
-                if (artistsVm != null) warmVmTasks.Add(artistsVm.LoadAsync());
-                if (warmVmTasks.Count > 0) await Task.WhenAll(warmVmTasks);
-            }
+                try
+                {
+                    // 预热专辑/艺术家聚合 + 列表页 VM 静态缓存（命中缓存后二次调用近零成本）
+                    var explore = MauiProgram.Services.GetService<ExploreDataService>();
+                    if (explore != null)
+                    {
+                        await Task.WhenAll(explore.GetAllAlbumsAsync(), explore.GetAllArtistsAsync());
+                        var albumsVm = MauiProgram.Services.GetService<ViewModels.AlbumsViewModel>();
+                        var artistsVm = MauiProgram.Services.GetService<ViewModels.ArtistsViewModel>();
+                        var warmVmTasks = new List<Task>();
+                        if (albumsVm != null) warmVmTasks.Add(albumsVm.LoadAsync());
+                        if (artistsVm != null) warmVmTasks.Add(artistsVm.LoadAsync());
+                        if (warmVmTasks.Count > 0) await Task.WhenAll(warmVmTasks);
+                    }
 
-            libraryVm.IsPreloaded = true;
+                    libraryVm.IsPreloaded = true;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("App.xaml", $"[Splash] 专辑/艺术家聚合预热失败: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -678,9 +704,13 @@ public partial class App : Application
                             {
                                 // 官方方案：调用 MAUI 内部 SetTitleBarVisibility(false)
                                 InvokeMauiSetTitleBarVisibility(window);
+#if DEBUG
+                                // ②③ Dump 视觉树 + 白条兜底折叠是布局诊断代码，
+                                // Release 每次激活都遍历视觉树（反射 + 字符串拼接）属主线程浪费
                                 WinWndLog("==== visual tree after activation ====");
                                 DumpVisualTree(nativeWindow.Content, 0, 6);
                                 KillTopWhiteBar(nativeWindow.Content);
+#endif
                                 if (nativeWindow.Content is Microsoft.UI.Xaml.FrameworkElement rootFe2)
                                     SetRootBackgroundTheme(rootFe2, 0);
                             }

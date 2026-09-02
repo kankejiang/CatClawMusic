@@ -931,6 +931,11 @@ public partial class MainPage : ContentPage
                 if (_desktopRoot.Parent == null)
                 {
                     DesktopStage.Children.Add(_desktopRoot);
+                    // ⚠ 借入的根 Grid 脱离了 DesktopMainPage，BindingContext 继承链断在 MainPage
+                    // （MainPage 自身未设 BindingContext）→ 底部播放栏的封面/歌名/进度条等
+                    // {Binding CoverImage/Title/Progress...} 全部落空。显式钉回桌面页的 VM
+                    // （与 DesktopMainPage.OpenSubPageEmbedded 的 content.BindingContext 同理）。
+                    _desktopRoot.BindingContext = desktop.BindingContext;
                     if (_currentIndex == 0)
                     {
                         // 竖屏在歌词页转横屏 → 桌面舞台自动内嵌全屏歌词页（横屏布局）

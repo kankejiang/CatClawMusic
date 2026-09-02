@@ -113,7 +113,11 @@ public partial class NowPlayingViewModel
         // Progress 永久停止推进，进度条彻底不走（只有切歌/切页等事件偶然解卡才恢复）。
         if (!_isSeeking)
         {
-            Progress = position.TotalSeconds;
+            // ⚡ 性能：Progress 每 tick(33ms) 通知会级联重绘迷你播放器进度条/桌面滑块/两个播放页的进度条
+            // （MiniPlayerProgress 级联 + 两个页面同监听一个 VM）。0.2s 粒度（5Hz）对进度条肉眼平滑，
+            // 砍掉 ~83% 的级联 UI 工作；逐字歌词 Fill 走独立的 CurrentLineFillProgress 不受影响。
+            if (Math.Abs(position.TotalSeconds - Progress) >= 0.2)
+                Progress = position.TotalSeconds;
         }
         else if ((DateTime.UtcNow - _seekStartTime).TotalSeconds >= 10)
         {

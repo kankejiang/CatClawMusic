@@ -244,7 +244,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     private void OnNavSettingsTapped(object? sender, TappedEventArgs e) => SwitchTab(DesktopTab.Settings);
 
     /// <summary>切换到指定名称的 tab（供嵌入的子页面跨平台调用，name 不区分大小写）</summary>
-    public void SwitchToNamedTab(string name)
+    public void SwitchToNamedTab(string name, bool animate = true)
     {
         var tab = name?.ToLowerInvariant() switch
         {
@@ -254,10 +254,10 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             "settings" => DesktopTab.Settings,
             _ => DesktopTab.Discover
         };
-        SwitchTab(tab);
+        SwitchTab(tab, animate);
     }
 
-    private void SwitchTab(DesktopTab tab)
+    private void SwitchTab(DesktopTab tab, bool animate = true)
     {
         // 如果有嵌入的子页面，先通知它 OnDisappearing 并清理，同时恢复底部播放栏和状态栏
         if (_embeddedSubPage != null)
@@ -296,9 +296,18 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
                 _pageCache[tab] = content;
         }
 
+        // fade-through 过渡：旧 tab 内容顶层快速淡出揭幕（内容被 _pageCache 缓存复用，动画后复位）
+        View? oldContent = animate && content != null && ContentArea.Children.Count > 0 && ContentArea.Width > 10
+            ? ContentArea.Children[^1] as View : null;
+
         ContentArea.Children.Clear();
         if (content != null)
             ContentArea.Children.Add(content);
+        if (oldContent != null)
+        {
+            ContentArea.Children.Add(oldContent);
+            DesktopTransitions.FadeThrough(ContentArea, content!, oldContent);
+        }
 
         // 通知新 tab 显示（SearchPage/LibraryPage 等在此加载数据）
         if (_pageHostCache.TryGetValue(tab, out var newHost))
@@ -563,10 +572,17 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
             page.Content = null;
             content.BindingContext = page.BindingContext;
 
+            View? outgoing = ContentArea.Children.Count > 0 && ContentArea.Width > 10
+                ? ContentArea.Children[^1] as View : null;
             ContentArea.Children.Clear();
+            if (outgoing != null)
+                ContentArea.Children.Add(outgoing); // 旧内容垫底（视差滑出层）
             ContentArea.Children.Add(content);
 
             InvokeLifecycle(page, "OnAppearing");
+
+            if (outgoing != null)
+                DesktopTransitions.PushSwap(ContentArea, content, outgoing, fromLeft: false);
         }
         catch (Exception ex)
         {
@@ -593,6 +609,11 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         else if (_pageHostCache.TryGetValue(_currentTab, out var currentHost))
             InvokeLifecycle(currentHost, "OnDisappearing");
 
+        // 过渡判定：区域已布局（宽度>10）。旋转首次借入舞台时 ContentArea 尚未布局
+        // （DesktopStage.IsVisible 在调用之后才置 true）→ 宽度为 0，自然退化为瞬时切换不抖动。
+        bool animate = ContentArea.Children.Count > 0 && ContentArea.Width > 10;
+        View? outgoing = animate ? ContentArea.Children[^1] as View : null;
+
         _embeddedSubPage = page;
 
         var content = page.Content;
@@ -606,6 +627,8 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // 子页面全屏展示，移除 RootGrid 安全区 padding
         ApplyRootGridSafeArea();
 #endif
+        if (outgoing != null)
+            ContentArea.Children.Add(outgoing); // 旧内容垫底（视差滑出层）
         ContentArea.Children.Add(content);
 
         // 隐藏底部播放栏，让子页面获得最大内容展示空间
@@ -616,6 +639,9 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         HideSystemStatusBar();
 
         InvokeLifecycle(page, "OnAppearing");
+
+        if (outgoing != null)
+            DesktopTransitions.PushSwap(ContentArea, content, outgoing, fromLeft: page is FullLyricsPage);
     }
 
     /// <summary>当前是否有全屏子页面占据内容区（播放/歌词页横屏内嵌时为 true）。</summary>
@@ -624,8 +650,14 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     /// <summary>关闭嵌入的子页面，恢复到指定 tab（默认音乐库）并恢复底部播放栏显示。</summary>
     public void CloseEmbeddedSubPage(string returnTab = "library")
     {
+        // 过渡：沉浸页退场方向 = 它进入时的方向（歌词页从左回退、播放页从右回退）
+        View? outgoing = null;
+        bool exitLeft = false;
         if (_embeddedSubPage != null)
         {
+            exitLeft = _embeddedSubPage is FullLyricsPage;
+            if (ContentArea.Width > 10 && ContentArea.Children.Count > 0)
+                outgoing = ContentArea.Children[^1] as View;
             InvokeLifecycle(_embeddedSubPage, "OnDisappearing");
             _embeddedSubPage = null;
         }
@@ -654,7 +686,14 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         ApplyRootGridSafeArea();
 #endif
 
-        SwitchToNamedTab(returnTab);
+        SwitchToNamedTab(returnTab, animate: false);
+
+        if (outgoing != null)
+        {
+            // 旧沉浸页内容垫到新 tab 内容之上，滑出 + 淡出（幕布揭开效果）
+            ContentArea.Children.Add(outgoing);
+            DesktopTransitions.PushExit(ContentArea, outgoing, exitLeft);
+        }
     }
 
     private async Task PlayPlaylistAsync(Playlist pl)

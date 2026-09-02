@@ -73,6 +73,14 @@ public class FrostedBackgroundView : global::Android.Views.View
     private readonly Paint _bitmapPaint;
     private readonly Paint _tintPaint;
     private readonly Paint _dimPaint;
+    // ⚡ Shader 缓存：OnDraw 每 tick(8fps) 都 new LinearGradient + Dispose 是纯浪费——
+    // 镜面遮罩只随高度/深浅色变化，封面底色渐变只随高度/主色 RGB 变化。变化时才重建。
+    private LinearGradient? _lensScrimShader;
+    private bool _lensScrimDark;
+    private int _lensScrimH;
+    private LinearGradient? _tintShader;
+    private int _tintShaderRgb = -1;
+    private int _tintShaderH;
     private readonly RectF _destRect = new();
 
     // 流光区：占画面下方 78%（与 Halcyon drawHeight/size.height 一致）
@@ -193,6 +201,11 @@ public class FrostedBackgroundView : global::Android.Views.View
     {
         base.OnDetachedFromWindow();
         StopAnimation();
+        // 缓存 Shader 释放（重建场景下 GC 兜底，这里及时释放避免泄漏累积）
+        _lensScrimShader?.Dispose();
+        _lensScrimShader = null;
+        _tintShader?.Dispose();
+        _tintShader = null;
     }
 
     private void StartAnimation()
@@ -381,17 +394,22 @@ public class FrostedBackgroundView : global::Android.Views.View
         int topAlpha = (int)((_isDark ? 0.18f : 0.14f) * 255);
         int bottomAlpha = (int)((_isDark ? 0.30f : 0.22f) * 255);
 
-        var colors = new[] {
-                global::Android.Graphics.Color.Argb(topAlpha, sc, sc, sc).ToArgb(),
-                global::Android.Graphics.Color.Argb(0, sc, sc, sc).ToArgb(),
-                global::Android.Graphics.Color.Argb(bottomAlpha, sc, sc, sc).ToArgb()
-            };
-        var stops = new[] { 0f, 0.5f, 1f };
-        var shader = new LinearGradient(0, 0, 0, h, colors, stops, Shader.TileMode.Clamp);
-        _dimPaint.SetShader(shader);
+        if (_lensScrimShader == null || _lensScrimDark != _isDark || _lensScrimH != h)
+        {
+            _lensScrimShader?.Dispose();
+            var colors = new[] {
+                    global::Android.Graphics.Color.Argb(topAlpha, sc, sc, sc).ToArgb(),
+                    global::Android.Graphics.Color.Argb(0, sc, sc, sc).ToArgb(),
+                    global::Android.Graphics.Color.Argb(bottomAlpha, sc, sc, sc).ToArgb()
+                };
+            var stops = new[] { 0f, 0.5f, 1f };
+            _lensScrimShader = new LinearGradient(0, 0, 0, h, colors, stops, Shader.TileMode.Clamp);
+            _lensScrimDark = _isDark;
+            _lensScrimH = h;
+        }
+        _dimPaint.SetShader(_lensScrimShader);
         canvas.DrawRect(0, 0, w, h, _dimPaint);
         _dimPaint.SetShader(null);
-        shader.Dispose();
     }
 
     private void EnsureFlowBuffer(int viewW, int viewH)
@@ -450,11 +468,18 @@ public class FrostedBackgroundView : global::Android.Views.View
             // 1) 封面渐变作为不透明底色（Halcyon：top/mid/bottom 由 emphasis 明度求得），
             //    这才是"背景看起来像封面"的关键——封面颜色不再是半透明洗在流光上。
             _tintPaint.Alpha = 255;
-            var shader = new LinearGradient(0, 0, 0, h,
-                new[] { Argb(_tintColor, 0.60f), Argb(_tintColor, 0.34f), Argb(_tintColor, 0.14f) },
-                new[] { 0f, 0.5f, 1f },
-                Shader.TileMode.Clamp);
-            _tintPaint.SetShader(shader);
+            int tintRgb = PackRgb(_tintColor);
+            if (_tintShader == null || _tintShaderRgb != tintRgb || _tintShaderH != h)
+            {
+                _tintShader?.Dispose();
+                _tintShader = new LinearGradient(0, 0, 0, h,
+                    new[] { Argb(_tintColor, 0.60f), Argb(_tintColor, 0.34f), Argb(_tintColor, 0.14f) },
+                    new[] { 0f, 0.5f, 1f },
+                    Shader.TileMode.Clamp);
+                _tintShaderRgb = tintRgb;
+                _tintShaderH = h;
+            }
+            _tintPaint.SetShader(_tintShader);
             canvas.DrawRect(0, 0, w, h, _tintPaint);
             _tintPaint.SetShader(null);
 

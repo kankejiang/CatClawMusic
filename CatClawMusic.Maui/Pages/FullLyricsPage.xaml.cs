@@ -131,43 +131,57 @@ public partial class FullLyricsPage : ContentPage
         // 改用内容根 Grid 的 SizeChanged 判断方向（与 NowPlayingPage 同机制）。
         RootGrid.SizeChanged += OnRootGridSizeChanged;
 
-        // 锁屏解锁/回前台：立即重测 + 钉当前行（安卓 Handler 重建会导致旧锚点表过时）
-        App.Resumed += OnAppResumed;
-
-        // 切页/滚屏交互结束并过宽限期后，VM 通知重测行高 + 重新钉行，
-        // 修复"从播放页切回全屏歌词页时歌词挤在一起、滚动下一行才恢复"。
-        _viewModel.LyricResumeRequested += OnLyricResumeRequested;
-
-        // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期
+        // VM/静态事件订阅：统一走 SetLyricEventsSubscribed，生命周期跟随
+        // 「页面本体 Handler」与「内容根 RootGrid Handler」任一挂载。
+        // ⚠ 横屏桌面舞台内嵌（MainPage.ShowDesktopStage → DesktopMainPage.OpenSubPageEmbedded）
+        // 只把本页 Content（即 RootGrid）借入桌面内容区，页面本体永不进入可视树、Handler 恒为 null；
+        // 若订阅只挂在 page.HandlerChanged 上，内嵌实例将收不到任何 VM 更新 → 横屏歌词完全冻结。
+        // 内嵌模式下 RootGrid 会正常挂载 Handler，以它为补充挂载信号即可同时覆盖两种承载方式。
+        SetLyricEventsSubscribed(Handler != null || RootGrid.Handler != null);
         HandlerChanged += (_, _) =>
-        {
-            if (Handler == null)
-            {
+            SetLyricEventsSubscribed(Handler != null || RootGrid.Handler != null);
+        RootGrid.HandlerChanged += (_, _) =>
+            SetLyricEventsSubscribed(Handler != null || RootGrid.Handler != null);
+    }
+
+    private bool _lyricEventsSubscribed;
+
+    /// <summary>统一管理 VM/静态事件订阅（幂等，先 -= 再 += 防重复）。
+    /// 挂载判定 = 页面本体或内容根任一 Handler 非空：Shell push 时两者都会挂载，
+    /// 横屏内嵌时只有内容根会挂载。</summary>
+    private void SetLyricEventsSubscribed(bool subscribed)
+    {
+        if (_lyricEventsSubscribed == subscribed) return;
+        _lyricEventsSubscribed = subscribed;
 #if ANDROID
-                Android.Util.Log.Info("FLP", "[FullLyricsPage] Handler=null(取消订阅) #{0}", GetHashCode());
+        Android.Util.Log.Info("FLP", "[FullLyricsPage] VM事件订阅 = {0} #{1}", subscribed, GetHashCode());
 #endif
-                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                App.Resumed -= OnAppResumed;
-                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
-            }
-            else
-            {
-                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-                SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
-                SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
-                _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
-                _viewModel.LyricResumeRequested += OnLyricResumeRequested;
-            }
-        };
+        if (subscribed)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+            SafeAreaHelper.SafeAreaChanged += OnSafeAreaChanged;
+            App.Resumed -= OnAppResumed;
+            App.Resumed += OnAppResumed;
+            _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+            _viewModel.LyricResumeRequested += OnLyricResumeRequested;
+        }
+        else
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
+            App.Resumed -= OnAppResumed;
+            _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+        }
     }
 
     private void OnAppResumed(object? sender, EventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (Handler == null) return;
+            // 内嵌模式页面本体无 Handler，以内容根为准（与 OnViewModelPropertyChanged 守卫同口径）
+            if (Handler == null && RootGrid.Handler == null) return;
             ForcePinActiveLine();
             ScheduleRetriedPinActive(3);
         });
@@ -179,7 +193,8 @@ public partial class FullLyricsPage : ContentPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (Handler == null) return;
+            // 内嵌模式页面本体无 Handler，以内容根为准
+            if (Handler == null && RootGrid.Handler == null) return;
             if (ActiveLyricRowViews.Count == 0) return;
             ForcePinActiveLine();
             ScheduleRetriedPinActive(2);
