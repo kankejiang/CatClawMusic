@@ -103,6 +103,12 @@ public interface IOnlineMusicPlugin : IPlugin
     /// <param name="like">true=红心，false=取消</param>
     Task<bool> LikeSongAsync(string songId, bool like) => Task.FromResult(false);
 
+    /// <summary>
+    /// 获取当前登录用户收藏/红心歌曲列表（如网易云「我喜欢的音乐」）。
+    /// 宿主「我喜欢的」歌单据此合并展示网络收藏歌曲；未登录或未实现返回 null。
+    /// </summary>
+    Task<List<OnlineSong>?> GetFavoriteOnlineSongsAsync() => Task.FromResult<List<OnlineSong>?>(null);
+
     /// <summary>私人漫游（FM）歌曲红心/取消红心（影响推荐；未实现返回 false）</summary>
     Task<bool> FmLikeAsync(string songId, bool like) => Task.FromResult(false);
 

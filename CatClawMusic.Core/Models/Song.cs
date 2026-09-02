@@ -119,6 +119,16 @@ public class Song : INotifyPropertyChanged
     /// <summary>标记网络歌曲是否同时存在于本地（运行时赋值，不持久化）</summary>
     [Ignore]
     public bool IsAlsoLocal { get; set; }
+
+    /// <summary>是否为网易云来源（行尾平台角标：红色网易云图标）。
+    /// Source != Local 且 RemoteId 以 "netease:" 开头（本地红心镜像与插件合并歌都用 RemoteId 标识平台）。</summary>
+    [Ignore]
+    public bool IsNeteaseSource =>
+        Source != SongSource.Local && RemoteId?.StartsWith("netease:", StringComparison.Ordinal) == true;
+
+    /// <summary>是否为其他网络来源（WebDAV / SMB / 其他平台；行尾通用云图标）</summary>
+    [Ignore]
+    public bool IsOtherRemoteSource => Source != SongSource.Local && !IsNeteaseSource;
 }
 
 /// <summary>

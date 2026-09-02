@@ -20,17 +20,22 @@ public partial class AllSongsViewModel : ObservableObject
     private readonly PlayQueue _queue;
     private readonly IAudioPlayerService _audioService;
     private readonly IMusicLibraryService _musicLibrary;
+    private readonly IPluginManager? _pluginManager;
 
     private List<Song> _loadedSongs = new();
     private List<Song> _allSongs = new();
     private CancellationTokenSource? _filterCts;
 
-    public AllSongsViewModel(MusicDatabase db, PlayQueue queue, IAudioPlayerService audioService, IMusicLibraryService musicLibrary)
+    /// <summary>合并的在线收藏歌曲临时 Song 唯一负 Id 序号（负区间避免与本地自增 Id 冲突）</summary>
+    private static int _onlineFavSeq;
+
+    public AllSongsViewModel(MusicDatabase db, PlayQueue queue, IAudioPlayerService audioService, IMusicLibraryService musicLibrary, IPluginManager? pluginManager = null)
     {
         _db = db;
         _queue = queue;
         _audioService = audioService;
         _musicLibrary = musicLibrary;
+        _pluginManager = pluginManager;
 
         // 初始高亮默认排序项（标题）
         foreach (var option in SortOptions)
@@ -258,12 +263,60 @@ public partial class AllSongsViewModel : ObservableObject
         {
             "local" => await _db.GetSongsAsync(),
             "network" => await _db.GetCachedNetworkSongsAsync(),
-            "favorites" => await _db.GetFavoriteSongsAsync(),
+            "favorites" => await QueryFavoriteSongsMergedAsync(),
             "recent" => await _db.GetRecentSongsAsync(),
             "all" => (await _db.GetSongsAsync()).Concat(await _db.GetCachedNetworkSongsAsync()).ToList(),
             _ => (await _db.GetSongsAsync()).Concat(await _db.GetCachedNetworkSongsAsync()).ToList()
         };
         return SortSongs(loaded);
+    }
+
+    /// <summary>
+    /// 查询收藏歌曲并合并已登录在线插件（网易云等）的收藏歌单：
+    /// 本地镜像（RemoteId 已存在）保留原记录，服务器收藏但本地无镜像的在线歌
+    /// 以临时 Song（负 Id、Source=Cache、FilePath 空待播放补链）并入，行尾以平台图标区分来源。
+    /// </summary>
+    private async Task<List<Song>> QueryFavoriteSongsMergedAsync()
+    {
+        var baseSongs = await _db.GetFavoriteSongsAsync();
+        var plugins = _pluginManager?.GetEnabledPlugins<CatClawMusic.Core.Interfaces.IOnlineMusicPlugin>();
+        if (plugins == null || plugins.Count == 0) return baseSongs;
+
+        var merged = new List<Song>(baseSongs);
+        var knownRemoteIds = new HashSet<string>(
+            baseSongs.Select(s => s.RemoteId).Where(r => !string.IsNullOrWhiteSpace(r)),
+            StringComparer.Ordinal);
+
+        foreach (var p in plugins)
+        {
+            List<OnlineSong>? online = null;
+            try { online = await p.GetFavoriteOnlineSongsAsync(); }
+            catch { online = null; }
+            if (online == null || online.Count == 0) continue;
+
+            foreach (var os in online)
+            {
+                if (string.IsNullOrWhiteSpace(os.Id)) continue;
+                var remoteId = $"{os.Platform}:{os.Id}";
+                // 已有本地镜像（本地红心过）不重复并入
+                if (!knownRemoteIds.Add(remoteId)) continue;
+
+                merged.Add(new Song
+                {
+                    Id = -(System.Threading.Interlocked.Increment(ref _onlineFavSeq) + 10000),
+                    Title = os.Title,
+                    Artist = os.Artist,
+                    Album = os.Album,
+                    Duration = (int)(os.DurationMs / 1000),
+                    FilePath = "", // 播放时才按 RemoteId 实时取直链，避免直链过期
+                    RemoteId = remoteId,
+                    Source = SongSource.Cache,
+                    AllArtists = os.Artist,
+                    CoverArtPath = os.CoverUrl,
+                });
+            }
+        }
+        return merged;
     }
 
     /// <summary>将加载的原始歌曲列表应用到 UI，并根据当前本地/网络筛选模式过滤。</summary>
@@ -403,13 +456,39 @@ public partial class AllSongsViewModel : ObservableObject
 
     // === 播放 ===
 
+    /// <summary>
+    /// 解析歌曲播放源：本地/FiledPath 已有直链直接用；
+    /// 合并的在线收藏歌 FilePath 为空，按 RemoteId 向对应在线插件实时取直链（取到的回填缓存）。
+    /// </summary>
+    private async Task<string?> ResolvePlayUrlIfNeededAsync(Song song)
+    {
+        if (!string.IsNullOrWhiteSpace(song.FilePath)) return song.FilePath;
+        if (_pluginManager == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':')) return null;
+        try
+        {
+            var sep = song.RemoteId.IndexOf(':');
+            if (sep <= 0 || sep == song.RemoteId.Length - 1) return null;
+            var platform = song.RemoteId[..sep];
+            var id = song.RemoteId[(sep + 1)..];
+            var aggregator = new OnlineMusicAggregator(_pluginManager);
+            var url = await aggregator.GetPlayUrlAsync(new OnlineSong { Id = id, Platform = platform });
+            if (!string.IsNullOrWhiteSpace(url)) song.FilePath = url;
+            return url;
+        }
+        catch { return null; }
+    }
+
     [RelayCommand]
     private async Task PlayAllAsync()
     {
         if (Songs.Count == 0) return;
+        var first = Songs[0];
+        // 仅对"当前要播的这首"实时取链，后续切歌由 NowPlayingViewModel 按 RemoteId 自动补链
+        var url = await ResolvePlayUrlIfNeededAsync(first);
         _queue.SetSongs([.. Songs]);
-        _queue.SelectSong(Songs[0].Id);
-        try { await _audioService.PlayAsync(Songs[0].FilePath); }
+        _queue.SelectSong(first.Id);
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try { await _audioService.PlayAsync(url); }
         catch { }
     }
 
@@ -424,7 +503,9 @@ public partial class AllSongsViewModel : ObservableObject
         var first = _queue.CurrentSong;
         if (first != null)
         {
-            try { await _audioService.PlayAsync(first.FilePath); }
+            var url = await ResolvePlayUrlIfNeededAsync(first);
+            if (string.IsNullOrWhiteSpace(url)) return;
+            try { await _audioService.PlayAsync(url); }
             catch { }
         }
     }
@@ -433,9 +514,11 @@ public partial class AllSongsViewModel : ObservableObject
     private async Task PlaySongAsync(Song? song)
     {
         if (song == null) return;
+        var url = await ResolvePlayUrlIfNeededAsync(song);
         _queue.SetSongs([.. Songs]);
         _queue.SelectSong(song.Id);
-        try { await _audioService.PlayAsync(song.FilePath); }
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try { await _audioService.PlayAsync(url); }
         catch { }
     }
 

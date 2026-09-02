@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
@@ -111,7 +111,7 @@
                             </Button>
 
                             <!-- 内容层：仅展示，不拦截触摸 -->
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12"
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="12"
                                   Padding="14,9,34,9"
                                   InputTransparent="True">
                                 <!-- 封面 -->
@@ -143,8 +143,16 @@
                                        TextColor="{DynamicResource TextHintColor}"
                                        Text="{Binding Duration, Converter={StaticResource DurationConverter}}" />
 
+                                <!-- 来源角标：网易云（红色图标）/ 其他网络来源（云图标）；本地歌曲不显示 -->
+                                <Image Grid.Column="3" Source="ic_netease.svg" Margin="0,4,0,4"
+                                       WidthRequest="16" HeightRequest="16" VerticalOptions="Center"
+                                       IsVisible="{Binding IsNeteaseSource}" />
+                                <Image Grid.Column="3" Source="ic_cloud.svg" Margin="0,4,0,4"
+                                       WidthRequest="16" HeightRequest="16" VerticalOptions="Center"
+                                       IsVisible="{Binding IsOtherRemoteSource}" />
+
                                 <!-- 更多按钮提示 -->
-                                <Label Grid.Column="3" Text="⋮" FontSize="18" VerticalOptions="Center"
+                                <Label Grid.Column="4" Text="⋮" FontSize="18" VerticalOptions="Center"
                                        TextColor="{DynamicResource TextHintColor}"
                                        Padding="6,0" />
                             </Grid>
