@@ -112,6 +112,13 @@ public partial class NowPlayingViewModel
             HasCover = false;
             CurrentCoverPath = null;
 
+            // 关键修复：切歌时先重置收藏态为未收藏，防止上一首歌的红心
+            // 透传到新歌（收藏查询是异步并行的，真正结果稍后才写入 IsLiked）
+            IsLiked = false;
+            LikeIcon = "\u2661"; // ♡
+            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl("ic_notif_favorite_border", "ic_notif_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal("ic_notif_favorite_border");
+
             // 持久化当前歌曲 ID，下次启动可恢复
             Preferences.Default.Set("last_playing_song_id", song.Id);
         }
@@ -166,10 +173,29 @@ public partial class NowPlayingViewModel
         if (!isSameSong && autoPlay && !_isStartupRestore)
         {
             // 换歌时且允许自动播放才启动播放（启动恢复除外）
-            if (!string.IsNullOrEmpty(song.FilePath))
+            string? playUrl = null;
+            if (!string.IsNullOrEmpty(song.RemoteId) && song.RemoteId.Contains(':'))
             {
+                // 在线插件歌曲（网易云等）：播放前统一实时取链。插件内部有短时 URL 缓存
+                // （网易云 20 分钟），命中即即时返回；过期自动换新——避免长时间暂停后
+                // 直链失效出现"当前这首不能播、切到 3 首之外才能播"。取链失败回落已有 FilePath。
+                playUrl = await ResolveRemotePlayUrlAsync(song.RemoteId)
+                          ?? (string.IsNullOrWhiteSpace(song.FilePath) ? null : song.FilePath);
+            }
+            else if (!string.IsNullOrEmpty(song.FilePath))
+            {
+                // 本地 / 已缓存直链歌曲：直接用
+                playUrl = song.FilePath;
+            }
+
+            if (!string.IsNullOrWhiteSpace(playUrl))
+            {
+                // 回填新直链（Song 与插件队列共享引用，UI/后续切回同步受益）
+                if (!string.Equals(song.FilePath, playUrl, StringComparison.Ordinal))
+                    song.FilePath = playUrl;
+
                 // 播放与收藏查询并行执行
-                var playTask = _audioService.PlayAsync(song.FilePath);
+                var playTask = _audioService.PlayAsync(playUrl);
                 await Task.WhenAll(playTask, favoriteTask);
                 IsLiked = favoriteTask.Result;
                 if (_lastRecordedSongId != song.Id)
@@ -180,6 +206,7 @@ public partial class NowPlayingViewModel
             }
             else
             {
+                // 无可用直链（在线歌取链失败 / 本地歌缺路径）：不强制播放，仅更新收藏态
                 IsLiked = await favoriteTask;
             }
 
@@ -187,6 +214,14 @@ public partial class NowPlayingViewModel
             LikeIcon = IsLiked ? "\u2665" : "\u2661";
             LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border", IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
             LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
+
+#if ANDROID || WINDOWS
+            // 收藏查询结果落地：用最终状态刷新媒体通知卡片红心。
+            // 在此之前切歌重置及 L150 的推送都只带"未收藏"占位值，
+            // 不补这一次通知栏会一直显示上一首歌的旧红心状态。
+            try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(IsLiked); }
+            catch { }
+#endif
 
             // 换歌时加载歌词（封面已在上方预加载），网络歌曲先缓存到本地再处理
             _ = Task.Run(async () =>
@@ -229,6 +264,15 @@ public partial class NowPlayingViewModel
             // 首次加载或启动恢复：加载封面、歌词和元数据，但不播放
             // 外部页面（音乐库、发现页）触发播放时 autoPlay=false，走此分支；
             // 启动恢复时不记录（避免记录上次未完成的播放），其他情况记录播放会话
+            // 收藏查询落地：此分支原未消费 favoriteTask，IsLiked 会停留在上一首歌的旧值
+            IsLiked = await favoriteTask;
+            LikeIcon = IsLiked ? "\u2665" : "\u2661";
+            LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border", IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
+            LikeIconSourceWhite = ImageSourceHelper.FromNameOriginal(IsLiked ? "ic_notif_favorite" : "ic_notif_favorite_border");
+#if ANDROID || WINDOWS
+            try { (_audioService as Services.AudioPlayerService)?.UpdateFavoriteState(IsLiked); }
+            catch { }
+#endif
             if (!_isStartupRestore && _lastRecordedSongId != song.Id)
             {
                 _lastRecordedSongId = song.Id;
@@ -279,6 +323,33 @@ public partial class NowPlayingViewModel
 
         // 保存队列状态（后台执行，不阻塞切歌）
         _ = Task.Run(SaveQueueState);
+    }
+
+    /// <summary>
+    /// 按 RemoteId（形如 "platform:id"）向对应在线音乐插件实时补取播放直链。
+    /// 网易云等插件入队时只给"当前+后 3 首"懒加载直链，其余歌曲 FilePath 为空占位，
+    /// 随机播放/队列任意位置跳播时宿主需在此补链后才能播放。
+    /// </summary>
+    private async Task<string?> ResolveRemotePlayUrlAsync(string remoteId)
+    {
+        try
+        {
+            var sep = remoteId.IndexOf(':');
+            if (sep <= 0 || sep == remoteId.Length - 1) return null;
+            var platform = remoteId[..sep];
+            var id = remoteId[(sep + 1)..];
+            if (string.IsNullOrWhiteSpace(id)) return null;
+
+            if (_pluginManager == null) return null;
+            var aggregator = new OnlineMusicAggregator(_pluginManager);
+            var url = await aggregator.GetPlayUrlAsync(new OnlineSong { Id = id, Platform = platform });
+            return string.IsNullOrWhiteSpace(url) ? null : url;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("AppViewModels", $"[ResolveRemotePlayUrl] failed: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

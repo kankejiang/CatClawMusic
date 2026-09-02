@@ -203,7 +203,18 @@ public partial class NowPlayingViewModel
         }
 
         var song = _queue.CurrentSong;
-        if (song == null || string.IsNullOrEmpty(song.FilePath)) return;
+        if (song == null) return;
+
+        // 在线插件歌曲（网易云等）：恢复播放前先取最新直链（插件内部 20 分钟 URL 缓存，
+        // 命中即时返回；过期自动换新）。避免长时间暂停后旧直链失效导致"恢复不了播放"。
+        if (!string.IsNullOrEmpty(song.RemoteId) && song.RemoteId.Contains(':'))
+        {
+            var freshUrl = await ResolveRemotePlayUrlAsync(song.RemoteId);
+            if (!string.IsNullOrWhiteSpace(freshUrl))
+                song.FilePath = freshUrl;
+        }
+
+        if (string.IsNullOrEmpty(song.FilePath)) return;
 
         // 同一首歌已加载：使用 Resume 从暂停位置恢复，避免 PlayAsync 重新加载媒体导致从头播放
         if (_audioService.CurrentSongFilePath == song.FilePath)
@@ -309,23 +320,22 @@ public partial class NowPlayingViewModel
         catch { FmModeLabel = ""; }
     }
 
-    /// <summary>循环切换私人漫游推荐模式（默认→熟悉→探索→默认），由插件执行并返回新模式名</summary>
-    private async Task CycleFmModeAsync()
+    /// <summary>点击私人漫游模式按钮：请求打开全屏模式选择页（由页面订阅事件后 Push FmModeSelectPage）</summary>
+    private Task CycleFmModeAsync()
     {
-        // 打开模式选择抽屉：加载插件提供的模式列表，由页面 code-behind 渲染 AppBottomSheet
-        await OpenFmModeDrawerAsync();
+        FmModePageRequested?.Invoke();
+        return Task.CompletedTask;
     }
 
-    /// <summary>FM 模式选择抽屉所需数据：当前歌曲所属插件提供的模式/场景列表</summary>
-    [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty] private List<FmModeCategory> _fmModeCategories = new();
+    /// <summary>全屏模式选择页请求打开事件（NowPlayingPage 订阅，收到后 Push FmModeSelectPage）</summary>
+    public event Action? FmModePageRequested;
 
-    /// <summary>打开 FM 模式选择抽屉：从插件加载模式列表，页面订阅事件后渲染</summary>
-    public event Action<List<FmModeCategory>, string>? FmModeDrawerRequested;
-
-    private async Task OpenFmModeDrawerAsync()
+    /// <summary>加载当前歌曲所属插件提供的模式/场景列表与当前模式名（供 FmModeSelectPage 渲染）</summary>
+    public async Task<(List<FmModeCategory> Categories, string CurrentLabel)> LoadFmModeCategoriesAsync()
     {
         var song = _queue.CurrentSong;
-        if (song == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':')) return;
+        if (song == null || string.IsNullOrEmpty(song.RemoteId) || !song.RemoteId.Contains(':'))
+            return (new List<FmModeCategory>(), "");
         try
         {
             var sep = song.RemoteId.IndexOf(':');
@@ -335,12 +345,12 @@ public partial class NowPlayingViewModel
             if (plugin != null)
             {
                 var categories = await plugin.GetFmModesAsync();
-                FmModeCategories = categories ?? new List<FmModeCategory>();
                 var currentLabel = await plugin.GetFmModeLabelAsync() ?? "";
-                FmModeDrawerRequested?.Invoke(FmModeCategories, currentLabel);
+                return (categories ?? new List<FmModeCategory>(), currentLabel);
             }
         }
-        catch (Exception ex) { Log.Debug("NowPlayingVM", $"[OpenFmModeDrawer] failed: {ex.Message}"); }
+        catch (Exception ex) { Log.Debug("NowPlayingVM", $"[LoadFmModeCategories] failed: {ex.Message}"); }
+        return (new List<FmModeCategory>(), "");
     }
 
     /// <summary>用户在抽屉中选择某个模式/场景后调用：通知插件切换并更新标签</summary>
