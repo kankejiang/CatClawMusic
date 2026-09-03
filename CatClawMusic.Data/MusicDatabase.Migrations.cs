@@ -410,6 +410,62 @@ public partial class MusicDatabase
     }
 
     /// <summary>
+    /// PlaylistSongs 约束迁移（一次性，MigrationFlag 门控）：
+    /// 历史版本对歌单条目的读取路径存在并发竞态且写放大严重，本次为表补齐
+    /// (PlaylistId, SongId) 唯一索引与 (PlaylistId, Position) 查询索引。
+    /// 建唯一索引前必须先清理历史重复行（旧版本竞态可写入同歌单同歌曲多条记录），
+    /// 去重保留 Position 最小（其次 Id 最小）的一行，并将 Position 归一化为 0..n-1 密集序列。
+    /// </summary>
+    private async Task MigratePlaylistSongConstraintsAsync()
+    {
+        const string flag = "playlist_song_constraints_v1";
+        try
+        {
+            if (await IsMigrationDoneAsync(flag)) return;
+
+            var exists = await TableExistsAsync("PlaylistSongs");
+            if (!exists)
+            {
+                await MarkMigrationDoneAsync(flag);
+                return;
+            }
+
+            await _database.RunInTransactionAsync(tran =>
+            {
+                // 1. 去重：每个 (PlaylistId, SongId) 保留 Position 最小（其次 Id 最小）的一行
+                tran.Execute(
+                    "DELETE FROM PlaylistSongs WHERE EXISTS (" +
+                    "  SELECT 1 FROM PlaylistSongs p2 WHERE" +
+                    "    p2.PlaylistId = PlaylistSongs.PlaylistId AND p2.SongId = PlaylistSongs.SongId AND" +
+                    "    (p2.Position < PlaylistSongs.Position OR" +
+                    "     (p2.Position = PlaylistSongs.Position AND p2.Id < PlaylistSongs.Id)))");
+
+                // 2. Position 归一化：按 (旧 Position, Id) 排序映射为 0..n-1 密集序列
+                tran.Execute(
+                    "UPDATE PlaylistSongs SET Position = (" +
+                    "  SELECT COUNT(*) FROM PlaylistSongs p2 WHERE" +
+                    "    p2.PlaylistId = PlaylistSongs.PlaylistId AND" +
+                    "    (p2.Position < PlaylistSongs.Position OR" +
+                    "     (p2.Position = PlaylistSongs.Position AND p2.Id <= PlaylistSongs.Id))) - 1");
+
+                // 3. 唯一索引（防重复插入）+ 排序查询索引（歌单读取/重排热点路径）
+                tran.Execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_playlist_songs_playlist_song " +
+                    "ON PlaylistSongs(PlaylistId, SongId)");
+                tran.Execute(
+                    "CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist_position " +
+                    "ON PlaylistSongs(PlaylistId, Position)");
+            });
+
+            await MarkMigrationDoneAsync(flag);
+        }
+        catch
+        {
+            // 失败不落标记，下次启动重试（索引已在事务内创建则幂等跳过）
+        }
+    }
+
+    /// <summary>
     /// 迁移 PlayHistory 表：添加自增主键 Id 列
     /// </summary>
     private async Task MigratePlayHistoryTableAsync()

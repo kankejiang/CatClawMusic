@@ -172,8 +172,11 @@ public class DownloadManager : IDisposable, IDownloadManager
     /// <summary>每任务下载限速（字节/秒，0=不限）。设置后立即生效，仅作用于新下载的数据块。</summary>
     public long MaxDownloadBytesPerSecond { get; private set; }
 
-    /// <summary>磁力（BT）下载引擎（由 DI 注入；测试环境可为 null）</summary>
-    private readonly BitTorrentDownloadService? _bt;
+    /// <summary>磁力（BT）下载引擎懒工厂（DI 注入；首次真正使用磁力功能时才构造 ClientEngine——端口监听+DHT 启动，冷启动零开销。测试环境可为 null）</summary>
+    private readonly Func<BitTorrentDownloadService?>? _btFactory;
+
+    /// <summary>解析 BT 引擎（懒构造；同一单例重复解析开销可忽略）</summary>
+    private BitTorrentDownloadService? Bt => _btFactory?.Invoke();
 
     /// <summary>下载任务集合（按创建时间排序）</summary>
     public ObservableCollection<DownloadTaskItem> Tasks { get; } = new();
@@ -184,9 +187,9 @@ public class DownloadManager : IDisposable, IDownloadManager
     /// <summary>单个任务进度/状态变化时触发</summary>
     public event Action<DownloadTaskItem>? TaskUpdated;
 
-    public DownloadManager(BitTorrentDownloadService? bt = null)
+    public DownloadManager(Func<BitTorrentDownloadService?>? btFactory = null)
     {
-        _bt = bt;
+        _btFactory = btFactory;
         _http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _http.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
         ConcurrentLimit = LoadConcurrentLimit();
@@ -359,7 +362,7 @@ public class DownloadManager : IDisposable, IDownloadManager
         if (task == null) return;
         if (task.Kind == "magnet")
         {
-            _ = _bt?.PauseAsync(id);
+            _ = Bt?.PauseAsync(id);
             if (task.Status == DownloadStatus.Downloading)
             {
                 UpdateTask(task, t => { t.Status = DownloadStatus.Paused; t.IsPaused = true; t.SpeedText = ""; });
@@ -380,7 +383,7 @@ public class DownloadManager : IDisposable, IDownloadManager
         if (task.Kind == "magnet")
         {
             UpdateTask(task, t => { t.Status = DownloadStatus.Queued; t.IsPaused = false; t.Error = ""; });
-            _ = _bt?.ResumeAsync(id);
+            _ = Bt?.ResumeAsync(id);
             return;
         }
         UpdateTask(task, t =>
@@ -431,7 +434,7 @@ public class DownloadManager : IDisposable, IDownloadManager
             _networkProviders.Remove(id);
         }
         if (task?.Kind == "magnet")
-            _ = _bt?.RemoveAsync(id);
+            _ = Bt?.RemoveAsync(id);
 
         string? fileError = null;
         if (task != null)
@@ -513,7 +516,8 @@ public class DownloadManager : IDisposable, IDownloadManager
     /// <summary>磁力任务执行：委托 BT 引擎下载，回调更新任务进度/状态</summary>
     private async Task RunMagnetAsync(DownloadTaskItem task, string magnet, string saveDir)
     {
-        if (_bt == null)
+        var bt = Bt;
+        if (bt == null)
         {
             MarkFailed(task, "磁力下载引擎未初始化");
             return;
@@ -521,7 +525,7 @@ public class DownloadManager : IDisposable, IDownloadManager
         try
         {
             UpdateTask(task, t => { t.Status = DownloadStatus.Downloading; t.SpeedText = ""; });
-            var error = await _bt.StartAsync(task.Id, magnet, saveDir,
+            var error = await bt.StartAsync(task.Id, magnet, saveDir,
                 onState: text => UpdateTask(task, t => { if (t.Status != DownloadStatus.Completed) t.Error = text == "下载中" ? "" : text; }),
                 onProgress: p => UpdateTask(task, t =>
                 {
@@ -976,7 +980,8 @@ public class DownloadManager : IDisposable, IDownloadManager
                 Tasks.Add(item);
 
                 // 磁力任务：重启后自动续传（BT 引擎校验已下数据后继续，无需重新开始）
-                if (dto.Kind == "magnet" && _bt != null
+                var resumedBt = dto.Kind == "magnet" ? Bt : null;
+                if (dto.Kind == "magnet" && resumedBt != null
                     && status is DownloadStatus.Queued or DownloadStatus.Paused or DownloadStatus.Downloading)
                 {
                     item.Status = DownloadStatus.Queued;

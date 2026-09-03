@@ -45,6 +45,9 @@ public partial class MusicDatabase
     /// </summary>
     private readonly SQLiteAsyncConnection _database;
 
+    /// <summary>数据库文件路径(诊断/测试用)</summary>
+    public string DatabasePath { get; }
+
     /// <summary>
     /// 数据库是否已完成初始化
     /// </summary>
@@ -85,6 +88,7 @@ public partial class MusicDatabase
     /// </summary>
     public MusicDatabase(string dbPath)
     {
+        DatabasePath = dbPath;
         _database = new SQLiteAsyncConnection(dbPath);
     }
 
@@ -128,6 +132,7 @@ public partial class MusicDatabase
 
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
+            await MigratePlaylistSongConstraintsAsync();
             await MigrateArtistsTableAsync();
             await RecoverArtistsTableAsync();
 
@@ -194,6 +199,10 @@ public partial class MusicDatabase
             _maintenanceSemaphore.Release();
         }
     }
+
+    /// <summary>在单事务中执行一批原生 SQLite 操作（供 Data 层服务批量落库，替代逐条 SaveSongAsync）</summary>
+    public Task RunInTransactionAsync(Action<SQLiteConnection> action)
+        => _database.RunInTransactionAsync(action);
 
     /// <summary>检查指定迁移是否已完成（持久化标记）</summary>
     private async Task<bool> IsMigrationDoneAsync(string name)

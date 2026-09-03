@@ -16,13 +16,93 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
     private LyricsSettingsService S => LyricsSettingsService.Instance;
     public bool IsShowing => _window != null;
 
+    // 透明重试 timer 与其目标窗口：字段化以便 Hide/Destroying 时停止并退订
+    // （旧版局部 timer 匿名闭包无法停止，Service 关闭后仍可能残留 350ms 轮询）
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _transparentRetryTimer;
+    private Microsoft.UI.Xaml.Window? _transparentRetryWindow;
+    private int _transparentRetryClears;
+
     public void Show()
     {
-        try { if (_window != null) return; _overlay = new DesktopLyricOverlay(); BindEvents(); _window = new Microsoft.Maui.Controls.Window(_overlay) { Title = "" }; _window.HandlerChanged += SetupWindow; _window.Destroying += (_, _) => _window = null; ApplyLook(); Application.Current?.OpenWindow(_window); if (_window.Handler != null) SetupWindow(null, EventArgs.Empty); }
+        try
+        {
+            if (_window != null) return;
+            _overlay = new DesktopLyricOverlay();
+            BindEvents();
+            _window = new Microsoft.Maui.Controls.Window(_overlay) { Title = "" };
+            _window.HandlerChanged += OnWindowHandlerChanged;
+            _window.Destroying += OnWindowDestroying;
+            ApplyLook();
+            Application.Current?.OpenWindow(_window);
+            if (_window.Handler != null) SetupWindow(null, EventArgs.Empty);
+        }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"{nameof(WindowsDesktopLyricServiceV2)} Show: {ex.Message}"); }
     }
 
-    public void Hide() { if (_window == null) return; var w = _window; _window = null; Application.Current?.CloseWindow(w); }
+    public void Hide()
+    {
+        if (_window == null) return;
+        CleanupWindow(_window, closeWindow: true);
+    }
+
+    /// <summary>统一清理（Hide 与 Destroying 共用，幂等）：停透明重试 timer → 停 Overlay 光标
+    /// 轮询 → 解绑 Overlay/AppWindow/Window 全部事件 → 清引用 → （可选）关闭窗口。
+    /// 旧版 Hide 只 CloseWindow，长生命周期 Service 永久持有已关闭窗口的 Overlay/AppWindow
+    /// 与 10Hz 轮询 timer，反复开关累积泄漏。</summary>
+    private void CleanupWindow(Microsoft.Maui.Controls.Window? window, bool closeWindow)
+    {
+        try
+        {
+            if (_transparentRetryTimer != null)
+            {
+                _transparentRetryTimer.Tick -= OnTransparentRetryTick;
+                _transparentRetryTimer.Stop();
+                _transparentRetryTimer = null;
+                _transparentRetryWindow = null;
+                _transparentRetryClears = 0;
+            }
+
+            if (_overlay != null)
+            {
+                _overlay.PrevClicked -= OnOverlayPrev;
+                _overlay.PlayPauseClicked -= OnOverlayPlayPause;
+                _overlay.NextClicked -= OnOverlayNext;
+                _overlay.LockClicked -= OnOverlayLock;
+                _overlay.CloseClicked -= OnOverlayClose;
+                _overlay.Cleanup();
+            }
+
+            if (_window != null)
+            {
+                _window.HandlerChanged -= OnWindowHandlerChanged;
+                _window.Destroying -= OnWindowDestroying;
+            }
+
+            if (_appWindow != null)
+                _appWindow.Changed -= OnAppWindowChanged;
+        }
+        catch { }
+
+        _overlay = null;
+        _appWindow = null;
+
+        if (closeWindow && window != null)
+        {
+            _window = null;
+            try { Application.Current?.CloseWindow(window); } catch { }
+        }
+        else if (ReferenceEquals(_window, window))
+        {
+            _window = null;
+        }
+    }
+
+    private void OnWindowDestroying(object? sender, EventArgs e)
+    {
+        // 窗口正在销毁：只做资源解绑，不再调用 CloseWindow（避免在 Destroying 中二次关闭）
+        CleanupWindow(sender as Microsoft.Maui.Controls.Window, closeWindow: false);
+    }
+
     public void UpdateLyric(string? text) { _currentText = text ?? ""; MainThread.BeginInvokeOnMainThread(() => _overlay?.UpdateLyric(_currentText, S.DesktopHighlightColor)); }
     public void UpdateLyricLines(string? currentText, string? nextText, double progress)
     {
@@ -35,16 +115,31 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
     public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
     public Task<bool> RequestPermissionAsync() => Task.FromResult(true);
 
+    // ─── Overlay 按钮事件（命名 handler：可退订；匿名 lambda 无法 -=）───
+
     private void BindEvents()
     {
         if (_overlay == null) return;
-        var audio = MauiProgram.Services.GetService<IAudioPlayerService>();
-        _overlay.PrevClicked += (_, _) => { };
-        _overlay.PlayPauseClicked += (_, _) => _ = (audio?.IsPlaying == true ? audio.PauseAsync() : audio?.ResumeAsync());
-        _overlay.NextClicked += (_, _) => { };
-        _overlay.LockClicked += (_, _) => ToggleLock();
-        _overlay.CloseClicked += (_, _) => Hide();
+        _overlay.PrevClicked += OnOverlayPrev;
+        _overlay.PlayPauseClicked += OnOverlayPlayPause;
+        _overlay.NextClicked += OnOverlayNext;
+        _overlay.LockClicked += OnOverlayLock;
+        _overlay.CloseClicked += OnOverlayClose;
     }
+
+    private void OnOverlayPrev(object? sender, EventArgs e) { }
+
+    private void OnOverlayPlayPause(object? sender, EventArgs e)
+    {
+        var audio = MauiProgram.Services.GetService<IAudioPlayerService>();
+        _ = (audio?.IsPlaying == true ? audio.PauseAsync() : audio?.ResumeAsync());
+    }
+
+    private void OnOverlayNext(object? sender, EventArgs e) { }
+
+    private void OnOverlayLock(object? sender, EventArgs e) => ToggleLock();
+
+    private void OnOverlayClose(object? sender, EventArgs e) => Hide();
 
     private void ToggleLock() { S.DesktopLocked = !S.DesktopLocked; _overlay?.SetLocked(S.DesktopLocked); }
 
@@ -77,6 +172,8 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
         catch { }
     }
 
+    private void OnWindowHandlerChanged(object? sender, EventArgs e) => SetupWindow(sender, e);
+
     private void SetupWindow(object? sender, EventArgs e)
     {
 #if WINDOWS
@@ -86,7 +183,14 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(nativeWin);
             var wid = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(wid);
-            _appWindow = appWindow;
+
+            // AppWindow.Changed 订阅去重（HandlerChanged 与 Show 的显式调用可能重复进入）
+            if (!ReferenceEquals(_appWindow, appWindow))
+            {
+                if (_appWindow != null) _appWindow.Changed -= OnAppWindowChanged;
+                _appWindow = appWindow;
+                appWindow.Changed += OnAppWindowChanged;
+            }
             var scale = DesktopLyricNativeHelper.GetScaleAdjustment(nativeWin);
 
             // Standard presenter: disable min/max (only close stays)
@@ -151,7 +255,6 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
             var h = (int)(Math.Max(170, S.DesktopFontSize * (doubleLine ? 10.0 : 7.0)) * scale);
             appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32
             { X = work.X + (work.Width - w) / 2, Y = work.Y + (int)(work.Height * Math.Clamp(S.DesktopPosY, 0.1, 0.95)), Width = w, Height = h });
-            appWindow.Changed += (_, args) => { if (args.DidPositionChange) S.DesktopPosY = Math.Clamp((appWindow.Position.Y - work.Y) / (double)work.Height, 0.1, 0.95); };
 
             // 拖动由 DesktopLyricOverlay 的 PanGestureRecognizer 处理（背景区域拖拽），
             // 不使用 AppWindow.TitleBar.SetDragRectangles——该方法依赖 WS_CAPTION 标题栏，
@@ -164,11 +267,23 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
 #endif
     }
 
+    /// <summary>窗口位置变化 → 保存 Y 比例（命名 handler，可随 CleanupWindow 退订）</summary>
+    private void OnAppWindowChanged(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
+    {
+        if (!args.DidPositionChange) return;
+        try
+        {
+            var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            S.DesktopPosY = Math.Clamp((sender.Position.Y - work.Y) / (double)work.Height, 0.1, 0.95);
+        }
+        catch { }
+    }
+
     /// <summary>
     /// 延迟多轮深度清 MAUI 容器链背景（幂等）：MAUI 在 HandlerChanged 之后、布局完成时
     /// 才设置容器结构/样式，此时 Window.Content 树可能尚未完整构建。用 DispatcherQueueTimer
     /// 每 350ms 重做一次 MakeRootTransparent + ApplyLook（共 3 次），覆盖 MAUI 后续布局时机；
-    /// 鼠标位置由 Overlay 的光标轮询（120ms）独立维护。
+    /// 鼠标位置由 Overlay 的光标轮询（120ms）独立维护。timer 字段化，CleanupWindow 时停止。
     /// </summary>
     private void ScheduleTransparentRetry(Microsoft.UI.Xaml.Window nativeWin)
     {
@@ -176,21 +291,26 @@ public class WindowsDesktopLyricServiceV2 : IDesktopLyricService
         {
             var queue = nativeWin.DispatcherQueue;
             if (queue == null) return;
-            var timer = queue.CreateTimer();
-            timer.Interval = TimeSpan.FromMilliseconds(350);
-            timer.IsRepeating = true;
-            var clears = 0;
-            timer.Tick += (_, _) =>
-            {
-                try
-                {
-                    DesktopLyricNativeHelper.MakeRootTransparent(nativeWin);
-                    MainThread.BeginInvokeOnMainThread(ApplyLook);
-                    if (++clears >= 3) timer.Stop();
-                }
-                catch { }
-            };
-            timer.Start();
+            _transparentRetryTimer = queue.CreateTimer();
+            _transparentRetryTimer.Interval = TimeSpan.FromMilliseconds(350);
+            _transparentRetryTimer.IsRepeating = true;
+            _transparentRetryClears = 0;
+            _transparentRetryWindow = nativeWin;
+            _transparentRetryTimer.Tick += OnTransparentRetryTick;
+            _transparentRetryTimer.Start();
+        }
+        catch { }
+    }
+
+    private void OnTransparentRetryTick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object e)
+    {
+        try
+        {
+            var win = _transparentRetryWindow;
+            if (win == null) { sender.Stop(); return; }
+            DesktopLyricNativeHelper.MakeRootTransparent(win);
+            MainThread.BeginInvokeOnMainThread(ApplyLook);
+            if (++_transparentRetryClears >= 3) sender.Stop();
         }
         catch { }
     }

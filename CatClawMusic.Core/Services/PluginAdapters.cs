@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using CatClawMusic.Core.Interfaces;
@@ -101,6 +102,37 @@ internal static class PluginAdapterReflection
         }
         return result;
     }
+
+    /// <summary>反射方法缓存：(类型, 方法名, 参数签名) → MethodInfo。反射元数据对固定类型不变，
+    /// 旧版每次调用都执行 1~2 次 GetMethod；搜索返回 N 首歌时在线适配器每页做 O(N) 次反射查找。</summary>
+    private static readonly ConcurrentDictionary<(Type Type, string Name, string ParamSig), System.Reflection.MethodInfo?> _methodCache = new();
+
+    /// <summary>按名称查找方法（带缓存）。语义与旧的 GetMethod(name) 兜底一致：取第一个公共实例方法。</summary>
+    internal static System.Reflection.MethodInfo? FindMethodByName(Type type, string methodName)
+        => _methodCache.GetOrAdd((type, methodName, string.Empty),
+            static key => key.Type.GetMethod(key.Name, BindingFlags.Public | BindingFlags.Instance));
+
+    /// <summary>按缓存的 MethodInfo 调用（免重复 GetMethod）；未找到方法返回 null。
+    /// Task.Result 属性读取也按 Task 类型缓存。</summary>
+    internal static async Task<object?> InvokeAsyncMethod(object target, System.Reflection.MethodInfo? method, params object?[]? args)
+    {
+        if (method == null) return null;
+        var result = method.Invoke(target, args);
+        if (result is Task task)
+        {
+            await task;
+            var taskType = task.GetType();
+            if (taskType.IsGenericType)
+            {
+                var resultProp = _taskResultProps.GetOrAdd(taskType, static t => t.GetProperty("Result"));
+                return resultProp?.GetValue(task);
+            }
+            return null;
+        }
+        return result;
+    }
+
+    private static readonly ConcurrentDictionary<Type, System.Reflection.PropertyInfo?> _taskResultProps = new();
 }
 
     /// <summary>
@@ -597,17 +629,40 @@ internal class AudioEnhancerAdapter : BasicPluginAdapter, IAudioEnhancerPlugin
     /// </summary>
 internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
     {
+        // 反射元数据缓存：target 类型固定后不变，构造时查一次
+        // （搜索/取流/歌词是聚合器最高频路径，旧版每次调用 1~3 次 GetMethod + Task.Result GetProperty）
+        private readonly System.Reflection.PropertyInfo? _platformNameProp;
+        private readonly System.Reflection.MethodInfo? _searchMethod;
+        private readonly System.Reflection.MethodInfo? _getPlayUrlMethod;
+        private readonly System.Reflection.MethodInfo? _getLyricsMethod;
+        private readonly System.Reflection.MethodInfo? _getLyricsRomaMethod;
+        private readonly System.Reflection.MethodInfo? _getPlaylistsMethod;
+        private readonly System.Reflection.MethodInfo? _getPlaylistSongsMethod;
+        private readonly System.Reflection.MethodInfo? _privateFmMethod;
+        private readonly System.Reflection.MethodInfo? _dailyRecommendMethod;
+
         /// <summary>初始化在线音乐音源适配器</summary>
         /// <param name="target">要代理的目标在线音乐音源对象实例</param>
-        public OnlineMusicAdapter(object target) : base(target) { }
+        public OnlineMusicAdapter(object target) : base(target)
+        {
+            _platformNameProp = _targetType.GetProperty("PlatformName");
+            _searchMethod = PluginAdapterReflection.FindMethodByName(_targetType, "SearchAsync");
+            _getPlayUrlMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetPlayUrlAsync");
+            _getLyricsMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetLyricsAsync");
+            _getLyricsRomaMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetLyricsWithRomaAsync");
+            _getPlaylistsMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetPlaylistsAsync");
+            _getPlaylistSongsMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetPlaylistSongsAsync");
+            _privateFmMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetPrivateFmAsync");
+            _dailyRecommendMethod = PluginAdapterReflection.FindMethodByName(_targetType, "GetDailyRecommendAsync");
+        }
 
         /// <summary>来源平台标识，通过反射读取目标对象的 PlatformName 属性</summary>
-        public string PlatformName => (string?)_targetType.GetProperty("PlatformName")?.GetValue(_target) ?? "";
+        public string PlatformName => (string?)_platformNameProp?.GetValue(_target) ?? "";
 
         /// <summary>异步搜索歌曲</summary>
         public async Task<List<OnlineSong>?> SearchAsync(string keyword, int page = 1, int pageSize = 8)
         {
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "SearchAsync", keyword, page, pageSize);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _searchMethod, keyword, page, pageSize);
             if (result is List<OnlineSong> typed) return typed;
             if (result is System.Collections.IList list)
             {
@@ -625,34 +680,32 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取播放直链</summary>
         public async Task<string?> GetPlayUrlAsync(OnlineSong song, int quality = 0)
         {
-            var method = _targetType.GetMethod("GetPlayUrlAsync");
-            if (method == null) return null;
+            if (_getPlayUrlMethod == null) return null;
 
-            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            var paramType = _getPlayUrlMethod.GetParameters().FirstOrDefault()?.ParameterType;
             object?[]? invokeArgs;
             if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
                 invokeArgs = new[] { PluginAdapterReflection.ConvertType(song, paramType), quality };
             else
                 invokeArgs = new object?[] { song, quality };
 
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetPlayUrlAsync", invokeArgs);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _getPlayUrlMethod, invokeArgs);
             return result as string;
         }
 
         /// <summary>异步获取歌词（LRC 原文 + 翻译）</summary>
         public async Task<(string? Lrc, string? TLrc)?> GetLyricsAsync(OnlineSong song)
         {
-            var method = _targetType.GetMethod("GetLyricsAsync");
-            if (method == null) return null;
+            if (_getLyricsMethod == null) return null;
 
-            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            var paramType = _getLyricsMethod.GetParameters().FirstOrDefault()?.ParameterType;
             object?[]? invokeArgs;
             if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
                 invokeArgs = new[] { PluginAdapterReflection.ConvertType(song, paramType) };
             else
                 invokeArgs = new object?[] { song };
 
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetLyricsAsync", invokeArgs);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _getLyricsMethod, invokeArgs);
             if (result == null) return null;
 
             string? lrc = null, tlrrc = null;
@@ -681,17 +734,16 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取歌词（含罗马音）。目标插件未实现 GetLyricsWithRomaAsync 时返回 null。</summary>
         public async Task<(string? Lrc, string? TLrc, string? RLrc)?> GetLyricsWithRomaAsync(OnlineSong song)
         {
-            var method = _targetType.GetMethod("GetLyricsWithRomaAsync");
-            if (method == null) return null; // 旧插件无此方法：返回 null，宿主回退 GetLyricsAsync
+            if (_getLyricsRomaMethod == null) return null; // 旧插件无此方法：返回 null，宿主回退 GetLyricsAsync
 
-            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            var paramType = _getLyricsRomaMethod.GetParameters().FirstOrDefault()?.ParameterType;
             object?[]? invokeArgs;
             if (paramType != null && paramType.FullName == typeof(OnlineSong).FullName)
                 invokeArgs = new[] { PluginAdapterReflection.ConvertType(song, paramType) };
             else
                 invokeArgs = new object?[] { song };
 
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetLyricsWithRomaAsync", invokeArgs);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _getLyricsRomaMethod, invokeArgs);
             if (result == null) return null;
 
             string? lrc = null, tlrc = null, rlrc = null;
@@ -713,7 +765,7 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取歌单列表</summary>
         public async Task<List<OnlinePlaylist>> GetPlaylistsAsync(string? category = null)
         {
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetPlaylistsAsync", category);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _getPlaylistsMethod, category);
             if (result is List<OnlinePlaylist> typed) return typed;
             if (result is System.Collections.IList list)
             {
@@ -731,17 +783,16 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取歌单内歌曲</summary>
         public async Task<List<OnlineSong>?> GetPlaylistSongsAsync(OnlinePlaylist playlist, int page = 1, int pageSize = 50)
         {
-            var method = _targetType.GetMethod("GetPlaylistSongsAsync");
-            if (method == null) return null;
+            if (_getPlaylistSongsMethod == null) return null;
 
-            var paramType = method.GetParameters().FirstOrDefault()?.ParameterType;
+            var paramType = _getPlaylistSongsMethod.GetParameters().FirstOrDefault()?.ParameterType;
             object?[]? invokeArgs;
             if (paramType != null && paramType.FullName == typeof(OnlinePlaylist).FullName)
                 invokeArgs = new[] { PluginAdapterReflection.ConvertType(playlist, paramType), page, pageSize };
             else
                 invokeArgs = new object?[] { playlist, page, pageSize };
 
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetPlaylistSongsAsync", invokeArgs);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _getPlaylistSongsMethod, invokeArgs);
             if (result is List<OnlineSong> typed) return typed;
             if (result is System.Collections.IList list)
             {
@@ -759,7 +810,7 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取私人漫游（随机推荐）</summary>
         public async Task<List<OnlineSong>?> GetPrivateFmAsync(int num = 10)
         {
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetPrivateFmAsync", num);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _privateFmMethod, num);
             if (result is List<OnlineSong> typed) return typed;
             if (result is System.Collections.IList list)
             {
@@ -777,7 +828,7 @@ internal class OnlineMusicAdapter : BasicPluginAdapter, IOnlineMusicPlugin
         /// <summary>异步获取每日推荐歌曲</summary>
         public async Task<List<OnlineSong>?> GetDailyRecommendAsync(int num = 20)
         {
-            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, "GetDailyRecommendAsync", num);
+            var result = await PluginAdapterReflection.InvokeAsyncMethod(_target, _dailyRecommendMethod, num);
             if (result is List<OnlineSong> typed) return typed;
             if (result is System.Collections.IList list)
             {

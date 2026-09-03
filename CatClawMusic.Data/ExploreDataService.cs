@@ -127,10 +127,9 @@ public class ExploreDataService
             return diskCache;
         }
 
-        // 生成新的推荐
+        // 生成新的推荐（partial Fisher-Yates 抽样，替代全量随机排序）
         var allSongs = await GetFilteredSongsAsync().ConfigureAwait(false);
-        var random = new Random();
-        var shuffled = allSongs.OrderBy(_ => random.Next()).Take(20).ToList();
+        var shuffled = RandomSampler.Sample(allSongs, 20);
 
         _dailyRecommendCache = shuffled;
         _dailyRecommendDate = today;
@@ -266,9 +265,8 @@ public class ExploreDataService
             }
         }
 
-        // 随机选10个
-        var random = new Random();
-        var selected = allArtists.OrderBy(_ => random.Next()).Take(10).ToList();
+        // 随机选10个（partial Fisher-Yates 抽样）
+        var selected = RandomSampler.Sample(allArtists, 10);
         _dailyArtistsCache = selected;
 
         // 保存到磁盘缓存（合并到同一个 JSON 文件）
@@ -355,9 +353,8 @@ public class ExploreDataService
             }
         }
 
-        // 随机选10个
-        var random = new Random();
-        var selected = allAlbums.OrderBy(_ => random.Next()).Take(10).ToList();
+        // 随机选10个（partial Fisher-Yates 抽样）
+        var selected = RandomSampler.Sample(allAlbums, 10);
         _dailyAlbumsCache = selected;
 
         // 保存到磁盘缓存

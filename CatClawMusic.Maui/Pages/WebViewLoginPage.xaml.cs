@@ -100,7 +100,8 @@ public partial class WebViewLoginPage : ContentPage
         _cookieTimer = Dispatcher.CreateTimer();
         _cookieTimer.Interval = TimeSpan.FromMilliseconds(1500);
         _cookieTimer.IsRepeating = true;
-        _cookieTimer.Tick += async (_, _) => await CheckLoginByCookieAsync();
+        // 命名 handler：确保订阅/退订是同一委托实例（匿名 lambda 两次创建是不同实例，-= 不生效）
+        _cookieTimer.Tick += OnCookieTimerTick;
         _cookieTimer.Start();
     }
 
@@ -108,8 +109,18 @@ public partial class WebViewLoginPage : ContentPage
     {
         if (_cookieTimer == null) return;
         _cookieTimer.Stop();
-        _cookieTimer.Tick -= async (_, _) => await CheckLoginByCookieAsync();
+        _cookieTimer.Tick -= OnCookieTimerTick;
         _cookieTimer = null;
+    }
+
+    /// <summary>轮询防重入：单次 Cookie 提取超过 1.5s 时跳过本次 Tick，避免堆积并发 WebView 调用</summary>
+    private bool _cookieCheckRunning;
+    private async void OnCookieTimerTick(object? sender, EventArgs e)
+    {
+        if (_cookieCheckRunning) return;
+        _cookieCheckRunning = true;
+        try { await CheckLoginByCookieAsync(); }
+        finally { _cookieCheckRunning = false; }
     }
 
     /// <summary>轮询检查：指定域名的 Cookie 已包含全部成功标识（如 MUSIC_U）即完成登录。

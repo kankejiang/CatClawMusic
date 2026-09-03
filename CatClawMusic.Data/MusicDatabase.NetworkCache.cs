@@ -171,6 +171,16 @@ public partial class MusicDatabase
         return songs;
     }
 
+    /// <summary>获取指定来源中缺元数据的歌曲（Duration 缺失或未建立艺术家关联）。
+    /// 性能：SQL 直接筛选，替代调用方"GetCachedNetworkSongsAsync 全量加载 + 详情填充后再过滤"。</summary>
+    public async Task<List<Song>> GetNetworkSongsMissingMetadataAsync(SongSource source)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        // Artist 是运行时字段：库中"未知艺术家"的判定依据是 ArtistId=0（扫描时未建关联）
+        return await _database.QueryAsync<Song>(
+            "SELECT * FROM Songs WHERE Source = ? AND (Duration <= 0 OR ArtistId = 0)", (int)source);
+    }
+
     /// <summary>缓存网络歌曲数量（WebDAV/SMB/Cache）</summary>
     /// <returns>网络歌曲总数</returns>
     public async Task<int> GetCachedNetworkSongCountAsync()
@@ -217,7 +227,9 @@ public partial class MusicDatabase
     }
 
     /// <summary>
-    /// 在重新扫描后恢复网络歌曲的收藏状态
+    /// 在重新扫描后恢复网络歌曲的收藏状态。
+    /// 性能：RemoteId→Song 用字典 O(1) 匹配（旧版对每条收藏线性扫全表 O(F×S)），
+    /// 已收藏集合一次查出，缺失收藏单事务批量插入（旧版逐条 COUNT + INSERT 最多 2F 次往返）。
     /// </summary>
     public async Task RestoreNetworkFavoritesAsync()
     {
@@ -227,22 +239,37 @@ public partial class MusicDatabase
         var newNetworkSongs = await _database.Table<Song>()
             .Where(s => s.Source == SongSource.WebDAV || s.Source == SongSource.SMB)
             .ToListAsync();
+        var songByRemoteId = new Dictionary<string, Song>(StringComparer.Ordinal);
+        foreach (var s in newNetworkSongs)
+        {
+            if (!string.IsNullOrEmpty(s.RemoteId) && !songByRemoteId.ContainsKey(s.RemoteId))
+                songByRemoteId[s.RemoteId] = s;
+        }
 
+        // 一次查出全部已收藏 SongId，避免逐条 COUNT
+        var existingFavIds = (await _database.Table<Favorite>().ToListAsync())
+            .Select(f => f.SongId)
+            .ToHashSet();
+
+        var toInsert = new List<Favorite>();
         foreach (var kv in _pendingNetworkFavs)
         {
-            var newMatch = newNetworkSongs.FirstOrDefault(s => s.RemoteId == kv.Key);
-            if (newMatch != null)
-            {
-                try
-                {
-                    var existing = await _database.Table<Favorite>()
-                        .Where(f => f.SongId == newMatch.Id).CountAsync();
-                    if (existing == 0)
-                        await _database.InsertAsync(new Favorite { SongId = newMatch.Id, AddedAt = kv.Value });
-                }
-                catch { }
-            }
+            if (!songByRemoteId.TryGetValue(kv.Key, out var match)) continue;
+            if (existingFavIds.Contains(match.Id)) continue;
+            var fav = new Favorite { SongId = match.Id, AddedAt = kv.Value };
+            toInsert.Add(fav);
+            existingFavIds.Add(match.Id); // 同批去重
         }
+
+        if (toInsert.Count > 0)
+        {
+            await _database.RunInTransactionAsync(tran =>
+            {
+                foreach (var fav in toInsert)
+                    tran.Insert(fav);
+            });
+        }
+
         _pendingNetworkFavs.Clear();
     }
 

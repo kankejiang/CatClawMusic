@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using CatClawMusic.Core.Interfaces;
@@ -20,6 +21,9 @@ public class FFmpegService : IDisposable, ILoudnessAnalyzer
     /// <summary>缓存键与文件路径的内存映射，避免每次都遍历目录</summary>
     private static readonly Dictionary<string, string> _cacheMap = new();
     private static readonly object _cacheMapLock = new();
+    /// <summary>同 key 转码 single-flight：EQ 调整/切歌/失败回退可能并发请求同一首歌，
+    /// 合并为一次 FFmpeg 进程，避免重复解码与两个进程 -y 覆盖同一输出文件的竞态</summary>
+    private static readonly ConcurrentDictionary<string, Lazy<Task<string?>>> _transcodeInFlight = new();
 
     static FFmpegService()
     {
@@ -190,15 +194,48 @@ public class FFmpegService : IDisposable, ILoudnessAnalyzer
             return cachedPath;
         }
 
+        // single-flight：同 key 并发请求共享同一次转码；调用方各自的 ct 只取消自己的等待，
+        // 共享转码由 RunFFmpegAsync 内部的 2 分钟超时兜底
+        var lazy = _transcodeInFlight.GetOrAdd(cacheKey,
+            _ => new Lazy<Task<string?>>(() => TranscodeCoreAsync(inputPath, audioFilter, cacheKey)));
+        try
+        {
+            return await lazy.Value.WaitAsync(ct);
+        }
+        finally
+        {
+            if (lazy.Value.IsCompleted)
+                ((ICollection<KeyValuePair<string, Lazy<Task<string?>>>>)_transcodeInFlight)
+                    .Remove(new KeyValuePair<string, Lazy<Task<string?>>>(cacheKey, lazy));
+        }
+    }
+
+    /// <summary>实际执行转码：先写 .tmp 临时文件，成功后原子改名提交到缓存路径</summary>
+    private async Task<string?> TranscodeCoreAsync(string inputPath, string? audioFilter, string cacheKey)
+    {
         var outputPath = Path.Combine(WavCacheDir, $"cc_ff_{cacheKey}.wav");
+        var tmpPath = outputPath + ".tmp";
 
         var afPart = string.IsNullOrEmpty(audioFilter) ? "" : $" -af \"{audioFilter}\"";
-        var args = $"-y -i \"{inputPath}\"{afPart} -acodec pcm_s16le -ar 44100 -ac 2 \"{outputPath}\"";
-        var result = await RunFFmpegAsync(args, ct);
+        var args = $"-y -i \"{inputPath}\"{afPart} -acodec pcm_s16le -ar 44100 -ac 2 \"{tmpPath}\"";
+        var result = await RunFFmpegAsync(args, CancellationToken.None);
 
-        if (!result || !File.Exists(outputPath) || new FileInfo(outputPath).Length < 1024)
+        if (!result || !File.Exists(tmpPath) || new FileInfo(tmpPath).Length < 1024)
+        {
+            SafeDelete(tmpPath);
+            return null;
+        }
+
+        // 原子提交：播放端永远不会打开写到一半的缓存文件
+        try
         {
             SafeDelete(outputPath);
+            File.Move(tmpPath, outputPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("FFmpegService", $"[FFmpeg] 缓存提交失败: {ex.Message}");
+            SafeDelete(tmpPath);
             return null;
         }
 
@@ -243,13 +280,26 @@ public class FFmpegService : IDisposable, ILoudnessAnalyzer
         path = null;
         lock (_cacheMapLock)
         {
-            if (!_cacheMap.TryGetValue(cacheKey, out var p) || p == null) return false;
-            if (!File.Exists(p))
+            if (_cacheMap.TryGetValue(cacheKey, out var p) && p != null && File.Exists(p))
             {
-                _cacheMap.Remove(cacheKey);
-                return false;
+                path = p;
             }
-            path = p;
+            else
+            {
+                // 进程重启后 _cacheMap 为空：按 key 回退探测磁盘（key 已含 mtime/size 指纹），
+                // 命中则回填映射，避免把已转码文件整首重转一遍
+                var candidate = Path.Combine(WavCacheDir, $"cc_ff_{cacheKey}.wav");
+                if (File.Exists(candidate))
+                {
+                    _cacheMap[cacheKey] = candidate;
+                    path = candidate;
+                }
+                else
+                {
+                    _cacheMap.Remove(cacheKey);
+                    return false;
+                }
+            }
         }
         // 更新访问时间，LRU 清理依据
         try { File.SetLastAccessTimeUtc(path, DateTime.UtcNow); } catch { }

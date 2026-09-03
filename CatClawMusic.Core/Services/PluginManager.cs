@@ -281,32 +281,52 @@ public class PluginManager : IPluginManager
         _setPrefFunc($"plugin_enabled_{pluginTypeId}", enabled);
     }
 
+    /// <summary>单个插件初始化超时：网络型插件（会话恢复/Cookie 校验）挂起时不再拖住全部插件就绪</summary>
+    private static readonly TimeSpan PluginInitTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>主插件初始化并发度：插件间通常无依赖，受控并行显著缩短总就绪时间；
+    /// 旧版完全串行，总耗时 = Σ(每个插件初始化耗时)，一个慢插件会拖延其后的所有插件。</summary>
+    private const int InitParallelism = 4;
+
     /// <summary>
     /// 异步初始化所有已启用的插件。
     /// <para>
-    /// 依次调用每个已启用主插件和子插件的 InitializeAsync 方法。
-    /// 若某个插件初始化失败，将自动将其设为禁用状态（主插件）或静默忽略（子插件）。
+    /// 主插件受控并发初始化（并发 4，单个 10s 超时），每个主插件就绪后其子插件再并行初始化。
+    /// 若某个主插件初始化失败/超时，将自动将其设为禁用状态（子插件静默忽略）。
     /// </para>
     /// </summary>
     public async Task InitializeAllAsync()
     {
-        foreach (var info in _plugins.Where(p => p.IsEnabled))
+        var enabled = _plugins.Where(p => p.IsEnabled).ToList();
+        using var gate = new SemaphoreSlim(InitParallelism, InitParallelism);
+        var tasks = enabled.Select(async info =>
         {
+            await gate.WaitAsync().ConfigureAwait(false);
             try
             {
-                await info.Plugin.InitializeAsync();
+                try
+                {
+                    await info.Plugin.InitializeAsync().WaitAsync(PluginInitTimeout).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // 主插件初始化失败/超时则自动禁用
+                    info.IsEnabled = false;
+                    return;
+                }
+                foreach (var sub in info.SubPlugins)
+                {
+                    // 子插件初始化失败/超时则静默忽略
+                    try { await sub.InitializeAsync().WaitAsync(PluginInitTimeout).ConfigureAwait(false); }
+                    catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
+                }
             }
-            catch
+            finally
             {
-                // 主插件初始化失败则自动禁用
-                info.IsEnabled = false;
+                gate.Release();
             }
-            foreach (var sub in info.SubPlugins)
-            {
-                // 子插件初始化失败则静默忽略
-                try { await sub.InitializeAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
-            }
-        }
+        }).ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -614,13 +634,16 @@ public class PluginManager : IPluginManager
 
         _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
 
-        // 异步初始化主插件和子插件
+        // 异步初始化主插件和子插件（保持 await：安装 UI 返回时插件已就绪；
+        // 加 10s 超时防单个慢插件卡死安装流程，失败不阻断索引保存）
         if (info.IsEnabled)
         {
-            await primary.InitializeAsync();
+            try { await primary.InitializeAsync().WaitAsync(PluginInitTimeout).ConfigureAwait(false); }
+            catch (Exception ex) { Log.Debug("PluginManager", $"主插件安装初始化失败: {ex.Message}"); }
             foreach (var sub in info.SubPlugins)
             {
-                try { await sub.InitializeAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
+                try { await sub.InitializeAsync().WaitAsync(PluginInitTimeout).ConfigureAwait(false); }
+                catch (Exception ex) { Log.Debug("PluginManager", $"子插件初始化失败: {ex.Message}"); }
             }
         }
 

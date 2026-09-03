@@ -25,7 +25,8 @@ public class Song : INotifyPropertyChanged
     [Indexed]
     public int AlbumId { get; set; }
 
-    /// <summary>时长（毫秒）</summary>
+    /// <summary>时长（秒）。契约：TagReader 写入 TotalSeconds，播放器回填亦为秒；
+    /// UI 层展示时自行 ×1000 或格式化，统计层（RecalibratePlayCounts 等）按秒参与阈值计算。</summary>
     public int Duration { get; set; }
 
     /// <summary>文件路径</summary>

@@ -71,14 +71,16 @@ public class AudioCacheService
     public bool IsCached(string remoteUrl) => GetCachedPath(remoteUrl) != null;
 
     /// <summary>
-    /// 将远程音频文件下载到本地缓存。如果已在缓存中则直接返回路径。
-    /// 如果同一 URL 正在下载中，会等待已有的下载完成。
+    /// 将远程音频文件流式下载到本地缓存。如果已在缓存中则直接返回路径。
+    /// 如果同一 URL 正在下载中，会等待已有的下载完成（single-flight，不会重复下载）。
+    /// 流式写入 .part 临时文件，成功后原子改名提交——全程不把整首歌驻留内存，
+    /// 播放端也永远不会读到写到一半的缓存文件。
     /// </summary>
     /// <param name="remoteUrl">远程音频 URL（smb://、http:// 等）</param>
-    /// <param name="downloadFunc">下载委托：接收 URL，返回包含音频数据的 byte[]</param>
-    /// <param name="ct">取消令牌</param>
+    /// <param name="downloadFunc">下载委托：接收 URL 与取消令牌，返回音频内容流（调用方负责其生命周期）</param>
+    /// <param name="ct">取消令牌（仅取消当前调用者的等待，共享下载由首个调用者的令牌控制）</param>
     /// <returns>本地缓存文件路径，失败返回 null</returns>
-    public async Task<string?> CacheAsync(string remoteUrl, Func<string, Task<byte[]?>> downloadFunc, CancellationToken ct = default)
+    public async Task<string?> CacheAsync(string remoteUrl, Func<string, CancellationToken, Task<Stream?>> downloadFunc, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(remoteUrl)) return null;
 
@@ -86,47 +88,75 @@ public class AudioCacheService
         var cached = GetCachedPath(remoteUrl);
         if (cached != null) return cached;
 
-        // 正在下载中，等待
-        if (_pendingDownloads.TryGetValue(remoteUrl, out var pendingTask))
-            return await pendingTask.ConfigureAwait(false);
+        // single-flight：GetOrAdd 原子占位（旧版"先查再写"三步之间存在并发重复下载窗口）
+        var downloadTask = _pendingDownloads.GetOrAdd(
+            remoteUrl,
+            static (_, state) => DownloadAndCacheAsync(state.url, state.func, state.ct),
+            (url: remoteUrl, func: downloadFunc, ct));
 
-        // 开始下载
-        var tcs = new TaskCompletionSource<string?>();
-        _pendingDownloads[remoteUrl] = tcs.Task;
+        // 等待者用自己的 ct 取消等待即可，不取消共享下载
+        return await downloadTask.WaitAsync(ct).ConfigureAwait(false);
+    }
 
+    /// <summary>实际执行下载与落盘（同一 URL 只有一个实例在跑）</summary>
+    private static async Task<string?> DownloadAndCacheAsync(
+        string remoteUrl, Func<string, CancellationToken, Task<Stream?>> downloadFunc, CancellationToken ct)
+    {
+        var instance = Instance;
+        var fileName = GetCacheFileName(remoteUrl);
+        var filePath = Path.Combine(instance._cacheDir, fileName);
+        var partPath = filePath + ".part";
         try
         {
-            var data = await Task.Run(() => downloadFunc(remoteUrl), ct).ConfigureAwait(false);
-            if (data == null || data.Length == 0)
+            await using (var output = new FileStream(partPath, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024, useAsync: true))
             {
-                tcs.TrySetResult(null);
+                await using var stream = await downloadFunc(remoteUrl, ct).ConfigureAwait(false);
+                if (stream == null) return null;
+                await stream.CopyToAsync(output, ct).ConfigureAwait(false);
+                await output.FlushAsync(ct).ConfigureAwait(false);
+            }
+
+            var written = new FileInfo(partPath).Length;
+            if (written == 0)
+            {
+                SafeDelete(partPath);
                 return null;
             }
 
-            var fileName = GetCacheFileName(remoteUrl);
-            var filePath = Path.Combine(_cacheDir, fileName);
+            // 原子提交；覆盖旧缓存时先扣减旧长度，保证 _cacheSizeBytes 不虚高
+            try
+            {
+                if (File.Exists(filePath))
+                    Interlocked.Add(ref instance._cacheSizeBytes, -new FileInfo(filePath).Length);
+            }
+            catch { }
+            File.Move(partPath, filePath, overwrite: true);
+            Interlocked.Add(ref instance._cacheSizeBytes, written);
 
-            await File.WriteAllBytesAsync(filePath, data, ct).ConfigureAwait(false);
-            Interlocked.Add(ref _cacheSizeBytes, data.Length);
-
-            _urlToPath[remoteUrl] = filePath;
-            tcs.TrySetResult(filePath);
-
-            // 后台淘汰
-            _ = Task.Run(EvictIfNeededAsync);
-
+            instance._urlToPath[remoteUrl] = filePath;
+            _ = Task.Run(instance.EvictIfNeededAsync);
             return filePath;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
         }
         catch (Exception ex)
         {
             Log.Debug("AudioCacheService", $"[AudioCache] 缓存失败: {remoteUrl[..Math.Min(60, remoteUrl.Length)]}, {ex.Message}");
-            tcs.TrySetResult(null);
             return null;
         }
         finally
         {
-            _pendingDownloads.TryRemove(remoteUrl, out _);
+            // 提交成功后 part 已不存在（Move 走了），失败/取消时清掉半截文件
+            SafeDelete(partPath);
+            instance._pendingDownloads.TryRemove(remoteUrl, out _);
         }
+    }
+
+    private static void SafeDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
     /// <summary>

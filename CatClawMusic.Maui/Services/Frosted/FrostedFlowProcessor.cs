@@ -64,8 +64,10 @@ public static class FrostedFlowProcessor
         float pointOffset = preset.PointOffset;
         var points = preset.Points;
 
-        // 光点先逐点做圆周漂移（一次算好，供逐像素复用）
-        var px4 = new float[4]; var py4 = new float[4]; var pr4 = new float[4];
+        // 光点先逐点做圆周漂移（一次算好，供逐像素复用；栈分配避免每帧 3 个小数组）
+        Span<float> px4 = stackalloc float[4];
+        Span<float> py4 = stackalloc float[4];
+        Span<float> pr4 = stackalloc float[4];
         for (int i = 0; i < 4; i++)
         {
             float ox = points[i * 3];

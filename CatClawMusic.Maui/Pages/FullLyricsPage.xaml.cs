@@ -391,10 +391,13 @@ public partial class FullLyricsPage : ContentPage
             // 重载封面确保高分辨率
             _ = ReloadCoverHighResAsync(LandscapeCoverImage);
 
-            // 如果横屏歌词还没构建，立即构建
-            if (_landscapeLyricLabels.Count == 0 && _viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)
+            // 横屏歌词树：未构建 / 已过期（主题或歌词变更只重建了另一方向）/ 行数不一致 → 懒构建
+            var linesCountLandscape = _viewModel.AllLyricLines?.Count ?? 0;
+            if (_landscapeLyricLabels.Count == 0 || _inactiveTreeDirty ||
+                (linesCountLandscape > 0 && _landscapeLyricLabels.Count != linesCountLandscape))
             {
                 BuildLandscapeLyricViews();
+                _inactiveTreeDirty = false;
             }
 
             if (orientationChanged)
@@ -414,6 +417,15 @@ public partial class FullLyricsPage : ContentPage
             LandscapeContent.IsVisible = false;
             PortraitContent.IsVisible = true;
             ApplySafeArea();
+
+            // 竖屏歌词树：未构建 / 已过期 / 行数不一致 → 懒构建（与横屏对称）
+            var linesCountPortrait = _viewModel.AllLyricLines?.Count ?? 0;
+            if (_lyricLabels.Count == 0 || _inactiveTreeDirty ||
+                (linesCountPortrait > 0 && _lyricLabels.Count != linesCountPortrait))
+            {
+                BuildPortraitLyricViews();
+                _inactiveTreeDirty = false;
+            }
 
             if (orientationChanged)
             {

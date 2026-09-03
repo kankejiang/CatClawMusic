@@ -103,16 +103,36 @@ public static class CoverFlowProcessor
         return new CoverSource { Argb = outPx, Width = tw, Height = th };
     }
 
-    /// <summary>渲染一帧封面流到目标低分辨率画布(outW×outH)。accentArgb=封面强调色(0xRRGGBB，缺省 0)；isDark=深色预设。</summary>
+    // ===== 过饱和源缓存（按 CoverSource 实例引用识别；换歌才重算）=====
+    private static readonly object _satGate = new();
+    private static CoverSource _satSrc;
+    private static int[]? _satPixels;
+
+    private static int[] GetSaturatedSource(CoverSource src)
+    {
+        lock (_satGate)
+        {
+            if (_satPixels == null || !ReferenceEquals(_satSrc.Argb, src.Argb) || _satSrc.Width != src.Width)
+            {
+                int n = src.Width * src.Height;
+                var s = new int[n];
+                for (int i = 0; i < n; i++) s[i] = ApplySaturation(src.Argb[i], Saturation);
+                _satPixels = s;
+                _satSrc = src;
+            }
+            return _satPixels;
+        }
+    }
+
+    /// <summary>渲染一帧封面流到目标低分辨率画布(outW×outH)。accentArgb=封面强调色(0xRRGGBB，缺省 0)；isDark=深色预设。
+    /// 性能：过饱和源按 CoverSource 实例缓存（换歌才重算）——旧版每帧（8fps）都对整张源图重做过饱和。</summary>
     public static CoverFrame Render(CoverSource src, int outW, int outH, long timeMs,
         int densityDpi, float blur, int accentArgb, bool isDark)
     {
         if (src.IsEmpty || outW <= 0 || outH <= 0) return default;
 
-        // 1) 过饱和源（只算一次每曲）
-        int n = src.Width * src.Height;
-        var sat = new int[n];
-        for (int i = 0; i < n; i++) sat[i] = ApplySaturation(src.Argb[i], Saturation);
+        // 1) 过饱和源（同一封面源只算一次，跨页面/跨帧共享；数组此后只读，可安全共享）
+        var sat = GetSaturatedSource(src);
 
         // 2) 工作画布 = 目标画布 * 外扩（旋转不露边）
         int workW = Math.Max(1, (int)Math.Round(outW * Overscan));
@@ -189,7 +209,9 @@ public static class CoverFlowProcessor
         double det = F.a * F.e - F.b * F.d;
         if (Math.Abs(det) < 1e-9) return;
 
-        var satArgb = (int[])sat.Clone(); // 局部引用避免改到共享
+        // 读取饱和源（不写：DrawLayer 的采样循环只读 sat，无需逐层 Clone 出副本——
+        // 旧版每帧 3 层 × 整张源图 数组克隆是纯浪费的 GC 压力）
+        var satArgb = sat;
         var sh = (double)src.Height;
         var sw = (double)src.Width;
         var stride = src.Width;

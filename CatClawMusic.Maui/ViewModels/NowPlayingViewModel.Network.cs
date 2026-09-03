@@ -17,21 +17,28 @@ public partial class NowPlayingViewModel
         {
             Log.Debug("AppViewModels", $"[PreBuffer] 开始预缓冲: {nextSong.Title}");
 
-            // 1. 下载音频到本地缓存（仅网络歌曲）
+            // 1. 下载音频到本地缓存（仅网络歌曲）——流式落盘,不再整首进内存
             if (nextSong.Source != SongSource.Local && !AudioCacheService.Instance.IsCached(nextSong.FilePath))
             {
                 await AudioCacheService.Instance.CacheAsync(
                     nextSong.FilePath,
-                    async url =>
+                    async (url, token) =>
                     {
                         // 通过 URL 转换器获取可下载的 HTTP URL
                         var proxyUrl = AudioPlayerService.UrlTransformer?.Invoke(url);
                         if (string.IsNullOrEmpty(proxyUrl)) return null;
+                        HttpResponseMessage? resp = null;
                         try
                         {
-                            return await SharedHttpClient.GetByteArrayAsync(proxyUrl);
+                            resp = await SharedHttpClient.GetAsync(proxyUrl, HttpCompletionOption.ResponseHeadersRead, token);
+                            resp.EnsureSuccessStatusCode();
+                            return await resp.Content.ReadAsStreamAsync(token);
                         }
-                        catch { return null; }
+                        catch
+                        {
+                            resp?.Dispose();
+                            return null;
+                        }
                     });
             }
 
@@ -152,9 +159,20 @@ public partial class NowPlayingViewModel
         {
             var localPath = await AudioCacheService.Instance.CacheAsync(
                 song.FilePath,
-                async url =>
+                async (url, token) =>
                 {
-                    return await CacheHttpClient.GetByteArrayAsync(downloadUrl, ct);
+                    HttpResponseMessage? resp = null;
+                    try
+                    {
+                        resp = await CacheHttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, token);
+                        resp.EnsureSuccessStatusCode();
+                        return await resp.Content.ReadAsStreamAsync(token);
+                    }
+                    catch
+                    {
+                        resp?.Dispose();
+                        return null;
+                    }
                 },
                 ct);
             Log.Debug("AppViewModels", $"[Resolve] 缓存完成: {song.Title}, {(localPath != null ? "成功" : "失败")}");

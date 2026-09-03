@@ -77,7 +77,10 @@ public class MusicLibraryService : IMusicLibraryService
                         {
                             if (seenPaths.Add(path))
                             {
-                                var song = TagReader.ReadSongInfo(path);
+                                // readDuration:false:与 LocalScanService 快路径对齐——TagLib 读 Duration
+                                // 需要全文件 IO(VBR mp3/FLAC),1000 首大文件会 IO 饱和;
+                                // 时长由启动 30s 延迟回填(TriggerDurationBackfill)与播放时回填补齐
+                                var song = TagReader.ReadSongInfo(path, readDuration: false);
                                 if (song != null) allSongs.Add(song);
                             }
                         }

@@ -139,43 +139,33 @@ public static class MusicUtility
         var exactXml = Path.Combine(dir, name + ".xml");
         if (File.Exists(exactXml)) return exactXml;
 
-        // 模糊匹配 song*.lrc
+        // 模糊匹配 song*.{lrc,ttml,xml}：单次目录枚举（旧版按扩展名三次 GetFiles，
+        // 每次歌词未命中都要重复枚举同一目录；切歌/重开详情页时反复发生）。
+        // 优先级与旧版一致：任意 .lrc 命中 > .ttml > .xml。
+        string? matchLrc = null, matchTtml = null, matchXml = null;
         try
         {
-            foreach (var f in Directory.GetFiles(dir, "*.lrc"))
+            foreach (var f in Directory.EnumerateFiles(dir))
             {
-                var lrcName = Path.GetFileNameWithoutExtension(f);
-                if (lrcName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
-                    return f;
+                var ext = Path.GetExtension(f);
+                var isLrc = ext.Equals(".lrc", StringComparison.OrdinalIgnoreCase);
+                var isTtml = !isLrc && ext.Equals(".ttml", StringComparison.OrdinalIgnoreCase);
+                var isXml = !isLrc && !isTtml && ext.Equals(".xml", StringComparison.OrdinalIgnoreCase);
+                if (!isLrc && !isTtml && !isXml) continue;
+
+                var fileName = Path.GetFileNameWithoutExtension(f);
+                if (!fileName.StartsWith(name, StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (isLrc) { matchLrc = f; break; }          // .lrc 优先级最高，命中即返回
+                if (isTtml) matchTtml ??= f;
+                else if (isXml) matchXml ??= f;
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 lrc 歌词文件失败: {ex.Message}"); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配歌词文件失败: {ex.Message}"); }
 
-        // 模糊匹配 song*.ttml
-        try
-        {
-            foreach (var f in Directory.GetFiles(dir, "*.ttml"))
-            {
-                var ttmlName = Path.GetFileNameWithoutExtension(f);
-                if (ttmlName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
-                    return f;
-            }
-        }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 ttml 歌词文件失败: {ex.Message}"); }
-
-        // 模糊匹配 song*.xml（可能是 TTML）
-        try
-        {
-            foreach (var f in Directory.GetFiles(dir, "*.xml"))
-            {
-                var xmlName = Path.GetFileNameWithoutExtension(f);
-                if (xmlName.StartsWith(name, StringComparison.OrdinalIgnoreCase))
-                    return f;
-            }
-        }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"模糊匹配 xml 歌词文件失败: {ex.Message}"); }
-
-        return null;
+        if (matchLrc != null) return matchLrc;
+        if (matchTtml != null) return matchTtml;
+        return matchXml;
     }
 
     /// <summary>

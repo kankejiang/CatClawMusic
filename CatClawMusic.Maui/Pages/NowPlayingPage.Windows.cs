@@ -34,6 +34,14 @@ public partial class NowPlayingPage
     private double _winLastScrollHeight;   // 兼容字段（已被静态堆叠实测高度替代，无读取方）
     private int _winMeasureRetries;        // 行高测量重试计数（布局未就绪时补偿）
 
+    /// <summary>滚动 tween 的动画键（精确取消；不用 CancelAnimations——它会无差别掐断本元素上所有动画）。
+    /// 实现用显式 Animation.Commit 平移而非 TranslateTo：与本页模糊 tween 同机制（Windows 实测可用），
+    /// 且钉位路径可识别"tween 正飞向同一目标"从而不打断动画——旧版每次行高重测/测量重试的
+    /// 即时钉位都会把飞行中的 380ms tween 掐断，表现为切句瞬移、没有向上滚动的动画。</summary>
+    private const string WinScrollAnimName = "WinLyricScroll";
+    private bool _winScrollAnimating;
+    private double _winScrollTargetY;
+
     /// <summary>一行歌词的视图引用（代码构建，非绑定）。Main 用 KaraokeLabel 支持逐字填充。</summary>
     private sealed class WinLyricRow
     {
@@ -228,7 +236,10 @@ public partial class NowPlayingPage
     {
         _winRows.Clear();
         WinLyricStack.Children.Clear();
+        WinLyricStack.AbortAnimation(WinScrollAnimName);
         WinLyricStack.TranslationY = 0;
+        _winScrollAnimating = false;
+        _winScrollTargetY = 0;
         _winLastHighlight = -1;
         _winRowTops = Array.Empty<double>();
 
@@ -601,7 +612,8 @@ public partial class NowPlayingPage
     /// 歌词像一条无限长的带子匀速穿过固定的"读取窗口"。
     ///
     /// 滚动实现 = 平移 WinLyricStack.TranslationY（合成线程变换，不重排）→ 丝滑无跳动，
-    /// 等价于 BetterLyrics 的 ScrollOffset tween。animate=true 时 380ms CubicInOut 缓动上移一格。</summary>
+    /// 等价于 BetterLyrics 的 ScrollOffset tween。animate=true 时 380ms CubicInOut 缓动上移一格。
+    /// 立即钉位路径若发现 tween 正飞向同一目标则不打断（避免测量重试把切句动画掐成瞬移）。</summary>
     private void ScrollToWindowsLine(int index, bool animate)
     {
         if (index < 0 || index >= _winRows.Count) return;
@@ -613,13 +625,38 @@ public partial class NowPlayingPage
         double topGap = 2 * (_winRowHeight > 0 ? _winRowHeight : 1);
         double targetY = topGap - _winRowTops[index];
 
-        WinLyricStack.CancelAnimations();
-        if (animate)
-            WinLyricStack.TranslateTo(0, targetY, 380, Easing.CubicInOut);
-        else
+        if (!animate)
+        {
+            // tween 正飞向同一目标：不打断，让它平滑到位
+            if (_winScrollAnimating && Math.Abs(targetY - _winScrollTargetY) < 0.5)
+                return;
+            _winScrollAnimating = false;
+            WinLyricStack.AbortAnimation(WinScrollAnimName);
             WinLyricStack.TranslationY = targetY;
+            _winScrollTargetY = targetY;
+            WinLog($"Snap idx={index} targetY={targetY:F1} topGap={topGap:F1}");
+            return;
+        }
 
-        WinLog($"Scroll idx={index} targetY={targetY:F1} topGap={topGap:F1}");
+        var from = WinLyricStack.TranslationY;
+        if (Math.Abs(from - targetY) < 0.5)
+        {
+            // 已在目标位置（重复的行变更事件），无需动画
+            WinLyricStack.AbortAnimation(WinScrollAnimName);
+            _winScrollAnimating = false;
+            _winScrollTargetY = targetY;
+            return;
+        }
+
+        // 与行放大/行距/模糊三动画同步的 380ms CubicInOut 显式 tween
+        // （Animation.Commit 机制在本页模糊过渡上已验证可用，且支持命名键精确取消）
+        _winScrollTargetY = targetY;
+        _winScrollAnimating = true;
+        new Animation(v => WinLyricStack.TranslationY = v, from, targetY)
+            .Commit(WinLyricStack, WinScrollAnimName, 16, WinLyricScaleMs, Easing.CubicInOut,
+                finished: (_, _) => _winScrollAnimating = false);
+
+        WinLog($"Scroll idx={index} targetY={targetY:F1} topGap={topGap:F1} from={from:F1}");
     }
 
     /// <summary>

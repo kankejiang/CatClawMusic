@@ -76,11 +76,17 @@ public partial class AudioPlayerService
     private AndroidEqualizerService? _eqService;
 
     /// <summary>平台特定的初始化逻辑：注册音频管理器、音频焦点监听器以及前台服务通知回调</summary>
+    private bool _platformEventsSubscribed;
+
     partial void InitializePlatform()
     {
         var ctx = global::Android.App.Application.Context;
         _audioManager = (AudioManager?)ctx.GetSystemService(Context.AudioService);
         _focusListener = new AudioFocusListener(this);
+
+        // 防重复订阅：静态事件会把服务实例钉在类上，重复挂载既泄漏又会让通知点击触发多次
+        if (_platformEventsSubscribed) return;
+        _platformEventsSubscribed = true;
 
         ForegroundPlayerService.OnPlayPauseRequested += OnNotifPlayPauseRequested;
         ForegroundPlayerService.OnNextRequested += OnNotifNextRequested;
@@ -855,6 +861,19 @@ public partial class AudioPlayerService
     /// <summary>释放平台相关资源：停止前台服务、释放唤醒锁与音频焦点、释放 ExoPlayer 及监听器</summary>
     partial void DisposePlatform()
     {
+        // 解除静态事件订阅：静态事件是 GC 根，不退订会让重建后的旧服务实例永久滞留
+        if (_platformEventsSubscribed)
+        {
+            _platformEventsSubscribed = false;
+            ForegroundPlayerService.OnPlayPauseRequested -= OnNotifPlayPauseRequested;
+            ForegroundPlayerService.OnNextRequested -= OnNotifNextRequested;
+            ForegroundPlayerService.OnPreviousRequested -= OnNotifPreviousRequested;
+            ForegroundPlayerService.OnLyricsRequested -= OnNotifLyricsRequested;
+            ForegroundPlayerService.OnFavoriteToggled -= OnNotifFavoriteToggled;
+            PositionChanged -= OnPositionChangedForNotification;
+            PlaybackStateChanged -= OnPlaybackStateChangedForNotification;
+        }
+
         // 取消任何进行中的 PlayInternalAsync，避免 Dispose 后仍访问 _player
         try { _playCts?.Cancel(); } catch { }
         StopForegroundService();

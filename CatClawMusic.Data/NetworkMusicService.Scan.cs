@@ -61,9 +61,22 @@ public partial class NetworkMusicService
         try
         {
             var source = profile.Protocol == ProtocolType.SMB ? SongSource.SMB : SongSource.WebDAV;
-            var removed = await _db.RemoveStaleSongsAsync(source, new HashSet<string>(), scannedRemoteIds);
-            if (removed > 0)
-                Log.Debug("NetworkMusicService", $"[CatClaw] 清理 {removed} 首已移除的网络歌曲 ({source})");
+            // Song 无 profile 归属字段：同协议存在多个启用配置时，来源级清理会误删
+            // 其他服务器（共享同一 SongSource）的歌曲。profile 隔离落地前，
+            // 仅当该协议只有一个启用配置时才执行 stale 清理。
+            var enabledSameProtocol = (await _db.GetConnectionProfilesAsync())
+                .Count(p => p.IsEnabled && p.Protocol == profile.Protocol);
+            if (enabledSameProtocol > 1)
+            {
+                Log.Debug("NetworkMusicService",
+                    $"[CatClaw] 存在 {enabledSameProtocol} 个启用 {profile.Protocol} 配置，跳过来源级过期清理（防跨服务器误删）");
+            }
+            else
+            {
+                var removed = await _db.RemoveStaleSongsAsync(source, new HashSet<string>(), scannedRemoteIds);
+                if (removed > 0)
+                    Log.Debug("NetworkMusicService", $"[CatClaw] 清理 {removed} 首已移除的网络歌曲 ({source})");
+            }
         }
         catch (Exception ex) { Log.Debug("NetworkMusicService", $"[CatClaw] 清理旧网络歌曲失败: {ex.Message}"); }
 

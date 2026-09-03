@@ -79,50 +79,50 @@ public partial class MusicDatabase
     }
 
     /// <summary>
-    /// 删除播放列表及其所有关联歌曲
+    /// 删除播放列表及其所有关联歌曲（单事务，保证不留孤儿条目）
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     public async Task DeletePlaylistAsync(int playlistId)
     {
         await EnsureMaintenanceCompletedAsync();
-        await _database.ExecuteAsync("DELETE FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
-        await _database.DeleteAsync<Playlist>(playlistId);
+        await _database.RunInTransactionAsync(tran =>
+        {
+            tran.Execute("DELETE FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+            tran.Execute("DELETE FROM Playlists WHERE Id = ?", playlistId);
+        });
     }
 
     /// <summary>
-    /// 将歌曲添加到播放列表末尾（重复则忽略）
+    /// 将歌曲添加到播放列表末尾（重复则忽略）。单事务完成查重/插入/计数更新，
+    /// 消除旧的"先 SELECT 再 INSERT"竞态（唯一索引兜底）。
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songId">歌曲 ID</param>
     public async Task AddSongToPlaylistAsync(int playlistId, int songId)
     {
         await EnsureMaintenanceCompletedAsync();
-        var existing = await _database.Table<PlaylistSong>()
-            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId)
-            .FirstOrDefaultAsync();
-        if (existing != null) return;
-
-        var maxPos = await _database.Table<PlaylistSong>()
-            .Where(ps => ps.PlaylistId == playlistId)
-            .CountAsync();
-        await _database.InsertAsync(new PlaylistSong
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await _database.RunInTransactionAsync(tran =>
         {
-            PlaylistId = playlistId,
-            SongId = songId,
-            Position = maxPos
+            var existing = tran.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM PlaylistSongs WHERE PlaylistId = ? AND SongId = ?", playlistId, songId);
+            if (existing > 0) return;
+
+            var maxPos = tran.ExecuteScalar<int>(
+                "SELECT COALESCE(MAX(Position), -1) FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+            tran.Execute(
+                "INSERT INTO PlaylistSongs (PlaylistId, SongId, Position) VALUES (?, ?, ?)",
+                playlistId, songId, maxPos + 1);
+
+            var count = tran.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+            tran.Execute("UPDATE Playlists SET SongCount = ?, UpdatedAt = ? WHERE Id = ?", count, now, playlistId);
         });
-
-        var playlist = await GetPlaylistByIdAsync(playlistId);
-        if (playlist != null)
-        {
-            playlist.SongCount = maxPos + 1;
-            await UpdatePlaylistAsync(playlist);
-        }
     }
 
     /// <summary>
     /// 批量添加歌曲到播放列表（跳过已存在的）。
-    /// 内部在单事务中顺序写入，Position 从当前 maxPos+1 递增。
+    /// 内部在单事务中顺序写入，Position 从当前 MAX+1 递增。
     /// </summary>
     /// <param name="playlistId">目标播放列表 ID</param>
     /// <param name="songIds">需要添加的歌曲 ID 集合</param>
@@ -147,33 +147,32 @@ public partial class MusicDatabase
         var missing = ids.Where(id => !existingIds.Contains(id)).ToList();
         if (missing.Count == 0) return;
 
-        // 起始 Position = 当前数量（在事务外查询，事务内递增写入）
-        var startPos = await _database.Table<PlaylistSong>()
-            .Where(ps => ps.PlaylistId == playlistId)
-            .CountAsync();
+        // 起始 Position = 当前 MAX(Position)+1（历史数据可能有空洞，Count 会撞位）
+        var startPos = await _database.ExecuteScalarAsync<int>(
+            "SELECT COALESCE(MAX(Position), -1) FROM PlaylistSongs WHERE PlaylistId = ?", playlistId) + 1;
 
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await _database.RunInTransactionAsync(tran =>
         {
             int pos = startPos;
             foreach (var songId in missing)
             {
+                // 表名必须为 PlaylistSongs（PlaylistSong 是旧 bug，运行时报 no such table）
                 tran.Execute(
-                    "INSERT INTO PlaylistSong(PlaylistId, SongId, Position) VALUES (?, ?, ?)",
+                    "INSERT INTO PlaylistSongs(PlaylistId, SongId, Position) VALUES (?, ?, ?)",
                     playlistId, songId, pos);
                 pos++;
             }
-        });
 
-        var playlist = await GetPlaylistByIdAsync(playlistId);
-        if (playlist != null)
-        {
-            playlist.SongCount = startPos + missing.Count;
-            await UpdatePlaylistAsync(playlist);
-        }
+            var count = tran.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+            tran.Execute("UPDATE Playlists SET SongCount = ?, UpdatedAt = ? WHERE Id = ?", count, now, playlistId);
+        });
     }
 
     /// <summary>
-    /// 从播放列表中移除歌曲并重新调整位置
+    /// 从播放列表中移除歌曲并重新调整位置。
+    /// 单事务 + 集合 SQL（DELETE + Position 前移），替代旧版"加载全部剩余行逐行 UpdateAsync"的 O(n) 往返。
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songId">歌曲 ID</param>
@@ -185,28 +184,22 @@ public partial class MusicDatabase
             .FirstOrDefaultAsync();
         if (entry == null) return;
 
-        await _database.DeleteAsync(entry);
-
-        var remaining = await _database.Table<PlaylistSong>()
-            .Where(ps => ps.PlaylistId == playlistId)
-            .OrderBy(ps => ps.Position)
-            .ToListAsync();
-        for (int i = 0; i < remaining.Count; i++)
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await _database.RunInTransactionAsync(tran =>
         {
-            remaining[i].Position = i;
-            await _database.UpdateAsync(remaining[i]);
-        }
+            tran.Execute("DELETE FROM PlaylistSongs WHERE Id = ?", entry.Id);
+            tran.Execute(
+                "UPDATE PlaylistSongs SET Position = Position - 1 WHERE PlaylistId = ? AND Position > ?",
+                playlistId, entry.Position);
 
-        var playlist = await GetPlaylistByIdAsync(playlistId);
-        if (playlist != null)
-        {
-            playlist.SongCount = remaining.Count;
-            await UpdatePlaylistAsync(playlist);
-        }
+            var count = tran.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM PlaylistSongs WHERE PlaylistId = ?", playlistId);
+            tran.Execute("UPDATE Playlists SET SongCount = ?, UpdatedAt = ? WHERE Id = ?", count, now, playlistId);
+        });
     }
 
     /// <summary>
-    /// 从播放列表中批量移除歌曲并重新调整位置
+    /// 从播放列表中批量移除歌曲并重新调整位置（单事务 + 集合 SQL，保持剩余歌曲相对顺序）。
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="songIds">要移除的歌曲 ID 集合</param>
@@ -216,35 +209,36 @@ public partial class MusicDatabase
         var ids = songIds.ToHashSet();
         if (ids.Count == 0) return;
 
-        // 一次性删除目标记录
-        await _database.ExecuteAsync(
-            "DELETE FROM PlaylistSongs WHERE PlaylistId = ? AND SongId IN (" + string.Join(",", ids) + ")",
-            playlistId);
-
-        // 重新整理剩余歌曲的位置
-        var remaining = await _database.Table<PlaylistSong>()
-            .Where(ps => ps.PlaylistId == playlistId)
-            .OrderBy(ps => ps.Position)
-            .ToListAsync();
-        for (int i = 0; i < remaining.Count; i++)
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await _database.RunInTransactionAsync(tran =>
         {
-            if (remaining[i].Position != i)
+            // 分块 IN 删除，避免超长 SQL
+            const int chunkSize = 500;
+            var idList = ids.ToList();
+            for (int i = 0; i < idList.Count; i += chunkSize)
             {
-                remaining[i].Position = i;
-                await _database.UpdateAsync(remaining[i]);
+                var chunk = idList.Skip(i).Take(chunkSize);
+                tran.Execute(
+                    "DELETE FROM PlaylistSongs WHERE PlaylistId = ? AND SongId IN (" +
+                    string.Join(",", chunk) + ")", playlistId);
             }
-        }
 
-        var playlist = await GetPlaylistByIdAsync(playlistId);
-        if (playlist != null)
-        {
-            playlist.SongCount = remaining.Count;
-            await UpdatePlaylistAsync(playlist);
-        }
+            // 位置归一化：仅更新 Position 变化的行
+            var remaining = tran.Query<PlaylistSong>(
+                "SELECT * FROM PlaylistSongs WHERE PlaylistId = ? ORDER BY Position, Id", playlistId);
+            for (int i = 0; i < remaining.Count; i++)
+            {
+                if (remaining[i].Position != i)
+                    tran.Execute("UPDATE PlaylistSongs SET Position = ? WHERE Id = ?", i, remaining[i].Id);
+            }
+
+            tran.Execute("UPDATE Playlists SET SongCount = ?, UpdatedAt = ? WHERE Id = ?", remaining.Count, now, playlistId);
+        });
     }
 
     /// <summary>
-    /// 获取播放列表中的所有歌曲（按位置排序，含艺术家和专辑信息）
+    /// 获取播放列表中的所有歌曲（按位置排序，含艺术家和专辑信息）。
+    /// 性能：艺术家/专辑只加载歌单内歌曲引用的 ID，替代旧版全表加载。
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <returns>歌曲列表</returns>
@@ -259,12 +253,16 @@ public partial class MusicDatabase
 
         var songIds = entries.Select(e => e.SongId).ToList();
         var songs = await _database.Table<Song>().Where(s => songIds.Contains(s.Id)).ToListAsync();
-        var artists = await _database.Table<Artist>().ToListAsync();
-        var albums = await _database.Table<Album>().ToListAsync();
+        var songMap = SafeToDict(songs, s => s.Id, s => s);
+
+        var neededArtistIds = songs.Select(s => s.ArtistId).Where(id => id > 0).Distinct().ToList();
+        var neededAlbumIds = songs.Select(s => s.AlbumId).Where(id => id > 0).Distinct().ToList();
+        var artists = await QueryIdsInChunksAsync(neededArtistIds,
+            chunk => _database.Table<Artist>().Where(a => chunk.Contains(a.Id)).ToListAsync());
+        var albums = await QueryIdsInChunksAsync(neededAlbumIds,
+            chunk => _database.Table<Album>().Where(al => chunk.Contains(al.Id)).ToListAsync());
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
-
-        var songMap = SafeToDict(songs, s => s.Id, s => s);
 
         var sorted = new List<Song>(entries.Count);
         var allArtistsDict5 = await GetAllArtistsForSongsAsync(songs.Select(s => s.Id));
@@ -300,7 +298,7 @@ public partial class MusicDatabase
     }
 
     /// <summary>
-    /// 批量更新播放列表中所有歌曲的顺序位置
+    /// 批量更新播放列表中所有歌曲的顺序位置（单事务批量写入，替代逐行 UpdateAsync 的 O(n) 独立往返）
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>
     /// <param name="orderedSongIds">排序后的歌曲 ID 列表</param>
@@ -316,26 +314,24 @@ public partial class MusicDatabase
 
         var entryDict = SafeToDict(allEntries, e => e.SongId, e => e);
 
-        int updatedCount = 0;
+        var updates = new List<(int Id, int Position)>();
         int missingCount = 0;
-
         for (int i = 0; i < orderedSongIds.Count; i++)
         {
-            var songId = orderedSongIds[i];
-            if (entryDict.TryGetValue(songId, out var entry))
-            {
-                entry.Position = i;
-                await _database.UpdateAsync(entry);
-                updatedCount++;
-            }
+            if (entryDict.TryGetValue(orderedSongIds[i], out var entry))
+                updates.Add((entry.Id, i));
             else
-            {
                 missingCount++;
-                Log.Debug("MusicDatabase", $"[DB] UpdatePlaylistOrderAsync: SongId={songId} not found in PlaylistSong for playlist {playlistId}");
-            }
         }
+        if (updates.Count == 0) return;
 
-        Log.Debug("MusicDatabase", $"[DB] UpdatePlaylistOrderAsync completed: {updatedCount} updated, {missingCount} missing");
+        await _database.RunInTransactionAsync(tran =>
+        {
+            foreach (var (id, position) in updates)
+                tran.Execute("UPDATE PlaylistSongs SET Position = ? WHERE Id = ?", position, id);
+        });
+
+        Log.Debug("MusicDatabase", $"[DB] UpdatePlaylistOrderAsync completed: {updates.Count} updated, {missingCount} missing");
     }
 
     /// <summary>

@@ -29,6 +29,18 @@ public partial class LyricsService
         0x31, 0x71, 0x36, 0x73, 0x3f, 0x5b, 0x31, 0x45, 0x3c, 0x6c, 0x33, 0x55, 0x33, 0x64, 0x30, 0x70
     };
 
+    // ─── KRC/QRC 解析正则：源生成版本（旧版在行/块循环中每次 Regex.Match 动态解释，
+    // 长逐字歌词一次解析要构造上千个临时 Regex 对象）───
+
+    [GeneratedRegex(@"\[language:([\w=+/\\]+)\]")]
+    private static partial Regex KrcLanguageRegex();
+
+    [GeneratedRegex(@"\[(\d+),(\d+)\]")]
+    private static partial Regex KrcLineBlockRegex();
+
+    [GeneratedRegex(@"<(\d+),(\d+)(?:,\d+)?>([^<]*)")]
+    private static partial Regex KrcWordRegex();
+
     /// <summary>解析酷狗 KRC 歌词（需完整文件字节，含 krc1 魔数）</summary>
     public LrcLyrics? ParseKrc(byte[] data)
     {
@@ -64,7 +76,7 @@ public partial class LyricsService
         // 译文/罗马音：[language:base64] → JSON {"content":[{"type":0,"lyricContent":[...]},...]}
         // type 0 = 罗马音，type 1 = 译文；数组与正文行按索引对齐（酷狗协议）。
         List<string>? romaByIndex = null, transByIndex = null;
-        var langMatch = Regex.Match(text, @"\[language:([\w=+/\\]+)\]");
+        var langMatch = KrcLanguageRegex().Match(text);
         if (langMatch.Success)
         {
             try
@@ -114,7 +126,7 @@ public partial class LyricsService
             if (line.StartsWith("[language:")) continue;    // 语言块已处理
 
             // 全局匹配本行内所有 [行起始,行时长] 块（酷狗一行可能多块）
-            var blockMatches = Regex.Matches(line, @"\[(\d+),(\d+)\]");
+            var blockMatches = KrcLineBlockRegex().Matches(line);
             if (blockMatches.Count == 0) continue;
 
             for (int b = 0; b < blockMatches.Count; b++)
@@ -125,7 +137,7 @@ public partial class LyricsService
                 var blockEnd = b + 1 < blockMatches.Count ? blockMatches[b + 1].Index : line.Length;
                 var blockText = line.Substring(blockMatches[b].Index + blockMatches[b].Length, blockEnd - (blockMatches[b].Index + blockMatches[b].Length));
 
-                var wordMatches = Regex.Matches(blockText, @"<(\d+),(\d+)(?:,\d+)?>([^<]*)");
+                var wordMatches = KrcWordRegex().Matches(blockText);
                 var textBuilder = new StringBuilder();
                 var words = new List<WordTimestamp>();
                 if (wordMatches.Count > 0)

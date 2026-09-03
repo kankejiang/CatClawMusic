@@ -88,64 +88,80 @@ public class CachingUriImageSourceService : IImageSourceService<UriImageSource>
 
     /// <summary>
     /// 解析 URL 为 Bitmap（三级缓存：Bitmap 内存 → 磁盘文件 → 网络下载）。
-    /// 用 ConcurrentDictionary 去重并发请求，避免同一 URL 重复下载/解码。
+    /// single-flight：同一 URL 并发请求共享一次下载/解码；共享任务不再绑定首个调用者的
+    /// 取消令牌（旧版首个 ImageView 被回收会取消所有共享等待者的下载），
+    /// 下载由 HttpClient 自身 15s 超时兜底，等待者用自身令牌退出等待。
     /// </summary>
-    private static Task<Bitmap?> ResolveBitmapAsync(string url, Context? context, int targetPx, CancellationToken ct)
+    private static async Task<Bitmap?> ResolveBitmapAsync(string url, Context? context, int targetPx, CancellationToken ct)
     {
         var bucket = Math.Max(64, (targetPx / 64) * 64);
         var cacheKey = $"{url}@{bucket}";
 
         // 快速路径：Bitmap 内存缓存命中
         var cached = BitmapMemoryCache.Get(cacheKey);
-        if (cached != null) return Task.FromResult(cached);
+        if (cached != null) return cached;
 
-        // 慢路径：去重后下载/解码
-        return _inflight.GetOrAdd(cacheKey, _ => Task.Run(async () =>
+        // 慢路径：去重后下载/解码（共享任务不绑定调用方令牌）
+        var shared = _inflight.GetOrAdd(
+            cacheKey, _ => Task.Run(() => DownloadDecodeToCacheAsync(cacheKey, url, bucket)));
+        try
         {
+            return await shared.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return null; // 等待者自行取消；共享下载继续，结果进缓存供后续命中
+        }
+        finally
+        {
+            if (shared.IsCompleted)
+                ((ICollection<KeyValuePair<string, Task<Bitmap?>>>)_inflight)
+                    .Remove(new KeyValuePair<string, Task<Bitmap?>>(cacheKey, shared));
+        }
+    }
+
+    /// <summary>共享下载/解码体：二次缓存检查 → 信号量限流 → 磁盘命中/下载解码 → 入内存缓存</summary>
+    private static async Task<Bitmap?> DownloadDecodeToCacheAsync(string cacheKey, string url, int bucket)
+    {
+        try
+        {
+            // 再次检查缓存（可能在等待锁期间已被其他线程填充）
+            var existing = BitmapMemoryCache.Get(cacheKey);
+            if (existing != null) return existing;
+
+            var diskPath = GetDiskPath(url);
+            Bitmap? bmp = null;
+
+            // 限制并发解码/下载数，避免数百张同时发起打满线程池与带宽
+            await _decodeSemaphore.WaitAsync();
             try
             {
-                // 再次检查缓存（可能在等待锁期间已被其他线程填充）
-                var existing = BitmapMemoryCache.Get(cacheKey);
-                if (existing != null) return existing;
-
-                var diskPath = GetDiskPath(url);
-                Bitmap? bmp = null;
-
-                // 限制并发解码/下载数，避免数百张同时发起打满线程池与带宽
-                await _decodeSemaphore.WaitAsync(ct);
-                try
+                // 磁盘缓存命中
+                if (File.Exists(diskPath))
                 {
-                    // 磁盘缓存命中
-                    if (File.Exists(diskPath))
-                    {
-                        bmp = DecodeBitmapDownsampled(diskPath, bucket);
-                    }
-
-                    // 磁盘未命中：下载并写文件
-                    if (bmp == null)
-                    {
-                        bmp = await DownloadAndDecodeAsync(url, diskPath, bucket, ct).ConfigureAwait(false);
-                    }
-                }
-                finally
-                {
-                    _decodeSemaphore.Release();
+                    bmp = DecodeBitmapDownsampled(diskPath, bucket);
                 }
 
-                if (bmp != null)
-                    BitmapMemoryCache.Put(cacheKey, bmp);
-                return bmp;
-            }
-            catch (Exception ex)
-            {
-                Log.Debug("CachingUriImageSourceService", $"[CachingUriImageSourceService] Resolve failed: {url} - {ex.Message}");
-                return null;
+                // 磁盘未命中：下载并写文件（不绑定调用方令牌，HttpClient 15s 超时兜底）
+                if (bmp == null)
+                {
+                    bmp = await DownloadAndDecodeAsync(url, diskPath, bucket, CancellationToken.None).ConfigureAwait(false);
+                }
             }
             finally
             {
-                _inflight.TryRemove(cacheKey, out var _);
+                _decodeSemaphore.Release();
             }
-        }, ct));
+
+            if (bmp != null)
+                BitmapMemoryCache.Put(cacheKey, bmp);
+            return bmp;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("CachingUriImageSourceService", $"[CachingUriImageSourceService] Resolve failed: {url} - {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>下载 URL 到磁盘文件并降采样解码。byte[] 下载后立即释放，不长期持有。</summary>

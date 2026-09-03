@@ -237,11 +237,14 @@ public class SmbStreamProxy : IDisposable
 
             // 从 SMB 按范围读取并发送。分块越大，SMB 句柄开/关往返越少（OpenReadRangeAsync 每次调用都开关句柄），
             // 512KB 在减少句柄 churn 与控制单块内存之间取得平衡。
+            // 性能：缓冲跨块复用（旧版每 512KB 分配一个新数组）；Flush 移出循环（每块强制 Flush
+            // 增加本地 HTTP 链路系统调用，OutputStream 关闭时自然冲刷）。
             const int chunkSize = 512 * 1024; // 512KB
             var output = response.OutputStream;
             long bytesRemaining = unknownLength ? long.MaxValue : contentLength;
             long currentOffset = start;
 
+            var chunk = System.Buffers.ArrayPool<byte>.Shared.Rent(chunkSize);
             try
             {
                 while (bytesRemaining > 0 && response.OutputStream.CanWrite)
@@ -249,19 +252,23 @@ public class SmbStreamProxy : IDisposable
                     var toRead = unknownLength
                         ? chunkSize
                         : (int)Math.Min(chunkSize, bytesRemaining);
-                    byte[] chunk = await svc.OpenReadRangeAsync(remotePath, currentOffset, toRead);
+                    var read = await svc.OpenReadRangeAsync(remotePath, currentOffset, chunk, toRead);
 
-                    if (chunk == null || chunk.Length == 0) break;
+                    if (read <= 0) break;
 
-                    await output.WriteAsync(chunk, 0, chunk.Length);
-                    await output.FlushAsync();
-                    currentOffset += chunk.Length;
-                    if (!unknownLength) bytesRemaining -= chunk.Length;
+                    await output.WriteAsync(chunk, 0, read);
+                    currentOffset += read;
+                    if (!unknownLength) bytesRemaining -= read;
                 }
+                await output.FlushAsync();
             }
             catch (Exception ex)
             {
                 Log.Debug("SmbStreamProxy", $"[SmbProxy] Streaming error: {ex.Message}");
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(chunk);
             }
 
             response.Close();

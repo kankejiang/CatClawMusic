@@ -205,20 +205,27 @@ public partial class MusicDatabase
     }
 
     /// <summary>
-    /// 为歌曲列表统一填充艺术家、专辑、播放次数及多艺术家信息
+    /// 为歌曲列表统一填充艺术家、专辑、播放次数及多艺术家信息。
+    /// 性能：播放计数走 SQL GROUP BY 聚合（复用 GetPlayCountTotalsAsync），
+    /// 艺术家/专辑只加载目标歌曲引用的 ID——旧版全表物化 Artists/Albums/PlayHistory 三张表，
+    /// 列表页/总览页每次刷新都产生 O(全库) 的传输与对象分配。
     /// </summary>
     private async Task<List<Song>> FillSongDetailsAsync(List<Song> songs)
     {
-        // 批量预加载艺术家和专辑，避免 N+1 查询
-        var artists = await _database.Table<Artist>().ToListAsync();
-        var albums = await _database.Table<Album>().ToListAsync();
+        if (songs.Count == 0) return songs;
+
+        // 批量预加载播放次数（SQL 端 SUM + GROUP BY，同一歌曲可能存在多条历史记录）
+        var playHistoryDict = await GetPlayCountTotalsAsync();
+
+        // 批量预加载艺术家和专辑：只查目标歌曲引用的 ID（IN 分块，避免超出 SQLite 变量上限）
+        var neededArtistIds = songs.Select(s => s.ArtistId).Where(id => id > 0).Distinct().ToList();
+        var neededAlbumIds = songs.Select(s => s.AlbumId).Where(id => id > 0).Distinct().ToList();
+        var artists = await QueryIdsInChunksAsync(neededArtistIds,
+            chunk => _database.Table<Artist>().Where(a => chunk.Contains(a.Id)).ToListAsync());
+        var albums = await QueryIdsInChunksAsync(neededAlbumIds,
+            chunk => _database.Table<Album>().Where(al => chunk.Contains(al.Id)).ToListAsync());
         var artistDict = SafeToDict(artists, a => a.Id, a => a.Name);
         var albumDict = SafeToDict(albums, a => a.Id, a => a.Title);
-
-        // 批量预加载播放次数（来自 PlayHistory 表），按 SongId 聚合求和（同一歌曲可能存在多条历史记录）
-        var playHistoryDict = (await _database.Table<PlayHistory>().ToListAsync())
-            .GroupBy(h => h.SongId)
-            .ToDictionary(g => g.Key, g => g.Sum(h => h.PlayCount));
 
         // 批量加载多艺术家关联
         var songIds = songs.Select(s => s.Id).ToList();
@@ -232,6 +239,16 @@ public partial class MusicDatabase
             s.PlayCount = playHistoryDict.TryGetValue(s.Id, out var pc) ? pc : 0;
         }
         return songs;
+    }
+
+    /// <summary>按 ID 集合分块执行 IN 查询（默认 500 一块，规避 SQLite 变量数上限）</summary>
+    private static async Task<List<T>> QueryIdsInChunksAsync<T>(
+        List<int> ids, Func<List<int>, Task<List<T>>> query, int chunkSize = 500)
+    {
+        var result = new List<T>();
+        for (int i = 0; i < ids.Count; i += chunkSize)
+            result.AddRange(await query(ids.Skip(i).Take(chunkSize).ToList()));
+        return result;
     }
 
     /// <summary>
@@ -428,17 +445,21 @@ public partial class MusicDatabase
         await CleanupOrphanedPlayHistoryAndFavoritesAsync();
     }
 
-    /// <summary>删除指定来源中不在保留路径集合内的歌曲，并清理孤立艺术家/专辑</summary>
+    /// <summary>删除指定来源中不在保留路径集合内的歌曲，并清理孤立艺术家/专辑。
+    /// 性能：只投影判定所需字段（旧版把该来源全部 Song 实体拉回内存），
+    /// 关联表删除改为分块 IN 集合 SQL（旧版每首歌 4 条 DELETE）。</summary>
     /// <param name="source">歌曲来源类型</param>
-    /// <param name="retainPaths">需要保留的本地文件路径集合</param>
+    /// <param name="retainPaths">需要保留的本地文件路径集合（目录前缀语义）</param>
     /// <param name="retainRemoteIds">需要保留的远程 ID 集合</param>
     /// <returns>删除的歌曲数量</returns>
     public async Task<int> RemoveStaleSongsAsync(SongSource source, HashSet<string> retainPaths, HashSet<string>? retainRemoteIds = null)
     {
         await EnsureMaintenanceCompletedAsync();
-        var all = await _database.Table<Song>().Where(s => s.Source == source).ToListAsync();
+        var candidates = await _database.QueryAsync<SongStaleRow>(
+            "SELECT Id, FilePath, RemoteId FROM Songs WHERE Source = ?", (int)source);
+
         var toDeleteIds = new List<int>();
-        foreach (var s in all)
+        foreach (var s in candidates)
         {
             bool keep = source == SongSource.Local
                 ? retainPaths.Any(p => s.FilePath.StartsWith(p, StringComparison.OrdinalIgnoreCase))
@@ -450,17 +471,25 @@ public partial class MusicDatabase
 
         await _database.RunInTransactionAsync(tran =>
         {
-            foreach (var id in toDeleteIds)
+            for (int i = 0; i < toDeleteIds.Count; i += 500)
             {
-                try { tran.Delete<Song>(id); } catch { }
-                try { tran.Execute("DELETE FROM PlayHistory WHERE SongId = ?", id); } catch { }
-                try { tran.Execute("DELETE FROM Favorites WHERE SongId = ?", id); } catch { }
-                try { tran.Execute("DELETE FROM SongArtists WHERE SongId = ?", id); } catch { }
+                var inList = string.Join(",", toDeleteIds.Skip(i).Take(500));
+                tran.Execute($"DELETE FROM PlayHistory WHERE SongId IN ({inList})");
+                tran.Execute($"DELETE FROM Favorites WHERE SongId IN ({inList})");
+                tran.Execute($"DELETE FROM SongArtists WHERE SongId IN ({inList})");
+                tran.Execute($"DELETE FROM Songs WHERE Id IN ({inList})");
             }
         });
 
         await CleanupOrphanedArtistsAndAlbumsAsync();
         return toDeleteIds.Count;
+    }
+
+    private sealed class SongStaleRow
+    {
+        public int Id { get; set; }
+        public string FilePath { get; set; } = "";
+        public string? RemoteId { get; set; }
     }
 
     /// <summary>删除 Source=Local 且文件路径不在保留集合中的歌曲，并清理关联的播放历史/收藏/艺术家关联</summary>

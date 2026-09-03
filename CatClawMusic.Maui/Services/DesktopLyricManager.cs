@@ -43,8 +43,16 @@ public class DesktopLyricManager
     /// <summary>设置当前歌词数据（切歌时调用）</summary>
     public void SetLyrics(LrcLyrics? lyrics)
     {
-        _currentLyrics = lyrics;
-        _currentLineIndex = -1;
+        lock (_updateLock)
+        {
+            _currentLyrics = lyrics;
+            _currentLineIndex = -1;
+            // 丢弃未消费的旧歌词 pending，防止切歌后旧行文本闪现
+            _pendingLyricText = null;
+            _pendingNextText = null;
+            _pendingLyricProgress = -1;
+            _hasPending = false;
+        }
         _desktopLyricService.SetLyrics(lyrics);
         if (lyrics == null && _desktopLyricService.IsShowing)
             MainThread.BeginInvokeOnMainThread(() => _desktopLyricService.UpdateLyricLines("", null, -1));
@@ -91,9 +99,10 @@ public class DesktopLyricManager
         if (_currentLyrics != null)
         {
             var pos = TimeSpan.FromSeconds(_audioService.CurrentPosition);
-            var (text, next, progress) = ComputeLyricUpdate(pos);
-            if (text != null || next != null)
-                _desktopLyricService.UpdateLyricLines(text, next, progress);
+            (string? text, string? next, double progress) update;
+            lock (_updateLock) { update = ComputeLyricUpdate(pos); }
+            if (update.text != null || update.next != null)
+                _desktopLyricService.UpdateLyricLines(update.text, update.next, update.progress);
         }
 #if ANDROID
         Android.Util.Log.Info(Tag, "EnableAsync: success");
@@ -134,34 +143,77 @@ public class DesktopLyricManager
     /// <summary>请求悬浮窗权限</summary>
     public Task<bool> RequestPermissionAsync() => _desktopLyricService.RequestPermissionAsync();
 
-    // 缓存主线程调度委托，避免每次 tick 创建新 Action 闭包
+    // ─── 主线程合并(latest-wins)───
+    // PositionChanged 最高约 60Hz:每个 tick 只更新 pending 快照,主线程队列最多一个 drain 回调,
+    // 避免 60Hz 投递堆积;drain 时一次性取走最新值。锁同时保护 _currentLineIndex(ComputeLyricUpdate
+    // 会推进行号)与 SetLyrics(切歌)互斥,并保证"切行文本不会被后续 progress-only tick 覆盖为空"。
+    private readonly object _updateLock = new();
     private string? _pendingLyricText;
     private string? _pendingNextText;
     private double _pendingLyricProgress = -1;
-    private Action? _cachedLyricUpdate;
+    private bool _hasPending;
+    private int _updatePosted;              // 0/1:主线程队列中是否已有待执行的 drain
+    private Action? _cachedLyricUpdate;     // 缓存委托,避免每 tick 分配闭包
 
     private void OnPositionChanged(object? sender, TimeSpan position)
     {
         if (!_desktopLyricService.IsShowing) return;
         // 用户交互（Tab 滑动/列表滚动）时暂停桌面歌词更新，避免主线程消息队列堆积影响流畅度。
         // 滑动停止后会自动恢复（下一个 tick 即同步到当前位置）。
-        // IsUserInteracting 同时覆盖 Tab 滑动（BeginInteraction）和列表滚动（NotifyScrollStarted）。
         if (_interactionState?.IsUserInteracting == true) return;
-        // PositionChanged 可能在后台线程触发，UI 操作需切回主线程
-        var (text, next, progress) = ComputeLyricUpdate(position);
-        if (text == null && next == null && progress < 0) return;
 
-        _pendingLyricText = text;
-        _pendingNextText = next;
-        _pendingLyricProgress = progress;
-        _cachedLyricUpdate ??= () =>
+        string? text, next; double progress;
+        lock (_updateLock)
         {
-            if (_pendingLyricText != null || _pendingNextText != null)
-                _desktopLyricService.UpdateLyricLines(_pendingLyricText, _pendingNextText, _pendingLyricProgress);
-            else if (_pendingLyricProgress >= 0)
-                _desktopLyricService.UpdateFillProgress(_pendingLyricProgress);
-        };
+            (text, next, progress) = ComputeLyricUpdate(position);
+            if (text == null && next == null && progress < 0) return;
+
+            if (text != null)
+            {
+                // 行切换:当前行/下一行整体替换(允许 next=null 表示单行模式或无下一行)
+                _pendingLyricText = text;
+                _pendingNextText = next;
+            }
+            _pendingLyricProgress = progress;
+            _hasPending = true;
+        }
+
+        // 主线程队列中已有一个 drain → 本次 tick 只合并数据,不再投递
+        if (Interlocked.Exchange(ref _updatePosted, 1) != 0) return;
+        _cachedLyricUpdate ??= DrainPendingUpdate;
         MainThread.BeginInvokeOnMainThread(_cachedLyricUpdate);
+    }
+
+    /// <summary>主线程 drain:取走最新 pending 快照并应用到悬浮窗(每个 UI 帧最多一次)</summary>
+    private void DrainPendingUpdate()
+    {
+        string? text = null, next = null;
+        double progress = -1;
+        bool has;
+        lock (_updateLock)
+        {
+            has = _hasPending;
+            if (has)
+            {
+                text = _pendingLyricText;
+                next = _pendingNextText;
+                progress = _pendingLyricProgress;
+                _pendingLyricText = null;
+                _pendingNextText = null;
+                _pendingLyricProgress = -1;
+                _hasPending = false;
+            }
+        }
+        // 先清投递标志再应用:drain 期间到达的新 tick 可重新入队,不丢最后一帧
+        Interlocked.Exchange(ref _updatePosted, 0);
+
+        if (!has) return;
+        if (!_desktopLyricService.IsShowing) return; // Hide 后不再触碰悬浮窗
+
+        if (text != null || next != null)
+            _desktopLyricService.UpdateLyricLines(text, next, progress);
+        else if (progress >= 0)
+            _desktopLyricService.UpdateFillProgress(progress);
     }
 
     /// <summary>

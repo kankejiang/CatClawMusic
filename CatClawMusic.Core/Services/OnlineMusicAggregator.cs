@@ -14,6 +14,11 @@ public class OnlineMusicAggregator
 {
     private readonly IPluginManager _pluginManager;
 
+    /// <summary>单个插件请求的超时：聚合页/搜索不再等最慢插件（挂起或内部超时很长的插件
+    /// 会让整页一直转圈）。超时插件的当页结果缺席，其他插件正常合并；接口签名不动，
+    /// 旧插件 DLL 完全兼容（Task.WaitAsync 只作用于等待侧）。</summary>
+    private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(8);
+
     public OnlineMusicAggregator(IPluginManager pluginManager)
     {
         _pluginManager = pluginManager;
@@ -25,7 +30,7 @@ public class OnlineMusicAggregator
         return _pluginManager.GetEnabledPlugins<IOnlineMusicPlugin>();
     }
 
-    /// <summary>并行搜索所有已启用插件，合并结果（单个插件失败不影响其他）</summary>
+    /// <summary>并行搜索所有已启用插件，合并结果（单个插件失败/超时不影响其他）</summary>
     public async Task<List<OnlineSong>> SearchAllAsync(string keyword, int page = 1, int pageSize = 8)
     {
         var providers = GetProviders();
@@ -36,7 +41,7 @@ public class OnlineMusicAggregator
         {
             try
             {
-                return await p.SearchAsync(keyword, page, pageSize).ConfigureAwait(false);
+                return await p.SearchAsync(keyword, page, pageSize).WaitAsync(ProviderTimeout).ConfigureAwait(false);
             }
             catch
             {
@@ -126,7 +131,7 @@ public class OnlineMusicAggregator
         if (providers.Count == 0) return new List<OnlinePlaylist>();
         var tasks = providers.Select(async p =>
         {
-            try { return await p.GetPlaylistsAsync(category).ConfigureAwait(false); }
+            try { return await p.GetPlaylistsAsync(category).WaitAsync(ProviderTimeout).ConfigureAwait(false); }
             catch { return new List<OnlinePlaylist>(); }
         }).ToArray();
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -151,7 +156,7 @@ public class OnlineMusicAggregator
         if (providers.Count == 0) return new List<OnlinePlaylist>();
         var tasks = providers.Select(async p =>
         {
-            try { return await p.GetToplistsAsync().ConfigureAwait(false); }
+            try { return await p.GetToplistsAsync().WaitAsync(ProviderTimeout).ConfigureAwait(false); }
             catch { return new List<OnlinePlaylist>(); }
         }).ToArray();
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -199,7 +204,7 @@ public class OnlineMusicAggregator
         if (providers.Count == 0) return new List<OnlinePlaylist>();
         var tasks = providers.Select(async p =>
         {
-            try { return await p.SearchPlaylistsAsync(keyword, page, pageSize).ConfigureAwait(false); }
+            try { return await p.SearchPlaylistsAsync(keyword, page, pageSize).WaitAsync(ProviderTimeout).ConfigureAwait(false); }
             catch { return null; }
         }).ToArray();
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);

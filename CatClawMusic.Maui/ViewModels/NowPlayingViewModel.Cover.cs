@@ -23,7 +23,14 @@ public partial class NowPlayingViewModel
     [ObservableProperty]
     private CoverFlowProcessor.CoverSource _coverFlowSource = default;
 
-    /// <summary>从当前封面提取主导色，更新 CoverTintColor（供流光背景随封面着色）。
+    /// <summary>封面视觉分析 single-flight：一次封面变更会由多个页面/时机触发本方法
+    /// （NowPlaying OnAppearing、NowPlaying/FullLyrics 各自监听 CurrentCoverPath），
+    /// 同歌曲同封面只解码一次；任务提交前校验歌曲代次，慢任务不会覆盖新歌结果。</summary>
+    private Task? _coverVisualLoadTask;
+    private int _coverVisualLoadSongId = -1;
+    private string? _coverVisualLoadKey;
+
+    /// <summary>从当前封面提取主导色与封面流源，更新 CoverTintColor / CoverFlowSource（一次解码同时产出）。
     /// 本地封面走文件提取；在线封面（http/https 直显）走内存字节提取，均不写缓存。
     /// ⚠ 失败/数据缺失时保留当前背景（不清空）：在线封面内存字节是"一次性消费"，切走再切回时
     /// 已无字节可用，若此时置空 CoverFlowSource 会让背景在黑/流光间闪变（切回背景色丢失的根因）。
@@ -34,37 +41,40 @@ public partial class NowPlayingViewModel
         var onlineBytes = _pendingOnlineCoverBytes;
         _pendingOnlineCoverBytes = null; // 一次性消费，避免陈旧字节污染后续本地歌曲
 
-        // 在线封面（http/https 直显、不落盘）：优先用内存字节提取主导色
-        if (!string.IsNullOrEmpty(path) && _onlineCoverRef(path))
+        // 在线封面（http/https 直显、不落盘）：依赖内存字节，无字节则保留现状等重新下载
+        if (!string.IsNullOrEmpty(path) && _onlineCoverRef(path) && onlineBytes is not { Length: > 0 })
+            return;
+        // 本地封面取不到（无封面歌曲）：保留当前背景，由换歌清空逻辑负责作废旧色
+        if (string.IsNullOrEmpty(path) || (!_onlineCoverRef(path) && !File.Exists(path)))
+            return;
+
+        // single-flight：同歌曲同封面的并发请求复用同一个分析任务
+        var songId = _loadedCoverSongId;
+        var pending = _coverVisualLoadTask;
+        if (pending != null && _coverVisualLoadSongId == songId && _coverVisualLoadKey == path)
         {
-            if (onlineBytes is { Length: > 0 })
-            {
-                var c = await Task.Run(() => CoverTintExtractor.Extract(onlineBytes));
-                var cf = await Task.Run(() => CoverTintExtractor.ExtractCoverSource(onlineBytes));
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    CoverTintColor = c ?? Colors.Transparent;
-                    CoverFlowSource = cf;
-                });
-                return;
-            }
-            // 内存字节已被消费（切走切回）且没有新字节：保留当前已生效的背景，等封面重新下载
+            await pending;
             return;
         }
 
-        // 本地封面文件
-        if (string.IsNullOrEmpty(path) || !File.Exists(path))
-        {
-            // 封面取不到（无封面歌曲）：保留当前背景，由换歌清空逻辑负责作废旧色
-            return;
-        }
+        var bytesForAnalysis = onlineBytes;
+        var analysisTask = Task.Run(() => bytesForAnalysis != null
+            ? CoverTintExtractor.ExtractVisualData(bytesForAnalysis)
+            : CoverTintExtractor.ExtractVisualData(path));
+        _coverVisualLoadTask = analysisTask;
+        _coverVisualLoadSongId = songId;
+        _coverVisualLoadKey = path;
 
-        var extracted = await Task.Run(() => CoverTintExtractor.Extract(path));
-        var coverFlow = await Task.Run(() => CoverTintExtractor.ExtractCoverSource(path));
+        var visual = await analysisTask;
+
+        // 代次校验：分析期间已换歌（或封面路径已变）→ 丢弃，不覆盖新歌状态
+        if (_loadedCoverSongId != songId || CurrentCoverPath != path)
+            return;
+
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
-            CoverTintColor = extracted ?? Colors.Transparent;
-            CoverFlowSource = coverFlow;
+            CoverTintColor = visual.Tint ?? Colors.Transparent;
+            CoverFlowSource = visual.Source;
         });
     }
 

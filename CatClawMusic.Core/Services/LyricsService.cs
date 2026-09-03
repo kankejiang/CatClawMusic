@@ -197,8 +197,8 @@ public partial class LyricsService : ILyricsService
                 Log.Debug("LyricsService", "[Lyrics] 跳过 Navidrome 内嵌歌词");
                 return null;
             }
-            Log.Debug("LyricsService", "[Lyrics] 调用 ReadEmbeddedLyrics (isRemoteUrl=true)");
-            var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri: false, isRemoteUrl: true));
+            Log.Debug("LyricsService", "[Lyrics] 调用 ReadEmbeddedLyricsAsync (isRemoteUrl=true)");
+            var embeddedLyrics = await ReadEmbeddedLyricsAsync(songPath, isContentUri: false, isRemoteUrl: true);
             Log.Debug("LyricsService", $"[Lyrics] ReadEmbeddedLyrics 返回: {(embeddedLyrics != null ? $"{embeddedLyrics.Length} 字符" : "null")}");
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
@@ -240,7 +240,7 @@ public partial class LyricsService : ILyricsService
 
         if (preferEmbedded && !skipEmbedded)
         {
-            var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri));
+            var embeddedLyrics = await ReadEmbeddedLyricsAsync(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
                 // 异步解析 TTML（避免大文件阻塞 UI 线程）
@@ -379,7 +379,7 @@ public partial class LyricsService : ILyricsService
 
         if (!skipEmbedded)
         {
-            var embeddedLyrics = await Task.Run(() => ReadEmbeddedLyrics(songPath, isContentUri));
+            var embeddedLyrics = await ReadEmbeddedLyricsAsync(songPath, isContentUri);
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
             {
                 var parsed = await Task.Run(() => TryParseLyrics(embeddedLyrics));
@@ -397,11 +397,12 @@ public partial class LyricsService : ILyricsService
         return null;
     }
 
-    /// <summary>读取音频文件的内嵌歌词（支持普通文件路径、content:// URI 与 http(s):// 远程 URL）</summary>
+    /// <summary>读取音频文件的内嵌歌词（支持普通文件路径、content:// URI 与 http(s):// 远程 URL）。
+    /// 远程分支优先走 <see cref="RemoteUrlStreamOpenerAsync"/>（真异步网络 I/O，不再占死线程池线程）。</summary>
     /// <param name="songPath">音频文件路径、content:// URI 或 http(s):// URL</param>
     /// <param name="isContentUri">是否为 Android content:// URI</param>
     /// <param name="isRemoteUrl">是否为 http(s):// 远程 URL</param>
-    private static string? ReadEmbeddedLyrics(string? songPath, bool isContentUri, bool isRemoteUrl = false)
+    private static async Task<string?> ReadEmbeddedLyricsAsync(string? songPath, bool isContentUri, bool isRemoteUrl = false)
     {
         if (string.IsNullOrEmpty(songPath)) return null;
 
@@ -414,15 +415,25 @@ public partial class LyricsService : ILyricsService
 
         if (isRemoteUrl)
         {
-            Log.Debug("LyricsService", $"[Lyrics] ReadEmbeddedLyrics isRemoteUrl, RemoteUrlStreamOpener={(RemoteUrlStreamOpener != null ? "已设置" : "null")}");
-            if (RemoteUrlStreamOpener != null)
+            var openerAsyncSet = RemoteUrlStreamOpenerAsync != null;
+            Log.Debug("LyricsService", $"[Lyrics] ReadEmbeddedLyricsAsync isRemoteUrl, AsyncOpener={(openerAsyncSet ? "已设置" : "null")}, SyncOpener={(RemoteUrlStreamOpener != null ? "已设置" : "null")}");
+            if (openerAsyncSet || RemoteUrlStreamOpener != null)
             {
+                Stream? stream = null;
                 try
                 {
                     var spPreview = songPath?[..Math.Min(60, songPath?.Length ?? 0)] ?? "";
-                    Log.Debug("LyricsService", $"[Lyrics] 调用 RemoteUrlStreamOpener: {spPreview}...");
-                    using var stream = RemoteUrlStreamOpener(songPath);
-                    Log.Debug("LyricsService", $"[Lyrics] RemoteUrlStreamOpener 返回: {(stream != null ? $"{stream.Length} bytes" : "null")}");
+                    if (openerAsyncSet)
+                    {
+                        Log.Debug("LyricsService", $"[Lyrics] 调用 RemoteUrlStreamOpenerAsync: {spPreview}...");
+                        stream = await RemoteUrlStreamOpenerAsync!(songPath);
+                    }
+                    else
+                    {
+                        Log.Debug("LyricsService", $"[Lyrics] 回退同步 RemoteUrlStreamOpener: {spPreview}...");
+                        stream = RemoteUrlStreamOpener!(songPath);
+                    }
+                    Log.Debug("LyricsService", $"[Lyrics] 远程流打开返回: {(stream != null ? $"{stream.Length} bytes" : "null")}");
                     if (stream != null)
                     {
                         var remoteLyrics = TagReader.ReadEmbeddedLyricsFromStream(stream, GetFileNameFromUrl(songPath));
@@ -435,7 +446,11 @@ public partial class LyricsService : ILyricsService
                 }
                 catch (Exception ex)
                 {
-                    Log.Debug("LyricsService", $"[Lyrics] RemoteUrlStreamOpener 读取异常: {ex.Message}");
+                    Log.Debug("LyricsService", $"[Lyrics] 远程流读取异常: {ex.Message}");
+                }
+                finally
+                {
+                    stream?.Dispose();
                 }
             }
             return null;
@@ -587,7 +602,8 @@ public partial class LyricsService : ILyricsService
         return "remote.audio";
     }
 
-    /// <summary>静态方法：读取内嵌歌词（含 AndroidFileStreamOpener / ContentUriLyricsReader / RemoteUrlStreamOpener 回退）</summary>
+    /// <summary>静态方法：读取内嵌歌词（含 AndroidFileStreamOpener / ContentUriLyricsReader / RemoteUrlStreamOpener 回退）。
+    /// 兼容保留（当前无调用方）；异步路径请走 GetLyricsAsync → ReadEmbeddedLyricsAsync。</summary>
     public static string? ReadEmbeddedLyricsStatic(string? songPath)
     {
         if (string.IsNullOrEmpty(songPath)) return null;
@@ -595,7 +611,7 @@ public partial class LyricsService : ILyricsService
         bool isRemote = songPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
             || songPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
             || songPath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase);
-        return ReadEmbeddedLyrics(songPath, isContentUri: isContent, isRemoteUrl: isRemote);
+        return ReadEmbeddedLyricsAsync(songPath, isContentUri: isContent, isRemoteUrl: isRemote).GetAwaiter().GetResult();
     }
 
     /// <summary>查找外部 .lrc 歌词文件并返回文本内容（含 SAF content:// 回退）</summary>

@@ -136,13 +136,16 @@ public partial class App : Application
             }
         });
 
-        // DownloadManager 单例急切实例化（其构造函数会赋值 DownloadAgentBridge.EnqueueDownload，
-        // 是 Agent 下载工具的入口）。构造含 BT 引擎启动，移到后台；Agent 交互远晚于此时完成。
-        _ = Task.Run(() =>
+        // Agent 下载桥：闭包内懒解析 DownloadManager（其 BT 引擎再懒构造 ClientEngine）。
+        // 冷启动不再急切实例化 MonoTorrent（端口监听 + DHT 启动），首次真正发起下载才付出该成本。
+        CatClawMusic.Core.Services.AI.DownloadAgentBridge.EnqueueDownload = (url, filename) =>
         {
-            try { _ = MauiProgram.Services.GetRequiredService<Services.DownloadManager>(); }
-            catch (Exception ex) { Log.Debug("App.xaml", $"[CatClaw] DownloadManager init failed: {ex.Message}"); }
-        });
+            var dm = MauiProgram.Services.GetRequiredService<Services.DownloadManager>();
+            var item = url.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase)
+                ? dm.EnqueueMagnet(url, filename)
+                : dm.EnqueueUrl(url, filename);
+            return $"已开始下载「{item.DisplayName}」，保存到 {item.LocalPath}，可在下载管理查看进度";
+        };
 
         StartupLog("App.ctor: done");
     }
@@ -153,50 +156,53 @@ public partial class App : Application
     {
         base.OnStart();
 
-        // ═══ 临时诊断：FirstChanceException 全量捕获（定位 0xc000027b stowed exception 的根源托管异常）═══
+        // ═══ 诊断：FirstChanceException 全量捕获（定位 0xc000027b stowed exception 的根源托管异常）═══
+        // 性能：每次托管异常都会同步落盘，Release 默认关闭；仅当用户在设置页开启了诊断日志时挂载。
+        // 挂载时不取 Environment.StackTrace（异常自身堆栈已足够），minidump 降为 Normal+ThreadInfo（避免数百 MB 全内存 dump）。
 #if WINDOWS
-        try
+        if (LogService.Instance is { IsEnabled: true })
         {
-            _mainThreadId = Environment.CurrentManagedThreadId;
-            _fceLogPath = Path.Combine(FileSystem.AppDataDirectory, "firstchance.log");
             try
             {
-                var fce0 = Path.Combine(FileSystem.AppDataDirectory, "firstchance.log");
-                if (File.Exists(fce0)) File.Delete(fce0);
-            }
-            catch { }
-            AppDomain.CurrentDomain.FirstChanceException += (_, fce) =>
-            {
+                _mainThreadId = Environment.CurrentManagedThreadId;
+                _fceLogPath = Path.Combine(FileSystem.AppDataDirectory, "firstchance.log");
                 try
                 {
-                    var ex = fce.Exception;
-                    var type = ex?.GetType().FullName ?? "null";
-                    var msg = ex?.Message?.Split('\n')[0] ?? "";
-                    var stack = ex?.StackTrace ?? "";
-                    var curStack = Environment.StackTrace ?? "";
-                    var line = $"[{DateTime.Now:HH:mm:ss.fff}] thread={Environment.CurrentManagedThreadId} {type}: {msg}\n{stack}\nFULL:\n{curStack}\n---\n";
-                    File.AppendAllText(_fceLogPath, line);
-                    // 主线程上的 COMException → 极可能是 stowed exception 的根源，立即抓 minidump
-                    if (!_dumpWritten && type?.Contains("COMException") == true
-                        && Environment.CurrentManagedThreadId == _mainThreadId)
-                    {
-                        _dumpWritten = true;
-                        var dmp = Path.Combine(FileSystem.AppDataDirectory, "com_crash.dmp");
-                        try { if (File.Exists(dmp)) File.Delete(dmp); } catch { }
-                        var t = new System.Threading.Thread(() =>
-                        {
-                            try { WriteMiniDump(dmp); Log.Debug("App", $"[Diag] minidump 已写入 {dmp}"); }
-                            catch (Exception de) { Log.Debug("App", $"[Diag] minidump 失败: {de.Message}"); }
-                        });
-                        t.IsBackground = true;
-                        t.Start();
-                    }
+                    if (File.Exists(_fceLogPath)) File.Delete(_fceLogPath);
                 }
                 catch { }
-            };
-            Log.Debug("App", $"[Diag] FirstChance 捕获已挂载 -> {_fceLogPath}");
+                AppDomain.CurrentDomain.FirstChanceException += (_, fce) =>
+                {
+                    try
+                    {
+                        var ex = fce.Exception;
+                        var type = ex?.GetType().FullName ?? "null";
+                        var msg = ex?.Message?.Split('\n')[0] ?? "";
+                        var stack = ex?.StackTrace ?? "";
+                        var line = $"[{DateTime.Now:HH:mm:ss.fff}] thread={Environment.CurrentManagedThreadId} {type}: {msg}\n{stack}\n---\n";
+                        File.AppendAllText(_fceLogPath, line);
+                        // 主线程上的 COMException → 极可能是 stowed exception 的根源，立即抓 minidump
+                        if (!_dumpWritten && type?.Contains("COMException") == true
+                            && Environment.CurrentManagedThreadId == _mainThreadId)
+                        {
+                            _dumpWritten = true;
+                            var dmp = Path.Combine(FileSystem.AppDataDirectory, "com_crash.dmp");
+                            try { if (File.Exists(dmp)) File.Delete(dmp); } catch { }
+                            var t = new System.Threading.Thread(() =>
+                            {
+                                try { WriteMiniDump(dmp); Log.Debug("App", $"[Diag] minidump 已写入 {dmp}"); }
+                                catch (Exception de) { Log.Debug("App", $"[Diag] minidump 失败: {de.Message}"); }
+                            });
+                            t.IsBackground = true;
+                            t.Start();
+                        }
+                    }
+                    catch { }
+                };
+                Log.Debug("App", $"[Diag] FirstChance 捕获已挂载 -> {_fceLogPath}");
+            }
+            catch (Exception dex) { Log.Debug("App", $"[Diag] FirstChance 挂载失败: {dex.Message}"); }
         }
-        catch (Exception dex) { Log.Debug("App", $"[Diag] FirstChance 挂载失败: {dex.Message}"); }
 #endif
 
         // 冷启动时清理 MAUI Share 框架遗留的中转缓存（external cache 下 <固定uuid>/<随机uuid>/ 目录）。
@@ -864,10 +870,11 @@ public partial class App : Application
         try
         {
             using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-            // MiniDumpWithFullMemory=0x2 | MiniDumpWithThreadInfo=0x1000 | MiniDumpWithHandleData=0x4
+            // MiniDumpWithThreadInfo=0x1000（基础 Normal dump + 线程信息，体积小；
+            // 早期用 MiniDumpWithFullMemory=0x2 会写出数百 MB 文件）
             var proc = System.Diagnostics.Process.GetCurrentProcess();
             MiniDumpWriteDump(proc.Handle, (uint)proc.Id, fs.SafeFileHandle.DangerousGetHandle(),
-                0x00000002 | 0x00001000 | 0x00000004, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                0x00001000, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
         }
         catch { }
 #endif

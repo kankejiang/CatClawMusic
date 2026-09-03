@@ -334,6 +334,10 @@ public partial class LyricsService
     /// <summary>通过 HTTP 请求打开远程音频文件流（由平台层注入，用于 WebDAV/SMB 等网络歌曲的内嵌歌词读取）。返回的流必须支持 Seek（建议返回 MemoryStream）</summary>
     public static Func<string, Stream?>? RemoteUrlStreamOpener { get; set; }
 
+    /// <summary>异步打开远程音频文件流（优先于 <see cref="RemoteUrlStreamOpener"/>；返回的流必须支持 Seek）。
+    /// 旧同步签名迫使宿主以 Task.Run+GetResult 同步阻塞网络请求——整个下载期间占死一个线程池线程。</summary>
+    public static Func<string, Task<Stream?>>? RemoteUrlStreamOpenerAsync { get; set; }
+
     /// <summary>读取任意文件字节（含 ContentResolver 回退），由平台层注入，用于 Android 11+ scoped storage 下读取 .lrc 等文件</summary>
     public static Func<string, Task<byte[]?>>? FileBytesReaderAsync { get; set; }
 

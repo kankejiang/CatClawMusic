@@ -459,7 +459,9 @@ public partial class NetworkMusicService
 
     /// <summary>
     /// 回填网络歌曲元数据：找到所有缺少元数据的歌曲（快速扫描入库的），
-    /// 逐批从远程服务器下载标签信息并更新数据库。
+    /// 有界并行从远程服务器下载标签信息，分批单事务入库。
+    /// 性能：SQL 直接筛目标（不再全量加载详情表）；固定 worker 数并行（旧版为每首歌
+    /// 创建一个 Task，随库规模线性膨胀）；结果分批事务提交（旧版逐首 SaveSongAsync）。
     /// </summary>
     public async Task BackfillMetadataAsync(ConnectionProfile profile,
         IProgress<(int done, int total, string status)>? progress = null,
@@ -476,14 +478,16 @@ public partial class NetworkMusicService
         };
         if (source == null) return;
 
-        // 找到所有缺少元数据的歌曲（快速扫描时 Artist 设为"未知艺术家"、Duration=0）
-        var allCached = await _db.GetCachedNetworkSongsAsync();
-        var needsBackfill = allCached
-            .Where(s => s.Source == source.Value
-                && (s.Duration <= 0
-                    || string.IsNullOrWhiteSpace(s.Artist)
-                    || s.Artist == "未知艺术家"))
-            .ToList();
+        List<Song> needsBackfill;
+        try
+        {
+            needsBackfill = await _db.GetNetworkSongsMissingMetadataAsync(source.Value);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NetworkMusicService", $"[CatClaw] 查询待回填歌曲失败: {ex.Message}");
+            return;
+        }
 
         if (needsBackfill.Count == 0) return;
 
@@ -491,46 +495,127 @@ public partial class NetworkMusicService
         var done = 0;
         progress?.Report((0, total, $"正在补全元数据 0/{total}"));
 
-        var tasks = needsBackfill.Select(song => Task.Run(async () =>
+        var updated = new ConcurrentBag<Song>();
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct };
+        try
         {
-            if (ct.IsCancellationRequested) return;
-            await ScanSemaphore.WaitAsync(ct);
-            try
+            await Parallel.ForEachAsync(needsBackfill, options, async (song, token) =>
             {
-                var tagged = await FetchSongMetadataAsync(song, profile);
-                if (tagged != null)
+                try
                 {
-                    if (!string.IsNullOrWhiteSpace(tagged.Title) && tagged.Title != song.Title)
-                        song.Title = tagged.Title;
-                    if (!string.IsNullOrWhiteSpace(tagged.Artist) && tagged.Artist != "未知艺术家")
-                        song.Artist = tagged.Artist;
-                    if (!string.IsNullOrWhiteSpace(tagged.Album) && tagged.Album != "未知专辑")
-                        song.Album = tagged.Album;
-                    if (tagged.Duration > 0) song.Duration = tagged.Duration;
-                    if (tagged.Bitrate > 0) song.Bitrate = tagged.Bitrate;
-                    if (tagged.Year > 0) song.Year = tagged.Year;
-                    if (tagged.TrackNumber > 0) song.TrackNumber = tagged.TrackNumber;
-                    song.Genre = tagged.Genre;
-                    await _db.SaveSongAsync(song);
+                    var tagged = await FetchSongMetadataAsync(song, profile);
+                    if (tagged != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(tagged.Title) && tagged.Title != song.Title)
+                            song.Title = tagged.Title;
+                        if (!string.IsNullOrWhiteSpace(tagged.Artist) && tagged.Artist != "未知艺术家")
+                            song.Artist = tagged.Artist;
+                        if (!string.IsNullOrWhiteSpace(tagged.Album) && tagged.Album != "未知专辑")
+                            song.Album = tagged.Album;
+                        if (tagged.Duration > 0) song.Duration = tagged.Duration;
+                        if (tagged.Bitrate > 0) song.Bitrate = tagged.Bitrate;
+                        if (tagged.Year > 0) song.Year = tagged.Year;
+                        if (tagged.TrackNumber > 0) song.TrackNumber = tagged.TrackNumber;
+                        song.Genre = tagged.Genre;
+                        updated.Add(song);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log.Debug("NetworkMusicService", $"[CatClaw] 元数据回填失败: {song.FilePath}, {ex.Message}");
-            }
-            finally
-            {
-                ScanSemaphore.Release();
-                var d = Interlocked.Increment(ref done);
-                if (progress != null && (d % 10 == 0 || d == total))
-                    progress.Report((d, total, $"正在补全元数据 {d}/{total}"));
-            }
-        }, ct));
+                catch (Exception ex)
+                {
+                    Log.Debug("NetworkMusicService", $"[CatClaw] 元数据回填失败: {song.FilePath}, {ex.Message}");
+                }
+                finally
+                {
+                    var d = Interlocked.Increment(ref done);
+                    if (progress != null && (d % 10 == 0 || d == total))
+                        progress.Report((d, total, $"正在补全元数据 {d}/{total}"));
+                }
+            });
+        }
+        catch (OperationCanceledException) { }
 
-        await Task.WhenAll(tasks);
+        // 分批单事务落库（含 ArtistId/AlbumId/SongArtists 持久化，修复旧版
+        // "只更新内存字符串、重启后未知艺术家复活"的问题）
+        foreach (var batch in updated.Chunk(50))
+        {
+            if (ct.IsCancellationRequested) break;
+            await PersistBackfilledSongsAsync(batch.ToList());
+        }
+
         progress?.Report((total, total, ct.IsCancellationRequested
             ? $"已跳过补全（{done}/{total}）"
             : $"元数据补全完成，共 {total} 首"));
+    }
+
+    /// <summary>把回填结果持久化：批量 Ensure 艺术家/专辑并回写 ArtistId/AlbumId/SongArtists，歌曲行单事务批量更新</summary>
+    private async Task PersistBackfilledSongsAsync(List<Song> batch)
+    {
+        if (batch.Count == 0) return;
+        try
+        {
+            // 1. 批量建立艺术家（拆分多艺术家名）
+            var nameToId = new Dictionary<string, int>(StringComparer.Ordinal);
+            var allNames = batch
+                .SelectMany(s => MusicUtility.SplitArtistNames(s.Artist))
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            if (allNames.Count > 0)
+            {
+                var artistMap = await _db.EnsureArtistsBatchAsync(allNames);
+                foreach (var kv in artistMap) nameToId[kv.Key] = kv.Value;
+            }
+
+            // 2. 批量建立专辑（主艺术家 + 专辑标题）
+            var albumMap = new Dictionary<(string title, int artistId), int>();
+            var albumKeys = new List<(string title, int artistId)>();
+            foreach (var s in batch)
+            {
+                if (string.IsNullOrWhiteSpace(s.Album) || s.Album == "未知专辑") continue;
+                var primary = MusicUtility.SplitArtistNames(s.Artist).FirstOrDefault() ?? "";
+                if (!nameToId.TryGetValue(primary, out var artistId) || artistId <= 0) continue;
+                var key = (s.Album, artistId);
+                if (!albumKeys.Contains(key)) albumKeys.Add(key);
+            }
+            if (albumKeys.Count > 0)
+            {
+                var ensured = await _db.EnsureAlbumsBatchAsync(albumKeys);
+                foreach (var kv in ensured) albumMap[kv.Key] = kv.Value;
+            }
+
+            // 3. 单事务：更新歌曲行 + 重建 SongArtists 关联
+            await _db.RunInTransactionAsync(tran =>
+            {
+                foreach (var s in batch)
+                {
+                    var names = MusicUtility.SplitArtistNames(s.Artist);
+                    if (names.Count > 0 && nameToId.TryGetValue(names[0], out var aid) && aid > 0)
+                        s.ArtistId = aid;
+                    if (!string.IsNullOrWhiteSpace(s.Album) && s.Album != "未知专辑" && s.ArtistId > 0
+                        && albumMap.TryGetValue((s.Album, s.ArtistId), out var alid) && alid > 0)
+                        s.AlbumId = alid;
+
+                    tran.Update(s);
+
+                    if (s.ArtistId > 0)
+                    {
+                        tran.Execute("DELETE FROM SongArtists WHERE SongId = ?", s.Id);
+                        var ids = names
+                            .Select(n => nameToId.TryGetValue(n, out var id) ? id : 0)
+                            .Where(id => id > 0)
+                            .Distinct()
+                            .ToList();
+                        if (!ids.Contains(s.ArtistId)) ids.Insert(0, s.ArtistId);
+                        foreach (var id in ids)
+                            tran.Execute("INSERT INTO SongArtists (SongId, ArtistId) VALUES (?, ?)", s.Id, id);
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NetworkMusicService", $"[CatClaw] 回填结果批量入库失败: {ex.Message}");
+        }
     }
 
     /// <summary>判断解析出的标签是否含有效元数据（自适应标签头重试的判定依据）。</summary>

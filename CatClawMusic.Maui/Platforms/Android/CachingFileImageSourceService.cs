@@ -6,6 +6,7 @@ using Android.Widget;
 using Microsoft.Maui;
 using Microsoft.Maui.Controls;
 using CatClawMusic.Core.Interfaces;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace CatClawMusic.Maui.Platforms.Android;
@@ -37,6 +38,10 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     /// <summary>并发解码信号量：限制同时解码的封面数（默认 8），避免数百张同时解码打满线程池造成设备级卡顿。</summary>
     private static readonly SemaphoreSlim _decodeSemaphore = new(8, 8);
 
+    /// <summary>同 key（路径+尺寸桶）single-flight：同一封面同时出现在列表多行/迷你条/播放页/全屏页时，
+    /// 并发 cache miss 会各自走一遍解码；合并为一次解码，等待者用自己的取消令牌退出等待，不取消共享解码。</summary>
+    private static readonly ConcurrentDictionary<string, Task<Bitmap?>> _inflightDecodes = new();
+
     /// <summary>将 FileImageSource 加载到指定 ImageView，优先命中内存缓存。
     /// 缓存命中时同步返回（零开销），缓存未命中时将解码移至后台线程避免阻塞 UI。</summary>
     public async Task<IImageSourceServiceResult?> LoadDrawableAsync(IImageSource imageSource, ImageView imageView, CancellationToken cancellationToken = default)
@@ -45,7 +50,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
         if (imageSource is FileImageSource fileSource && !string.IsNullOrEmpty(fileSource.File))
         {
             var targetPx = GetTargetPx(imageView);
-            var bitmap = await ResolveBitmapAsync(fileSource.File, imageView.Context, targetPx).ConfigureAwait(true);
+            var bitmap = await ResolveBitmapAsync(fileSource.File, imageView.Context, targetPx, cancellationToken).ConfigureAwait(true);
             if (bitmap != null)
             {
                 var drawable = new BitmapDrawable(imageView.Resources ?? imageView.Context?.Resources, bitmap);
@@ -65,7 +70,7 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     {
         if (imageSource is FileImageSource fileSource && !string.IsNullOrEmpty(fileSource.File))
         {
-            var bitmap = await ResolveBitmapAsync(fileSource.File, context, DefaultTargetPx).ConfigureAwait(true);
+            var bitmap = await ResolveBitmapAsync(fileSource.File, context, DefaultTargetPx, cancellationToken).ConfigureAwait(true);
             if (bitmap != null)
             {
                 var drawable = new BitmapDrawable(context?.Resources, bitmap);
@@ -117,10 +122,10 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
     /// <summary>
     /// 解析 FileImageSource.File 为 Bitmap：
     /// - 缓存命中：同步返回（零开销快速路径）
-    /// - 缓存未命中：将 BitmapFactory 解码移至后台线程，避免阻塞 UI
+    /// - 缓存未命中：single-flight 合并并发解码，后台线程执行，等待可取消
     /// - 资源名：从 Android Resource 加载
     /// </summary>
-    private static async Task<Bitmap?> ResolveBitmapAsync(string path, Context? context, int targetPx)
+    private static async Task<Bitmap?> ResolveBitmapAsync(string path, Context? context, int targetPx, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(path)) return null;
 
@@ -132,23 +137,24 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
             var cached = BitmapMemoryCache.Get(cacheKey);
             if (cached != null) return cached;
 
-            // 缓存未命中：在后台线程解码，避免阻塞 UI 线程。
-            // 关键修复：用 ConfigureAwait(false) 让「解码完成 + 缓存 Put」回到线程池而非主线程同步上下文，
-            // 否则几百个封面的完成回调会排队冲垮主线程（表现为 49s 级冻结 / Choreographer Skipped 上千帧）。
-            // 并发解码数由 _decodeSemaphore 限制，避免数百张同时解码打满线程池。
-            await _decodeSemaphore.WaitAsync();
-            Bitmap? decoded;
+            // single-flight：同一 key 的并发请求共享一次解码
+            // （关键修复保留：解码完成 + 缓存 Put 在线程池回调，避免主线程冻结；并发由信号量限制）
+            var shared = _inflightDecodes.GetOrAdd(
+                cacheKey, _ => Task.Run(() => DecodeToCacheAsync(cacheKey, path, bucket)));
             try
             {
-                decoded = await Task.Run(() => DecodeBitmapDownsampled(path, bucket)).ConfigureAwait(false);
+                return await shared.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return null; // 调用方取消等待，共享解码继续（结果会进缓存供后续使用）
             }
             finally
             {
-                _decodeSemaphore.Release();
+                if (shared.IsCompleted)
+                    ((ICollection<KeyValuePair<string, Task<Bitmap?>>>)_inflightDecodes)
+                        .Remove(new KeyValuePair<string, Task<Bitmap?>>(cacheKey, shared));
             }
-            if (decoded != null)
-                BitmapMemoryCache.Put(cacheKey, decoded);
-            return decoded;
         }
 
         // 资源名：从 Android drawable 资源加载（带降采样，防止高密度设备密度放大后超 Canvas 绘制上限）
@@ -165,6 +171,26 @@ public class CachingFileImageSourceService : IImageSourceService<FileImageSource
         }
 
         return null;
+    }
+
+    /// <summary>共享解码体：信号量限流 + 二次缓存检查（等信号量期间可能已被并发入缓存）+ 入缓存</summary>
+    private static async Task<Bitmap?> DecodeToCacheAsync(string cacheKey, string path, int bucket)
+    {
+        await _decodeSemaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var again = BitmapMemoryCache.Get(cacheKey);
+            if (again != null) return again;
+
+            var decoded = await Task.Run(() => DecodeBitmapDownsampled(path, bucket)).ConfigureAwait(false);
+            if (decoded != null)
+                BitmapMemoryCache.Put(cacheKey, decoded);
+            return decoded;
+        }
+        finally
+        {
+            _decodeSemaphore.Release();
+        }
     }
 
     /// <summary>降采样解码 Bitmap：长边限制为目标像素，兼顾清晰度与内存/解码耗时</summary>

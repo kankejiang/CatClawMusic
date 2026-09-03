@@ -8,10 +8,25 @@ namespace CatClawMusic.Maui.Pages;
 /// <summary>全屏歌词页 —— partial 分域文件。</summary>
 public partial class FullLyricsPage
 {
+    /// <summary>非活动方向的歌词树是否过期（主题/歌词变更只重建当前方向后置位，
+    /// 首次切到另一方向时按需重建，避免横竖两套树各自维护导致的双倍构建）</summary>
+    private bool _inactiveTreeDirty;
+
     private void BuildLyricViews()
     {
-        BuildPortraitLyricViews();
-        BuildLandscapeLyricViews();
+        // 只构建当前方向的歌词树（旧版每次重建横竖两套完整视图树，
+        // 100 行带译文/罗马音的歌词 ≈ 上千个视图对象直接翻倍）；
+        // 另一方向在 ApplyLayoutForOrientation 首次切入时懒构建。
+        if (_isLandscape)
+        {
+            BuildLandscapeLyricViews();
+            _inactiveTreeDirty = true;
+        }
+        else
+        {
+            BuildPortraitLyricViews();
+            _inactiveTreeDirty = true;
+        }
     }
 
     /// <summary>构建竖屏歌词视图</summary>
@@ -368,19 +383,33 @@ public partial class FullLyricsPage
 
     /// <summary>高亮切换导致行高/宽度变化：下一帧强制重排 + 重测锚点 + 重新定位。
     /// <paramref name="animate"/>=true（切句）时用 <see cref="ScrollToLine"/> 缓动到新位置，
-    /// 保持滚动的平滑过渡；=false（构建/初始化/恢复）时用 <see cref="PinActiveLineNow"/> 立即钉行。</summary>
+    /// 保持滚动的平滑过渡；=false（构建/初始化/恢复）时用 <see cref="PinActiveLineNow"/> 立即钉行。
+    /// 性能：同帧内连续切行合并为一次两阶段重排（posted 标志 + 最新 index 胜出），与 NowPlayingPage 一致。</summary>
+    private bool _relayoutPosted;
+    private int _pendingRelayoutIndex = -1;
+    private bool _pendingRelayoutAnimate;
+
     private void RelayoutAndRepinAfterHighlightChange(int index, bool animate = true)
     {
         // 1) 先行高扩展：把动态 Margin 设好（必须先设，后面 MeasureLyricRows 才能读到正确行高）
         ApplyLyricRowGap(index, animate: false);
         var stack = ActiveLyricStack;
         stack.InvalidateMeasure(); // 强制 MAUI 重新测量+布局（让行高更新到扩展后的真实高度）
+
+        _pendingRelayoutIndex = index;
+        _pendingRelayoutAnimate = animate;
+        if (_relayoutPosted) return;
+        _relayoutPosted = true;
+
         Dispatcher.Dispatch(() =>
         {
+            _relayoutPosted = false;
+            var idx = _pendingRelayoutIndex;
+            var anim = _pendingRelayoutAnimate;
             if (ActiveLyricClip.Handler == null) return;
             // 2) label 已按新宽度（屏宽/倍率）重新测量 → mainLblH 才是真实多行高度，
             //    此时再应用一次行高，容器 HeightRequest 才会算足，避免换行第二行被裁
-            ApplyLyricRowGap(index, animate: false);
+            ApplyLyricRowGap(idx, animate: false);
             stack.InvalidateMeasure();
             Dispatcher.Dispatch(() =>
             {
@@ -391,13 +420,13 @@ public partial class FullLyricsPage
                 ref int retries = ref ActiveMeasureRetries;
                 retries = 0;
                 MeasureLyricRows();
-                if (ActiveLyricRowTops.Length == ActiveLyricRowViews.Count && index >= 0 && index < ActiveLyricRowViews.Count)
+                if (ActiveLyricRowTops.Length == ActiveLyricRowViews.Count && idx >= 0 && idx < ActiveLyricRowViews.Count)
                 {
                     // 4) 以新锚点 + 新行高重新定位：切句时缓动（保持平滑），构建/恢复时立即钉
-                    if (animate)
-                        ScrollToLine(index);
+                    if (anim)
+                        ScrollToLine(idx);
                     else
-                        PinActiveLineNow(index);
+                        PinActiveLineNow(idx);
                 }
             });
         });
@@ -475,7 +504,8 @@ public partial class FullLyricsPage
     /// 1) 容器 HeightRequest = 原高 + 主歌词label高×(LyricCurrentScale−1) —— 补上放大溢出的高度；
     /// 2) 主歌词 Border 垂直 Fill —— 吸收新增空间，自身长到 1.5×labelH；
     /// 3) 主歌词 label 垂直居中 —— 放大内容以容器中心对称，上下都完整贴合不溢出。
-    /// 邻居行 ±1 只留小呼吸 Margin；非当前行恢复自动高度 + 顶部对齐。</summary>
+    /// 邻居行 ±1 只留小呼吸 Margin；非当前行恢复自动高度 + 顶部对齐。
+    /// 性能：直接赋值目标值，不再对 HeightRequest/Margin 做逐帧布局属性动画（与 NowPlayingPage 一致）。</summary>
     private void ApplyLyricRowGap(int index, bool animate)
     {
         var rows = ActiveLyricRowViews;
@@ -498,23 +528,9 @@ public partial class FullLyricsPage
                 // 还是未 wrap 时的单行值，会让换行成多行的当前行容器高度不足 → 第二行底部被裁）。
                 double newRowH = mainLblH * (float)LyricCurrentScale + LyricGapExtra * 2;
 
-                // 1) 容器加高（动画插值）
                 if (Math.Abs(row.HeightRequest - newRowH) > 0.5)
-                {
-                    row.AbortAnimation("GrowRowH");
-                    if (animate)
-                    {
-                        double startH = row.HeightRequest > 0 ? row.HeightRequest : mainLblH;
-                        row.Animate("GrowRowH", t =>
-                        {
-                            row.HeightRequest = startH + (newRowH - startH) * t;
-                        }, 16, LyricAnimMs, Easing.CubicInOut);
-                    }
-                    else row.HeightRequest = newRowH;
-                }
-                // 2) 主歌词 Border 吸收新增空间
+                    row.HeightRequest = newRowH;
                 mainBorder.VerticalOptions = LayoutOptions.Fill;
-                // 3) host 也填满容器 + label 居中 → 放大内容以容器中心对称，上下留出呼吸空间
                 if (mainBorder.Content is ContentView hostC)
                 {
                     hostC.VerticalOptions = LayoutOptions.Fill;
@@ -535,29 +551,15 @@ public partial class FullLyricsPage
                 }
             }
 
-            // 邻居行小呼吸 Margin
+            // 邻居行小呼吸 Margin（直接赋值，无逐帧动画）
             double top = 0, bottom = 0;
             if (i == index - 1) bottom = LyricGapExtra;
             else if (i == index + 1) top = LyricGapExtra;
 
-            var targetMargin = new Thickness(0, top, 0, bottom);
-            if (Math.Abs(row.Margin.Top - targetMargin.Top) < 0.5 &&
-                Math.Abs(row.Margin.Bottom - targetMargin.Bottom) < 0.5) continue;
+            if (Math.Abs(row.Margin.Top - top) < 0.5 &&
+                Math.Abs(row.Margin.Bottom - bottom) < 0.5) continue;
 
-            row.AbortAnimation("ApplyLyricRowGap");
-            if (animate)
-            {
-                double sTop = row.Margin.Top, sBot = row.Margin.Bottom;
-                double tTop = targetMargin.Top, tBot = targetMargin.Bottom;
-                row.Animate("ApplyLyricRowGap", t =>
-                {
-                    row.Margin = new Thickness(0, sTop + (tTop - sTop) * t, 0, sBot + (tBot - sBot) * t);
-                }, 16, LyricAnimMs, Easing.CubicInOut);
-            }
-            else
-            {
-                row.Margin = targetMargin;
-            }
+            row.Margin = new Thickness(0, top, 0, bottom);
         }
     }
 

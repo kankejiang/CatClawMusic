@@ -180,7 +180,9 @@ public partial class MusicDatabase
             startDate, endDate);
     }
 
-    /// <summary>如果汇总表为空但存在历史会话，则从 PlaySession 重建汇总，兼容旧版本升级。</summary>
+    /// <summary>如果汇总表为空但存在历史会话，则从 PlaySession 重建汇总，兼容旧版本升级。
+    /// 性能/正确性：一次遍历在内存聚合三个维度，清表 + 重建放入同一事务——
+    /// 旧版逐会话三次 UPSERT（2000 条会话 ≈ 6000 次独立往返）且中途可能暴露半重建状态。</summary>
     public async Task RebuildDailyStatsIfNeededAsync()
     {
         try
@@ -192,13 +194,52 @@ public partial class MusicDatabase
                 "SELECT COALESCE(SUM(PlayCount), 0) FROM DailyPlayStat");
             if (summaryPlays >= sessionCount) return;
 
-            await _database.ExecuteAsync("DELETE FROM DailyPlayStat");
-            await _database.ExecuteAsync("DELETE FROM HourlyPlayStat");
-            await _database.ExecuteAsync("DELETE FROM DailySongStat");
-
             var sessions = await _database.Table<PlaySession>().ToListAsync();
+
+            // 一次遍历聚合三个维度（键与 IncrementDailyStatsAsync 完全一致）
+            var daily = new Dictionary<string, (int Play, long Dur, int Night)>(StringComparer.Ordinal);
+            var hourly = new Dictionary<string, (int Play, long Dur, string Date, int Hour)>(StringComparer.Ordinal);
+            var perSong = new Dictionary<string, (int Play, long Dur, string Date, int SongId)>(StringComparer.Ordinal);
             foreach (var s in sessions)
-                await IncrementDailyStatsAsync(s.SongId, s.PlayedAt, 1, s.DurationMs);
+            {
+                var local = DateTimeOffset.FromUnixTimeSeconds(s.PlayedAt).LocalDateTime;
+                var date = local.ToString("yyyy-MM-dd");
+                var hour = local.Hour;
+                var dur = Math.Max(0, s.DurationMs);
+
+                daily.TryGetValue(date, out var d);
+                daily[date] = (d.Play + 1, d.Dur + dur, d.Night + ((hour >= 21 || hour < 5) ? 1 : 0));
+
+                var dateHour = $"{date} {hour:D2}";
+                hourly.TryGetValue(dateHour, out var h);
+                hourly[dateHour] = (h.Play + 1, h.Dur + dur, date, hour);
+
+                var dateSong = $"{date}|{s.SongId}";
+                perSong.TryGetValue(dateSong, out var g);
+                perSong[dateSong] = (g.Play + 1, g.Dur + dur, date, s.SongId);
+            }
+
+            await _database.RunInTransactionAsync(tran =>
+            {
+                tran.Execute("DELETE FROM DailyPlayStat");
+                tran.Execute("DELETE FROM HourlyPlayStat");
+                tran.Execute("DELETE FROM DailySongStat");
+
+                foreach (var kv in daily)
+                    tran.Execute(
+                        "INSERT INTO DailyPlayStat(Date, PlayCount, TotalDurationMs, NightPlayCount) VALUES (?, ?, ?, ?)",
+                        kv.Key, kv.Value.Play, kv.Value.Dur, kv.Value.Night);
+
+                foreach (var kv in hourly)
+                    tran.Execute(
+                        "INSERT INTO HourlyPlayStat(DateHour, Date, Hour, PlayCount, TotalDurationMs) VALUES (?, ?, ?, ?, ?)",
+                        kv.Key, kv.Value.Date, kv.Value.Hour, kv.Value.Play, kv.Value.Dur);
+
+                foreach (var kv in perSong)
+                    tran.Execute(
+                        "INSERT INTO DailySongStat(DateSong, Date, SongId, PlayCount, TotalDurationMs) VALUES (?, ?, ?, ?, ?)",
+                        kv.Key, kv.Value.Date, kv.Value.SongId, kv.Value.Play, kv.Value.Dur);
+            });
         }
         catch (Exception ex)
         {
@@ -222,62 +263,96 @@ public partial class MusicDatabase
         var sessions = await _database.Table<PlaySession>().OrderBy(s => s.SongId).ThenBy(s => s.PlayedAt).ToListAsync();
         if (sessions.Count == 0) return 0;
 
-        var durations = (await _database.Table<Song>().ToListAsync())
-            .ToDictionary(s => s.Id, s => Math.Max(1L, s.Duration));
+        // 只投影 Id/Duration（旧版整表对象化只为取时长）
+        var durations = (await _database.QueryAsync<SongDurationRow>("SELECT Id, Duration FROM Songs"))
+            .ToDictionary(r => r.Id, r => Math.Max(1L, r.Duration));
+        // 一次加载现有 PlayHistory（上限 200 行），替代旧版逐歌 FirstOrDefault 的 N+1
+        var historyDict = SafeToDict(
+            await _database.Table<PlayHistory>().ToListAsync(), h => h.SongId, h => h);
 
         int changed = 0;
+        var redundantSessionIds = new List<int>();
+        var historyOps = new List<(int SongId, int Listens, long MaxPlayed, bool HadRow, int OldCount)>();
+
         foreach (var grp in sessions.GroupBy(s => s.SongId))
         {
-            var songDurMs = durations.TryGetValue(grp.Key, out var d) ? d : 180_000L;
+            var songDurationSeconds = durations.TryGetValue(grp.Key, out var d) ? d : 180L;
             // 同一聆听内的逐次日志间隔 ≤ 30 秒；两聆听之间至少隔整首歌（或更久）。
-            // 用半首歌时长作阈值：既能区分连续重播（间隔≈整首歌 > 半首歌），又不会把一次聆听内的多行拆开。
-            var thresholdMs = Math.Max(120_000L, songDurMs / 2);
+            // 用半首歌时长作阈值。⚠ Duration 契约为"秒"（TagReader 存 TotalSeconds）；
+            // 旧实现把秒值当毫秒参与运算（thresholdMs），阈值恒为 120 秒下限，半首歌阈值形同虚设。
+            var thresholdSeconds = Math.Max(120L, songDurationSeconds / 2);
 
-            var rows = grp.OrderBy(s => s.PlayedAt).ToList();
-            var clusters = new List<List<PlaySession>>();
-            List<PlaySession>? cur = null;
+            // grp 已按 (SongId, PlayedAt) 排序（SQL ORDER BY），单遍流式聚类，不再组内重复排序
+            int listens = 0;
+            long maxPlayed = 0;
             long prev = 0;
-            foreach (var r in rows)
+            bool first = true;
+            foreach (var r in grp)
             {
-                if (cur == null || (r.PlayedAt - prev) * 1000 > thresholdMs)
-                {
-                    cur = new List<PlaySession>();
-                    clusters.Add(cur);
-                }
-                cur.Add(r);
+                if (first || (r.PlayedAt - prev) > thresholdSeconds)
+                    listens++;
+                else
+                    redundantSessionIds.Add(r.Id); // 簇内冗余行，仅保留最早一行
+                if (r.PlayedAt > maxPlayed) maxPlayed = r.PlayedAt;
                 prev = r.PlayedAt;
+                first = false;
             }
 
-            // 删除簇内冗余行，仅保留最早一行（其 DurationMs 通常≈整首歌，最具代表性）
-            foreach (var c in clusters)
-                for (int i = 1; i < c.Count; i++)
-                    await _database.DeleteAsync(c[i]);
-
-            var listens = clusters.Count;
             if (listens <= 0) continue; // 仅有 PlayHistory 无会话时不动，避免误清零
 
-            var maxPlayed = rows.Max(r => r.PlayedAt);
-            // 预存为局部 int：sqlite-net 表达式编译器无法直接求值 IGrouping 捕获变量的 Key，
-            // 内联 grp.Key 会抛出 NotSupportedException（Cannot store type: PlaySession）
             var songId = grp.Key;
-            var hist = await _database.Table<PlayHistory>().Where(h => h.SongId == songId).FirstOrDefaultAsync();
-            if (hist != null)
+            if (historyDict.TryGetValue(songId, out var hist))
             {
-                if (hist.PlayCount != listens)
-                {
-                    hist.PlayCount = listens;
-                    changed++;
-                }
-                if (maxPlayed > hist.PlayedAt) hist.PlayedAt = maxPlayed;
-                await _database.UpdateAsync(hist);
+                if (hist.PlayCount != listens) changed++;
+                historyOps.Add((songId, listens, maxPlayed, true, hist.PlayCount));
             }
             else
             {
-                await _database.InsertAsync(new PlayHistory { SongId = grp.Key, PlayedAt = maxPlayed, PlayCount = listens });
+                historyOps.Add((songId, listens, maxPlayed, false, 0));
                 changed++;
             }
         }
+
+        // 单事务批量落库：删除冗余会话 + 批量 UPSERT 校准结果
+        if (redundantSessionIds.Count > 0 || historyOps.Count > 0)
+        {
+            await _database.RunInTransactionAsync(tran =>
+            {
+                for (int i = 0; i < redundantSessionIds.Count; i += 500)
+                {
+                    var chunk = redundantSessionIds.Skip(i).Take(500);
+                    tran.Execute(
+                        "DELETE FROM PlaySession WHERE Id IN (" + string.Join(",", chunk) + ")");
+                }
+
+                foreach (var (songId, listens, maxPlayed, hadRow, _) in historyOps)
+                {
+                    if (hadRow)
+                    {
+                        // PlayCount 校正为簇数；PlayedAt 只前进不后退（与旧行为一致）
+                        tran.Execute(
+                            "UPDATE PlayHistory SET PlayCount = ?, " +
+                            "PlayedAt = CASE WHEN PlayedAt < ? THEN ? ELSE PlayedAt END " +
+                            "WHERE SongId = ?",
+                            listens, maxPlayed, maxPlayed, songId);
+                    }
+                    else
+                    {
+                        tran.Execute(
+                            "INSERT INTO PlayHistory (SongId, PlayedAt, PlayCount) VALUES (?, ?, ?)",
+                            songId, maxPlayed, listens);
+                    }
+                }
+            });
+        }
+
         return changed;
+    }
+
+    private sealed class SongDurationRow
+    {
+        public int Id { get; set; }
+        public long Duration { get; set; }
     }
 
     /// <summary>

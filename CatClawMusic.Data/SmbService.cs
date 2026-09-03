@@ -498,6 +498,58 @@ public class SmbService : INetworkFileService, IDisposable
     }
 
     /// <summary>
+    /// 读取远程文件指定范围到调用方提供的缓冲区（供流式代理逐块复用缓冲，避免每块分配新数组）。
+    /// 返回实际读取的字节数（0 = 结束或失败）。句柄开/关语义与按长度读取的重载一致。
+    /// </summary>
+    /// <param name="filePath">远程文件路径</param>
+    /// <param name="offset">起始偏移量</param>
+    /// <param name="buffer">接收数据的缓冲区</param>
+    /// <param name="count">期望读取的字节数（不超过 buffer 长度）</param>
+    /// <returns>实际读取字节数；0 表示已到文件尾或读取失败</returns>
+    public async Task<int> OpenReadRangeAsync(string filePath, long offset, byte[] buffer, int count)
+    {
+        return await Task.Run(() =>
+        {
+            ISMBFileStore? fileStore;
+            lock (_lock) { fileStore = _fileStore; }
+            if (fileStore == null) return 0;
+
+            var normalizedPath = NormalizePath(filePath);
+            object? handle;
+            NTStatus status;
+            lock (_lock)
+            {
+                status = fileStore.CreateFile(
+                    out handle,
+                    out _,
+                    normalizedPath,
+                    AccessMask.GENERIC_READ,
+                    SMBLibrary.FileAttributes.Normal,
+                    ShareAccess.Read,
+                    CreateDisposition.FILE_OPEN,
+                    CreateOptions.FILE_NON_DIRECTORY_FILE,
+                    null);
+            }
+
+            if (status != NTStatus.STATUS_SUCCESS)
+                return 0;
+
+            lock (_lock)
+            {
+                status = fileStore.ReadFile(out var data, handle, offset, count);
+                fileStore.CloseFile(handle);
+                if (status == NTStatus.STATUS_SUCCESS && data != null && data.Length > 0)
+                {
+                    var n = Math.Min(data.Length, buffer.Length);
+                    Buffer.BlockCopy(data, 0, buffer, 0, n);
+                    return n;
+                }
+                return 0;
+            }
+        });
+    }
+
+    /// <summary>
     /// 获取远程文件的信息
     /// </summary>
     /// <param name="filePath">远程文件路径</param>

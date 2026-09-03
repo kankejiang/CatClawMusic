@@ -113,7 +113,9 @@ public class TagReader
                 Album = tag.Album ?? "未知专辑",
                 Duration = 0, // 扫描时不读（避免全文件 IO）；播放时由播放器回填
                 FileSize = fileInfo.Length,
-                Bitrate = propsAudioBitrate(file),
+                // 快模式（readDuration=false）不触碰 Properties：部分格式访问 Properties
+                // 与读 Duration 同样需要解析音频流，成本同级；比特率随时长一起回填
+                Bitrate = 0,
                 FilePath = filePath,
                 LyricsPath = null, // 延迟到播放时查找，避免扫描时逐文件 I/O
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
@@ -125,7 +127,7 @@ public class TagReader
                 {
                     var props = file.Properties;
                     song.Duration = (int)props.Duration.TotalSeconds;
-                    if (song.Bitrate == 0) song.Bitrate = props.AudioBitrate;
+                    song.Bitrate = props.AudioBitrate;
                 }
                 catch { }
             }
@@ -178,19 +180,6 @@ public class TagReader
                 FileSize = fileInfo.Length,
                 DateModified = new DateTimeOffset(fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds()
             };
-        }
-    }
-
-    /// <summary>读取音频比特率（读取 Properties 本身也轻量；仅 Duration 需要全文件）</summary>
-    private static int propsAudioBitrate(TagLib.File file)
-    {
-        try
-        {
-            return (int)file.Properties.AudioBitrate;
-        }
-        catch
-        {
-            return 0;
         }
     }
 

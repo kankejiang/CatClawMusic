@@ -80,9 +80,6 @@ public partial class NowPlayingPage : ContentPage
         _desktopLyricManager = desktopLyricManager;
         BindingContext = _viewModel;
 
-        // FM 模式选择：VM 触发事件后打开全屏模式选择页（样式参考播放列表页）
-        _viewModel.FmModePageRequested += OnFmModePageRequested;
-
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
         Loaded += OnPageLoaded;
@@ -139,6 +136,10 @@ public partial class NowPlayingPage : ContentPage
             App.Resumed += OnAppResumed;
             _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
             _viewModel.LyricResumeRequested += OnLyricResumeRequested;
+            // FM 模式选择：纳入生命周期管理（本页注册为 Transient，构造器常驻订阅会让
+            // 单例 VM 的多播委托钉住所有历史页面实例 → 泄漏整棵视觉树 + 重复导航回调）
+            _viewModel.FmModePageRequested -= OnFmModePageRequested;
+            _viewModel.FmModePageRequested += OnFmModePageRequested;
         }
         else
         {
@@ -146,6 +147,7 @@ public partial class NowPlayingPage : ContentPage
             SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
             App.Resumed -= OnAppResumed;
             _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
+            _viewModel.FmModePageRequested -= OnFmModePageRequested;
         }
     }
 
@@ -634,9 +636,9 @@ public partial class NowPlayingPage : ContentPage
                         // 切行瞬间立即同步新行的逐字进度（VM 已算好，无需等下一个 tick）
                         if (idx >= 0 && idx < _winRows.Count)
                         {
-                            var row = _winRows[idx];
-                            row.Main.FillProgress = -1;   // 强制刷新（防同值漏触发）
-                            row.Main.FillProgress = _viewModel.CurrentLineFillProgress;
+                            // 单次写入即可：KaraokeLabel 的 FillProgress 只触发 Invalidate 重绘，
+                            // 无需 "-1 再设值" 双写（那会让每次更新产生两次 Canvas 重绘）
+                            _winRows[idx].Main.FillProgress = _viewModel.CurrentLineFillProgress;
                         }
                     });
                     return;
@@ -647,10 +649,8 @@ public partial class NowPlayingPage : ContentPage
                         var fill = _viewModel.CurrentLineFillProgress;
                         if (idx >= 0 && idx < _winRows.Count)
                         {
-                            // 强制刷新：先设 -1 再设目标值，防 PropertyChanged 同值漏触发
-                            var row = _winRows[idx];
-                            row.Main.FillProgress = -1;
-                            row.Main.FillProgress = fill;
+                            // 该分支只在 VM 值确实变化(PropertyChanged)后进入，直接单写目标值
+                            _winRows[idx].Main.FillProgress = fill;
                         }
                         return;
                     }

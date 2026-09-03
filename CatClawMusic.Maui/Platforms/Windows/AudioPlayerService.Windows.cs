@@ -79,11 +79,16 @@ public partial class AudioPlayerService
     {
         if (_winPlayer == null) InitializePlatform();
 
-        // 网络流：先下载到本地缓存再播（WinUI MediaPlayer/AudioGraph 播网络流
-        // 存在 30s 断流/时长短算问题；且 CDN 直链有时效。本地文件 100% 稳定）
+        // 网络流：先流式下载到本地缓存再播（WinUI MediaPlayer/AudioGraph 播网络流
+        // 存在 30s 断流/时长短算问题；且 CDN 直链有时效。本地文件 100% 稳定）。
+        // 进入新播放请求时代次 +1 并取消上一次的下载，快速切歌不再排队堆积。
         if (source.Scheme is "http" or "https")
         {
-            _ = PlayNetworkCachedAsync(source);
+            Interlocked.Increment(ref _networkPlayGeneration);
+            _networkPlayCts?.Cancel();
+            _networkPlayCts?.Dispose();
+            _networkPlayCts = new CancellationTokenSource();
+            _ = PlayNetworkCachedAsync(source, _networkPlayGeneration, _networkPlayCts.Token);
             return;
         }
 
@@ -103,37 +108,89 @@ public partial class AudioPlayerService
         PlayWithMediaPlayer(source);
     }
 
-    /// <summary>下载网络音频到本地缓存目录后播放（失败回退原 URL 直播）</summary>
-    private async Task PlayNetworkCachedAsync(Uri source)
+    /// <summary>网络下载专用 HttpClient：不限总超时，由每次请求的取消令牌控制</summary>
+    private static readonly HttpClient _networkDownloadHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
+    /// <summary>播放代次：每次新的网络播放请求 +1，下载完成后比对，过期结果直接丢弃</summary>
+    private int _networkPlayGeneration;
+    private CancellationTokenSource? _networkPlayCts;
+    private static int _legacyCacheCleaned;
+
+    /// <summary>缓存命中/下载网络音频到统一音乐缓存后播放（失败回退原 URL 直播）。
+    /// 走 AudioCacheService：SHA256(URL) 键、流式落盘、single-flight、LRU——
+    /// 替换旧实现（每首歌 new HttpClient + GetByteArrayAsync 整首进内存 + 文件名碰撞 + 无缓存命中检查）。</summary>
+    private async Task PlayNetworkCachedAsync(Uri source, int generation, CancellationToken ct)
     {
-        Uri? local = null;
-        try
+        // 一次性清理旧版独立在线缓存目录（内容已由 AudioCacheService 接管，仅缓存可安全删除）
+        if (Interlocked.Exchange(ref _legacyCacheCleaned, 1) == 0)
         {
-            var dir = Path.Combine(FileSystem.CacheDirectory, "online-cache");
-            Directory.CreateDirectory(dir);
-            var name = SanitizeFileName(Path.GetFileName(source.AbsolutePath));
-            if (string.IsNullOrWhiteSpace(name) || name is "/" or "\\")
-                name = $"audio_{source.AbsolutePath.GetHashCode():x8}.mp3";
-            var dest = Path.Combine(dir, name);
-
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
-            var bytes = await http.GetByteArrayAsync(source);
-            await File.WriteAllBytesAsync(dest, bytes);
-            local = new Uri(dest);
-            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频已缓存: {bytes.Length} bytes -> {dest}");
-        }
-        catch (Exception ex)
-        {
-            Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频缓存失败，回退直播: {ex.Message}");
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var legacy = Path.Combine(FileSystem.CacheDirectory, "online-cache");
+                    if (Directory.Exists(legacy)) Directory.Delete(legacy, true);
+                }
+                catch { }
+            });
         }
 
-        var target = local ?? source;
+        var url = source.ToString();
+        string? localPath = AudioCacheService.Instance.GetCachedPath(url);
+        if (localPath == null)
+        {
+            try
+            {
+                localPath = await AudioCacheService.Instance.CacheAsync(
+                    url,
+                    async (u, token) =>
+                    {
+                        HttpResponseMessage? resp = null;
+                        try
+                        {
+                            resp = await _networkDownloadHttp.GetAsync(u, HttpCompletionOption.ResponseHeadersRead, token);
+                            resp.EnsureSuccessStatusCode();
+                            return await resp.Content.ReadAsStreamAsync(token);
+                        }
+                        catch
+                        {
+                            resp?.Dispose();
+                            return null;
+                        }
+                    },
+                    ct);
+                if (localPath != null)
+                    Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频已缓存 -> {localPath}");
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("AudioPlayerService.Windows", $"[AudioPlayerService.Windows] 网络音频缓存失败，回退直播: {ex.Message}");
+            }
+        }
+
+        // 代次校验：下载期间用户已切歌 → 丢弃本次结果，不抢播
+        if (generation != Volatile.Read(ref _networkPlayGeneration) || ct.IsCancellationRequested)
+            return;
+
+        if (localPath != null)
+        {
+            var target = new Uri(localPath);
+            if (EqualizerSettings.Enabled)
+                _ = PlayWithEqEngineAsync(target);
+            else
+            {
+                StopEqEngine();
+                PlayWithMediaPlayer(target);
+            }
+            return;
+        }
+
+        // 下载失败回退：原 URL 直播（保留旧行为）
         if (EqualizerSettings.Enabled)
-            _ = PlayWithEqEngineAsync(target);
+            _ = PlayWithEqEngineAsync(source);
         else
         {
             StopEqEngine();
-            PlayWithMediaPlayer(target);
+            PlayWithMediaPlayer(source);
         }
     }
 
@@ -313,6 +370,9 @@ public partial class AudioPlayerService
 
     partial void DisposePlatform()
     {
+        _networkPlayCts?.Cancel();
+        _networkPlayCts?.Dispose();
+        _networkPlayCts = null;
         _eqEngine?.Dispose();
         _eqEngine = null;
         if (_winPlayer != null)

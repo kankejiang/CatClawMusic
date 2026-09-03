@@ -426,27 +426,34 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private void WriteBitmap()
     {
         if (_flowArgb == null || _flowArgb.Length == 0) return;
-        // ARGB -> BGRA(premultiplied) 写入可复用 WriteableBitmap
+        // ARGB -> BGRA(premultiplied) 写入可复用 WriteableBitmap。
+        // BGRA 转换缓冲跨帧复用（稳态 8fps 下旧版每 125ms 分配一个整帧 byte[]，纯 GC 压力）。
+        var requiredBytes = _flowArgb.Length * 4;
+        if (_flowBgra == null || _flowBgra.Length != requiredBytes)
+            _flowBgra = new byte[requiredBytes];
         if (_flowBitmap == null)
         {
             _flowBitmap = new WriteableBitmap(_flowW, _flowH);
             _image.Source = _flowBitmap;
         }
+        var bgra = _flowBgra;
+        int j = 0;
+        foreach (var p in _flowArgb)
+        {
+            bgra[j++] = (byte)(p & 0xFF);          // B
+            bgra[j++] = (byte)((p >> 8) & 0xFF);   // G
+            bgra[j++] = (byte)((p >> 16) & 0xFF);  // R
+            bgra[j++] = (byte)((p >> 24) & 0xFF);  // A
+        }
         using (Stream stream = _flowBitmap.PixelBuffer.AsStream())
         {
-            var bgra = new byte[_flowArgb.Length * 4];
-            int j = 0;
-            foreach (var p in _flowArgb)
-            {
-                bgra[j++] = (byte)(p & 0xFF);          // B
-                bgra[j++] = (byte)((p >> 8) & 0xFF);   // G
-                bgra[j++] = (byte)((p >> 16) & 0xFF);  // R
-                bgra[j++] = (byte)((p >> 24) & 0xFF);  // A
-            }
             stream.Write(bgra, 0, bgra.Length);
         }
         _flowBitmap.Invalidate();
     }
+
+    /// <summary>ARGB→BGRA 转换缓冲（尺寸变化时重建，稳态零分配）</summary>
+    private byte[]? _flowBgra;
 
     private void EnsureFlowBuffer(float viewW, float viewH)
     {

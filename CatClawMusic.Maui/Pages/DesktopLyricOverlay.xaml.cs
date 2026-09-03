@@ -139,6 +139,24 @@ public partial class DesktopLyricOverlay : ContentPage
         catch { }
     }
 
+    /// <summary>显式清理：停止 10Hz 光标轮询、解除注入句柄。
+    /// 由服务层在真正关闭窗口时调用——OnDisappearing 会因多窗口失焦误触发，不能依赖；
+    /// 旧版依赖"DispatcherQueueTimer 在窗口销毁时自动停止"，Service 仍持 Overlay 强引用时不可靠。</summary>
+    public void Cleanup()
+    {
+        try
+        {
+            if (_cursorTimer != null)
+            {
+                _cursorTimer.Stop();
+                _cursorTimer.Tick -= OnCursorTick;
+                _cursorTimer = null;
+            }
+        }
+        catch { }
+        _injectedHwnd = IntPtr.Zero;
+    }
+
     protected override void OnAppearing()
     {
         base.OnAppearing();

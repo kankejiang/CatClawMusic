@@ -22,13 +22,15 @@ public static class MauiProgram
 
     public static MauiApp CreateMauiApp()
     {
-        // 写固定路径，确保能找到日志
+        // 写固定路径，确保能找到日志。启动期同步小文件 I/O 在移动设备冷启动上易放大，
+        // 文件落盘仅 DEBUG；Release 只留 Log.Debug（诊断日志开启时仍可在 debug.log 追踪启动阶段）。
         var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
-        try { File.Delete(logPath); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"清理启动日志失败: {ex.Message}"); }
         void StartupLog(string msg)
         {
             Log.Debug("MauiProgram", $"[STARTUP] {msg}");
+#if DEBUG
             try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"启动日志写入失败: {ex.Message}"); }
+#endif
         }
 
         StartupLog("Step 0: CreateMauiApp entry");
@@ -144,69 +146,8 @@ public static class MauiProgram
             try { return await File.ReadAllBytesAsync(filePath); } catch { return null; }
         };
 
-        // 远程 URL 流打开器：下载 http(s):// 文件头部到 MemoryStream（供内嵌歌词读取）
-        // 注意：Navidrome 歌曲在 LyricsService 中已跳过此路径（走 API），此处仅 WebDAV/SMB 直链会触发。
-        // 使用 Range 请求仅下载文件前 2MB：FLAC/MP3(ID3v2)/M4A 标签均在文件头部，足以提取内嵌歌词。
-        // WebDAV URL 形如 http://user:pass@host/path，HttpClient 不解析 URL userinfo，需手动提取并添加 Basic Auth 头。
-        LyricsService.RemoteUrlStreamOpener = url =>
-        {
-            try
-            {
-                var urlPreview = url?[..Math.Min(60, url?.Length ?? 0)] ?? "";
-                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 入口: {urlPreview}...");
-                const int headSize = 2 * 1024 * 1024; // 2MB 足以覆盖绝大多数音频标签头
-                var httpClient = _sharedHttpClient;
-
-                // 从 URL userinfo 提取 Basic Auth 凭证（WebDAV 播放 URL 带 user:pass@）
-                string? authToken = null;
-                string cleanUrl = url;
-                try
-                {
-                    var uri = new Uri(url);
-                    if (!string.IsNullOrEmpty(uri.UserInfo))
-                    {
-                        var userInfo = uri.UserInfo;
-                        var colonIdx = userInfo.IndexOf(':');
-                        if (colonIdx >= 0 && colonIdx < userInfo.Length - 1)
-                        {
-                            var user = Uri.UnescapeDataString(userInfo[..colonIdx]);
-                            var pass = Uri.UnescapeDataString(userInfo[(colonIdx + 1)..]);
-                            authToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user}:{pass}"));
-                        }
-                        // 构造不含 userinfo 的 URL，避免某些服务器/代理对 URL userinfo 的异常处理
-                        cleanUrl = new UriBuilder(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri.Query).ToString();
-                    }
-                }
-                catch { /* URL 解析失败则使用原始 URL */ }
-
-                var cleanPreview = cleanUrl[..Math.Min(60, cleanUrl.Length)];
-                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener cleanUrl={cleanPreview}..., authToken={(authToken != null ? "有" : "无")}");
-                // 使用 Range 请求仅下载文件头部
-                var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
-                reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
-                if (authToken != null)
-                    reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
-                Log.Debug("MauiProgram", "[Lyrics] RemoteUrlStreamOpener 发送 HTTP 请求...");
-                // 用 Task.Run 包裹避免在 UI 线程同步等待（RemoteUrlStreamOpener 为库代码要求的同步签名）
-                var resp = Task.Run(() => httpClient.SendAsync(reqMsg)).GetAwaiter().GetResult();
-                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
-                if (!resp.IsSuccessStatusCode)
-                {
-                    return null;
-                }
-                using var ms = new MemoryStream();
-                resp.Content.ReadAsStream().CopyTo(ms);
-                var bytes = ms.ToArray();
-                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
-                if (bytes.Length == 0) return null;
-                return new MemoryStream(bytes);
-            }
-            catch (Exception ex)
-            {
-                Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpener 异常: {ex.Message}");
-                return null;
-            }
-        };
+        // 远程 URL 流打开器：见下方 OpenRemoteLyricStreamAsync（合并 smb:// / WebDAV / 通用 http(s)
+        // 三条路径的单个异步实现，在 webDavHttpClient 创建之后统一赋值给 RemoteUrlStreamOpenerAsync）。
 #if ANDROID
         LyricsService.ContentUriReader = async uri =>
         {
@@ -318,20 +259,11 @@ public static class MauiProgram
         services.AddSingleton<IAgentTool, NetEaseMusicDownloadTool>();
         services.AddSingleton<IAgentTool, KuwoMusicDownloadTool>();
         services.AddSingleton<IAgentTool, UpdateMusicSourceTool>();
-        // Agent 下载：download_file 工具复用应用内置下载管理器（任务出现在下载中心）
+        // Agent 下载：download_file 工具复用应用内置下载管理器（任务出现在下载中心）。
+        // DownloadManager 持有 BT 引擎的懒工厂，构造不再连带启动 MonoTorrent ClientEngine。
         services.AddSingleton<Services.BitTorrentDownloadService>();
         services.AddSingleton<Services.DownloadManager>(sp =>
-        {
-            var dm = new Services.DownloadManager(sp.GetRequiredService<Services.BitTorrentDownloadService>());
-            CatClawMusic.Core.Services.AI.DownloadAgentBridge.EnqueueDownload = (url, filename) =>
-            {
-                var item = url.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase)
-                    ? dm.EnqueueMagnet(url, filename)
-                    : dm.EnqueueUrl(url, filename);
-                return $"已开始下载「{item.DisplayName}」，保存到 {item.LocalPath}，可在下载管理查看进度";
-            };
-            return dm;
-        });
+            new Services.DownloadManager(() => sp.GetRequiredService<Services.BitTorrentDownloadService>()));
         // 插件/外部组件经 Core 接口访问宿主下载管理器（DownloadManager 类型在 Maui 程序集不可跨引用）
         services.AddSingleton<CatClawMusic.Core.Interfaces.IDownloadManager>(
             sp => sp.GetRequiredService<Services.DownloadManager>());
@@ -658,8 +590,11 @@ public static class MauiProgram
             return null;
         };
 
-        // 扩展 RemoteUrlStreamOpener 支持 smb:// URL（用于读取内嵌歌词）和 WebDAV URL 修复
-        var prevStreamOpener = LyricsService.RemoteUrlStreamOpener;
+        // 远程歌词流打开器（异步，合并旧版两轮赋值的三套 opener 为单个实现）：
+        // - smb:// → 本地 SMB 代理 + 512KB Range 头
+        // - http(s) → WebDAV 播放 URL 修复 + userinfo→Basic Auth + 证书策略 client + 2MB Range 头
+        // 全程真异步（旧同步签名迫使每段下载 Task.Run+GetResult 同步阻塞占死线程池线程），
+        // 响应 using 释放、流式拷贝进 MemoryStream（不再 ToArray 多一次整块复制）。
         var webDavHttpClient = new HttpClient(new SocketsHttpHandler
         {
             // 证书策略统一走 WebDavService 全局开关：有效证书直接通过；无效证书在
@@ -676,49 +611,40 @@ public static class MauiProgram
         };
         webDavHttpClient.DefaultRequestHeaders.Add("User-Agent", "CatClawMusic/1.0");
 
-        LyricsService.RemoteUrlStreamOpener = url =>
+        async Task<Stream?> OpenRemoteLyricStreamAsync(string url)
         {
-            if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                try
+                if (url.StartsWith("smb://", StringComparison.OrdinalIgnoreCase))
                 {
                     var proxyUrl = smbProxy.ToProxyUrl(url);
                     if (proxyUrl == null) return null;
-                    // 使用 Range 请求仅下载文件头部（FLAC/MP3/M4A 歌词标签均在头部），
-                    // 避免下载整个文件（30-100MB FLAC）导致 HttpClient 超时
+                    // Range 请求仅下载文件头部（FLAC/MP3/M4A 歌词标签均在头部），
+                    // 避免下载整个文件（30-100MB FLAC）导致超时
                     const int lyricsHeadSize = 512 * 1024;
                     var reqMsg = new HttpRequestMessage(HttpMethod.Get, proxyUrl);
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, lyricsHeadSize - 1);
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                     Log.Debug("MauiProgram", $"[Lyrics] SMB Range 请求: {proxyUrl[..Math.Min(80, proxyUrl.Length)]}...");
-                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
-                    var resp = Task.Run(() => _sharedHttpClient.SendAsync(reqMsg, cts.Token)).GetAwaiter().GetResult();
+                    using var resp = await _sharedHttpClient.SendAsync(reqMsg, HttpCompletionOption.ResponseHeadersRead, cts.Token);
                     Log.Debug("MauiProgram", $"[Lyrics] SMB Range 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
                     if (!resp.IsSuccessStatusCode) return null;
-                    using var ms = new MemoryStream();
-                    resp.Content.ReadAsStream().CopyTo(ms);
-                    var bytes = ms.ToArray();
-                    Log.Debug("MauiProgram", $"[Lyrics] SMB Range 下载完成: {bytes.Length / 1024}KB");
-                    if (bytes.Length == 0) return null;
-                    return new MemoryStream(bytes);
+                    var ms = new MemoryStream();
+                    await resp.Content.CopyToAsync(ms, cts.Token);
+                    Log.Debug("MauiProgram", $"[Lyrics] SMB Range 下载完成: {ms.Length / 1024}KB");
+                    if (ms.Length == 0) return null;
+                    ms.Position = 0;
+                    return ms;
                 }
-                catch (Exception ex)
-                {
-                    Log.Debug("MauiProgram", $"[Lyrics] SMB 流打开异常: {ex.Message}");
-                    return null;
-                }
-            }
 
-            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                try
+                if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                    || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
-                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener 入口: {url[..Math.Min(60, url.Length)]}...");
-                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
-                    var resolvedUrl = Task.Run(() => networkMusic.ResolveWebDavPlaybackUrlAsync(url)).GetAwaiter().GetResult();
+                    Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpenerAsync 入口: {url[..Math.Min(60, url.Length)]}...");
+                    // WebDAV 播放 URL 修复/重写
+                    var resolvedUrl = await networkMusic.ResolveWebDavPlaybackUrlAsync(url);
                     var downloadUrl = string.IsNullOrEmpty(resolvedUrl) ? url : resolvedUrl;
-                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
+                    Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpenerAsync downloadUrl: {downloadUrl[..Math.Min(60, downloadUrl.Length)]}...");
 
                     // 从 URL userinfo 提取 Basic Auth 凭证（WebDAV 播放 URL 带 user:pass@）
                     string? authToken = null;
@@ -736,39 +662,39 @@ public static class MauiProgram
                                 var pass = Uri.UnescapeDataString(userInfo[(colonIdx + 1)..]);
                                 authToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user}:{pass}"));
                             }
+                            // 构造不含 userinfo 的 URL，避免某些服务器/代理对 URL userinfo 的异常处理
                             cleanUrl = new UriBuilder(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri.Query).ToString();
                         }
                     }
                     catch { /* URL 解析失败则使用原始 URL */ }
 
-                    // 使用 Range 请求仅下载文件前 2MB（FLAC/MP3/M4A 标签均在头部）
+                    // Range 请求仅下载文件前 2MB（FLAC/MP3/M4A 标签均在头部）
                     const int headSize = 2 * 1024 * 1024;
                     var reqMsg = new HttpRequestMessage(HttpMethod.Get, cleanUrl);
                     reqMsg.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, headSize - 1);
                     if (authToken != null)
                         reqMsg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authToken);
-                    Log.Debug("MauiProgram", "[Lyrics] Android RemoteUrlStreamOpener 发送 Range 请求...");
-                    // 用 Task.Run 包裹避免 SyncContext 死锁（委托为库代码要求的同步签名）
-                    var resp = Task.Run(() => webDavHttpClient.SendAsync(reqMsg)).GetAwaiter().GetResult();
-                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
-                    if (!resp.IsSuccessStatusCode)
-                        return null;
-                    using var ms = new MemoryStream();
-                    resp.Content.ReadAsStream().CopyTo(ms);
-                    var bytes = ms.ToArray();
-                    Log.Debug("MauiProgram", $"[Lyrics] Android RemoteUrlStreamOpener 下载完成: {bytes.Length / 1024}KB");
-                    if (bytes.Length == 0) return null;
-                    return new MemoryStream(bytes);
+                    Log.Debug("MauiProgram", "[Lyrics] RemoteUrlStreamOpenerAsync 发送 Range 请求...");
+                    using var resp = await webDavHttpClient.SendAsync(reqMsg, HttpCompletionOption.ResponseHeadersRead);
+                    Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpenerAsync HTTP 响应: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                    if (!resp.IsSuccessStatusCode) return null;
+                    var ms = new MemoryStream();
+                    await resp.Content.CopyToAsync(ms);
+                    Log.Debug("MauiProgram", $"[Lyrics] RemoteUrlStreamOpenerAsync 下载完成: {ms.Length / 1024}KB");
+                    if (ms.Length == 0) return null;
+                    ms.Position = 0;
+                    return ms;
                 }
-                catch (Exception ex)
-                {
-                    Log.Debug("MauiProgram", $"[Lyrics] WebDAV/HTTP 流打开异常: {ex.Message}");
-                    return null;
-                }
-            }
 
-            return prevStreamOpener?.Invoke(url);
-        };
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("MauiProgram", $"[Lyrics] 远程歌词流打开异常: {ex.Message}");
+                return null;
+            }
+        }
+        LyricsService.RemoteUrlStreamOpenerAsync = OpenRemoteLyricStreamAsync;
 
         StartupLog("Step 99: Build done, returning");
         return app;
