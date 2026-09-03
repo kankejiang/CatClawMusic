@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Services;
 using CatClawMusic.Data;
 using CatClawMusic.Maui.Controls;
@@ -364,6 +364,52 @@ public partial class App : Application
     /// <summary>启动加载页最短展示时长：保证用户能看到启动页，也避免加载太快时主界面在
     /// 首帧渲染前就被替换（服务就绪太早会让启动页一帧都来不及显示）。</summary>
     private static readonly TimeSpan MinSplashDuration = TimeSpan.FromSeconds(1.2);
+
+    /// <summary>
+    /// 启动页展示期间分帧预构建主界面 5 个 tab 页面（仅构造、不挂载）。
+    /// MAUI 页面构造 = XAML 解析 + ViewModel 解析 + 绑定，不依赖 Window/Handler（生命周期回调在挂载后才触发），
+    /// 可在 splash 等待期用主线程空闲帧逐页构建；进入主界面时 MainPage 直接消费缓存，跳过同步构建与首次 JIT。
+    /// 任一页面构造失败或未及时完成时静默跳过，MainPage 回退原解析路径，功能不受影响。
+    /// </summary>
+    private void PrebuildMainTabs()
+    {
+        try
+        {
+            if (Pages.MainPage.PrebuiltPages != null) return;
+            var types = new[]
+            {
+                typeof(Pages.FullLyricsPage),
+                typeof(Pages.NowPlayingPage),
+                typeof(Pages.SearchPage),
+                typeof(Pages.PlaylistPage),
+                typeof(Pages.LibraryPage),
+            };
+            var prebuilt = new List<ContentPage>();
+            var i = 0;
+            void BuildNext()
+            {
+                if (i >= types.Length)
+                {
+                    if (prebuilt.Count == types.Length)
+                        Pages.MainPage.PrebuiltPages = prebuilt;
+                    return;
+                }
+                try
+                {
+                    prebuilt.Add((ContentPage)MauiProgram.Services.GetRequiredService(types[i]));
+                }
+                catch (Exception ex)
+                {
+                    StartupLog($"PrebuildMainTabs: {types[i].Name} 预构建失败(忽略): {ex.Message}");
+                }
+                i++;
+                // 每帧只构建一页，避免占用主线程导致启动页动画卡顿
+                Dispatcher.Dispatch(BuildNext);
+            }
+            Dispatcher.Dispatch(BuildNext);
+        }
+        catch { }
+    }
 
     /// <summary>
     /// 冷启动入口：先展示轻量启动加载页，等关键服务全部就绪（或超时兜底）后再按当前方向
@@ -745,6 +791,9 @@ public partial class App : Application
         var splashPage = new Pages.SplashLoadingPage();
         shell.Items.Clear();
         shell.Items.Add(new ShellContent { Content = splashPage });
+        // 启动页展示期间分帧预构建主界面 5 个 tab 页（构造不挂载），把进入主界面瞬间的
+        // 同步构建 + JIT 摊到等待期，缓解每日首次冷启动卡顿；失败/未完成则 MainPage 回退原解析路径。
+        PrebuildMainTabs();
         _ = EnterMainWhenReadyAsync(shell, splashPage);
 #endif
 #endif

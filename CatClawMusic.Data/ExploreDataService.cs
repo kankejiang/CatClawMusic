@@ -36,6 +36,8 @@ public class ExploreDataService
     private List<Song>? _filteredSongsCache;
     /// <summary>筛选缓存对应的来源筛选键，来源切换时失效</summary>
     private string? _filteredSongsCacheKey;
+    /// <summary>整库合并歌曲缓存构建锁：并发首次访问只让一个任务真正加载，避免启动阶段多路并发重复整库加载</summary>
+    private readonly SemaphoreSlim _filteredSongsLock = new(1, 1);
 
     /// <summary>来源筛选：all, local, network</summary>
     private string _sourceFilter = "all";
@@ -64,6 +66,10 @@ public class ExploreDataService
             _dailyRecommendCache = null; // 清除缓存以重新筛选
             _filteredSongsCache = null;
             _filteredSongsCacheKey = null;
+            // 全部艺术家/专辑聚合结果按当前来源筛选计算，切换时一并失效（避免发现页每日推荐
+            // 复用旧来源统计出的共享缓存，也修正此前筛选切换后计数残留的旧数据）
+            _allArtistsCache = null;
+            _allAlbumsCache = null;
         }
     }
 
@@ -243,8 +249,8 @@ public class ExploreDataService
         if (_dailyArtistsCache != null && _dailyRecommendDate == today)
             return _dailyArtistsCache;
 
-        // 获取全部艺术家
-        var allArtists = await GetAllArtistsWithCountInternalAsync().ConfigureAwait(false);
+        // 复用「全部艺术家」共享缓存（SQL 聚合实现，进程内只聚合一次，供发现页/音乐库页共用）
+        var allArtists = await GetAllArtistsAsync().ConfigureAwait(false);
 
         // 尝试从磁盘缓存恢复艺人 ID 列表
         var diskCache = await LoadDailyCacheFromDiskAsync(today).ConfigureAwait(false);
@@ -273,55 +279,30 @@ public class ExploreDataService
         return selected;
     }
 
-    /// <summary>获取所有艺术家及其歌曲数量（内部方法，不缓存）</summary>
+    /// <summary>获取所有艺术家及其歌曲数量（内部方法，SQL 聚合版）
+    /// 计数（主 ArtistId）、补充计数（SongArtists 多对多）与采样封面全部在数据库 GROUP BY 完成，
+    /// 不再整表拉回万级歌曲行后做多次客户端 LINQ 遍历。</summary>
     private async Task<List<ArtistWithCount>> GetAllArtistsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync().ConfigureAwait(false);
-        // 并行执行两个独立查询
+        // 四路独立查询并行：艺术家表（小表）、主计数、SongArtists 补充计数、每艺术家一首采样封面
         var artistsTask = _db.GetAllArtistsAsync();
-        var songsTask = GetFilteredSongsAsync();
-        await Task.WhenAll(artistsTask, songsTask).ConfigureAwait(false);
+        var countsTask = _db.GetArtistSongCountsAsync(_sourceFilter);
+        var supplementaryTask = _db.GetSupplementaryArtistSongCountsAsync(_sourceFilter);
+        var sampleCoverTask = _db.GetSampleSongsForArtistsAsync();
+        await Task.WhenAll(artistsTask, countsTask, supplementaryTask, sampleCoverTask).ConfigureAwait(false);
         var artists = artistsTask.Result;
-        var songs = songsTask.Result;
 
-        // 通过 SongArtists 多对多表统计每首歌的艺术家，确保
-        // 合作歌曲（如 "周杰伦 / 林俊杰"）的两位艺术家都能正确计数。
-        //   主计数：通过 Song.ArtistId（快速路径，覆盖单艺术家歌曲）
-        //   补充计数：通过 SongArtists 表（覆盖多艺术家合作歌曲的次要艺术家）
-        var artistSongCount = new Dictionary<int, int>();
+        // 主计数 + 补充计数（合作歌曲次要艺术家，语义与客户端聚合等价）
+        var artistSongCount = new Dictionary<int, int>(countsTask.Result);
+        foreach (var kv in supplementaryTask.Result)
+            artistSongCount[kv.Key] = artistSongCount.GetValueOrDefault(kv.Key, 0) + kv.Value;
 
-        // 1) 通过主 ArtistId 计数（单艺术家 + 多艺术家中排第一的）
-        foreach (var g in songs.GroupBy(s => s.ArtistId))
-            artistSongCount[g.Key] = g.Count();
-
-        // 2) 通过 SongArtists 表补充多艺术家合作歌曲的计数
-        try
-        {
-            var songIds = songs.Select(s => s.Id).ToList();
-            if (songIds.Count > 0)
-            {
-                var songIdSet = new HashSet<int>(songIds);
-                // 批量查询 SongArtists，只取当前筛选出的歌曲
-                var allSongArtists = await _db.QuerySongArtistsBySongIdsAsync(songIdSet).ConfigureAwait(false);
-                foreach (var sa in allSongArtists)
-                {
-                    // 避免重复计数：如果 ArtistId 和主 ArtistId 一致则已在上一步计入
-                    // 这里简单累加（多计一次也没关系，但最好去重）
-                    if (artistSongCount.ContainsKey(sa.ArtistId))
-                        artistSongCount[sa.ArtistId]++;
-                    else
-                        artistSongCount[sa.ArtistId] = 1;
-                }
-            }
-        }
-        catch (Exception ex) { Log.Debug("ExploreDataService", $"聚合艺术家歌曲数失败: {ex.Message}"); }
-
-        // 从每个艺术家的第一首本地歌曲获取封面信息
-        var artistSampleCover = songs
-            .Where(s => s.ArtistId > 0 && !string.IsNullOrEmpty(s.FilePath)
-                && s.Source == SongSource.Local)
-            .GroupBy(s => s.ArtistId)
-            .ToDictionary(g => g.Key, g => g.First());
+        // 每个艺术家第一首本地采样歌曲（SQL GROUP BY 已取首行）
+        var sampleSongByArtist = new Dictionary<int, Song>();
+        foreach (var s in sampleCoverTask.Result)
+            if (s.ArtistId > 0 && !sampleSongByArtist.ContainsKey(s.ArtistId))
+                sampleSongByArtist[s.ArtistId] = s;
 
         return artists
             .Where(a => artistSongCount.ContainsKey(a.Id))
@@ -335,7 +316,7 @@ public class ExploreDataService
                     Cover = a.Cover,
                     SongCount = artistSongCount.GetValueOrDefault(a.Id, 0)
                 };
-                if (artistSampleCover.TryGetValue(a.Id, out var sample))
+                if (sampleSongByArtist.TryGetValue(a.Id, out var sample))
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
                     result.SampleSongId = sample.Id;
@@ -357,8 +338,8 @@ public class ExploreDataService
         if (_dailyAlbumsCache != null && _dailyRecommendDate == today)
             return _dailyAlbumsCache;
 
-        // 获取全部专辑
-        var allAlbums = await GetAllAlbumsWithCountInternalAsync().ConfigureAwait(false);
+        // 复用「全部专辑」共享缓存（SQL 聚合实现，进程内只聚合一次，供发现页/音乐库页共用）
+        var allAlbums = await GetAllAlbumsAsync().ConfigureAwait(false);
 
         // 尝试从磁盘缓存恢复专辑 ID 列表
         var diskCache = await LoadDailyCacheFromDiskAsync(today).ConfigureAwait(false);
@@ -387,29 +368,27 @@ public class ExploreDataService
         return selected;
     }
 
-    /// <summary>获取所有专辑及歌曲数量（内部方法，不缓存）</summary>
+    /// <summary>获取所有专辑及歌曲数量（内部方法，SQL 聚合版）
+    /// 专辑计数与采样封面在数据库 GROUP BY 完成，不再整表拉回歌曲行后多次客户端 LINQ 遍历。</summary>
     private async Task<List<AlbumWithCount>> GetAllAlbumsWithCountInternalAsync()
     {
         await _db.EnsureInitializedAsync().ConfigureAwait(false);
-        // 并行执行三个独立查询
+        // 四路独立查询并行：专辑表（小表）、计数、艺术家表（小表，用于名称映射）、每专辑一首采样封面
         var albumsTask = _db.GetAllAlbumsAsync();
-        var songsTask = GetFilteredSongsAsync();
+        var countsTask = _db.GetAlbumSongCountsAsync(_sourceFilter);
         var artistsTask = _db.GetAllArtistsAsync();
-        await Task.WhenAll(albumsTask, songsTask, artistsTask).ConfigureAwait(false);
+        var sampleCoverTask = _db.GetSampleSongsForAlbumsAsync();
+        await Task.WhenAll(albumsTask, countsTask, artistsTask, sampleCoverTask).ConfigureAwait(false);
         var albums = albumsTask.Result;
-        var songs = songsTask.Result;
-        var artists = artistsTask.Result;
-        var artistDict = artists.ToDictionary(a => a.Id, a => a.Name);
+        var artistDict = artistsTask.Result.ToDictionary(a => a.Id, a => a.Name);
 
-        var albumSongCount = songs.GroupBy(s => s.AlbumId)
-            .ToDictionary(g => g.Key, g => g.Count());
+        var albumSongCount = countsTask.Result;
 
-        // 从每个专辑的第一首本地歌曲获取封面信息
-        var albumSampleCover = songs
-            .Where(s => s.AlbumId > 0 && !string.IsNullOrEmpty(s.FilePath)
-                && s.Source == SongSource.Local)
-            .GroupBy(s => s.AlbumId)
-            .ToDictionary(g => g.Key, g => g.First());
+        // 每个专辑第一首本地采样歌曲（SQL GROUP BY 已取首行）
+        var sampleSongByAlbum = new Dictionary<int, Song>();
+        foreach (var s in sampleCoverTask.Result)
+            if (s.AlbumId > 0 && !sampleSongByAlbum.ContainsKey(s.AlbumId))
+                sampleSongByAlbum[s.AlbumId] = s;
 
         return albums
             .Where(a => albumSongCount.ContainsKey(a.Id))
@@ -425,7 +404,7 @@ public class ExploreDataService
                     SongCount = albumSongCount.GetValueOrDefault(a.Id, 0),
                     Year = a.Year ?? a.ReleaseYear
                 };
-                if (albumSampleCover.TryGetValue(a.Id, out var sample))
+                if (sampleSongByAlbum.TryGetValue(a.Id, out var sample))
                 {
                     result.SampleCoverPath = sample.CoverArtPath;
                     result.SampleSongId = sample.Id;
@@ -498,16 +477,26 @@ public class ExploreDataService
         if (_filteredSongsCache != null && _filteredSongsCacheKey == _sourceFilter)
             return _filteredSongsCache;
 
-        // 使用 GetMergedSongsAsync 获取本地+网络歌曲（已去重、已过滤协议）
-        var allSongs = await _library.GetMergedSongsAsync().ConfigureAwait(false);
-        var filtered = ApplySourceFilter(allSongs);
+        // 并发首次访问（启动阶段发现页/音乐库页/搜索预热的并行加载）只让一个任务真正构建，
+        // 避免多路并发同时整库加载+历史聚合造成重复 IO 与内存峰值。
+        await _filteredSongsLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_filteredSongsCache != null && _filteredSongsCacheKey == _sourceFilter)
+                return _filteredSongsCache;
 
-        // 补充 PlayCount 数据
-        await FillPlayCountAsync(filtered).ConfigureAwait(false);
+            // 使用 GetMergedSongsAsync 获取本地+网络歌曲（已去重、已过滤协议）
+            var allSongs = await _library.GetMergedSongsAsync().ConfigureAwait(false);
+            var filtered = ApplySourceFilter(allSongs);
 
-        _filteredSongsCache = filtered;
-        _filteredSongsCacheKey = _sourceFilter;
-        return filtered;
+            // 补充 PlayCount 数据
+            await FillPlayCountAsync(filtered).ConfigureAwait(false);
+
+            _filteredSongsCache = filtered;
+            _filteredSongsCacheKey = _sourceFilter;
+            return filtered;
+        }
+        finally { _filteredSongsLock.Release(); }
     }
 
     /// <summary>判断艺术家名是否为历史遗留的合并名称（如 "国风堂/哦漏"），应被过滤掉</summary>

@@ -1388,10 +1388,17 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             : "\u2600\uFE0F";  // ☀️
     }
 
-    /// <summary>右上角设置按钮：切换到设置页面（设置入口已从侧栏移出）。</summary>
+    /// <summary>右上角设置按钮：切换到设置页面（设置入口已从侧栏移出）。
+    /// Windows 桌面经 DesktopBlankPage 切换；Android 横屏桌面舞台 DesktopBlankPage 不存在，
+    /// 改为切到桌面主页的设置 tab（DesktopSettingsPage）。</summary>
     private void OnSettingsButtonClicked(object? sender, EventArgs e)
     {
-        DesktopBlankPage.Instance?.SwitchToSettings();
+        if (DesktopBlankPage.Instance is { } blank)
+        {
+            blank.SwitchToSettings();
+            return;
+        }
+        DesktopMainPage.Instance?.SwitchToNamedTab("settings");
     }
 
     // === Shuffle：换批后回到开头并刷新箭头 ===

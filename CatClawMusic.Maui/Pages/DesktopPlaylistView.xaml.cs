@@ -237,20 +237,22 @@ public partial class DesktopPlaylistView : ContentPage
     }
 
     /// <summary>
-    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏嵌入 ContentArea；Windows 桌面嵌入 BlankPage MainArea。
+    /// 打开音乐库二级页：竖屏走 Shell 导航；横屏桌面舞台嵌入 ContentArea；Windows 桌面嵌入 BlankPage MainArea。
     /// </summary>
     private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
     {
-#if WINDOWS
         var page = (ContentPage)_sp.GetRequiredService(typeof(DesktopAllSongsPage));
         if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
             desktopAllSongs.Source = source;
 
-        DesktopNavigation.OpenEmbedded(page);
-        return;
-#else
-        // Android 原生旋转方案：不再有横屏 DesktopMainPage，一律走 Shell 导航
-        _ = Shell.Current.GoToAsync(fallbackRoute);
+#if ANDROID
+        // Android 竖屏走 Shell 标准导航；横屏桌面舞台（DesktopMainPage 存在）嵌入桌面布局页面保留左侧导航
+        if (!(App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null))
+        {
+            _ = Shell.Current.GoToAsync(fallbackRoute);
+            return;
+        }
 #endif
+        DesktopNavigation.OpenEmbedded(page);
     }
 }

@@ -1125,13 +1125,11 @@ public partial class LibraryPage : ContentPage
 
     /// <summary>
     /// 打开音乐库二级页：竖屏走 Shell 标准导航（路由已注册于 AppShell）；
-    /// 横屏复用桌面布局，直接 Push 对应的 Desktop 页面实例。
+    /// 横屏桌面舞台复用桌面布局页（Desktop 版，左导航+内容区），Windows 桌面嵌入 DesktopBlankPage.MainArea。
     /// fallbackRoute 已编码查询参数（如 AllSongsPage.Source），由 [QueryProperty] 自动注入。
     /// </summary>
     private void OpenLibrarySubPage(Type pageType, string fallbackRoute, string? source = null)
     {
-#if WINDOWS
-        // Windows 桌面无 Shell：嵌入 DesktopBlankPage.MainArea，保留左侧导航栏。
         Type desktopType = pageType.Name switch
         {
             nameof(AllSongsPage) => typeof(DesktopAllSongsPage),
@@ -1144,11 +1142,15 @@ public partial class LibraryPage : ContentPage
         if (!string.IsNullOrEmpty(source) && page is DesktopAllSongsPage desktopAllSongs)
             desktopAllSongs.Source = source;
 
+#if ANDROID
+        // Android 竖屏走 Shell 标准导航；横屏桌面舞台（DesktopMainPage 存在）与 Windows 一致，
+        // 嵌入桌面布局页面保留左侧导航栏，避免横屏被推成全屏竖屏二级页。
+        if (!(App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null))
+        {
+            _ = Shell.Current.GoToAsync(fallbackRoute);
+            return;
+        }
+#endif
         DesktopNavigation.OpenEmbedded(page);
-        return;
-# else
-        // Android 原生旋转方案：不再有横屏 DesktopMainPage，一律走 Shell 导航
-        _ = Shell.Current.GoToAsync(fallbackRoute);
-# endif
     }
 }

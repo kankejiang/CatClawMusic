@@ -70,6 +70,10 @@ public partial class MainPage : ContentPage
     /// <summary>全局实例，供外部调用 SwitchToTab</summary>
     public static MainPage? Instance { get; private set; }
 
+    /// <summary>启动页等待期分帧预构建的 5 个 tab 页（仅构造不挂载）；未就绪为 null，SetupPages 走常规解析。
+    /// 由 App.PrebuildMainTabs 填充并只消费一次，缓解冷启动进入主界面瞬间的同步构建。</summary>
+    public static List<ContentPage>? PrebuiltPages;
+
     /// <summary>待切换的 tab 索引（从子页面返回时使用）</summary>
     public static int? PendingTabIndex;
 
@@ -141,29 +145,41 @@ public partial class MainPage : ContentPage
     /// Windows 走手动 TranslationX + 懒加载兜底。</summary>
     private void SetupPages()
     {
-        var pages = new ContentPage[]
+        // 优先消费启动期预构建的 5 页（splash 等待期已分帧构建，含 XAML/VM/绑定，未挂载）；
+        // 未就绪（预构建失败/来不及）则回退常规现场解析，两者都保持 MainPage 原有的 ViewPager 装配逻辑。
+        List<ContentPage> pages;
+        var prebuilt = MainPage.PrebuiltPages;
+        if (prebuilt != null && prebuilt.Count == 5)
         {
-            _services.GetRequiredService<FullLyricsPage>(),
-            _services.GetRequiredService<NowPlayingPage>(),
-            _services.GetRequiredService<SearchPage>(),
-            _services.GetRequiredService<PlaylistPage>(),
-            _services.GetRequiredService<LibraryPage>(),
-        };
+            MainPage.PrebuiltPages = null; // 一次性消费
+            pages = prebuilt.ToList();
+        }
+        else
+        {
+            pages = new List<ContentPage>
+            {
+                _services.GetRequiredService<FullLyricsPage>(),
+                _services.GetRequiredService<NowPlayingPage>(),
+                _services.GetRequiredService<SearchPage>(),
+                _services.GetRequiredService<PlaylistPage>(),
+                _services.GetRequiredService<LibraryPage>(),
+            };
+        }
         // 复用 SetupPages 创建的实例（SearchPage 为 AddTransient，直接再解析会得到不同实例）
         _searchPage = pages.OfType<SearchPage>().FirstOrDefault();
+        _tabPages.AddRange(pages);
 
 #if ANDROID
         // ── 原生 ViewPager2 路径 ──
         // 直接承载完整 MAUI 页：Page.ToPlatform 产出的 ContentViewGroup 自带 measure，
         // 能被 ViewPager2 正确测量布局，无需把页 Content 抽出来塞进 MAUI 容器。
         // 水平分页位移由 Android 渲染管线 GPU 合成，彻底摆脱 MAUI 的 TranslationX 重绘。
-        foreach (var page in pages)
+        for (var i = 0; i < pages.Count; i++)
         {
-            _tabPages.Add(page);
             // 非全屏页面（发现/歌单/音乐库，index>1）自行预留状态栏高度；
             // 全屏页面（歌词/播放页，index 0/1）保持边缘到边。
-            var pageIndex = _tabPages.Count - 1;
-            if (pageIndex > 1 && page.Content is Layout layout)
+            // 注意：页面已提前 AddRange 到 _tabPages，不能用 _tabPages.Count-1（恒等于末页索引）。
+            if (i > 1 && pages[i].Content is Layout layout)
                 layout.Behaviors.Add(new SafeAreaPaddingBehavior());
         }
 
@@ -185,9 +201,9 @@ public partial class MainPage : ContentPage
         ViewPagerGrid.GestureRecognizers.Clear();
 #else
         // ── 手动 TranslationX 路径（Windows 兜底）──
-        foreach (var page in pages)
+        for (var i = 0; i < pages.Count; i++)
         {
-            _tabPages.Add(page);
+            var page = pages[i];
             var content = page.Content;
             page.Content = null;
             content.BindingContext = page.BindingContext;
@@ -198,8 +214,8 @@ public partial class MainPage : ContentPage
             // 非全屏页面（发现/歌单/音乐库，index>1）自行预留状态栏高度，
             // 不再依赖 ViewPagerGrid 的 top padding（更健壮：即使 grid padding 未生效也不侵入状态栏）。
             // 全屏页面（歌词/播放页，index 0/1）保持边缘到边，背景延伸到状态栏下。
-            var pageIndex = _tabPages.Count - 1;
-            if (pageIndex > 1 && content is Layout layout)
+            // 注意：页面已提前 AddRange 到 _tabPages，不能用 _tabPages.Count-1（恒等于末页索引）。
+            if (i > 1 && content is Layout layout)
                 layout.Behaviors.Add(new SafeAreaPaddingBehavior());
 
             ViewPagerGrid.Children.Add(content);

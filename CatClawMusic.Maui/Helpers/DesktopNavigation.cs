@@ -30,13 +30,22 @@ public static class DesktopNavigation
     /// <summary>有 Shell 则 GoToAsync 并返回 true；无 Shell（Windows 桌面）返回 false。</summary>
     public static bool TryGoToShell(string route)
     {
+        // Android 横屏桌面舞台：Shell 根仍是 MainPage，直接 GoToAsync 会把竖屏二级页
+        // （歌单/专辑/艺术家/全部歌曲/歌曲详情）推成覆盖全屏的竖屏布局，绕过桌面侧栏。
+        // 此时应返回 false，让调用方落回 OpenEmbedded 桌面嵌入（保留左侧导航）。
+        // Windows 无 Shell 本就 false；Android 竖屏保持 Shell 导航。
+#if ANDROID
+        if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null)
+            return false;
+#endif
         var shell = TryGetShell();
         if (shell == null) return false;
         _ = shell.GoToAsync(route);
         return true;
     }
 
-    /// <summary>桌面无 Shell 环境：把页面 Content 摘出嵌入 DesktopBlankPage.MainArea。
+    /// <summary>桌面环境：把页面 Content 摘出嵌入桌面内容区（Windows 为 DesktopBlankPage.MainArea，
+    /// Android 横屏为 DesktopMainPage 内容区，两者都保留左侧导航）。
     /// hideBack=true 时隐藏页面返回按钮（专辑/艺术家等终点详情页）；false 保留（设置子页等，返回=关闭嵌入）。</summary>
     public static void OpenEmbedded(ContentPage page, bool hideBack = true)
     {
@@ -54,6 +63,15 @@ public static class DesktopNavigation
                     hero.ShowBackButton = false;
             }
 
+#if ANDROID
+            // Android 横屏桌面舞台：嵌入 DesktopMainPage 内容区（侧栏 + 底部播放条保留）。
+            // 竖屏不走这里（DesktoppMainPage.Instance 为 null / IsLandscapeMode false）。
+            if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance is { } desktop)
+            {
+                desktop.OpenSubPageEmbedded(page);
+                return;
+            }
+#endif
             DesktopBlankPage.Instance?.OpenEmbeddedPage(page);
         }
         catch (Exception ex)
@@ -116,11 +134,21 @@ public static class DesktopNavigation
     /// <summary>桌面无 Shell 环境：关闭嵌入的子页面，恢复原 tab 内容。</summary>
     public static void CloseEmbedded() => DesktopBlankPage.Instance?.CloseEmbeddedPage();
 
-    /// <summary>打开专辑详情（Android 走 Shell 路由；桌面嵌入主区域）。</summary>
+    /// <summary>打开专辑详情（Android 走 Shell 路由；桌面嵌入主区域；横屏桌面舞台用横屏布局详情页）。</summary>
     public static void OpenAlbumDetail(string title)
     {
         try
         {
+#if ANDROID
+            // Android 横屏桌面舞台：使用横屏两栏布局的 DesktopAlbumDetailPage 嵌入内容区，保留左侧导航
+            if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null)
+            {
+                var desktop = MauiProgram.Services.GetRequiredService<DesktopAlbumDetailPage>();
+                desktop.AlbumTitle = title; // setter 触发 LoadAsync
+                OpenEmbedded(desktop);
+                return;
+            }
+#endif
             var page = MauiProgram.Services.GetRequiredService<AlbumDetailPage>();
             page.AlbumTitle = title; // setter 触发 LoadAsync
             OpenEmbedded(page);
@@ -131,11 +159,21 @@ public static class DesktopNavigation
         }
     }
 
-    /// <summary>打开艺术家详情（Android 走 Shell 路由；桌面嵌入主区域）。</summary>
+    /// <summary>打开艺术家详情（Android 走 Shell 路由；桌面嵌入主区域；横屏桌面舞台用横屏布局详情页）。</summary>
     public static void OpenArtistDetail(string name)
     {
         try
         {
+#if ANDROID
+            // Android 横屏桌面舞台：使用横屏两栏布局的 DesktopArtistDetailPage 嵌入内容区，保留左侧导航
+            if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null)
+            {
+                var desktop = MauiProgram.Services.GetRequiredService<DesktopArtistDetailPage>();
+                desktop.ArtistName = name; // setter 触发 LoadArtistCommand
+                OpenEmbedded(desktop);
+                return;
+            }
+#endif
             var page = MauiProgram.Services.GetRequiredService<ArtistDetailPage>();
             page.ArtistName = name; // setter 触发 LoadArtistCommand
             OpenEmbedded(page);
@@ -161,11 +199,22 @@ public static class DesktopNavigation
         }
     }
 
-    /// <summary>打开歌单详情（Android 走 Shell 路由；桌面嵌入主区域）。</summary>
+    /// <summary>打开歌单详情（Android 走 Shell 路由；桌面嵌入主区域；横屏桌面舞台用横屏布局详情页）。</summary>
     public static void OpenPlaylistDetail(int playlistId, string name)
     {
         try
         {
+#if ANDROID
+            // Android 横屏桌面舞台：使用横屏两栏布局的 DesktopPlaylistDetailPage 嵌入内容区，保留左侧导航
+            if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance != null)
+            {
+                var desktop = MauiProgram.Services.GetRequiredService<DesktopPlaylistDetailPage>();
+                desktop.PlaylistId = playlistId;
+                desktop.PlaylistName = name;
+                OpenEmbedded(desktop);
+                return;
+            }
+#endif
             var page = MauiProgram.Services.GetRequiredService<PlaylistDetailPage>();
             page.PlaylistId = playlistId;
             page.PlaylistName = name;

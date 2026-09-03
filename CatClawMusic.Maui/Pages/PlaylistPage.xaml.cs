@@ -52,7 +52,8 @@ public partial class PlaylistPage : ContentPage
             {
                 collectionView.SelectedItem = null;
             }
-            DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}");
+            if (!DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={playlist.Id}&name={Uri.EscapeDataString(playlist.Name)}"))
+                DesktopNavigation.OpenPlaylistDetail(playlist.Id, playlist.Name);
         }
     }
 
@@ -254,7 +255,8 @@ public partial class PlaylistPage : ContentPage
 
             if (newId > 0)
             {
-                DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}");
+                if (!DesktopNavigation.TryGoToShell($"playlistdetail?playlistId={newId}&name={Uri.EscapeDataString(name)}"))
+                    DesktopNavigation.OpenPlaylistDetail(newId, name);
             }
         }
         catch (Exception ex)
