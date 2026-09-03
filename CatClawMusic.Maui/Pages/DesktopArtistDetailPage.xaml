@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:CatClawMusic.Maui.ViewModels"
+             xmlns:models="clr-namespace:CatClawMusic.Core.Models;assembly=CatClawMusic.Core"
+             xmlns:controls="clr-namespace:CatClawMusic.Maui.Controls"
+             xmlns:helpers="clr-namespace:CatClawMusic.Maui.Helpers"
+             x:Class="CatClawMusic.Maui.Pages.DesktopArtistDetailPage"
+             x:DataType="vm:ArtistDetailViewModel"
+             BackgroundColor="{DynamicResource WindowBackgroundColor}"
+             Shell.NavBarIsVisible="False">
+
+    <!-- 横屏艺术家详情：左控制面板（返回/头像/信息/播放/切换） + 右专辑或歌曲列表 -->
+    <Grid ColumnDefinitions="280,*"
+          Background="{DynamicResource PageBackgroundBrush}">
+
+        <!-- ═══ 左侧控制面板 ═══ -->
+        <Border Grid.Column="0"
+                StrokeThickness="0"
+                Stroke="{DynamicResource DividerColor}"
+                BackgroundColor="{DynamicResource CardBackgroundColor}"
+                Margin="0,0,1,0">
+            <ScrollView Padding="16,12" VerticalScrollBarVisibility="Never">
+                <VerticalStackLayout Spacing="14">
+
+                    <!-- 返回按钮 + 标题 -->
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Border Grid.Column="0" WidthRequest="32" HeightRequest="32"
+                                StrokeShape="RoundRectangle 10"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                StrokeThickness="1">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBackTapped" />
+                            </Border.GestureRecognizers>
+                            <Image Source="{helpers:ThemedIcon Light=ic_arrow_left_light, Dark=ic_arrow_left}"
+                                   WidthRequest="16" HeightRequest="16"
+                                   Aspect="AspectFit"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                            <Label Text="艺术家" FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimaryColor}" />
+                            <Label Text="{Binding StatusText}" FontSize="11"
+                                   TextColor="{DynamicResource TextHintColor}" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- 艺术家头像 -->
+                    <Border WidthRequest="120" HeightRequest="120"
+                            StrokeShape="RoundRectangle 60"
+                            StrokeThickness="0"
+                            BackgroundColor="{DynamicResource SurfaceColor}"
+                            HorizontalOptions="Center">
+                        <Image Source="{Binding ArtistCoverPath, TargetNullValue='ic_artist'}"
+                               Aspect="AspectFill"
+                               WidthRequest="120" HeightRequest="120" />
+                    </Border>
+
+                    <!-- 艺术家信息 -->
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="{Binding Artist.Name}" FontSize="19" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimaryColor}"
+                               HorizontalTextAlignment="Center"
+                               LineBreakMode="TailTruncation" MaxLines="2" />
+                        <Label FontSize="13"
+                               TextColor="{DynamicResource TextSecondaryColor}"
+                               HorizontalTextAlignment="Center">
+                            <Label.Text>
+                                <MultiBinding StringFormat="{}{0} 张专辑 · {1} 首歌曲">
+                                    <Binding Path="Albums.Count" />
+                                    <Binding Path="Songs.Count" />
+                                </MultiBinding>
+                            </Label.Text>
+                        </Label>
+                    </VerticalStackLayout>
+
+                    <!-- 播放全部 -->
+                    <Border Padding="12,9"
+                            StrokeShape="RoundRectangle 10"
+                            StrokeThickness="1"
+                            Stroke="{DynamicResource GlassStrokeStrongColor}"
+                            BackgroundColor="{DynamicResource PrimaryButtonBackgroundColor}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding PlayAllCommand}" />
+                        </Border.GestureRecognizers>
+                        <Label Text="▶ 播放全部" FontSize="13" FontAttributes="Bold"
+                               TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                    </Border>
+
+                    <!-- 专辑 / 歌曲 切换 -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Border Grid.Column="0" Padding="0,9"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="1"
+                                Stroke="{Binding AlbumsTabColor}"
+                                BackgroundColor="{Binding AlbumsTabColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SwitchTabCommand}" CommandParameter="Albums" />
+                            </Border.GestureRecognizers>
+                            <Label Text="专辑" FontSize="12" FontAttributes="Bold"
+                                   TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <Border Grid.Column="1" Padding="0,9"
+                                StrokeShape="RoundRectangle 10"
+                                StrokeThickness="1"
+                                Stroke="{Binding SongsTabColor}"
+                                BackgroundColor="{Binding SongsTabColor}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SwitchTabCommand}" CommandParameter="Songs" />
+                            </Border.GestureRecognizers>
+                            <Label Text="歌曲" FontSize="12" FontAttributes="Bold"
+                                   TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
+
+                </VerticalStackLayout>
+            </ScrollView>
+        </Border>
+
+        <!-- ═══ 右侧内容：专辑列表 / 歌曲列表 ═══ -->
+        <Grid Grid.Column="1" Padding="12,10,12,10">
+
+            <!-- 专辑列表 -->
+            <CollectionView ItemsSource="{Binding Albums}"
+                            IsVisible="{Binding IsAlbumsTabVisible}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnAlbumSelected"
+                            ItemsUpdatingScrollMode="KeepScrollOffset">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:Album">
+                        <Border Margin="0,0,0,10"
+                                Padding="12"
+                                StrokeShape="RoundRectangle 18"
+                                StrokeThickness="1"
+                                Stroke="{DynamicResource GlassStrokeColor}"
+                                BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Border Grid.Column="0"
+                                        WidthRequest="56" HeightRequest="56"
+                                        StrokeShape="RoundRectangle 12"
+                                        StrokeThickness="0"
+                                        BackgroundColor="{DynamicResource SurfaceColor}">
+                                    <Image Source="{Binding CoverArtPath, TargetNullValue='ic_album'}"
+                                           Aspect="AspectFill"
+                                           WidthRequest="56" HeightRequest="56" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                    <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimaryColor}"
+                                           LineBreakMode="TailTruncation" MaxLines="1" />
+                                    <Label Text="{Binding Year}" FontSize="12"
+                                           TextColor="{DynamicResource TextHintColor}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2" Text="›" FontSize="20"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="暂无专辑" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
+            </CollectionView>
+
+            <!-- 歌曲列表 -->
+            <CollectionView ItemsSource="{Binding Songs}"
+                            IsVisible="{Binding IsSongsTabVisible}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnSongSelected"
+                            ItemsUpdatingScrollMode="KeepScrollOffset"
+                            ItemTemplate="{StaticResource SongItemTemplate}">
+                <CollectionView.EmptyView>
+                    <Label Text="暂无歌曲" FontSize="13"
+                           TextColor="{DynamicResource TextHintColor}"
+                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                </CollectionView.EmptyView>
+            </CollectionView>
+
+            <ActivityIndicator IsRunning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               Color="{DynamicResource PrimaryColor}" />
+        </Grid>
+    </Grid>
+</ContentPage>

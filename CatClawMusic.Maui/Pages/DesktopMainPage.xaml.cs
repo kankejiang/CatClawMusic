@@ -540,15 +540,12 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
 
     private void OpenPlaylist(Playlist pl)
     {
-#if WINDOWS
+        // Windows 桌面与 Android 横屏桌面舞台：歌单详情均嵌入右侧 ContentArea，保留左侧导航。
+        // Android 竖屏不经过本页（竖屏用移动布局歌单列表），不受影响。
         OpenPlaylistEmbedded(pl);
-#else
-        DesktopNavigation.TryGoToShell(
-            $"playlistdetail?playlistId={pl.Id}&name={Uri.EscapeDataString(pl.Name)}");
-#endif
     }
 
-    /// <summary>Windows 桌面端：将歌单详情页嵌入右侧 ContentArea，保留左侧导航栏。</summary>
+    /// <summary>桌面端：将歌单详情页嵌入右侧 ContentArea，保留左侧导航栏。</summary>
     private void OpenPlaylistEmbedded(Playlist pl)
     {
         try

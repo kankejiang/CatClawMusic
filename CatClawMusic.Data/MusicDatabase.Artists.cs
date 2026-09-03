@@ -127,6 +127,99 @@ public partial class MusicDatabase
         return await _database.QueryAsync<Song>(sql, ids.Cast<object>().ToArray());
     }
 
+    // ═══════════ SQL 聚合（探索页统计，替代整库加载后客户端 LINQ 聚合）═══════════
+
+    private sealed class ArtistIdCount { public int ArtistId { get; set; } public int Cnt { get; set; } }
+    private sealed class AlbumIdCount { public int AlbumId { get; set; } public int Cnt { get; set; } }
+
+    /// <summary>来源筛选 -> SQL WHERE 片段：all 不过滤 / local 仅本地 / network 排除本地</summary>
+    private static (string clause, object[] prm) SourceFilterClause(string sourceFilter)
+        => sourceFilter switch
+        {
+            "local" => ("AND Source = ?", new object[] { (int)SongSource.Local }),
+            "network" => ("AND Source != ?", new object[] { (int)SongSource.Local }),
+            _ => ("", Array.Empty<object>()),
+        };
+
+    /// <summary>按主 ArtistId 统计歌曲数（SQL GROUP BY，替代整库加载后客户端多次 LINQ 遍历）。
+    /// 网络歌曲若已匹配到同一艺术家也会被计入，与客户端整库聚合语义一致。</summary>
+    public async Task<Dictionary<int, int>> GetArtistSongCountsAsync(string sourceFilter = "all")
+    {
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var (where, prm) = SourceFilterClause(sourceFilter);
+            var rows = await _database.QueryAsync<ArtistIdCount>(
+                $"SELECT ArtistId, COUNT(*) AS Cnt FROM Songs WHERE ArtistId > 0 {where} GROUP BY ArtistId", prm).ConfigureAwait(false);
+            var dict = new Dictionary<int, int>(rows.Count);
+            foreach (var r in rows) dict[r.ArtistId] = r.Cnt;
+            return dict;
+        }
+        catch (Exception ex) { Log.Debug("MusicDatabase", $"GetArtistSongCountsAsync: {ex.Message}"); return new Dictionary<int, int>(); }
+    }
+
+    /// <summary>合作歌曲次要艺术家补充计数：SongArtists JOIN Songs（只统计现存歌曲，支持来源过滤）。</summary>
+    public async Task<Dictionary<int, int>> GetSupplementaryArtistSongCountsAsync(string sourceFilter = "all")
+    {
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var (where, prm) = SourceFilterClause(sourceFilter);
+            var rows = await _database.QueryAsync<ArtistIdCount>(
+                $@"SELECT sa.ArtistId, COUNT(*) AS Cnt
+                   FROM SongArtists sa
+                   INNER JOIN Songs s ON s.Id = sa.SongId
+                   WHERE sa.ArtistId > 0 {where}
+                   GROUP BY sa.ArtistId", prm).ConfigureAwait(false);
+            var dict = new Dictionary<int, int>(rows.Count);
+            foreach (var r in rows) dict[r.ArtistId] = r.Cnt;
+            return dict;
+        }
+        catch (Exception ex) { Log.Debug("MusicDatabase", $"GetSupplementaryArtistSongCountsAsync: {ex.Message}"); return new Dictionary<int, int>(); }
+    }
+
+    /// <summary>按 AlbumId 统计歌曲数（SQL GROUP BY）。</summary>
+    public async Task<Dictionary<int, int>> GetAlbumSongCountsAsync(string sourceFilter = "all")
+    {
+        try
+        {
+            await EnsureMaintenanceCompletedAsync();
+            var (where, prm) = SourceFilterClause(sourceFilter);
+            var rows = await _database.QueryAsync<AlbumIdCount>(
+                $"SELECT AlbumId, COUNT(*) AS Cnt FROM Songs WHERE AlbumId > 0 {where} GROUP BY AlbumId", prm).ConfigureAwait(false);
+            var dict = new Dictionary<int, int>(rows.Count);
+            foreach (var r in rows) dict[r.AlbumId] = r.Cnt;
+            return dict;
+        }
+        catch (Exception ex) { Log.Debug("MusicDatabase", $"GetAlbumSongCountsAsync: {ex.Message}"); return new Dictionary<int, int>(); }
+    }
+
+    /// <summary>每个艺术家一首本地采样歌曲（有文件路径、ArtistId 有效的，每个艺术家取首行；供艺术家聚合使用）。</summary>
+    public async Task<List<Song>> GetSampleSongsForArtistsAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var sql = @"
+            SELECT s.*
+            FROM Songs s
+            WHERE s.Source = ? AND s.ArtistId > 0 AND s.FilePath IS NOT NULL AND s.FilePath != ''
+            GROUP BY s.ArtistId
+        ";
+        return await _database.QueryAsync<Song>(sql, (int)SongSource.Local).ConfigureAwait(false);
+    }
+
+    /// <summary>每个专辑一首本地采样歌曲（全表 GROUP BY AlbumId，带来源过滤；供探索页专辑聚合使用）。</summary>
+    public async Task<List<Song>> GetSampleSongsForAlbumsAsync()
+    {
+        await EnsureMaintenanceCompletedAsync();
+        var sql = @"
+            SELECT s.*
+            FROM Songs s
+            WHERE s.Source = ? AND s.AlbumId > 0 AND s.FilePath IS NOT NULL AND s.FilePath != ''
+            GROUP BY s.AlbumId
+        ";
+        return await _database.QueryAsync<Song>(sql, (int)SongSource.Local).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// 修复歌曲的 AlbumId 关联：根据歌曲的 Album 名称和 Artist 名称重新匹配正确的专辑 ID。
     /// 解决早期版本中 ArtistId=0 导致 AlbumId 关联错误的问题。

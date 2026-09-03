@@ -503,6 +503,9 @@ public static class MauiProgram
         services.AddTransient<Pages.DesktopAllSongsPage>();
         services.AddTransient<Pages.AlbumDetailPage>();
         services.AddTransient<Pages.ArtistDetailPage>();
+        services.AddTransient<Pages.DesktopAlbumDetailPage>();
+        services.AddTransient<Pages.DesktopArtistDetailPage>();
+        services.AddTransient<Pages.DesktopPlaylistDetailPage>();
         services.AddTransient<Pages.AlbumsPage>();
         services.AddTransient<Pages.ArtistsPage>();
         services.AddTransient<Pages.PlaylistPage>();
