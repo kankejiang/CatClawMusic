@@ -70,8 +70,9 @@
 
 		<!-- 运行时说明：.NET 11 Android 仅支持 CoreCLR（NETSDK1242 禁止 Mono）。CoreCLR Release 下
 		     FixAbstractMethodsStep 修补 R2R 预编译 binding 程序集时会报 XALNS7015（dotnet/android#11025）。
-		     CoreCLR targets 默认在 Release 打开 PublishReadyToRun（R2R 预编译），SDK 尚未修复该 bug，
-		     故此处显式关闭 R2R，回退为纯 IL + 运行时 JIT，规避 XALNS7015。 -->
+		     2026-09-03 实测 11.0.100-preview.7 干净全量构建仍报 XALNS7015 "Writing mixed-mode assemblies
+		     is not supported"（Mono.Cecil 不能写混合模式 binding dll）→ 保持关闭，纯 IL + JIT。
+		     每日首次冷启动卡顿由启动链路缓解（插件移出关键路径 + backfill 延后），等 SDK 修复后再开 R2R。 -->
 		<!-- Android release build settings -->
 		<RunAOTCompilation Condition="'$(Configuration)' == 'Release'">false</RunAOTCompilation>
 		<PublishReadyToRun Condition="'$(Configuration)' == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</PublishReadyToRun>

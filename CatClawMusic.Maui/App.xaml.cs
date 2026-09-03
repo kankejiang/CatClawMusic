@@ -465,8 +465,18 @@ public partial class App : Application
         if (libraryVm == null || libraryVm.IsPreloaded) return;
         try
         {
-            // 冷启动时后台单飞回填缺失的歌曲时长，修正音乐库总时长（扫描基于性能跳过读 duration）
-            MauiProgram.Services.GetService<Services.LocalScanService>()?.TriggerDurationBackfill();
+            // 冷启动时后台单飞回填缺失的歌曲时长，修正音乐库总时长（扫描基于性能跳过读 duration）。
+            // ⚠ 延后 30s 错峰：每日首次冷启动磁盘/页缓存全冷，backfill 的文件读取会与
+            // 首屏加载/主界面构建抢 IO（"每天第一次启动特别卡"的组成因素之一）。
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30));
+                    MauiProgram.Services.GetService<Services.LocalScanService>()?.TriggerDurationBackfill();
+                }
+                catch (Exception ex) { Log.Debug("App.xaml", $"[Splash] 时长回填失败: {ex.Message}"); }
+            });
 
             // ⚠ 放行闸门只等首屏必需项：协议列表 + 当前 tab 列表 + 总览聚合。
             // 专辑/艺术家聚合与 VM 预热在闸门等待期间后台继续（见下方 fire-and-forget），
