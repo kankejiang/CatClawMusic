@@ -8,20 +8,22 @@ namespace CatClawMusic.Core.Interfaces;
 public interface ILyricsService
 {
     /// <summary>
-    /// 获取歌词（优先本地，失败后尝试网络提供者）
+    /// 获取歌词（自动模式：本地内嵌优先 → 外挂 → 联网搜索；在线音乐优先在线来源歌词）
     /// </summary>
     /// <param name="song">歌曲信息</param>
     /// <param name="sourceMode">歌词来源模式：Auto 全链路；Embedded 仅内嵌；External 仅外挂（默认 Auto）</param>
-    Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto);
-    
+    /// <param name="localFilePathOverride">本地缓存文件路径（网络歌曲缓存到本地后传入，替代 song.FilePath 做本地歌词查找）</param>
+    Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto, string? localFilePathOverride = null);
+
     /// <summary>
-    /// 从本地文件获取歌词（外挂 .lrc/.ttml 优先，内嵌兜底）
+    /// 从本地文件获取歌词（自动/内嵌模式：内嵌优先；外挂模式：外挂优先）
     /// </summary>
     /// <param name="song">歌曲信息</param>
     /// <param name="skipEmbedded">仅外挂模式：跳过内嵌歌词</param>
-    /// <param name="preferEmbedded">内嵌优先（内嵌模式）</param>
+    /// <param name="preferEmbedded">内嵌优先（自动/内嵌模式）</param>
     /// <param name="skipExternal">仅内嵌模式：跳过外挂歌词查找</param>
-    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false);
+    /// <param name="localFilePathOverride">本地缓存文件路径（网络歌曲缓存到本地后传入，替代 song.FilePath）</param>
+    Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false, string? localFilePathOverride = null);
     
     /// <summary>
     /// 解析 LRC 格式字符串

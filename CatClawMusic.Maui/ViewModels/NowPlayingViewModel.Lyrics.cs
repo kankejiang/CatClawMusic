@@ -11,7 +11,7 @@ namespace CatClawMusic.Maui.ViewModels;
 /// <summary>正在播放 ViewModel —— partial 分域文件。</summary>
 public partial class NowPlayingViewModel
 {
-    private async Task LoadLyricsAsync(Song song, CancellationToken ct)
+    private async Task LoadLyricsAsync(Song song, CancellationToken ct, string? localFilePathOverride = null)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -21,7 +21,7 @@ public partial class NowPlayingViewModel
             Log.Debug("AppViewModels", $"[Lyrics] 开始加载歌词: {song.Title} (Id={song.Id}, Path={song.FilePath?.Substring(0, Math.Min(60, song.FilePath?.Length ?? 0))}...)");
             Log.Debug("AppViewModels", $"[Lyrics] LyricsPath={song.LyricsPath ?? "null"}");
 
-            lyrics = await _lyrics.GetLyricsAsync(song, LyricsSettingsService.Instance.LyricsSourceMode);
+            lyrics = await _lyrics.GetLyricsAsync(song, LyricsSettingsService.Instance.LyricsSourceMode, localFilePathOverride);
 
             Log.Debug("AppViewModels", $"[Lyrics] 结果: {(lyrics != null ? $"{lyrics.Lines.Count} 行" : "null")}");
         }
@@ -68,7 +68,7 @@ public partial class NowPlayingViewModel
 
     /// <summary>
     /// 歌词来源模式变更后重新加载当前歌曲歌词（外挂/内嵌/自动切换立即生效）。
-    /// 网络歌曲走缓存文件链路，本地歌曲走标准链路。
+    /// 网络歌曲解析到本地缓存路径后走统一链路（在线来源歌词优先），本地歌曲直接走标准链路。
     /// </summary>
     public void ReloadLyricsForCurrentSong()
     {
@@ -84,7 +84,7 @@ public partial class NowPlayingViewModel
                     var localPath = await ResolveToLocalPathAsync(song, CancellationToken.None);
                     if (localPath != null)
                     {
-                        await LoadLyricsFromLocalFileAsync(song, localPath, CancellationToken.None);
+                        await LoadLyricsAsync(song, CancellationToken.None, localPath);
                         return;
                     }
                 }

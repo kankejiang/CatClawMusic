@@ -285,72 +285,11 @@ public partial class NowPlayingViewModel
     }
 
     /// <summary>
-    /// 从本地缓存文件加载歌词（先找同目录 .lrc 文件，再尝试内嵌歌词）。
-    /// 和播放本地音乐完全一样的流程。
+    /// 网络歌曲缓存到本地后的歌词加载：把缓存文件路径作为本地查找源，
+    /// 走统一链路 GetLyricsAsync —— 自动模式下优先在线来源歌词
+    /// （Navidrome API / 在线音乐插件），没有再读缓存文件的内嵌/外挂歌词，
+    /// 最后由歌词搜索插件联网匹配。
     /// </summary>
-    private async Task LoadLyricsFromLocalFileAsync(Song song, string localPath, CancellationToken ct)
-    {
-        try
-        {
-            ct.ThrowIfCancellationRequested();
-
-            // 按歌词来源模式裁剪：仅内嵌跳过外挂 .lrc/.ttml；仅外挂跳过内嵌读取
-            var sourceMode = Services.LyricsSettingsService.Instance.LyricsSourceMode;
-            bool skipExternal = sourceMode == CatClawMusic.Core.Models.LyricsSourceMode.Embedded;
-            bool skipEmbedded = sourceMode == CatClawMusic.Core.Models.LyricsSourceMode.External;
-
-            // 1. 先找同名 .lrc 文件
-            string? lyricsText = null;
-            if (!skipExternal)
-            {
-                var lrcPath = Path.ChangeExtension(localPath, ".lrc");
-                if (File.Exists(lrcPath))
-                {
-                    lyricsText = await File.ReadAllTextAsync(lrcPath, ct);
-                }
-                else
-                {
-                    // 2. 尝试 .ttml
-                    var ttmlPath = Path.ChangeExtension(localPath, ".ttml");
-                    if (File.Exists(ttmlPath))
-                        lyricsText = await File.ReadAllTextAsync(ttmlPath, ct);
-                }
-            }
-
-            // 3. 内嵌歌词
-            if (!skipEmbedded && string.IsNullOrWhiteSpace(lyricsText))
-            {
-                using var fs = File.OpenRead(localPath);
-                lyricsText = CatClawMusic.Core.Services.TagReader.ReadEmbeddedLyricsFromStream(fs, Path.GetFileName(localPath));
-            }
-
-            if (!string.IsNullOrWhiteSpace(lyricsText))
-            {
-                var parsed = await Task.Run(() => _lyrics.TryParseLyrics(lyricsText), ct);
-                if (parsed != null)
-                {
-                    _currentLyrics = parsed;
-                    await MainThread.InvokeOnMainThreadAsync(() =>
-                    {
-                        HasLyrics = true;
-                        NoLyricsText = "";
-                        OnPropertyChanged(nameof(AllLyricLines));
-                    });
-                }
-            }
-            else
-            {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    HasLyrics = false;
-                    NoLyricsText = "暂无歌词";
-                });
-            }
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            Log.Debug("AppViewModels", $"[Resolve] 歌词加载失败: {song.Title}, {ex.Message}");
-        }
-    }
+    private Task LoadLyricsFromLocalFileAsync(Song song, string localPath, CancellationToken ct)
+        => LoadLyricsAsync(song, ct, localPath);
 }

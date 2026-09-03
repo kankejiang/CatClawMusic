@@ -12,7 +12,7 @@ namespace CatClawMusic.Core.Services;
 /// 歌词服务实现（LRC/TTML/AMLL 解析 + 多源查找 + KTV 索引）。
 /// 解析器按格式拆分在 LyricsService.*.cs partial 文件：
 /// FileReader（编码检测/content://）/ Lrc / Ttml / Amll。
-/// 歌词优先级：同名外挂 .lrc → 在线歌词缓存 → 内嵌歌词 → 网易云匹配 → 插件。
+/// 自动模式优先级：在线音乐（Navidrome API / 在线音乐插件）→ 内嵌歌词 → 外挂 .lrc → 在线缓存 → 歌词插件联网搜索。
 /// </summary>
 public partial class LyricsService : ILyricsService
 {
@@ -45,12 +45,15 @@ public partial class LyricsService : ILyricsService
     private const int MaxLyricsParseSize = 1 * 1024 * 1024;
 
     /// <summary>
-    /// 获取歌词（优先级：Navidrome API > 在线音乐插件 > 同名 .lrc > 嵌入歌词 > 歌词插件）
+    /// 获取歌词。
+    /// 自动模式优先级：
+    /// - 本地音乐：内嵌歌词 → 外挂歌词（.lrc/.ttml/.xml）→ 在线缓存 → 歌词插件联网搜索；
+    /// - 在线音乐：在线来源歌词（Navidrome API / 在线音乐插件）→ 本地缓存文件内嵌 → 外挂 → 歌词插件联网搜索。
     /// 注意：Navidrome API 必须先于内嵌歌词，否则会触发 RemoteUrlStreamOpener
     /// 下载整个音频文件（最大 50MB）到 LOS 堆，导致大量 GC。
     /// 内嵌/外挂模式下（sourceMode != Auto）严格只读指定本地来源，跳过全部网络歌词链路。
     /// </summary>
-    public async Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto)
+    public async Task<LrcLyrics?> GetLyricsAsync(Song song, LyricsSourceMode sourceMode = LyricsSourceMode.Auto, string? localFilePathOverride = null)
     {
         // 仅内嵌/仅外挂：跳过网络歌词来源（Navidrome API / 在线音乐插件 / 歌词插件）
         bool localOnly = sourceMode != LyricsSourceMode.Auto;
@@ -141,10 +144,12 @@ public partial class LyricsService : ILyricsService
             }
         }
 
+        // 自动/仅内嵌模式均内嵌优先（自动模式内嵌没有再回退外挂，仅内嵌模式到内嵌为止）
         var lyrics = await GetLocalLyricsAsync(song,
             skipEmbedded: sourceMode == LyricsSourceMode.External,
-            preferEmbedded: sourceMode == LyricsSourceMode.Embedded,
-            skipExternal: sourceMode == LyricsSourceMode.Embedded);
+            preferEmbedded: sourceMode != LyricsSourceMode.External,
+            skipExternal: sourceMode == LyricsSourceMode.Embedded,
+            localFilePathOverride: localFilePathOverride);
         if (lyrics != null) return lyrics;
 
         // 在线模式：本地无歌词时由歌词插件兜底（如 LRCLIB / 网易云歌词插件）
@@ -169,15 +174,16 @@ public partial class LyricsService : ILyricsService
     }
 
     /// <summary>
-    /// 从本地获取歌词（同名 .lrc 文件 > 嵌入歌词）
+    /// 从本地获取歌词（自动/内嵌模式：内嵌优先，内嵌没有再回退外挂；外挂模式：外挂优先）
     /// </summary>
     /// <param name="song">歌曲信息</param>
     /// <param name="skipEmbedded">是否跳过嵌入歌词（仅外挂模式）</param>
-    /// <param name="preferEmbedded">是否内嵌优先（内嵌模式）</param>
+    /// <param name="preferEmbedded">是否内嵌优先（自动/内嵌模式）</param>
     /// <param name="skipExternal">是否跳过外挂歌词查找（仅内嵌模式）</param>
-    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false)
+    /// <param name="localFilePathOverride">本地缓存文件路径（网络歌曲缓存到本地后传入，替代 song.FilePath）</param>
+    public async Task<LrcLyrics?> GetLocalLyricsAsync(Song song, bool skipEmbedded = false, bool preferEmbedded = false, bool skipExternal = false, string? localFilePathOverride = null)
     {
-        var songPath = song.FilePath;
+        var songPath = localFilePathOverride ?? song.FilePath;
 
         bool isContentUri = !string.IsNullOrEmpty(songPath) && songPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
         bool isRemoteUrl = !string.IsNullOrEmpty(songPath) && (
@@ -208,9 +214,10 @@ public partial class LyricsService : ILyricsService
             return null;
         }
 
-        // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
-        if (!skipExternal && !string.IsNullOrEmpty(song.LyricsPath))
+        // 读取已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
+        async Task<LrcLyrics?> TryReadLyricsPathAsync()
         {
+            if (string.IsNullOrEmpty(song.LyricsPath)) return null;
             if (song.LyricsPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
             {
                 // content:// URI：先读 LyricsPath 本身
@@ -236,6 +243,14 @@ public partial class LyricsService : ILyricsService
                 var lrcLyrics = await TryReadLrcFileAsync(song.LyricsPath);
                 if (lrcLyrics != null) return lrcLyrics;
             }
+            return null;
+        }
+
+        // 优先使用已知的 LyricsPath（SAF 扫描时已匹配的歌词 content:// URI 或文件路径）
+        if (!skipExternal && !string.IsNullOrEmpty(song.LyricsPath))
+        {
+            var fromLyricsPath = await TryReadLyricsPathAsync();
+            if (fromLyricsPath != null) return fromLyricsPath;
         }
 
         if (preferEmbedded && !skipEmbedded)
@@ -257,6 +272,10 @@ public partial class LyricsService : ILyricsService
 
             // 内嵌模式（skipExternal）：外挂歌词查找整体跳过
             if (skipExternal) return null;
+
+            // 自动模式：内嵌没有 → 外挂（先查 SAF 已匹配的 LyricsPath，再查同名词曲）
+            var fromLyricsPath = await TryReadLyricsPathAsync();
+            if (fromLyricsPath != null) return fromLyricsPath;
 
             if (isContentUri)
             {
@@ -295,6 +314,14 @@ public partial class LyricsService : ILyricsService
             {
                 var lrcLyrics = await TryReadLrcFileAsync(songPath);
                 if (lrcLyrics != null) return lrcLyrics;
+            }
+
+            // 自动模式：外挂也没有 → 在线歌词缓存（联网搜索过的歌词缓存为 .lrc，离线可用）
+            var cachedLyrics = await TryReadCachedLyricsAsync(song);
+            if (cachedLyrics != null)
+            {
+                Log.Debug("LyricsService", $"[Lyrics] 命中在线歌词缓存: {cachedLyrics.Lines.Count} 行");
+                return cachedLyrics;
             }
 
             return null;
