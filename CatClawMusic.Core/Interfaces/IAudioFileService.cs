@@ -40,3 +40,34 @@ public interface IAudioFileService
     /// <summary>删除文件（永久删除，不可恢复）</summary>
     Task<bool> DeleteFileAsync(string uri);
 }
+
+/// <summary>标签写入事件参数：写入的文件 URI 与已写入的编辑内容</summary>
+public class AudioTagWrittenEventArgs : EventArgs
+{
+    /// <summary>被写入的音频文件 URI（SAF content:// 或本地路径）</summary>
+    public string Uri { get; }
+
+    /// <summary>本次写入的编辑内容（null 字段表示未改动）</summary>
+    public AudioTagEdit Edit { get; }
+
+    public AudioTagWrittenEventArgs(string uri, AudioTagEdit edit)
+    {
+        Uri = uri;
+        Edit = edit;
+    }
+}
+
+/// <summary>
+/// 标签写入静态事件：<see cref="IAudioFileService.WriteTagsAsync"/> 成功后触发。
+/// 宿主 UI（播放页 ViewModel 等）据此刷新当前歌曲的标题/艺人/专辑/歌词/封面显示并同步数据库，
+/// 实现「修改元数据后立即生效」。用静态事件而非接口事件，插件端消费者无需感知。
+/// </summary>
+public static class AudioTagEvents
+{
+    /// <summary>标签写入成功（订阅方注意：可能在后台线程触发）</summary>
+    public static event EventHandler<AudioTagWrittenEventArgs>? TagsWritten;
+
+    /// <summary>由 IAudioFileService 实现在写入成功后调用</summary>
+    public static void RaiseTagsWritten(string uri, AudioTagEdit edit)
+        => TagsWritten?.Invoke(null, new AudioTagWrittenEventArgs(uri, edit));
+}

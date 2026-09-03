@@ -279,6 +279,9 @@ public partial class NowPlayingViewModel : ObservableObject
         _audioService.PlaybackCompleted += OnPlaybackCompleted;
         _queue.IsFmModeChanged += OnIsFmModeChanged;
 
+        // 标签被写入（插件编辑页/搜索匹配页直写文件）：若为当前播放歌曲则立即刷新显示
+        AudioTagEvents.TagsWritten += OnAudioTagsWritten;
+
 #if ANDROID
         // 订阅通知栏媒体控件回调（下一首/上一首/收藏），由 ForegroundPlayerService 触发
         if (_audioService is Services.AudioPlayerService androidAudio)

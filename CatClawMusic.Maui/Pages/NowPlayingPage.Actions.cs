@@ -475,6 +475,37 @@ public partial class NowPlayingPage
                 _ = ShareSongAsync(song);
         }));
 
+        // 插件贡献菜单项（如歌词搜索插件提供「元数据匹配」入口；未安装对应插件时不显示）
+        try
+        {
+            var pluginMgr = MauiProgram.Services?.GetService<IPluginManager>();
+            if (pluginMgr != null)
+            {
+                foreach (var contributor in pluginMgr.GetEnabledPlugins<IMenuContributorPlugin>())
+                {
+                    List<MenuItemEntry>? items = null;
+                    try { items = contributor.GetMenuItems(song); } catch { }
+                    if (items == null || items.Count == 0) continue;
+
+                    foreach (var item in items)
+                    {
+                        var contributorRef = contributor;
+                        var itemId = item.Id;
+                        menu.Add(CreateMenuRow("✎", item.Title, false, () =>
+                        {
+                            _ = MorePopup.CloseAsync();
+                            // 插件回调在主线程执行（内部会触发页面导航）
+                            _ = contributorRef.OnMenuItemClicked(itemId, song, this);
+                        }));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("NowPlayingPage", $"[More] 加载插件菜单失败: {ex.Message}");
+        }
+
         MorePopup.AddContent(menu);
     }
 

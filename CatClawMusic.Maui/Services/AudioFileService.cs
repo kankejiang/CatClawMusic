@@ -28,13 +28,21 @@ public partial class AudioFileService : IAudioFileService
         return Task.Run(() => ReadFileTags(uri));
     }
 
-    public Task<bool> WriteTagsAsync(string uri, AudioTagEdit edit)
+    public async Task<bool> WriteTagsAsync(string uri, AudioTagEdit edit)
     {
-        if (string.IsNullOrWhiteSpace(uri) || edit == null) return Task.FromResult(false);
+        if (string.IsNullOrWhiteSpace(uri) || edit == null) return false;
 #if ANDROID
-        if (IsContentUri(uri)) return WriteContentTagsAsync(uri, edit);
+        if (IsContentUri(uri))
+        {
+            var okContent = await WriteContentTagsAsync(uri, edit);
+            // 通知宿主 UI 刷新当前歌曲显示（改元数据立即生效）
+            if (okContent) AudioTagEvents.RaiseTagsWritten(uri, edit);
+            return okContent;
+        }
 #endif
-        return Task.Run(() => WriteFileTags(uri, edit));
+        var ok = await Task.Run(() => WriteFileTags(uri, edit));
+        if (ok) AudioTagEvents.RaiseTagsWritten(uri, edit);
+        return ok;
     }
 
     public Task<string?> WriteSidecarLyricsAsync(string uri, string lrcText)

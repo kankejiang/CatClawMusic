@@ -396,6 +396,55 @@ public partial class NowPlayingViewModel
         }
     }
 
+    /// <summary>
+    /// 音频标签被写入（插件编辑标签页/搜索匹配页经 IAudioFileService 直写文件成功）。
+    /// 若写入的是当前播放歌曲：更新内存 Song 字段并落库、刷新播放页标题/艺人/专辑、
+    /// 通知栏与 SMTC、歌词和封面——实现「修改元数据后立即生效」，无需重新扫描。
+    /// </summary>
+    private void OnAudioTagsWritten(object? sender, AudioTagWrittenEventArgs e)
+    {
+        var song = _queue.CurrentSong;
+        if (song == null || song.Source != SongSource.Local) return;
+        if (!string.Equals(song.FilePath, e.Uri, StringComparison.OrdinalIgnoreCase)) return;
+
+        var edit = e.Edit;
+        bool metaChanged = false;
+        if (!string.IsNullOrWhiteSpace(edit.Title)) { song.Title = edit.Title; metaChanged = true; }
+        if (!string.IsNullOrWhiteSpace(edit.Artist)) { song.Artist = edit.Artist; metaChanged = true; }
+        if (!string.IsNullOrWhiteSpace(edit.Album)) { song.Album = edit.Album; metaChanged = true; }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // 同步数据库，避免音乐库/下次启动仍显示旧标签
+                if (metaChanged) await _db.SaveSongAsync(song);
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (metaChanged)
+                    {
+                        Title = song.Title ?? "未知歌曲";
+                        Artist = song.Artist ?? "未知艺术家";
+                        Album = song.Album ?? "未知专辑";
+                        HasAlbum = !string.IsNullOrEmpty(song.Album) && song.Album != "未知专辑";
+                        OnPropertyChanged(nameof(CurrentSong));
+                        // 刷新通知栏 / Windows SMTC 显示
+                        try { (_audioService as AudioPlayerService)?.UpdateSongInfo(Title, Artist); }
+                        catch { }
+                    }
+                    // 歌词/封面被改写则重载对应资源
+                    if (edit.Lyrics != null) _ = LoadLyricsAsync(song, CancellationToken.None);
+                    if (edit.Cover != null) _ = LoadCoverAsync(song, CancellationToken.None);
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("AppViewModels", $"[TagsWritten] 刷新当前歌曲失败: {ex.Message}");
+            }
+        });
+    }
+
     // === 队列状态持久化 ===
 
     /// <summary>保存当前播放队列状态到 Preferences</summary>
