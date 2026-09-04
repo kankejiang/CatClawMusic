@@ -10,6 +10,9 @@ public partial class MusicDatabase
 {
     public async Task SetFavoriteAsync(int songId, bool isFav)
     {
+        // 在线插件（网易云等）入队用临时负 Id（FM/列表伪 Id），不是真实 DB 歌曲，
+        // 写入收藏会造成污染：重启后伪 Id 序列重新计数，别的歌命中同一个负 Id 会误显示"已收藏"。
+        if (songId <= 0) return;
         await EnsureMaintenanceCompletedAsync();
         var fav = await _database.Table<Favorite>().Where(f => f.SongId == songId).FirstOrDefaultAsync();
         if (isFav && fav == null)
@@ -61,8 +64,29 @@ public partial class MusicDatabase
     /// <returns>是否已收藏</returns>
     public async Task<bool> IsFavoriteAsync(int songId)
     {
+        // 负 Id 是在线插件临时伪 Id（非真实 DB 歌曲），一律视为未收藏，
+        // 避免重启后伪 Id 序列重计导致的"未收藏却实心红心"误判。
+        if (songId <= 0) return false;
         await EnsureMaintenanceCompletedAsync();
         return await _database.Table<Favorite>().Where(f => f.SongId == songId).CountAsync() > 0;
+    }
+
+    /// <summary>按远程 ID 查找已入库的歌曲 Id（在线收藏镜像用；未找到返回 0）</summary>
+    public async Task<int> GetSongIdByRemoteIdAsync(string? remoteId)
+    {
+        if (string.IsNullOrWhiteSpace(remoteId)) return 0;
+        await EnsureMaintenanceCompletedAsync();
+        try
+        {
+            var row = await _database.Table<Song>()
+                .Where(s => s.RemoteId == remoteId)
+                .FirstOrDefaultAsync();
+            return row?.Id ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>

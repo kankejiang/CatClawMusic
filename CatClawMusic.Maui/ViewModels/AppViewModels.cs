@@ -442,7 +442,11 @@ public partial class NowPlayingViewModel : ObservableObject
             if (song == null) return;
             try
             {
-                await _db.SetFavoriteAsync(song.Id, isFavorite);
+                // 收藏落到真实 DB 歌曲 Id（在线歌曲临时负 Id 先按 RemoteId 建镜像）
+                var favSongId = await ResolveFavoriteSongIdAsync(song);
+                if (favSongId <= 0 && isFavorite)
+                    favSongId = await CreateFavoriteMirrorAsync(song);
+                if (favSongId > 0) await _db.SetFavoriteAsync(favSongId, isFavorite);
                 IsLiked = isFavorite;
                 LikeIcon = isFavorite ? "\u2665" : "\u2661";
                 LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(isFavorite ? "ic_notif_favorite" : "ic_notif_favorite_border", isFavorite ? "ic_notif_favorite" : "ic_notif_favorite_border");

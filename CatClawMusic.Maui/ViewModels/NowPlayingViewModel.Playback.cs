@@ -406,7 +406,12 @@ public partial class NowPlayingViewModel
         if (song == null) return;
 
         var newFav = !IsLiked;
-        await _db.SetFavoriteAsync(song.Id, newFav);
+        // 本地收藏落到真实 DB 歌曲 Id：在线歌曲（临时负 Id）红心时先按 RemoteId 建镜像，
+        // 避免负 Id 写入 Favorites 造成"重启后别的歌误显示已收藏"。
+        var favSongId = await ResolveFavoriteSongIdAsync(song);
+        if (favSongId <= 0 && newFav)
+            favSongId = await CreateFavoriteMirrorAsync(song);
+        if (favSongId > 0) await _db.SetFavoriteAsync(favSongId, newFav);
         IsLiked = newFav;
         LikeIcon = newFav ? "\u2665" : "\u2661"; // ♥ or ♡
         LikeIconSource = ImageSourceHelper.FromNamePlayerCtrl(newFav ? "ic_notif_favorite" : "ic_notif_favorite_border", newFav ? "ic_notif_favorite" : "ic_notif_favorite_border");

@@ -123,10 +123,16 @@ public partial class NowPlayingViewModel
             Preferences.Default.Set("last_playing_song_id", song.Id);
         }
 
-        // Check favorite (与播放并行执行，不阻塞切歌)
+        // Check favorite (与播放并行执行，不阻塞切歌)。
+        // 在线插件歌曲此前用临时负 Id 入队，负 Id 查询会被 IsFavoriteAsync 拒绝；
+        // 先归一化到按 RemoteId 入库的镜像歌曲（若存在）再查，未匹配到镜像视为未收藏。
         var favoriteTask = Task.Run(async () =>
         {
-            try { return await _db.IsFavoriteAsync(song.Id); }
+            try
+            {
+                var favSongId = await ResolveFavoriteSongIdAsync(song);
+                return favSongId > 0 && await _db.IsFavoriteAsync(favSongId);
+            }
             catch { return false; }
         }, ct);
 
@@ -443,6 +449,55 @@ public partial class NowPlayingViewModel
                 Log.Debug("AppViewModels", $"[TagsWritten] 刷新当前歌曲失败: {ex.Message}");
             }
         });
+    }
+
+    // === 收藏规范化（在线歌曲临时负 Id → 真实 DB 歌曲 Id） ===
+
+    /// <summary>
+    /// 解析当前歌曲可用于收藏判定的真实 DB 歌曲 Id：
+    /// 本地/已入库歌曲直接用正 Id；在线插件歌曲（入队时带临时负 Id）按 RemoteId 查镜像，
+    /// 未入库（从未红心过）返回 0（视为未收藏）。避免负 Id 序列重启后重计导致的误判。
+    /// </summary>
+    private Task<int> ResolveFavoriteSongIdAsync(Song song)
+    {
+        if (song.Id > 0) return Task.FromResult(song.Id);
+        if (!string.IsNullOrEmpty(song.RemoteId))
+            return _db.GetSongIdByRemoteIdAsync(song.RemoteId);
+        return Task.FromResult(0);
+    }
+
+    /// <summary>
+    /// 红心在线歌曲时在本地入库一份镜像（Source=Cache，RemoteId 去重），
+    /// 收藏/取消收藏都落到这个真实 Id 上，避免临时负 Id 污染 Favorites。入库失败返回 0。
+    /// </summary>
+    private async Task<int> CreateFavoriteMirrorAsync(Song song)
+    {
+        try
+        {
+            var remoteId = song.RemoteId;
+            if (string.IsNullOrWhiteSpace(remoteId)) return 0;
+            var existing = await _db.GetSongIdByRemoteIdAsync(remoteId);
+            if (existing > 0) return existing;
+            var mirror = new Song
+            {
+                Title = song.Title,
+                Artist = song.Artist,
+                Album = song.Album,
+                Duration = song.Duration,
+                FilePath = song.FilePath ?? "",
+                RemoteId = remoteId,
+                Source = SongSource.Cache,
+                CoverArtPath = song.CoverArtPath,
+                AllArtists = song.AllArtists,
+                Protocol = song.Protocol,
+            };
+            await _db.InsertSongAsync(mirror);
+            return mirror.Id;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     // === 队列状态持久化 ===

@@ -192,6 +192,14 @@ public partial class MusicDatabase
                 await MarkMigrationDoneAsync("consolidate_play_history");
             }
 
+            // 清理被在线插件临时负 Id 污染的收藏（FM/列表伪 Id 误写 Favorites；
+            // 重启后伪 Id 重新计数，未收藏歌曲会命中同一负 Id 误显示"已收藏"）
+            if (!await IsMigrationDoneAsync("purge_negative_favorites"))
+            {
+                try { await _database.ExecuteAsync("DELETE FROM Favorites WHERE SongId <= 0"); } catch { }
+                await MarkMigrationDoneAsync("purge_negative_favorites");
+            }
+
             _maintenanceCompleted = true;
         }
         finally
