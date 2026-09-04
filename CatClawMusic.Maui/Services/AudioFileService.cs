@@ -31,18 +31,31 @@ public partial class AudioFileService : IAudioFileService
     public async Task<bool> WriteTagsAsync(string uri, AudioTagEdit edit)
     {
         if (string.IsNullOrWhiteSpace(uri) || edit == null) return false;
-#if ANDROID
-        if (IsContentUri(uri))
+
+        // 播放保护：目标文件正是播放器当前打开的音源时，先暂停再写入。
+        // TagLib 原地重写 / content:// 全量覆盖会破坏 ExoPlayer 正在流式读取的文件，
+        // 直接写会导致播放管线错误风暴、主线程卡死（播放中写元数据后宿主假死的根因）。
+        // 写完后按原播放位置重装音源恢复，保证「保存→继续听」无缝衔接。
+        var playbackGuard = await PlaybackGuard.BeginAsync(uri);
+        try
         {
-            var okContent = await WriteContentTagsAsync(uri, edit);
-            // 通知宿主 UI 刷新当前歌曲显示（改元数据立即生效）
-            if (okContent) AudioTagEvents.RaiseTagsWritten(uri, edit);
-            return okContent;
-        }
+#if ANDROID
+            if (IsContentUri(uri))
+            {
+                var okContent = await WriteContentTagsAsync(uri, edit);
+                // 通知宿主 UI 刷新当前歌曲显示（改元数据立即生效）
+                if (okContent) AudioTagEvents.RaiseTagsWritten(uri, edit);
+                return okContent;
+            }
 #endif
-        var ok = await Task.Run(() => WriteFileTags(uri, edit));
-        if (ok) AudioTagEvents.RaiseTagsWritten(uri, edit);
-        return ok;
+            var ok = await Task.Run(() => WriteFileTags(uri, edit));
+            if (ok) AudioTagEvents.RaiseTagsWritten(uri, edit);
+            return ok;
+        }
+        finally
+        {
+            await playbackGuard.CompleteAsync();
+        }
     }
 
     public Task<string?> WriteSidecarLyricsAsync(string uri, string lrcText)
@@ -338,5 +351,62 @@ public partial class AudioFileService : IAudioFileService
             return !IOFile.Exists(path);
         }
         catch { return false; }
+    }
+
+    /// <summary>
+    /// 播放保护：写入目标正是播放器当前打开的音源时的暂停/恢复辅助。
+    /// 写入前暂停（停止 ExoPlayer 从文件中流式读取），写入成功后以原播放位置重装音源，
+    /// 播放状态按原样恢复（写前在播则继续播，否则保持暂停）。
+    /// 非当前播放文件时完全旁路（零开销、零副作用）。
+    /// </summary>
+    private sealed class PlaybackGuard
+    {
+        private readonly IAudioPlayerService? _player;
+        private readonly bool _touched;
+        private readonly bool _wasPlaying;
+        private readonly double _position;
+
+        private PlaybackGuard(IAudioPlayerService? player, bool touched, bool wasPlaying, double position)
+        {
+            _player = player;
+            _touched = touched;
+            _wasPlaying = wasPlaying;
+            _position = position;
+        }
+
+        /// <summary>文件是播放器当前音源时暂停并记录原状态；否则返回旁路守卫</summary>
+        public static async Task<PlaybackGuard> BeginAsync(string uri)
+        {
+            var player = MauiProgram.Services?.GetService<IAudioPlayerService>();
+            if (player is not { CurrentSongFilePath: { } cur }
+                || !string.Equals(cur, uri, StringComparison.OrdinalIgnoreCase))
+                return new PlaybackGuard(null, false, false, 0);
+
+            double position = 0;
+            bool wasPlaying = false;
+            try { position = player.CurrentPosition; } catch { }
+            try { wasPlaying = player.IsPlaying; } catch { }
+            try { await player.PauseAsync(); } catch { }
+            return new PlaybackGuard(player, true, wasPlaying, position);
+        }
+
+        /// <summary>写入完成后重装音源：文件已被重写，旧句柄失效需 PlayAsync 重新打开</summary>
+        public async Task CompleteAsync()
+        {
+            if (!_touched || _player is not { CurrentSongFilePath: { } cur }) return;
+            try
+            {
+                await _player.PlayAsync(cur); // 从文件重新打开（从头）
+                if (_position > 0)
+                {
+                    try { await _player.SeekAsync(TimeSpan.FromSeconds(_position)); } catch { }
+                }
+                if (!_wasPlaying)
+                {
+                    try { await _player.PauseAsync(); } catch { }
+                }
+            }
+            catch { }
+        }
     }
 }
