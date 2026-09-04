@@ -528,6 +528,20 @@ public partial class FullLyricsPage
                 // 还是未 wrap 时的单行值，会让换行成多行的当前行容器高度不足 → 第二行底部被裁）。
                 double newRowH = mainLblH * (float)LyricCurrentScale + LyricGapExtra * 2;
 
+                // 带译文/罗马音的行是 VStack（主歌词 + 副行）：只按主歌词高设 HeightRequest
+                // 会把整行压成主歌词高度，译文/罗马音溢出绘制到下一行 → "上一行译文和下一行原文重叠"。
+                // 副行不参与主行 Scale（保持原字号），按实际布局高度并入行高。
+                if (row is VerticalStackLayout rowStack && rowStack.Children.Count > 1)
+                {
+                    double subs = 0;
+                    for (int c = 1; c < rowStack.Children.Count; c++)
+                    {
+                        var h = (rowStack.Children[c] as View)?.Height ?? 0;
+                        subs += h > 0.5 ? h : mainLblH * 0.7; // 布局未就绪时按副行约 0.7×主行高兜底
+                    }
+                    newRowH += subs + rowStack.Spacing * (rowStack.Children.Count - 1);
+                }
+
                 if (Math.Abs(row.HeightRequest - newRowH) > 0.5)
                     row.HeightRequest = newRowH;
                 mainBorder.VerticalOptions = LayoutOptions.Fill;
