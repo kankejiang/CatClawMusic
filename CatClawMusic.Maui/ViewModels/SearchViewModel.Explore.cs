@@ -9,6 +9,10 @@ namespace CatClawMusic.Maui.ViewModels;
 /// <summary>探索域：探索数据加载 / 搜索用全量库 / 扫描后重载 / 示例封面解析。</summary>
 public partial class SearchViewModel
 {
+    /// <summary>扫描后全量重载的重入标记：扫描事件刷新 / 页面 OnAppearing / 数据源切换可能并发触发，
+    /// 只让第一路执行（与 LoadDataAsync._loadInProgress 同构，但覆盖其前置的清缓存/清空集合动作）。</summary>
+    private int _scanReloadRunning;
+
     public async Task LoadDataAsync()
     {
         // 重入保护：启动时构造函数/PreloadTabData/OnAppearing 可能并发触发同一加载，
@@ -262,6 +266,12 @@ public partial class SearchViewModel
     /// </summary>
     public async Task ReloadAfterScanAsync()
     {
+        // 重入保护：扫描事件刷新（LibraryPage.RefreshLibraryAfterDataChangedAsync）与页面
+        // OnAppearing / 数据源切换可能并发触发。只让第一路执行全量刷新；并发调用直接跳过
+        // （数据由第一路重建后自然最新），避免多路同时清缓存 + 整库聚合 + 封面解析造成 IO 风暴。
+        if (System.Threading.Interlocked.CompareExchange(ref _scanReloadRunning, 1, 0) != 0)
+            return;
+
         try
         {
             _exploreDataService.InvalidateDailyRecommendCache();
@@ -288,6 +298,10 @@ public partial class SearchViewModel
         catch (Exception ex)
         {
             Log.Debug("SearchViewModel", $"[SearchVM] ReloadAfterScan failed: {ex.Message}");
+        }
+        finally
+        {
+            System.Threading.Interlocked.Exchange(ref _scanReloadRunning, 0);
         }
     }
 

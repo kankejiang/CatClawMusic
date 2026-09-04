@@ -64,7 +64,7 @@ public class LocalScanService
     /// <summary>
     /// 后台单飞回填缺失的歌曲时长。
     /// 扫描时 readDuration:false 仅读标签（避免全文件 IO 卡死），此处用 readDuration:true 读取真实时长并批量回写。
-    /// 全文件 IO 较重，故限并发≤4 后台执行，既不阻塞 UI 也避免 IO 饱和。
+    /// 全文件 IO 较重：限并发≤2 且按批分片慢跑（每批 120 首、批间让出 IO），既不阻塞 UI 也不长时间占满磁盘带宽。
     /// </summary>
     public async Task<bool> BackfillMissingDurationsAsync()
     {
@@ -84,24 +84,45 @@ public class LocalScanService
                 .ToList();
             if (targets.Count == 0) return true;
 
-            var durations = new ConcurrentDictionary<int, int>();
-            var degree = Math.Min(4, Math.Max(1, Environment.ProcessorCount));
-            Parallel.ForEach(targets, new ParallelOptions { MaxDegreeOfParallelism = degree }, s =>
-            {
-                try
-                {
-                    var song = TagReader.ReadSongInfo(s.FilePath!, readDuration: true);
-                    if (song != null && song.Duration > 0)
-                        durations[s.Id] = song.Duration;
-                }
-                catch (Exception ex)
-                {
-                    Log.Debug("LocalScanService", $"[DurationBackfill] {s.FilePath}: {ex.Message}");
-                }
-            });
+            // 全文件 IO 较重，限并发≤2 后台执行：既避免阻塞 UI，也避免与扫描后的
+            // 页面刷新/封面解析抢磁盘 IO 造成"整个 app 卡顿"（此前并发 4 会长时间占满 IO）。
+            var degree = Math.Min(2, Math.Max(1, Environment.ProcessorCount));
+            var options = new ParallelOptions { MaxDegreeOfParallelism = degree };
 
-            await _db.UpdateSongDurationsBatchAsync(durations);
-            updated = durations.Count;
+            // 分片慢跑：每次只回填一批（batchSize 首）后休眠片刻再继续，把数千首
+            // 全文件读取的 IO 压力摊薄平缓，回填期间 app 保持流畅（重启后 30s 错峰
+            // 一次性大流量读取正是"等一会儿才不卡"的直接原因）。
+            const int batchSize = 120;
+            const int batchIdleMs = 6000;
+            var processedBatches = 0;
+            var totalBatches = (targets.Count + batchSize - 1) / batchSize;
+            foreach (var batch in Chunk(targets, batchSize))
+            {
+                var batchDurations = new ConcurrentDictionary<int, int>();
+                Parallel.ForEach(batch, options, s =>
+                {
+                    try
+                    {
+                        var song = TagReader.ReadSongInfo(s.FilePath!, readDuration: true);
+                        if (song != null && song.Duration > 0)
+                            batchDurations[s.Id] = song.Duration;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug("LocalScanService", $"[DurationBackfill] {s.FilePath}: {ex.Message}");
+                    }
+                });
+
+                if (batchDurations.Count > 0)
+                    await _db.UpdateSongDurationsBatchAsync(batchDurations);
+                updated += batchDurations.Count;
+
+                // 批间错峰休眠，让出磁盘 IO；最后一批不再等待
+                processedBatches++;
+                if (processedBatches < totalBatches)
+                    await Task.Delay(batchIdleMs);
+            }
+
             if (updated > 0)
                 Log.Debug("LocalScanService", $"[DurationBackfill] 回填 {updated} 首歌曲时长");
         }
@@ -119,8 +140,32 @@ public class LocalScanService
         return true;
     }
 
-    /// <summary>触发后台时长回填（不等待完成，单飞防重入），供扫描完成后 / App 启动时调用</summary>
-    public void TriggerDurationBackfill() => _ = BackfillMissingDurationsAsync();
+    /// <summary>按块切分集合（LINQ Chunk 的本地替代，避免引入额外依赖）。</summary>
+    private static IEnumerable<List<Song>> Chunk(List<Song> source, int chunkSize)
+    {
+        for (int i = 0; i < source.Count; i += chunkSize)
+            yield return source.GetRange(i, Math.Min(chunkSize, source.Count - i));
+    }
+
+    /// <summary>触发后台时长回填（不等待完成，单飞防重入），供扫描完成后 / App 启动时调用。
+    /// delaySeconds&gt;0 时延迟启动，与扫描后的页面刷新/封面解析等错峰，避免全文件读取抢光磁盘 IO。</summary>
+    public void TriggerDurationBackfill(int delaySeconds = 0)
+    {
+        if (delaySeconds <= 0)
+        {
+            _ = BackfillMissingDurationsAsync();
+            return;
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                await BackfillMissingDurationsAsync();
+            }
+            catch (Exception ex) { Log.Debug("LocalScanService", $"[DurationBackfill] 延迟启动失败: {ex.Message}"); }
+        });
+    }
 
     /// <summary>
     /// 标记网络音乐库已变更并触发 <see cref="NetworkSyncCompleted"/> 事件。
@@ -424,8 +469,10 @@ public class LocalScanService
             ScanCompleted?.Invoke(null, totalImported);
         }
 
-        // 扫描导入的新歌时长缺失（readDuration:false），后台单飞回填以修正音乐库总时长统计
-        TriggerDurationBackfill();
+        // 扫描导入的新歌时长缺失（readDuration:false），后台单飞回填以修正音乐库总时长统计。
+        // ⚠ 延迟 25s 错峰：扫描刚完成时页面刷新/封面解析正密集读盘，立即启动几千首全文件
+        // 读取会与这些 IO 抢带宽，导致"扫描完整个 app 特别卡顿"。
+        TriggerDurationBackfill(delaySeconds: 25);
 
         return totalImported;
     }
