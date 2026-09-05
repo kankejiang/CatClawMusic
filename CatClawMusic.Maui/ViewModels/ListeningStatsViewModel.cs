@@ -344,7 +344,7 @@ public partial class ListeningStatsViewModel : ObservableObject
     {
         var bars = new List<TrendBar>();
         if (dailyStats.Count == 0)
-            return (bars, "当前范围暂无播放记录");
+            return (bars, CatClawMusic.Maui.Helpers.MoeCopy.NoPlayRecords);
 
         var byDate = dailyStats.ToDictionary(
             d => DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Date,
@@ -372,7 +372,7 @@ public partial class ListeningStatsViewModel : ObservableObject
                 .GroupBy(d => DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Date.AddDays(1 - DateTime.ParseExact(d.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).Day))
                 .OrderBy(g => g.Key)
                 .ToDictionary(g => g.Key, g => (Count: g.Sum(x => x.PlayCount), Ms: g.Sum(x => x.TotalDurationMs)));
-            if (byMonth.Count == 0) return (bars, "当前范围暂无播放记录");
+            if (byMonth.Count == 0) return (bars, CatClawMusic.Maui.Helpers.MoeCopy.NoPlayRecords);
             var start = byMonth.Keys.Min();
             var end = byMonth.Keys.Max();
             var cur = start;
@@ -610,7 +610,7 @@ public partial class ListeningStatsViewModel : ObservableObject
     {
         var bars = new List<TrendBar>();
         if (sessions.Count == 0)
-            return (bars, "当前范围暂无播放记录");
+            return (bars, CatClawMusic.Maui.Helpers.MoeCopy.NoPlayRecords);
 
         // 按时间范围决定聚合粒度：7 天→按日；30 天→按日；全部→按月
         List<(string Label, int Count, long Ms)> buckets;

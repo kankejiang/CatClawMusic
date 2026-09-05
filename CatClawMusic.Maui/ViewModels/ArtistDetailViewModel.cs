@@ -77,7 +77,7 @@ public partial class ArtistDetailViewModel : ObservableObject
         _playQueue = playQueue;
 
         // 默认 Tab 颜色
-        AlbumsTabColor = Color.FromArgb("#9B7ED8");
+        AlbumsTabColor = Color.FromArgb("#FF8FB8");
         SongsTabColor = Color.FromArgb("#1E787880");
     }
 
@@ -200,8 +200,8 @@ public partial class ArtistDetailViewModel : ObservableObject
     {
         IsAlbumsTabVisible = tab == "Albums";
         IsSongsTabVisible = tab == "Songs";
-        AlbumsTabColor = IsAlbumsTabVisible ? Color.FromArgb("#9B7ED8") : Color.FromArgb("#1E787880");
-        SongsTabColor = IsSongsTabVisible ? Color.FromArgb("#9B7ED8") : Color.FromArgb("#1E787880");
+        AlbumsTabColor = IsAlbumsTabVisible ? Color.FromArgb("#FF8FB8") : Color.FromArgb("#1E787880");
+        SongsTabColor = IsSongsTabVisible ? Color.FromArgb("#FF8FB8") : Color.FromArgb("#1E787880");
     }
 
     /// <summary>播放该艺术家的全部歌曲：将歌曲加入播放队列并从首曲开始播放</summary>

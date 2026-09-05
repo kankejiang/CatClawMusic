@@ -67,6 +67,11 @@ public partial class SearchViewModel
         }
         _aiPlaylistsLoaded = true;
 
+        // 每日首启的 5 次串行 LLM 调用延后 20s,避开启动窗口(与 DB/插件/封面解析争抢);
+        // fire-and-forget 调用方不受影响,日期缓存命中时延迟后直接跳过。
+        try { await Task.Delay(TimeSpan.FromSeconds(20)); }
+        catch { return; }
+
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         if (_aiPlaylistsDate == today && AiPlaylists.Count > 0) return;
 

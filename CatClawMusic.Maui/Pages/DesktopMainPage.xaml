@@ -42,10 +42,10 @@
                     <Border WidthRequest="36" HeightRequest="36"
                             StrokeShape="RoundRectangle 10"
                             StrokeThickness="0"
-                            Background="{DynamicResource HeroBrush}"
+                            BackgroundColor="Transparent"
                             VerticalOptions="Center">
-                        <Label Text="&#x1f43e;" FontSize="18"
-                               HorizontalOptions="Center" VerticalOptions="Center" />
+                        <!-- 真实猫爪 logo 资产(替代 emoji 字符) -->
+                        <Image Source="splash_logo.png" Aspect="AspectFill" />
                     </Border>
                     <VerticalStackLayout x:Name="LogoText" Grid.Column="1" VerticalOptions="Center" Spacing="1">
                         <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"

@@ -204,7 +204,7 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{Binding HasConfigs, Converter={StaticResource InvertedBoolConverter}}">
                     <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
-                        <Label Text="暂无模型配置"
+                        <Label Text="还没有模型配置喵…去添加一个吧~"
                                FontSize="14"
                                TextColor="{DynamicResource TextHintColor}"
                                HorizontalOptions="Center" />

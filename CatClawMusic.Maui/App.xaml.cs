@@ -115,9 +115,10 @@ public partial class App : Application
         }
         catch { }
 
-        // 初始化所有已启用的插件（后台）。PluginManager 构造 + LyricsService 注入 + InitializeAllAsync 全在池线程，
-        // 完成后报告就绪（启动页的插件闸门等待此信号）；失败也放行，不因插件异常卡死启动页。
-        _ = Task.Run(async () =>
+        // 初始化所有已启用的插件（后台）。PluginManager 构造 + LyricsService 注入 + InitializeAllAsync 全在池线程。
+        // 策略改为「把加载压力集中到启动页」:插件初始化任务被启动闸门 await(有 20s 总预算兜底),
+        // 进入主界面后插件已就绪,不再有后台 JIT/网络恢复造成的间歇卡顿。失败也放行。
+        _pluginInitTask = Task.Run(async () =>
         {
             try
             {
@@ -298,12 +299,7 @@ public partial class App : Application
     private static void StartupLog(string msg)
     {
         Log.Debug("App.xaml", $"[STARTUP] {msg}");
-        try
-        {
-            var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
-            File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] APP: {msg}\n");
-        }
-        catch (Exception ex) { Log.Debug("App", $"写入启动日志失败: {ex.Message}"); }
+        Services.StartupTrace.Mark(msg);
     }
 
     /// <summary>
@@ -352,6 +348,9 @@ public partial class App : Application
 #endif
     }
 
+    /// <summary>插件初始化任务(双平台;Android 启动闸门第二段等待)</summary>
+    private static Task? _pluginInitTask;
+
 #if ANDROID
     /// <summary>正在强制切换到横屏的过渡标志（实际到达横屏后由 DisplayOrientationChanged 清除）。</summary>
     private bool _manualLandscape;
@@ -366,6 +365,10 @@ public partial class App : Application
 
     /// <summary>启动加载页最多等待时长：服务初始化异常未报告就绪时强制放行，避免无限卡在启动页。</summary>
     private static readonly TimeSpan StartupWaitTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>启动页"集中加载"总预算：插件初始化+封面批量解析的等待上限。
+    /// 超时后进入主界面,剩余工作继续后台完成 —— 用启动速度换进入后的流畅。</summary>
+    private static readonly TimeSpan SplashLoadBudget = TimeSpan.FromSeconds(20);
 
     /// <summary>启动加载页最短展示时长：保证用户能看到启动页，也避免加载太快时主界面在
     /// 首帧渲染前就被替换（服务就绪太早会让启动页一帧都来不及显示）。</summary>
@@ -402,7 +405,9 @@ public partial class App : Application
                 }
                 try
                 {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
                     prebuilt.Add((ContentPage)MauiProgram.Services.GetRequiredService(types[i]));
+                    StartupTrace.Mark($"prebuild {types[i].Name}: {sw.ElapsedMilliseconds} ms");
                 }
                 catch (Exception ex)
                 {
@@ -438,7 +443,10 @@ public partial class App : Application
         {
             var startup = MauiProgram.Services.GetService<StartupCoordinator>();
             if (startup != null)
+            {
                 await Task.WhenAny(startup.DatabaseReadyTask, Task.Delay(StartupWaitTimeout));
+                StartupTrace.Mark("gate: db ready (or timeout)");
+            }
         }
         catch { }
 
@@ -468,6 +476,18 @@ public partial class App : Application
         catch { }
 
         await Task.WhenAll(preloadTasks);
+        StartupTrace.Mark("gate: preload done (library/media/plugins)");
+
+        // 第二段(把加载压力集中到启动页):等待插件初始化与封面批量解析就绪(总预算 20s 兜底)。
+        // 旧策略让这些在主界面期间后台慢跑,导致进入后一段时间持续卡顿;现在全部消化在启动页。
+        var secondStage = new List<Task>();
+        if (_pluginInitTask != null) secondStage.Add(_pluginInitTask);
+        if (Services.CoverHelper.LastBatchTask != null) secondStage.Add(Services.CoverHelper.LastBatchTask);
+        if (secondStage.Count > 0)
+        {
+            await Task.WhenAny(Task.WhenAll(secondStage), Task.Delay(SplashLoadBudget));
+            StartupTrace.Mark($"gate: plugins/covers done (waited {secondStage.Count} tasks)");
+        }
 
         // 等启动页真正渲染上屏（Loaded）后再计最短展示时长：
         // 若从 CreateWindow 起算，慢设备上首帧尚未渲染时预加载可能已完成，
@@ -502,6 +522,7 @@ public partial class App : Application
                 Content = MauiProgram.Services.GetRequiredService<Pages.MainPage>(),
                 Route = "main",
             });
+            StartupTrace.Mark("gate: MainPage swapped in");
         }
     }
 

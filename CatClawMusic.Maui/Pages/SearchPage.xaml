@@ -25,9 +25,15 @@
                         </VerticalStackLayout>
                         <HorizontalStackLayout x:Name="PluginEntriesBar" Grid.Column="1" Spacing="10" VerticalOptions="Center">
                             <Border Style="{StaticResource GlassIconContainerStyle}">
+                                <Border.Shadow>
+                                    <Shadow Brush="#14000000" Offset="0,6" Radius="16" Opacity="0.5" />
+                                </Border.Shadow>
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_search_light, Dark=ic_search}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSearchToggleClicked" />
                             </Border>
                             <Border Style="{StaticResource GlassIconContainerStyle}">
+                                <Border.Shadow>
+                                    <Shadow Brush="#14000000" Offset="0,6" Radius="16" Opacity="0.5" />
+                                </Border.Shadow>
                                 <Grid>
                                     <ImageButton Source="{helpers:ThemedIcon Light=ic_refresh_light, Dark=ic_refresh}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnRefreshClicked"
                                                  IsVisible="{Binding IsRefreshing, Converter={StaticResource InvertedBoolConverter}}" />
@@ -38,6 +44,9 @@
                             </Border>
                             <!-- 在线音乐入口已移除：由 IViewContributorPlugin 插件提供入口（见下方 ViewContributors 列表） -->
                             <Border Style="{StaticResource GlassIconContainerStyle}">
+                                <Border.Shadow>
+                                    <Shadow Brush="#14000000" Offset="0,6" Radius="16" Opacity="0.5" />
+                                </Border.Shadow>
                                 <ImageButton Source="{helpers:ThemedIcon Light=ic_settings_light, Dark=ic_settings}" WidthRequest="22" HeightRequest="22" BackgroundColor="Transparent" HorizontalOptions="Center" VerticalOptions="Center" Clicked="OnSettingsClicked" />
                             </Border>
                         </HorizontalStackLayout>
@@ -150,8 +159,8 @@
                                     </Border.GestureRecognizers>
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#667eea" Offset="0" />
-                                            <GradientStop Color="#764ba2" Offset="1" />
+                                            <GradientStop Color="#FF9EBE" Offset="0" />
+                                            <GradientStop Color="#F56FA0" Offset="1" />
                                         </LinearGradientBrush>
                                     </Border.Background>
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
@@ -165,36 +174,38 @@
                     </Border>
 
                     <Grid x:Name="CategoryTabBar" Margin="18,0,18,14" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="8">
-                        <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                             <Label x:Name="TabRecLabel" Text="推荐" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="0" /></Border.GestureRecognizers>
                         </Border>
-                        <Border Grid.Column="1" x:Name="TabRank" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border Grid.Column="1" x:Name="TabRank" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                             <Label x:Name="TabRankLabel" Text="排行" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="1" /></Border.GestureRecognizers>
                         </Border>
-                        <Border Grid.Column="2" x:Name="TabArtist" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border Grid.Column="2" x:Name="TabArtist" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                             <Label x:Name="TabArtistLabel" Text="歌手" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="2" /></Border.GestureRecognizers>
                         </Border>
-                        <Border Grid.Column="3" x:Name="TabAlbum" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border Grid.Column="3" x:Name="TabAlbum" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                             <Label x:Name="TabAlbumLabel" Text="专辑" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="3" /></Border.GestureRecognizers>
                         </Border>
-                        <Border Grid.Column="4" x:Name="TabStats" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                        <Border Grid.Column="4" x:Name="TabStats" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                             <Label x:Name="TabStatsLabel" Text="统计" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                             <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="4" /></Border.GestureRecognizers>
                         </Border>
                     </Grid>
 
                     <VerticalStackLayout x:Name="PanelRecommend" IsVisible="{Binding CurrentCategory, Converter={StaticResource IntToBoolConverter}, ConverterParameter=0}" Spacing="0">
-                        <Grid Margin="20,0,20,12" ColumnDefinitions="*,Auto">
-                            <HorizontalStackLayout VerticalOptions="Center" Spacing="8">
-                                <Label Text="✨" FontSize="16" VerticalOptions="Center" />
-                                <Label Text="智能推荐 AI" FontSize="14" FontFamily="OpenSansSemibold" VerticalOptions="Center" />
-                            </HorizontalStackLayout>
-                            <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
-                        </Grid>
+                        <Border Margin="18,0,18,12" Style="{StaticResource GlassCardStyle}" Padding="14,10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <HorizontalStackLayout VerticalOptions="Center" Spacing="8">
+                                    <Label Text="✨" FontSize="16" VerticalOptions="Center" />
+                                    <Label Text="智能推荐 AI" FontSize="14" FontFamily="OpenSansSemibold" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Switch Grid.Column="1" IsToggled="{Binding IsAiRecommendationEnabled}" VerticalOptions="Center" OnColor="{DynamicResource PrimaryColor}" />
+                            </Grid>
+                        </Border>
 
                         <!-- Hero 卡片横向并排（横屏同款：一行方形卡横滑，不自动轮播）。
                              数据源由 code-behind 赋值：AI 助手卡 + HeroCards -->
@@ -210,8 +221,11 @@
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
                                     <!-- 方形英雄卡（紧凑：130 方形，一屏约 2.5 张，横滑浏览） -->
-                                    <Border WidthRequest="130" HeightRequest="130" Padding="11" StrokeThickness="0" StrokeShape="RoundRectangle 16"
+                                    <Border WidthRequest="130" HeightRequest="130" Padding="11" StrokeThickness="1" Stroke="#1AFFFFFF" StrokeShape="RoundRectangle 16"
                                             HorizontalOptions="Fill" VerticalOptions="Fill">
+                                        <Border.Shadow>
+                                            <Shadow Brush="#14000000" Offset="0,10" Radius="24" Opacity="0.6" />
+                                        </Border.Shadow>
                                         <Border.GestureRecognizers>
                                             <TapGestureRecognizer Tapped="OnHeroCardTapped" />
                                         </Border.GestureRecognizers>
@@ -331,6 +345,9 @@
                                 <DataTemplate>
                                     <VerticalStackLayout WidthRequest="124" Spacing="4">
                                         <Border StrokeShape="RoundRectangle 18" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
+                                            <Border.Shadow>
+                                                <Shadow Brush="#14000000" Offset="0,8" Radius="20" Opacity="0.55" />
+                                            </Border.Shadow>
                                             <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill">
                                                 <Image.Behaviors><controls:SquareBehavior /></Image.Behaviors>
                                             </Image>

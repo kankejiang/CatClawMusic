@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF7FA"/>
+      <stop offset="1" stop-color="#FFE9F1"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 圆角底 -->
+  <rect width="512" height="512" rx="118" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="118" fill="url(#glow)"/>
+
+  <!-- 唱片:从背景透出,中心让位给猫 -->
+  <g transform="translate(256 276)">
+    <!-- 黑胶 -->
+    <circle r="170" fill="#2A2136"/>
+    <circle r="170" fill="none" stroke="#1E1826" stroke-width="3"/>
+    <circle r="132" fill="none" stroke="#4A3A52" stroke-width="5"/>
+    <circle r="98" fill="none" stroke="#4A3A52" stroke-width="3"/>
+  </g>
+
+  <!-- 趴着的猫头(唱片上方探出),耳朵+头轮廓在唱片前 -->
+  <!-- 左耳 -->
+  <path d="M198 130 Q186 64 256 80 L210 178 Z" fill="#FFF7FA"/>
+  <path d="M210 130 Q204 92 238 100 L218 154 Z" fill="#FFC7DB"/>
+  <!-- 右耳 -->
+  <path d="M314 130 Q326 64 256 80 L302 178 Z" fill="#FFF7FA"/>
+  <path d="M302 130 Q308 92 274 100 L294 154 Z" fill="#FFC7DB"/>
+
+  <!-- 猫头 -->
+  <path d="M256 130
+           C 168 130 152 220 152 280
+           C 152 340 200 384 256 384
+           C 312 384 360 340 360 280
+           C 360 220 344 130 256 130 Z"
+        fill="#FFF7FA"/>
+
+  <!-- 脸轮廓细线(只有眼睛下面一小段,加强"白猫"层次) -->
+  <path d="M178 282 Q172 320 198 348" fill="none" stroke="#F1E5E8" stroke-width="2"/>
+
+  <!-- 耳朵内粉红(脸与耳壳之间加一抹,提亮萌感) -->
+  <ellipse cx="226" cy="146" rx="14" ry="9" fill="#FFB6D1" opacity="0.6" transform="rotate(-18 226 146)"/>
+  <ellipse cx="286" cy="146" rx="14" ry="9" fill="#FFB6D1" opacity="0.6" transform="rotate(18 286 146)"/>
+
+  <!-- 眯眯笑眼 -->
+  <g stroke="#3A2F46" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M194 276 q22 -22 44 0"/>
+    <path d="M274 276 q22 -22 44 0"/>
+  </g>
+  <!-- 嘴:小 Y -->
+  <g stroke="#3A2F46" stroke-width="11" stroke-linecap="round" fill="none">
+    <path d="M248 322 q8 10 16 0"/>
+  </g>
+  <!-- 腮红 -->
+  <ellipse cx="184" cy="320" rx="22" ry="13" fill="#FFB6D1" opacity="0.85"/>
+  <ellipse cx="328" cy="320" rx="22" ry="13" fill="#FFB6D1" opacity="0.85"/>
+  <!-- 小鼻 -->
+  <path d="M256 308 q-7 6 0 10 q7 -4 0 -10 Z" fill="#FF8FB8"/>
+
+  <!-- 两只前爪按在唱片上,掌心肉垫叠一个粉色音符,直接表达"猫爪放歌" -->
+  <!-- 爪臂(从猫脸下方伸出,像趴着) -->
+  <g fill="#FFF7FA">
+    <!-- 左前爪臂 -->
+    <path d="M178 372
+             Q 142 388 138 432
+             Q 150 460 188 452
+             Q 218 444 218 408 Z"/>
+    <!-- 右前爪臂 -->
+    <path d="M334 372
+             Q 370 388 374 432
+             Q 362 460 324 452
+             Q 294 444 294 408 Z"/>
+    <!-- 掌心肉垫基础(大圆形) -->
+    <ellipse cx="256" cy="420" rx="92" ry="58"/>
+  </g>
+
+  <!-- 掌心粉色肉垫(粉嫩分层) -->
+  <ellipse cx="256" cy="416" rx="64" ry="40" fill="#FFC7DB"/>
+  <ellipse cx="256" cy="416" rx="40" ry="22" fill="#FF8FB8"/>
+
+  <!-- 掌心中央白色音符(在粉肉垫上,极简剪影) -->
+  <g fill="#FFF7FA" transform="translate(256 416)">
+    <!-- 符头 -->
+    <circle cx="-22" cy="6" r="13"/>
+    <circle cx="22" cy="6" r="13"/>
+    <!-- 符干 -->
+    <rect x="-31" y="-32" width="10" height="46" rx="5"/>
+    <rect x="13" y="-32" width="10" height="46" rx="5"/>
+    <!-- 横梁 -->
+    <path d="M-21 -32 q26 6 32 22 q-16 -10 -32 -8 Z"/>
+  </g>
+
+  <!-- 右爪指尖桃粉肉垫(3 颗小圆) -->
+  <g fill="#FFB6D1" opacity="0.85">
+    <circle cx="166" cy="416" r="10"/>
+    <circle cx="346" cy="416" r="10"/>
+  </g>
+
+  <!-- 一颗从猫头右上飘出的小音符(增加"在听音乐"暗示) -->
+  <g fill="#FF8FB8" transform="translate(414 168) rotate(-10)">
+    <circle r="13"/>
+    <rect x="-5" y="-44" width="10" height="46" rx="5"/>
+    <path d="M-5 -44 q26 6 28 26 q-15 -14 -28 -10 Z"/>
+  </g>
+</svg>

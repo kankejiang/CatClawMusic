@@ -286,8 +286,17 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         var card = new Border
         {
             HeightRequest = 150,
-            StrokeThickness = 0,
+            StrokeThickness = 1,
+            Stroke = Microsoft.Maui.Graphics.Color.FromArgb("#1AFFFFFF"),
             StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            WidthRequest = 150, // 占位宽:LayoutHeroCards 拿到真实宽度后覆盖
+            Shadow = new Shadow
+            {
+                Brush = Microsoft.Maui.Graphics.Color.FromArgb("#14000000"),
+                Offset = new Point(0, 10),
+                Radius = 24,
+                Opacity = 0.6f,
+            },
             Background = new LinearGradientBrush(
                 new GradientStopCollection
                 {
@@ -385,13 +394,22 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         var card = new Border
         {
             HeightRequest = 150,
-            StrokeThickness = 0,
+            StrokeThickness = 1,
+            Stroke = Microsoft.Maui.Graphics.Color.FromArgb("#1AFFFFFF"),
             StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            WidthRequest = 150, // 占位宽:LayoutHeroCards 拿到真实宽度后覆盖
+            Shadow = new Shadow
+            {
+                Brush = Microsoft.Maui.Graphics.Color.FromArgb("#14000000"),
+                Offset = new Point(0, 10),
+                Radius = 24,
+                Opacity = 0.6f,
+            },
             Background = new LinearGradientBrush(
                 new GradientStopCollection
                 {
-                    new GradientStop(Color.FromArgb("#667eea"), 0),
-                    new GradientStop(Color.FromArgb("#764ba2"), 1),
+                    new GradientStop(Helpers.MoePalette.YukiCard.Start, 0),
+                    new GradientStop(Helpers.MoePalette.YukiCard.End, 1),
                 },
                 new Point(0, 0), new Point(1, 1)),
         };
@@ -484,9 +502,18 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         var card = new Border
         {
             HeightRequest = 150,
-            StrokeThickness = 0,
+            StrokeThickness = 1,
+            Stroke = Microsoft.Maui.Graphics.Color.FromArgb("#1AFFFFFF"),
             StrokeShape = new RoundRectangle { CornerRadius = 18 },
+            WidthRequest = 150, // 占位宽:LayoutHeroCards 拿到真实宽度后覆盖
             BindingContext = item,
+            Shadow = new Shadow
+            {
+                Brush = Microsoft.Maui.Graphics.Color.FromArgb("#14000000"),
+                Offset = new Point(0, 10),
+                Radius = 24,
+                Opacity = 0.6f,
+            },
             Background = new LinearGradientBrush(
                 new GradientStopCollection
                 {
@@ -570,10 +597,35 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     /// 并限制单卡尺寸（方形卡片随窗口过宽会变得巨大）；同时刷新圆点数量。
     /// AI 助手卡（最左侧第一张）与英雄卡同尺寸。
     /// 横屏（高度小）时进一步收窄单卡上限，避免 AI 入口卡过高挤占其他模块。</summary>
+    private int _heroLayoutRetries;
+
     private void LayoutHeroCards(double? overrideCap = null)
     {
         HeroDots.Count = _vm.HeroCards.Count;
-        if (HeroScroll.Width <= 0) return;
+        if (HeroScroll.Width <= 0)
+        {
+            // 舞台借入/首帧时宽度尚未上报:挂一次性 SizeChanged + 有限次延迟重试后再排。
+            // 旧版在此直接 return,卡片无 WidthRequest 被 Fill 撑满整列 —— 横屏"一列拉满"的根因。
+            if (_heroLayoutRetries < 6)
+            {
+                _heroLayoutRetries++;
+                EventHandler? onSize = null;
+                onSize = (s, _) =>
+                {
+                    HeroScroll.SizeChanged -= onSize;
+                    _heroLayoutRetries = 0;
+                    LayoutHeroCards(overrideCap);
+                };
+                HeroScroll.SizeChanged += onSize;
+                _ = Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(120), () =>
+                {
+                    HeroScroll.SizeChanged -= onSize;
+                    LayoutHeroCards(overrideCap);
+                });
+            }
+            return;
+        }
+        _heroLayoutRetries = 0;
         // 一屏约 4 张；方形卡上限按布局预设下降（外部 overrideCap 优先，用于 ApplyResponsiveMetrics 统一档位）
         var cardW = (HeroScroll.Width - HeroSpacing * 4) / 4;
         double cap = overrideCap ?? (_currentPreset switch

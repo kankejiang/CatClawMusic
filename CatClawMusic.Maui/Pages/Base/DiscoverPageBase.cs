@@ -254,8 +254,15 @@ public abstract class DiscoverPageBase : ContentPage
             WidthRequest = 96,
             HeightRequest = 96,
             StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(20) },
             Padding = new Thickness(8),
+            Shadow = new Shadow
+            {
+                Brush = Microsoft.Maui.Graphics.Color.FromArgb("#14000000"),
+                Offset = new Point(0, 8),
+                Radius = 20,
+                Opacity = 0.55f,
+            },
         };
         item.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
         item.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundColor");
@@ -275,13 +282,14 @@ public abstract class DiscoverPageBase : ContentPage
             labelIcon.HorizontalTextAlignment = TextAlignment.Center;
             labelIcon.VerticalTextAlignment = TextAlignment.Center;
         }
+        // 图标容器：按插件名哈希取糖果色淡底(22% 透明度,任何图标色都协调)
         cardLayout.Children.Add(new Border
         {
             WidthRequest = 44,
             HeightRequest = 44,
             StrokeThickness = 0,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
-            BackgroundColor = Color.FromArgb("#14FFFFFF"),
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(14) },
+            BackgroundColor = Helpers.MoePalette.TintFor(contributor.EntryTitle).WithAlpha(0.22f),
             HorizontalOptions = LayoutOptions.Center,
             Content = icon,
         });

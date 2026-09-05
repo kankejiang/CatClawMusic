@@ -57,6 +57,13 @@
         <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
     </Style>
 
+    <!-- 萌系标题样式：站酷快乐体(OFL 可商用,单字重)。用于品牌时刻/空状态/欢迎语 -->
+    <Style x:Key="MoeTitleStyle" TargetType="Label">
+        <Setter Property="FontFamily" Value="ZCOOLKuaiLe-Regular" />
+        <Setter Property="FontAttributes" Value="None" />
+        <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
+    </Style>
+
     <Style x:Key="PageSubtitleStyle" TargetType="Label">
         <Setter Property="FontSize" Value="13" />
         <Setter Property="TextColor" Value="{DynamicResource TextSecondaryColor}" />
@@ -88,7 +95,7 @@
         <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundColor}" />
         <Setter Property="Stroke" Value="{DynamicResource GlassStrokeColor}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="StrokeShape" Value="RoundRectangle 24" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 26" />
         <Setter Property="Padding" Value="16" />
     </Style>
 
@@ -96,7 +103,7 @@
         <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
         <Setter Property="Stroke" Value="{DynamicResource GlassStrokeStrongColor}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="StrokeShape" Value="RoundRectangle 26" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 28" />
         <Setter Property="Padding" Value="14" />
     </Style>
 
@@ -104,7 +111,7 @@
         <Setter Property="BackgroundColor" Value="{DynamicResource InputBackgroundColor}" />
         <Setter Property="Stroke" Value="{DynamicResource InputBorderColor}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 22" />
         <Setter Property="Padding" Value="14,0" />
         <Setter Property="HeightRequest" Value="52" />
     </Style>
@@ -144,8 +151,8 @@
                     </VisualState>
                     <VisualState x:Name="Pressed">
                         <VisualState.Setters>
-                            <Setter Property="Opacity" Value="0.62" />
-                            <Setter Property="Scale" Value="0.96" />
+                            <Setter Property="Opacity" Value="0.68" />
+                            <Setter Property="Scale" Value="0.94" />
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="Disabled">
@@ -174,8 +181,8 @@
                     </VisualState>
                     <VisualState x:Name="Pressed">
                         <VisualState.Setters>
-                            <Setter Property="Opacity" Value="0.55" />
-                            <Setter Property="Scale" Value="0.94" />
+                            <Setter Property="Opacity" Value="0.62" />
+                            <Setter Property="Scale" Value="0.92" />
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="Disabled">
@@ -192,11 +199,11 @@
     <!-- 隐式样式：未指定 Style 的 ImageButton 自动获得点击反馈 -->
     <Style TargetType="ImageButton" BasedOn="{StaticResource ImageButtonBaseStyle}" />
 
-    <!-- 主操作按钮：半透明毛玻璃底，白字 -->
+    <!-- 主操作按钮：半透明毛玻璃底，白字。胶囊化（圆角 23 = 高 46 的一半） -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryButtonBackgroundColor}" />
         <Setter Property="TextColor" Value="White" />
-        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="CornerRadius" Value="23" />
         <Setter Property="HeightRequest" Value="46" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontFamily" Value="OpenSansSemibold" />
@@ -207,7 +214,7 @@
     <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="BackgroundColor" Value="{DynamicResource CardBackgroundStrongColor}" />
         <Setter Property="TextColor" Value="{DynamicResource TextPrimaryColor}" />
-        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="CornerRadius" Value="23" />
         <Setter Property="HeightRequest" Value="46" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontFamily" Value="OpenSansSemibold" />

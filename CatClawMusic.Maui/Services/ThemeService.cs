@@ -3,6 +3,7 @@ using CoreAppTheme = CatClawMusic.Core.Interfaces.AppTheme;
 using MauiAppTheme = Microsoft.Maui.ApplicationModel.AppTheme;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace CatClawMusic.Maui.Services;
@@ -35,22 +36,16 @@ public class ThemeService : IThemeService
     /// <summary>当前是否深色模式（供 GlobalBackgroundService 判定系统栏图标颜色，不受透明笔刷影响）。</summary>
     public static bool CurrentIsDark { get; private set; }
 
-    /// <summary>主题色定义（5 种主题：紫、粉、蓝、橙、青）</summary>
+    /// <summary>主题色定义（唯一主题：樱粉奶油）</summary>
     private static readonly Dictionary<CoreAppTheme, ThemeColors> ThemeMap = new()
     {
-        [CoreAppTheme.Purple] = new ThemeColors("#9B7ED8", "#E8E0FF", "#7C5DCE"),
-        [CoreAppTheme.Pink] = new ThemeColors("#EC407A", "#FFE0EB", "#D81B60"),
-        [CoreAppTheme.Blue] = new ThemeColors("#42A5F5", "#D6E8FF", "#1E88E5"),
-        [CoreAppTheme.Orange] = new ThemeColors("#FF7043", "#FFE0D6", "#F4511E"),
-        [CoreAppTheme.Teal] = new ThemeColors("#26A69A", "#D6F5F0", "#00897B"),
+        [CoreAppTheme.Pink] = new ThemeColors("#FF8FB8", "#FFD9E7", "#F56FA0"),
     };
 
     // ======================================================================
-    // 主题背景渐变设计（10 套：5 主题 × 深/浅模式）
-    // 与 docs/theme-backgrounds-10.html 原型一一对应：
-    //   Purple → 深:深空蓝 / 浅:薰衣草雾    Pink → 深:暗紫罗兰 / 浅:晨雾粉
-    //   Blue   → 深:石墨钢蓝 / 浅:晴空蓝    Orange → 深:暗夜绯红 / 浅:奶油米
-    //   Teal   → 深:墨夜青 / 浅:薄荷青
+    // 主题背景渐变设计（2 套：唯一樱粉主题 × 深/浅模式）—— 萌系糖果版
+    //   深色 = 「夜猫模式」：暖紫黑底 + 粉/薄荷光晕
+    //   浅色 = 「奶油底」：奶白 → 樱粉的柔和过渡 + 白色高光
     // 每套 = 1 层多停靠线性渐变（主基调，From→To 为归一化坐标 0~1）
     //      + 1~2 层径向光晕（中心带透明度色 → 全透明边缘，Cx/Cy/Radius 归一化）。
     // 颜色统一 #AARRGGBB 格式，便于 Android Color.ParseColor / Win2D 直接解析。
@@ -59,111 +54,27 @@ public class ThemeService : IThemeService
     private sealed record BgGlow(float Cx, float Cy, float Radius, string CenterArgb, string EdgeArgb = "#00000000");
     private sealed record BgDesign((float X, float Y) From, (float X, float Y) To, BgStop[] Stops, BgGlow[] Glows);
 
-    private static readonly BgDesign DeepSpace = new((0, 1), (1, 0), new[]
-    {
-        new BgStop("#FF070A18", 0f), new BgStop("#FF141B3A", 0.48f), new BgStop("#FF2B2E60", 1f),
-    }, new[]
-    {
-        new BgGlow(0.74f, 0.16f, 0.70f, "#6A8C7BFF"),
-        new BgGlow(0.20f, 0.30f, 0.50f, "#3355D6FF"),
-    });
-
     private static readonly BgDesign VioletDusk = new((0, 0), (0, 1), new[]
     {
-        new BgStop("#FF170F26", 0f), new BgStop("#FF331A4A", 0.55f), new BgStop("#FF5A2770", 1f),
+        new BgStop("#FF11141D", 0f), new BgStop("#FF171C2A", 0.55f), new BgStop("#FF1E2536", 1f),
     }, new[]
     {
-        new BgGlow(0.24f, 0.86f, 0.70f, "#61A842E2"),
-        new BgGlow(0.80f, 0.20f, 0.50f, "#2EEC91FF"),
-    });
-
-    private static readonly BgDesign TealAbyss = new((1, 0.15f), (0, 0.85f), new[]
-    {
-        new BgStop("#FF05141B", 0f), new BgStop("#FF0B2A33", 0.55f), new BgStop("#FF0F3D46", 1f),
-    }, new[]
-    {
-        new BgGlow(0.84f, 0.82f, 0.70f, "#6126A69A"),
-        new BgGlow(0.18f, 0.22f, 0.50f, "#2955D6FF"),
-    });
-
-    private static readonly BgDesign EmberNoir = new((0, 0), (1, 1), new[]
-    {
-        new BgStop("#FF190B0F", 0f), new BgStop("#FF3A1520", 0.55f), new BgStop("#FF6A1F2E", 1f),
-    }, new[]
-    {
-        new BgGlow(0.58f, 0.92f, 0.70f, "#52FF7043"),
-        new BgGlow(0.78f, 0.18f, 0.45f, "#22FFCA9E"),
-    });
-
-    private static readonly BgDesign GraphiteSteel = new((0, 0), (1, 1), new[]
-    {
-        new BgStop("#FF0D1017", 0f), new BgStop("#FF1E2530", 0.50f), new BgStop("#FF36404F", 1f),
-    }, new[]
-    {
-        new BgGlow(0.30f, 0.08f, 0.70f, "#426096CD"),
-        new BgGlow(0.82f, 0.88f, 0.55f, "#29788CAA"),
+        new BgGlow(0.80f, 0.18f, 0.55f, "#3355D6FF"),
+        new BgGlow(0.24f, 0.86f, 0.70f, "#24FF8FB8"),
     });
 
     private static readonly BgDesign MorningBlush = new((0, 0), (0, 1), new[]
     {
-        new BgStop("#FFFFF3F5", 0f), new BgStop("#FFFFDDE4", 0.55f), new BgStop("#FFFFC6D2", 1f),
+        new BgStop("#FFFFF7FA", 0f), new BgStop("#FFFFEFF5", 0.55f), new BgStop("#FFFFE4EE", 1f),
     }, new[]
     {
         new BgGlow(0.80f, 0.14f, 0.70f, "#F2FFFFFF"),
+        new BgGlow(0.20f, 0.88f, 0.60f, "#387ED8C3"),
     });
 
-    private static readonly BgDesign SkyBreeze = new((0, 0.10f), (1, 0.90f), new[]
-    {
-        new BgStop("#FFF0FAFF", 0f), new BgStop("#FFCFE9FF", 0.55f), new BgStop("#FF9FD2FF", 1f),
-    }, new[]
-    {
-        new BgGlow(0.70f, 0.18f, 0.70f, "#F5FFFFFF"),
-        new BgGlow(0.90f, 0.80f, 0.55f, "#3878BEFF"),
-    });
-
-    private static readonly BgDesign CreamVanilla = new((0, 0), (1, 0), new[]
-    {
-        new BgStop("#FFFFFCF3", 0f), new BgStop("#FFFBF1D6", 0.55f), new BgStop("#FFF2DFBB", 1f),
-    }, new[]
-    {
-        new BgGlow(0.50f, 1.00f, 0.75f, "#F2FFF4D6"),
-        new BgGlow(0.82f, 0.16f, 0.50f, "#CCFFFFFF"),
-    });
-
-    private static readonly BgDesign MintFresh = new((1, 0.15f), (0, 0.85f), new[]
-    {
-        new BgStop("#FFF2FCF8", 0f), new BgStop("#FFD7F4E7", 0.55f), new BgStop("#FFB4E7CF", 1f),
-    }, new[]
-    {
-        new BgGlow(0.18f, 0.86f, 0.70f, "#E0FFFFFF"),
-        new BgGlow(0.80f, 0.20f, 0.55f, "#338CE1BE"),
-    });
-
-    private static readonly BgDesign LavenderMist = new((0, 1), (1, 0), new[]
-    {
-        new BgStop("#FFF8F5FF", 0f), new BgStop("#FFE9E1FF", 0.55f), new BgStop("#FFD2C2FF", 1f),
-    }, new[]
-    {
-        new BgGlow(0.75f, 0.14f, 0.70f, "#F0FFFFFF"),
-        new BgGlow(0.20f, 0.88f, 0.60f, "#42C8AAFF"),
-    });
-
-    /// <summary>主题 + 深浅模式 → 背景渐变设计（10 套映射）</summary>
+    /// <summary>主题 + 深浅模式 → 背景渐变设计（唯一樱粉主题的深/浅两套）</summary>
     private static BgDesign GetBackgroundDesign(CoreAppTheme theme, bool isDark)
-        => (theme, isDark) switch
-        {
-            (CoreAppTheme.Purple, true) => DeepSpace,
-            (CoreAppTheme.Pink, true) => VioletDusk,
-            (CoreAppTheme.Blue, true) => GraphiteSteel,
-            (CoreAppTheme.Orange, true) => EmberNoir,
-            (CoreAppTheme.Teal, true) => TealAbyss,
-            (CoreAppTheme.Purple, false) => LavenderMist,
-            (CoreAppTheme.Pink, false) => MorningBlush,
-            (CoreAppTheme.Blue, false) => SkyBreeze,
-            (CoreAppTheme.Orange, false) => CreamVanilla,
-            (CoreAppTheme.Teal, false) => MintFresh,
-            _ => DeepSpace,
-        };
+        => isDark ? VioletDusk : MorningBlush;
 
     /// <summary>获取当前主题色枚举</summary>
     public CoreAppTheme CurrentTheme => _currentTheme;
@@ -195,8 +106,8 @@ public class ThemeService : IThemeService
         try { StaticApplied?.Invoke(); } catch { }
     }
 
-    /// <summary>获取所有可选主题列表</summary>
-    public List<CoreAppTheme> AvailableThemes => Enum.GetValues<CoreAppTheme>().ToList();
+    /// <summary>可选主题列表（唯一：樱粉）</summary>
+    public List<CoreAppTheme> AvailableThemes => new() { CoreAppTheme.Pink };
 
     /// <summary>构造函数，加载持久化设置并立即应用主题</summary>
     public ThemeService()
@@ -311,12 +222,13 @@ public class ThemeService : IThemeService
             app.Resources["FrostedBackgroundEnabled"] = _frostedBackgroundEnabled;
 
             // 播放器条/播放页控件颜色（深浅两套，供 DynamicResource 绑定——
-            // 避免 AppThemeBinding 在 Windows XamlC 上的兼容性问题）
-            app.Resources["PlayerIconColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
-            app.Resources["PlayerLikeColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#E91E63");
+            // 避免 AppThemeBinding 在 Windows XamlC 上的兼容性问题）。
+            // 浅色用暖棕调（#4A3A44 系），替代冷蓝灰的工具感
+            app.Resources["PlayerIconColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#4A3A44");
+            app.Resources["PlayerLikeColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#FF7AAE");
             app.Resources["PlayerPlayBtnBg"] = isDark ? Color.FromArgb("#26FFFFFF") : Color.FromArgb("#22000000");
-            app.Resources["PlayerTitleColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#1A1F3A");
-            app.Resources["PlayerSubColor"] = isDark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#4A5278");
+            app.Resources["PlayerTitleColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#4A3A44");
+            app.Resources["PlayerSubColor"] = isDark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#866B77");
             // 浅色模式下拇指与已播进度使用当前主题主色（避免固定深色"黑点"难看，跟随 5 套主题）
             app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
             app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
@@ -372,13 +284,101 @@ public class ThemeService : IThemeService
     /// 根据当前主题色与深/浅模式，设置 ThemeBackgroundImage 资源。
     /// v1.7.8 起不再使用静态星空/天空图片，改为代码绘制的渐变位图
     /// （深色模式：主题色氛围渐变 + 星空点；浅色模式：主题浅色渐变 + 柔和光晕）。
+    /// 性能(每日首启卡顿主因修复)：渲染结果做「内存 + 磁盘」两级缓存 ——
+    /// 旧版每次冷启动都在主线程同步渲染 1080×1920 PNG 两遍(Android PNG 编码 / Windows Win2D 同步等待),
+    /// 现在同一主题×模式一生只渲染一次,之后内存/磁盘直接命中,零主线程开销。
     /// </summary>
     private void ApplyThemeBackgroundImage(ResourceDictionary resources, CoreAppTheme theme, bool isDark)
     {
-        var png = RenderThemeBackgroundPng(theme, isDark);
+        var key = (theme, isDark);
+
+        // 1) 内存命中：立即上屏(主题切换来回零成本)
+        if (BackgroundPngMemory.TryGetValue(key, out var memPng))
+        {
+            SetThemePng(resources, theme, isDark, memPng);
+            return;
+        }
+
+        // 2) 磁盘命中(每天第一次启动走这里,仅一次几十 KB 文件读):后台读取后上屏。
+        //    期间保留旧图 —— 同主题同模式的旧图与新图像素一致,无闪烁。
+        var diskPath = ThemeBackgroundDiskPath(theme, isDark);
+        if (File.Exists(diskPath))
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var png = await File.ReadAllBytesAsync(diskPath);
+                    BackgroundPngMemory[key] = png;
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        var app = Application.Current;
+                        if (app?.Resources == null) return;
+                        // 上屏前校验主题/模式未再变化,且用户未设置自定义背景
+                        if (_currentTheme != theme || IsEffectivelyDark() != isDark) return;
+                        if (CurrentCustomBackgroundPath != null) return;
+                        SetThemePng(app.Resources, theme, isDark, png);
+                        NotifyApplied();
+                    });
+                }
+                catch (Exception ex) { Log.Debug("ThemeService", $"[ThemeBg] 磁盘缓存读取失败: {ex.Message}"); }
+            });
+            return;
+        }
+
+        // 3) 首次生成(每主题×模式一生一次,之后永远走缓存):
+        //    已有旧图在屏 → 后台渲染+写盘后换图;完全无图 → 同步渲染兜底(仅影响首次安装)。
+        bool hasStale = resources["ThemeBackgroundImage"] != null;
+        if (hasStale)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var png = RenderThemeBackgroundPng(theme, isDark);
+                    TryWriteBackgroundDiskCache(diskPath, png);
+                    BackgroundPngMemory[key] = png;
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        var app = Application.Current;
+                        if (app?.Resources == null) return;
+                        if (_currentTheme != theme || IsEffectivelyDark() != isDark) return;
+                        if (CurrentCustomBackgroundPath != null) return;
+                        SetThemePng(app.Resources, theme, isDark, png);
+                        NotifyApplied();
+                    });
+                }
+                catch (Exception ex) { Log.Debug("ThemeService", $"[ThemeBg] 后台渲染失败: {ex.Message}"); }
+            });
+            return;
+        }
+
+        var syncPng = RenderThemeBackgroundPng(theme, isDark);
+        TryWriteBackgroundDiskCache(diskPath, syncPng);
+        BackgroundPngMemory[key] = syncPng;
+        SetThemePng(resources, theme, isDark, syncPng);
+    }
+
+    /// <summary>PNG 字节缓存(主题×深浅模式,渲染结果确定,最多 10 份 ≈ 几 MB)</summary>
+    private static readonly ConcurrentDictionary<(CoreAppTheme Theme, bool IsDark), byte[]> BackgroundPngMemory = new();
+
+    private static string ThemeBackgroundDiskPath(CoreAppTheme theme, bool isDark)
+    {
+        var dir = Path.Combine(FileSystem.CacheDirectory, "theme_bg");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, $"bg_{theme}_{(isDark ? "dark" : "light")}.png");
+    }
+
+    private static void TryWriteBackgroundDiskCache(string path, byte[] png)
+    {
+        try { File.WriteAllBytes(path, png); }
+        catch (Exception ex) { Log.Debug("ThemeService", $"[ThemeBg] 写磁盘缓存失败: {ex.Message}"); }
+    }
+
+    private void SetThemePng(ResourceDictionary resources, CoreAppTheme theme, bool isDark, byte[] png)
+    {
         resources["ThemeBackgroundImage"] = GetOrCreateBackgroundImage(theme, isDark, png);
         resources["ThemeBackgroundEnabled"] = true;
-        // 同步全局背景状态：主题内置图生效，清空自定义路径
         CurrentThemeBackgroundPng = png;
         CurrentCustomBackgroundPath = null;
         CurrentBackgroundEnabled = true;
@@ -575,7 +575,7 @@ public class ThemeService : IThemeService
     {
         try
         {
-            _currentTheme = (CoreAppTheme)Preferences.Default.Get(KeyTheme, 0);
+            _currentTheme = (CoreAppTheme)Preferences.Default.Get(KeyTheme, (int)CoreAppTheme.Pink);
             _darkModeSetting = (DarkModeSetting)Preferences.Default.Get(KeyDarkMode, 2);
             _customBackgroundPath = Preferences.Default.Get<string?>(KeyCustomBgPath, null);
             _customBackgroundOpacity = Preferences.Default.Get(KeyCustomBgOpacity, 0.5);
@@ -584,11 +584,11 @@ public class ThemeService : IThemeService
                 _customBackgroundPath = null;
 
             if (!ThemeMap.ContainsKey(_currentTheme))
-                _currentTheme = CoreAppTheme.Purple;
+                _currentTheme = CoreAppTheme.Pink;
         }
         catch
         {
-            _currentTheme = CoreAppTheme.Purple;
+            _currentTheme = CoreAppTheme.Pink;
             _darkModeSetting = DarkModeSetting.FollowSystem;
             _customBackgroundPath = null;
             _customBackgroundOpacity = 0.5;
@@ -604,18 +604,21 @@ public class ThemeService : IThemeService
 
     private static void ApplyDarkPalette(ResourceDictionary resources, ThemeColors colors)
     {
-        var primary = Color.FromArgb(colors.Primary);
-        var darkBase = Color.FromArgb("#1A1838");
-        var midTone = Color.FromArgb("#0F1228");
-        var primaryTint = primary.WithAlpha(0.18f);
+        // 深色模式整体转冷色系:墨蓝夜底 + 冰青主色 #55D6FF。
+        // 樱粉压在深底上明度对比不足会发灰发脏,故深色主色不用粉;
+        // 粉仅保留在红心(LikeColor)与微弱的品牌光晕里。
+        var primary = Color.FromArgb("#55D6FF");
+        resources["PrimaryColor"] = primary;
+        var darkBase = Color.FromArgb("#12151F");
+        var midTone = Color.FromArgb("#0E1119");
         var accentTint = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.1f);
 
         resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩（Android）
 #if WINDOWS
-        resources["WindowBackgroundColor"] = Color.FromArgb("#12102B"); // Windows 无独立背景层，用主题深色底替换原生灰
+        resources["WindowBackgroundColor"] = Color.FromArgb("#12151F"); // Windows 无独立背景层，用主题深色底替换原生灰
 #endif
-        resources["WindowBackgroundAltColor"] = Color.FromArgb("#1E1C42");
-        resources["SurfaceColor"] = Color.FromArgb("#2A2755");
+        resources["WindowBackgroundAltColor"] = Color.FromArgb("#1A1F2C");
+        resources["SurfaceColor"] = Color.FromArgb("#232938");
         // 卡片/玻璃：深/浅模式下都尽量"不着色"，避免叠加出横贯半透明白边（尤其底部贴边卡片）
         resources["CardBackgroundColor"] = Color.FromArgb("#08FFFFFF");         // ~3%，极简底色
         resources["CardBackgroundStrongColor"] = Color.FromArgb("#0FFFFFFF");   // ~6%
@@ -631,8 +634,8 @@ public class ThemeService : IThemeService
         resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.22f);
         resources["GlassCardButtonBgColor"] = Colors.White.WithAlpha(0.10f);
         resources["ChipInactiveColor"] = Color.FromArgb("#15FFFFFF");
-        resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["ChipInactiveTextColor"] = Color.FromArgb("#C8CDE8");
+        resources["ChipActiveColor"] = primary;
+        resources["ChipInactiveTextColor"] = Color.FromArgb("#C2C8E0");
         resources["ChipActiveTextColor"] = Colors.White;
         resources["BadgeBackgroundColor"] = Color.FromArgb("#14FFFFFF");
         resources["BadgeStrokeColor"] = Color.FromArgb("#28FFFFFF");
@@ -640,10 +643,10 @@ public class ThemeService : IThemeService
         resources["ButtonOverlayColor"] = Color.FromArgb("#12FFFFFF");
         resources["ProgressTrackColor"] = Color.FromArgb("#20FFFFFF");
         resources["RowPressOverlayColor"] = Color.FromArgb("#26FFFFFF");
-        resources["TextPrimaryColor"] = Color.FromArgb("#F5F6FF");
-        resources["TextSecondaryColor"] = Color.FromArgb("#BCC0DD");
-        resources["TextHintColor"] = Color.FromArgb("#868CAE");
-        resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
+        resources["TextPrimaryColor"] = Color.FromArgb("#F5F7FF");
+        resources["TextSecondaryColor"] = Color.FromArgb("#C2C8E0");
+        resources["TextHintColor"] = Color.FromArgb("#8D93B7");
+        resources["TabActiveColor"] = primary;
         resources["TabInactiveColor"] = Color.FromArgb("#FFFFFF"); // 深色模式：未选中图标/文字为白色
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
         resources["TabBarBackgroundColor"] = Color.FromArgb("#30FFFFFF");
@@ -668,11 +671,11 @@ public class ThemeService : IThemeService
         // 主题背景图遮罩：深色模式下用低透明黑色微微压暗图片（保持背景层次，不再黑漆漆）
         resources["CustomBackgroundMaskColor"] = Colors.Transparent; // 纯色渐变不需要遮罩
 
-        // 英雄卡/顶部卡片：半透明毛玻璃（主题色低透明渐变，透出背景图）
-        resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x59)}{colors.Primary[1..]}", $"{AlphaHex(0x24)}{GetAccentColorHex(colors.Primary)[1..]}", 0.0f, 1.0f);
+        // 英雄卡/顶部卡片：半透明毛玻璃（冰青 × 薄荷，冷色体系）
+        resources["HeroBrush"] = BuildLinearBrush($"{AlphaHex(0x59)}55D6FF", $"{AlphaHex(0x24)}7ED8C3", 0.0f, 1.0f);
         // 主操作按钮：半透明毛玻璃底（保留主题色调，白字仍可读）
         resources["PrimaryButtonBackgroundColor"] = primary.WithAlpha(0.55f);
-        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x5A)}{colors.Primary[1..]}", $"{AlphaHex(0x00)}{colors.Primary[1..]}");
+        resources["PrimaryGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x5A)}55D6FF", $"{AlphaHex(0x00)}55D6FF");
         var accent = GetAccentColor(_currentThemeStatic(colors.Primary));
         resources["AccentGlowBrush"] = BuildRadialBrush($"{AlphaHex(0x45)}{accent[1..]}", $"{AlphaHex(0x00)}{accent[1..]}");
         resources["GlassHighlightBrush"] = BuildLinearBrush("#28FFFFFF", "#04FFFFFF");
@@ -682,33 +685,34 @@ public class ThemeService : IThemeService
     {
         var primary = Color.FromArgb(colors.Primary);
         var primaryLight = Color.FromArgb(colors.Light);
-        var lightBase = Color.FromArgb("#F8F7FF");
+        var lightBase = Color.FromArgb("#FFF7FA");
         var primaryWash = primaryLight.WithAlpha(0.6f);
         var accent = Color.FromArgb(GetAccentColor(_currentThemeStatic(colors.Primary))).WithAlpha(0.22f);
 
         resources["WindowBackgroundColor"] = Colors.Transparent; // 完全透明：仅透出统一全局背景（Window 层），无遮罩（Android）
 #if WINDOWS
-        resources["WindowBackgroundColor"] = Color.FromArgb("#F8F7FF"); // Windows 无独立背景层，用主题浅色底替换原生白
+        resources["WindowBackgroundColor"] = Color.FromArgb("#FFF7FA"); // Windows 无独立背景层，用主题浅色底替换原生白
 #endif
-        resources["WindowBackgroundAltColor"] = Color.FromArgb("#EEEBFF");
+        resources["WindowBackgroundAltColor"] = Color.FromArgb("#FFEAF1");
         resources["SurfaceColor"] = Color.FromArgb("#FFFFFFFF");
         // 浅色模式卡片改为半透明毛玻璃（透出背景图，与深色模式一致）
         resources["CardBackgroundColor"] = Color.FromArgb("#8CFFFFFF");
         resources["CardBackgroundStrongColor"] = Color.FromArgb("#B3FFFFFF");
         resources["GlassButtonColor"] = Color.FromArgb("#99FFFFFF");
-        resources["InputBackgroundColor"] = Color.FromArgb("#F0F2FF");
-        resources["InputBorderColor"] = Color.FromArgb("#30000000");
-        resources["DividerColor"] = Color.FromArgb("#1A000000");
-        resources["GlassStrokeColor"] = Color.FromArgb("#28000000");
-        resources["GlassStrokeStrongColor"] = Color.FromArgb("#50000000");
+        resources["InputBackgroundColor"] = Color.FromArgb("#FFF3F7");
+        resources["InputBorderColor"] = Color.FromArgb("#33D9AFC4");
+        resources["DividerColor"] = Color.FromArgb("#1ED9AFC4");
+        // 暖粉棕描边（替代冷黑描边，去掉"工具感"）
+        resources["GlassStrokeColor"] = Color.FromArgb("#26D9AFC4");
+        resources["GlassStrokeStrongColor"] = Color.FromArgb("#4DD9AFC4");
         // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂 + 淡主题色调
         resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.85f), primary.WithAlpha(0.08f));
         resources["GlassCardStrokeColor"] = primary.WithAlpha(0.16f);
         resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.85f);
         resources["GlassCardButtonBgColor"] = Colors.Black.WithAlpha(0.05f);
-        resources["ChipInactiveColor"] = Color.FromArgb("#E8ECFF");
+        resources["ChipInactiveColor"] = Color.FromArgb("#FFE9F1");
         resources["ChipActiveColor"] = Color.FromArgb(colors.Primary);
-        resources["ChipInactiveTextColor"] = Color.FromArgb("#4A5278");
+        resources["ChipInactiveTextColor"] = Color.FromArgb("#8A6B7A");
         resources["ChipActiveTextColor"] = Colors.White;
         resources["BadgeBackgroundColor"] = accent;
         resources["BadgeStrokeColor"] = accent;
@@ -716,9 +720,9 @@ public class ThemeService : IThemeService
         resources["ButtonOverlayColor"] = Color.FromArgb("#12000000");
         resources["ProgressTrackColor"] = Color.FromArgb("#18000000");
         resources["RowPressOverlayColor"] = Color.FromArgb("#22000000");
-        resources["TextPrimaryColor"] = Color.FromArgb("#1A1F3A");
-        resources["TextSecondaryColor"] = Color.FromArgb("#4A5278");
-        resources["TextHintColor"] = Color.FromArgb("#6B7399");
+        resources["TextPrimaryColor"] = Color.FromArgb("#4A3A44");
+        resources["TextSecondaryColor"] = Color.FromArgb("#866B77");
+        resources["TextHintColor"] = Color.FromArgb("#B39AA6");
         resources["TabActiveColor"] = Color.FromArgb(colors.Primary);
         resources["TabInactiveColor"] = Color.FromArgb("#9AA0B4"); // 浅色模式：未选中图标/文字为灰色
         // 底部导航栏毛玻璃底：半透明白色叠加（透出内容，磨砂质感）
@@ -808,8 +812,8 @@ public class ThemeService : IThemeService
 
             double overlayAlpha = 0.0; // 完全透明：叠加蒙版去除，仅透出 Window 层自定义背景图
             resources["PageBackgroundBrush"] = new SolidColorBrush(
-                (isDark ? Color.FromArgb("#080914") : Color.FromArgb("#F8F7FF")).WithAlpha((float)overlayAlpha));
-            resources["WindowBackgroundColor"] = (isDark ? Color.FromArgb("#080914") : Color.FromArgb("#F8F7FF")).WithAlpha((float)overlayAlpha);
+                (isDark ? Color.FromArgb("#080914") : Color.FromArgb("#FFF7FA")).WithAlpha((float)overlayAlpha));
+            resources["WindowBackgroundColor"] = (isDark ? Color.FromArgb("#080914") : Color.FromArgb("#FFF7FA")).WithAlpha((float)overlayAlpha);
         }
         else
         {
@@ -857,37 +861,12 @@ public class ThemeService : IThemeService
             Radius = 0.9f
         };
 
-    private static string GetAccentColor(CoreAppTheme theme) => theme switch
-    {
-        CoreAppTheme.Purple => "#55D6FF",
-        CoreAppTheme.Pink => "#FFB86E",
-        CoreAppTheme.Blue => "#5AE4FF",
-        CoreAppTheme.Orange => "#FFD36E",
-        CoreAppTheme.Teal => "#80CBC4",
-        _ => "#55D6FF"
-    };
+    /// <summary>主题辅助强调色（唯一主题：樱粉 × 薄荷）</summary>
+    private static string GetAccentColor(CoreAppTheme theme) => "#7ED8C3";
 
-    private static string GetAccentColorHex(string primaryHex)
-        => primaryHex switch
-        {
-            "#9B7ED8" => "#55D6FF",
-            "#EC407A" => "#FFB86E",
-            "#42A5F5" => "#5AE4FF",
-            "#FF7043" => "#FFD36E",
-            "#26A69A" => "#80CBC4",
-            _ => "#55D6FF"
-        };
+    private static string GetAccentColorHex(string primaryHex) => "#7ED8C3";
 
-    private static CoreAppTheme _currentThemeStatic(string primaryHex)
-        => primaryHex switch
-        {
-            "#9B7ED8" => CoreAppTheme.Purple,
-            "#EC407A" => CoreAppTheme.Pink,
-            "#42A5F5" => CoreAppTheme.Blue,
-            "#FF7043" => CoreAppTheme.Orange,
-            "#26A69A" => CoreAppTheme.Teal,
-            _ => CoreAppTheme.Purple
-        };
+    private static CoreAppTheme _currentThemeStatic(string primaryHex) => CoreAppTheme.Pink;
 
     private static string AlphaHex(byte alpha) => alpha.ToString("X2");
 

@@ -181,7 +181,7 @@
                                 BackgroundColor="#22FFFFFF"
                                 TextColor="{DynamicResource TextPrimaryColor}"
                                 FontSize="13"
-                                Placeholder="暂无长期记忆"
+                                Placeholder="Yuki 还没有长期记忆喵…"
                                 PlaceholderColor="{DynamicResource TextHintColor}" />
 
                         <HorizontalStackLayout Spacing="8">

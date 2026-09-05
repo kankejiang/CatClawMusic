@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>猫爪音乐 · 桌面图标候选</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#17141a;color:#f0e6ec;font-family:"PingFang SC","Microsoft YaHei",sans-serif;padding:40px 24px 60px}
+h1{text-align:center;font-size:26px}
+.sub{text-align:center;color:#b9a5b1;margin:10px 0 30px;font-size:13px;line-height:1.9}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;max-width:1280px;margin:0 auto}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:22px}
+.card h2{font-size:16px;margin-bottom:4px}
+.card .tag{display:inline-block;font-size:11px;color:#c9a9bb;background:rgba(255,143,184,.14);border-radius:999px;padding:3px 10px;margin:4px 0 12px}
+.card p{font-size:12px;color:#b9a5b1;line-height:1.8}
+.sizes{display:flex;align-items:flex-end;gap:18px;margin:16px 0 10px}
+.sizes .s{text-align:center}
+.sizes span{display:block;font-size:10px;color:#8a7683;margin-top:6px}
+img.big{width:160px;height:160px;border-radius:37px}
+img.md{width:64px;height:64px;border-radius:15px}
+img.sm{width:32px;height:32px;border-radius:8px}
+img.xs{width:16px;height:16px;border-radius:4px}
+/* 任务栏模拟 */
+.taskbar{margin-top:14px;background:linear-gradient(180deg,#20242c,#16181e);border:1px solid #2c313a;border-radius:12px;padding:9px 14px;display:flex;align-items:center;gap:14px}
+.taskbar img{width:26px;height:26px;border-radius:6px}
+.taskbar .win{color:#7ea6d8;font-size:15px}
+.taskbar .fake{width:26px;height:26px;border-radius:6px;background:#3a4150}
+.taskbar .on{box-shadow:0 0 0 2px rgba(255,143,184,.7)}
+</style>
+</head>
+<body>
+<h1>🐾 桌面图标候选 · 6 套</h1>
+<p class="sub">每套展示 160 / 64 / 32 / 16px 四档(任务栏最小到 16px,重点看小尺寸是否还认得出"猫爪 + 音乐")。<br>任务栏模拟条 = Windows 实际观感。选定后我会把该方案写入 appicon.svg/appiconfg.svg 并重新生成全平台图标。</p>
+
+<div class="grid">
+  <div class="card">
+    <h2>A · 爪印唱片(精修现状)</h2>
+    <span class="tag">奶油底 · 粉爪搭黑胶</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="a-paw-vinyl.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="a-paw-vinyl.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="a-paw-vinyl.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="a-paw-vinyl.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="a-paw-vinyl.svg"><span class="fake"></span></div>
+    <p>现有方案的矢量精修版。信息最全(爪+胶+音乐),但元素多,小尺寸下爪与胶会糊在一起。</p>
+  </div>
+
+  <div class="card">
+    <h2>B · 戴耳机的猫</h2>
+    <span class="tag">粉底 · 白猫 + 耳机 + 音符</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="b-cat-headphone.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="b-cat-headphone.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="b-cat-headphone.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="b-cat-headphone.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="b-cat-headphone.svg"><span class="fake"></span></div>
+    <p>拟人度最高:眯眯笑眼 + 腮红 + 耳机,"萌"最直白。缺点:16px 下五官细节看不清,只剩一只白猫头。</p>
+  </div>
+
+  <div class="card">
+    <h2>C · 猫爪打碟</h2>
+    <span class="tag">粉白底 · 大爪压唱片 + 唱臂</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="c-paw-turntable.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="c-paw-turntable.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="c-paw-turntable.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="c-paw-turntable.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="c-paw-turntable.svg"><span class="fake"></span></div>
+    <p>"猫爪在打碟"的叙事感最强,掌心肉垫细节加分。中等复杂度,32px 仍可辨。</p>
+  </div>
+
+  <div class="card">
+    <h2>D · 夜猫发光爪</h2>
+    <span class="tag">夜猫深底 · 渐变粉爪 + 音符</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="d-night-paw-note.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="d-night-paw-note.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="d-night-paw-note.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="d-night-paw-note.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="d-night-paw-note.svg"><span class="fake"></span></div>
+    <p>与 App"夜猫模式"深色最统一;粉爪 + 掌心音符,元素克制。浅色任务栏上深底图标反而更跳。</p>
+  </div>
+
+  <div class="card">
+    <h2>E · 猫脸唱片</h2>
+    <span class="tag">奶油底 · 猫耳探出唱片 · 唱标是猫脸</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="e-cat-vinyl.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="e-cat-vinyl.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="e-cat-vinyl.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="e-cat-vinyl.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="e-cat-vinyl.svg"><span class="fake"></span></div>
+    <p>猫与音乐的融合最巧妙:唱片中心标签就是一张猫脸,耳朵从唱片后探出。32px 下猫脸略糊但轮廓可辨。</p>
+  </div>
+
+  <div class="card">
+    <h2>F · 糖果爪印(极简)</h2>
+    <span class="tag">糖果渐变底 · 单个超大白爪 + 心心</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="f-candy-paw.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="f-candy-paw.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="f-candy-paw.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="f-candy-paw.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="f-candy-paw.svg"><span class="fake"></span></div>
+    <p>元素最少 → 全尺寸最清晰,16px 依然是完整的爪印。牺牲了"音乐"元素(靠掌心心心暗示喜欢音乐)。</p>
+  </div>
+  <div class="card">
+    <h2>G · 猫按在唱片上(新增)</h2>
+    <span class="tag">奶油底 · 趴着白猫按唱片 · 掌心肉垫叠音符</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="g-cat-pressing-vinyl.svg"><span>160px</span></div>
+      <div class="s"><img class="md" src="g-cat-pressing-vinyl.svg"><span>64</span></div>
+      <div class="s"><img class="sm" src="g-cat-pressing-vinyl.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="g-cat-pressing-vinyl.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="g-cat-pressing-vinyl.svg"><span class="fake"></span></div>
+    <p>白猫从唱片后探出,前爪趴在唱片上,掌心粉肉垫叠白色双连音符。猫+音乐+爪三层叙事一次到位;
+    16px 下仍是清楚的"猫+爪+唱片"剪影。</p>
+  </div>
+
+  <div class="card">
+    <h2>H · 双爪击掌(参考 CatPawAI 风格)</h2>
+    <span class="tag">深底 / 奶油底 · 渐变卡片 + 白爪击掌 + 粉肉垫</span>
+    <div class="sizes">
+      <div class="s"><img class="big" src="h-catpaw-duo-dark.svg"><span>160px 深</span></div>
+      <div class="s"><img class="big" src="h-catpaw-duo-light.svg"><span>160px 浅</span></div>
+      <div class="s"><img class="sm" src="h-catpaw-duo-dark.svg"><span>32</span></div>
+      <div class="s"><img class="xs" src="h-catpaw-duo-dark.svg"><span>16</span></div>
+    </div>
+    <div class="taskbar"><span class="win">⊞</span><span class="fake"></span><img class="on" src="h-catpaw-duo-dark.svg"><span class="fake"></span></div>
+    <p>完全对标 CatPawAI 的构图语言:纯色底 + 居中渐变卡 + 白爪 + 粉肉垫 + 击掌动效线,
+    一枚小白音符点出"音乐"。元素极少,16px 依旧干净。深浅两版任选。</p>
+  </div>
+</div>
+</body>
+</html>

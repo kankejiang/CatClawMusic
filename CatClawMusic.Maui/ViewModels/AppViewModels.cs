@@ -182,7 +182,7 @@ public partial class NowPlayingViewModel : ObservableObject
     /// <summary>歌词显示行：当前行后第 4 行</summary>
     [ObservableProperty] private string _lyricLine7 = "";  // 4 lines after
     /// <summary>无歌词时的提示文本</summary>
-    [ObservableProperty] private string _noLyricsText = "暂无歌词";
+    [ObservableProperty] private string _noLyricsText = CatClawMusic.Maui.Helpers.MoeCopy.NoLyrics;
 
     // Full lyrics (for FullLyricsPage)
     /// <summary>当前高亮的歌词行索引（供全屏歌词页使用，基于过滤后列表）</summary>

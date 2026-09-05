@@ -11,11 +11,11 @@ public class PressFeedbackBehavior : Behavior<View>
 {
     /// <summary>按压时的目标透明度（0~1）</summary>
     public static readonly BindableProperty PressedOpacityProperty =
-        BindableProperty.Create(nameof(PressedOpacity), typeof(double), typeof(PressFeedbackBehavior), 0.62);
+        BindableProperty.Create(nameof(PressedOpacity), typeof(double), typeof(PressFeedbackBehavior), 0.68);
 
-    /// <summary>按压时的目标缩放（1=原大）</summary>
+    /// <summary>按压时的目标缩放（1=原大）。Q 弹手感：按下压得更扁，松开 BackOut 过冲回弹</summary>
     public static readonly BindableProperty PressedScaleProperty =
-        BindableProperty.Create(nameof(PressedScale), typeof(double), typeof(PressFeedbackBehavior), 0.96);
+        BindableProperty.Create(nameof(PressedScale), typeof(double), typeof(PressFeedbackBehavior), 0.92);
 
     public double PressedOpacity
     {
@@ -82,8 +82,9 @@ public class PressFeedbackBehavior : Behavior<View>
 
         _view.AbortAnimation(FadeAnimName);
         _view.AbortAnimation(ScaleAnimName);
+        // Q 弹回弹：SpringOut 缓动自带过冲（先弹过原尺寸再回落），比 CubicOut 更"萌"
         await Task.WhenAll(
-            _view.ScaleTo(_origScale, 140, Easing.CubicOut),
+            _view.ScaleTo(_origScale, 180, Easing.SpringOut),
             _view.FadeTo(_origOpacity, 140, Easing.CubicOut));
     }
 }

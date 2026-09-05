@@ -38,7 +38,7 @@
                            FontSize="13"
                            TextColor="#F3F5FF"
                            HorizontalOptions="Center" />
-                    <Label Text="一个简洁优雅的音乐播放器"
+                    <Label Text="一只会放音乐的猫爪喵——本地、私域、在线，都给你安排好啦"
                            FontSize="14"
                            TextColor="#F3F5FF"
                            HorizontalOptions="Center" />

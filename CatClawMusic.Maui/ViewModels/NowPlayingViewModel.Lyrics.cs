@@ -57,7 +57,7 @@ public partial class NowPlayingViewModel
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 HasLyrics = false;
-                NoLyricsText = "暂无歌词";
+                NoLyricsText = CatClawMusic.Maui.Helpers.MoeCopy.NoLyrics;
                 ClearLyrics();
                 OnPropertyChanged(nameof(AllLyricLines));
             });

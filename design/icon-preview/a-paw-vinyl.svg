@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF7FA"/>
+      <stop offset="1" stop-color="#FFE4EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="url(#bg)"/>
+  <!-- 黑胶 -->
+  <circle cx="256" cy="286" r="168" fill="#2A2136"/>
+  <circle cx="256" cy="286" r="132" fill="none" stroke="#3A2F46" stroke-width="7"/>
+  <circle cx="256" cy="286" r="102" fill="none" stroke="#3A2F46" stroke-width="5"/>
+  <circle cx="256" cy="286" r="70" fill="#FF8FB8"/>
+  <circle cx="256" cy="286" r="20" fill="#FFF7FA"/>
+  <!-- 粉爪搭在唱片上 -->
+  <g fill="#FF9EBE">
+    <ellipse cx="238" cy="304" rx="62" ry="50"/>
+    <circle cx="162" cy="262" r="25"/>
+    <circle cx="212" cy="230" r="28"/>
+    <circle cx="268" cy="230" r="28"/>
+    <circle cx="316" cy="262" r="25"/>
+  </g>
+  <!-- 高光 -->
+  <ellipse cx="176" cy="150" rx="90" ry="42" fill="#FFFFFF" opacity="0.5" transform="rotate(-18 176 150)"/>
+</svg>

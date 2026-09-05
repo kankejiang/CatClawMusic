@@ -160,7 +160,7 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
                 <CollectionView.EmptyView>
-                    <Label Text="暂无专辑" FontSize="13"
+                    <Label Text="还没有专辑喵…先扫描入库几首吧~" FontSize="13"
                            TextColor="{DynamicResource TextHintColor}"
                            HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
                 </CollectionView.EmptyView>
@@ -174,7 +174,7 @@
                             ItemsUpdatingScrollMode="KeepScrollOffset"
                             ItemTemplate="{StaticResource SongItemTemplate}">
                 <CollectionView.EmptyView>
-                    <Label Text="暂无歌曲" FontSize="13"
+                    <Label Text="这里还空空的喵…去音乐库挑几首吧~" FontSize="13"
                            TextColor="{DynamicResource TextHintColor}"
                            HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
                 </CollectionView.EmptyView>

@@ -18,8 +18,8 @@
             <Border x:Name="HeroCard" Padding="0" StrokeShape="RoundRectangle 24" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}" Margin="0,6,0,0">
                 <Border.Background>
                     <LinearGradientBrush EndPoint="1,1">
-                        <GradientStop Offset="0" Color="#4D8C7BFF" />
-                        <GradientStop Offset="1" Color="#2955D6FF" />
+                        <GradientStop Offset="0" Color="#66FF8FB8" />
+                        <GradientStop Offset="1" Color="#40FFD9A8" />
                     </LinearGradientBrush>
                 </Border.Background>
                 <Grid>

@@ -185,8 +185,12 @@
                 <Border Style="{StaticResource GlassCardStyle}"
                         IsVisible="{Binding IsEmpty}">
                     <VerticalStackLayout Spacing="6" HorizontalOptions="Center">
-                        <Label Text="⬇️" FontSize="34" HorizontalOptions="Center" />
-                        <Label Text="暂无下载任务" Style="{StaticResource PageSubtitleStyle}"
+                        <Image Source="avatar_yuki.png" WidthRequest="64" HeightRequest="64" HorizontalOptions="Center" Aspect="AspectFill">
+                            <Image.Clip>
+                                <EllipseGeometry Center="32,32" RadiusX="32" RadiusY="32" />
+                            </Image.Clip>
+                        </Image>
+                        <Label Text="下载架还空着喵…" Style="{StaticResource MoeTitleStyle}" FontSize="15"
                                HorizontalTextAlignment="Center" />
                         <Label Text="点击右上角 ＋ 输入地址即可下载：支持 http 直链与 magnet 磁力链接，网络歌曲也可一键下载到本地"
                                FontSize="11"

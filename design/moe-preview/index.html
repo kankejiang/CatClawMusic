@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>猫爪音乐 · 萌系改造方向对比</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#17141a;color:#f0e6ec;font-family:"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+.wrap{max-width:900px;width:100%}
+h1{font-size:30px;text-align:center}
+h1 span{content:"🐾"}
+.sub{text-align:center;color:#b9a5b1;margin-top:12px;line-height:1.9;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:36px}
+a.card{display:block;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:24px;text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}
+a.card:hover{transform:translateY(-4px);box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.chip{display:inline-block;font-size:11px;padding:4px 12px;border-radius:999px;margin-bottom:14px}
+.card h2{font-size:18px;margin-bottom:10px}
+.card p{font-size:12.5px;color:#b9a5b1;line-height:1.9}
+.bars{margin-top:14px;height:10px;border-radius:6px;overflow:hidden;display:flex}
+.bars i{height:100%}
+footer{text-align:center;color:#8a7683;font-size:12px;margin-top:36px;line-height:2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐾 猫爪音乐 · 萌系改造方向对比</h1>
+  <p class="sub">三套方向、同一组页面(音乐库主页 / 播放页 / 发现页),直接在浏览器打开对比。<br>每个文件底部附该方向的组件样例与设计令牌(色板/圆角/字体/动效)。</p>
+  <div class="grid">
+    <a class="card" href="a-brand-pink.html">
+      <span class="chip" style="background:rgba(245,111,160,.18);color:#FF9DC3">方向 A · 轻</span>
+      <h2>猫爪品牌统一</h2>
+      <p>深紫夜空毛玻璃布局不动,主色换成品牌猫爪粉,tab 爪印化,启动链路接入真 logo。风险最低、见效最快,但整体仍是"精致玻璃播放器"。</p>
+      <div class="bars"><i style="width:62%;background:#F56FA0"></i><i style="width:38%;background:#55D6FF"></i></div>
+    </a>
+    <a class="card" href="b-cream-moe.html">
+      <span class="chip" style="background:rgba(255,143,184,.2);color:#FFC1D9">方向 B · 中(推荐)</span>
+      <h2>奶油软萌全面改造</h2>
+      <p>奶油白浅色体系 + 樱粉主色 + 圆体标题(站酷快乐体)+ 大圆角软阴影 + Q 弹动效 + 萌系空状态。最能兑现"萌系"承诺,深色模式做暖紫黑"夜猫模式"。</p>
+      <div class="bars"><i style="width:50%;background:#FF8FB8"></i><i style="width:30%;background:#7ED8C3"></i><i style="width:20%;background:#FFB86E"></i></div>
+    </a>
+    <a class="card" href="c-catgirl-full.html">
+      <span class="chip" style="background:rgba(183,156,255,.2);color:#CBB5FF">方向 C · 重</span>
+      <h2>完整猫娘人格化</h2>
+      <p>B 的全部 + Yuki 全场景常驻陪聊、猫耳机身(圆角猫耳)、爪印进度条/播放键/收藏、喵口癖文案全面化。品牌人格最强,工作量最大,需新增插画素材。</p>
+      <div class="bars"><i style="width:40%;background:#FF8FB8"></i><i style="width:35%;background:#B79CFF"></i><i style="width:25%;background:#7ED8C3"></i></div>
+    </a>
+  </div>
+  <footer>对比建议:三套并排打开,只看"第 1 眼感觉"——不看细节,问自己"这个 app 我会想点开吗"。<br>选定方向后,实施按「令牌层 → 启动链路 → 关键页面 → 全量」分批进行。</footer>
+</div>
+</body>
+</html>

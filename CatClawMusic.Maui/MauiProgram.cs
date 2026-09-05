@@ -22,12 +22,13 @@ public static class MauiProgram
 
     public static MauiApp CreateMauiApp()
     {
-        // 写固定路径，确保能找到日志。启动期同步小文件 I/O 在移动设备冷启动上易放大，
-        // 文件落盘仅 DEBUG；Release 只留 Log.Debug（诊断日志开启时仍可在 debug.log 追踪启动阶段）。
+        // 启动打点统一走 Services.StartupTrace(app 数据目录 startup_trace.log,Release 可用),
+        // 供真机"每日首启卡顿"现场诊断;DEBUG 另存 %TEMP% 便于开发期查看。
         var logPath = Path.Combine(Path.GetTempPath(), "catclaw_startup.log");
         void StartupLog(string msg)
         {
             Log.Debug("MauiProgram", $"[STARTUP] {msg}");
+            CatClawMusic.Maui.Services.StartupTrace.Mark(msg);
 #if DEBUG
             try { File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"启动日志写入失败: {ex.Message}"); }
 #endif
@@ -125,7 +126,7 @@ public static class MauiProgram
         {
             try { await db.EnsureInitializedAsync(); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"数据库初始化失败: {ex.Message}"); }
-            finally { startupCoordinator.MarkDatabaseReady(); }
+            finally { StartupTrace.Mark("db init done (ready)"); startupCoordinator.MarkDatabaseReady(); }
         });
         services.AddSingleton(db);
 

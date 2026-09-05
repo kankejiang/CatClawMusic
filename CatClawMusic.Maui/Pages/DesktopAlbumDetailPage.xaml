@@ -97,7 +97,7 @@
                             ItemsUpdatingScrollMode="KeepScrollOffset"
                             ItemTemplate="{StaticResource SongItemTemplate}">
                 <CollectionView.EmptyView>
-                    <Label Text="暂无歌曲" FontSize="13"
+                    <Label Text="这张专辑还空空的喵…" FontSize="13"
                            TextColor="{DynamicResource TextHintColor}"
                            HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
                 </CollectionView.EmptyView>

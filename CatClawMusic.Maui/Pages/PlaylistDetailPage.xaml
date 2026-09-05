@@ -153,11 +153,18 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
 
-                <!-- 空状态 -->
+                <!-- 空状态（Yuki 陪你挑歌） -->
                 <CollectionView.EmptyView>
-                    <Label Text="暂无歌曲" FontSize="13"
-                           TextColor="{DynamicResource TextHintColor}"
-                           HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" />
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Padding="0,40" Spacing="8">
+                        <Image Source="avatar_yuki.png" WidthRequest="60" HeightRequest="60" HorizontalOptions="Center" Aspect="AspectFill">
+                            <Image.Clip>
+                                <EllipseGeometry Center="30,30" RadiusX="30" RadiusY="30" />
+                            </Image.Clip>
+                        </Image>
+                        <Label Text="歌单还空空的喵…去挑几首塞满它吧~" FontSize="13"
+                               Style="{StaticResource MoeTitleStyle}"
+                               HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
                 </CollectionView.EmptyView>
             </CollectionView>
 

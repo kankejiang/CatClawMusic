@@ -21,7 +21,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
 
     /// <summary>当前选中的主题色（十六进制）</summary>
     [ObservableProperty]
-    private string _selectedThemeColor = "#9B7ED8";
+    private string _selectedThemeColor = "#FF8FB8";
 
     /// <summary>启动页可选项列表</summary>
     [ObservableProperty]
@@ -51,19 +51,10 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _frostedBackgroundEnabled = true;
 
-    /// <summary>可选主题色列表（名称 + 十六进制颜色）</summary>
+    /// <summary>可选主题色列表（唯一主题：猫爪粉）</summary>
     public static readonly (string Name, string Color)[] ThemeColors = new[]
     {
-        ("紫色", "#9B7ED8"),
-        ("粉色", "#EC407A"),
-        ("蓝色", "#42A5F5"),
-        ("绿色", "#66BB6A"),
-        ("橙色", "#FF7043"),
-        ("红色", "#EF5350"),
-        ("青色", "#26A69A"),
-        ("黄色", "#FFC107"),
-        ("靛蓝", "#5C6BC0"),
-        ("青蓝", "#00BCD4"),
+        ("猫爪粉", "#FF8FB8"),
     };
 
     /// <summary>
@@ -85,16 +76,8 @@ public partial class AppearanceSettingsViewModel : ObservableObject
 
         if (_themeService != null)
         {
-            var theme = colorHex switch
-            {
-                "#9B7ED8" => AppTheme.Purple,
-                "#EC407A" => AppTheme.Pink,
-                "#42A5F5" => AppTheme.Blue,
-                "#FF7043" => AppTheme.Orange,
-                "#26A69A" => AppTheme.Teal,
-                _ => AppTheme.Purple
-            };
-            _themeService.SetTheme(theme);
+            // 唯一主题：樱粉（任何选择都落到 Pink）
+            _themeService.SetTheme(AppTheme.Pink);
         }
 
         await Task.CompletedTask;
@@ -185,17 +168,8 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     {
         _isLoadingTheme = true;
         if (_themeService == null) { _isLoadingTheme = false; return; }
-        var currentTheme = _themeService.CurrentTheme;
         IsDarkMode = _themeService.DarkModeSetting == DarkModeSetting.Dark;
-        SelectedThemeColor = currentTheme switch
-        {
-            AppTheme.Purple => "#9B7ED8",
-            AppTheme.Pink => "#EC407A",
-            AppTheme.Blue => "#42A5F5",
-            AppTheme.Orange => "#FF7043",
-            AppTheme.Teal => "#26A69A",
-            _ => "#9B7ED8"
-        };
+        SelectedThemeColor = "#FF8FB8";
         SelectedStartupPageIndex = Preferences.Default.Get("StartupPageIndex", 2);
 
         HasCustomBackground = _themeService.HasCustomBackground;

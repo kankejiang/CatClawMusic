@@ -641,7 +641,7 @@
                                     HorizontalOptions="Center" VerticalOptions="Center"
                                     RotationY="-3" RotationX="1" TranslationY="6">
                                 <Border.Shadow>
-                                    <Shadow Brush="#8C7BFF" Offset="0,26" Radius="42" Opacity="0.55" />
+                                    <Shadow Brush="{DynamicResource PrimaryColor}" Offset="0,26" Radius="42" Opacity="0.55" />
                                 </Border.Shadow>
                                 <Grid>
                                     <Image x:Name="WinCoverImage" Source="{Binding CoverImage}" Aspect="AspectFill" />
@@ -721,7 +721,7 @@
                             </Grid>
                         </Grid>
                         <Label x:Name="WinNoLyricsLabel" Grid.Row="2" Text="{Binding NoLyricsText}" FontSize="13"
-                               TextColor="#8D93B7" Opacity="0.6" HorizontalTextAlignment="Center"
+                               TextColor="#9F8B95" Opacity="0.6" HorizontalTextAlignment="Center"
                                HorizontalOptions="Center" VerticalOptions="Center" IsVisible="False" />
                     </Grid>
                 </Grid>

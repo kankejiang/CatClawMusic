@@ -16,6 +16,10 @@ namespace CatClawMusic.Core.Services;
 /// </summary>
 public partial class LyricsService : ILyricsService
 {
+    /// <summary>无歌词占位文案的识别子串：LRC 解析跳过占位行、UI 无歌词提示共用此常量，
+    /// 改文案时必须包含该子串（如"这里静悄悄的喵,还没有歌词"）才能被识别为占位。</summary>
+    public const string NoLyricsPlaceholderText = "还没有歌词";
+
     /// <summary>插件管理器（可选，由 UI 层设置）</summary>
     public IPluginManager? PluginManager { get; set; }
 

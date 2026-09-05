@@ -127,9 +127,26 @@ public class ExploreDataService
             return diskCache;
         }
 
-        // 生成新的推荐（partial Fisher-Yates 抽样，替代全量随机排序）
-        var allSongs = await GetFilteredSongsAsync().ConfigureAwait(false);
-        var shuffled = RandomSampler.Sample(allSongs, 20);
+        // 生成新的推荐(轻量化):SQL 端随机采样候选,不再强制构建整库共享缓存。
+        // 旧路径经 GetFilteredSongsAsync 拉全库+网络详情+播放次数聚合 —— 是每天第一次启动
+        // 的额外整库开销;现在只采样 200 个候选,协议过滤后抽 20 首再补名称与播放次数。
+        var sampled = await _db.QuerySongsRandomAsync(200).ConfigureAwait(false);
+        var enabledProtocols = await _db.GetEnabledProtocolsAsync().ConfigureAwait(false);
+        var filtered = ApplySourceFilter(_db.FilterByEnabledProtocols(sampled, enabledProtocols));
+
+        var shuffled = RandomSampler.Sample(filtered, 20);
+        if (shuffled.Count > 0)
+        {
+            // 只为入选的 20 首补元数据(艺术家/专辑名走轻量 IN 查询,播放次数走 SQL 聚合)
+            var artistNames = await _db.GetArtistNamesByIdsAsync(shuffled.Select(s => s.ArtistId)).ConfigureAwait(false);
+            var albumTitles = await _db.GetAlbumTitlesByIdsAsync(shuffled.Select(s => s.AlbumId)).ConfigureAwait(false);
+            foreach (var s in shuffled)
+            {
+                s.Artist = artistNames.TryGetValue(s.ArtistId, out var artistName) ? artistName : "未知艺术家";
+                s.Album = albumTitles.TryGetValue(s.AlbumId, out var albumTitle) ? albumTitle : "未知专辑";
+            }
+            await FillPlayCountAsync(shuffled).ConfigureAwait(false);
+        }
 
         _dailyRecommendCache = shuffled;
         _dailyRecommendDate = today;

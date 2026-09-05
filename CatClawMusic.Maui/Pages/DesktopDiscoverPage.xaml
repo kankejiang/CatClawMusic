@@ -31,6 +31,9 @@
                 </HorizontalStackLayout>
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.Shadow>
+                            <Shadow Brush="#14000000" Offset="0,4" Radius="12" Opacity="0.45" />
+                        </Border.Shadow>
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSearchToggleClicked" />
                         </Border.GestureRecognizers>
@@ -39,6 +42,9 @@
                     </Border>
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.Shadow>
+                            <Shadow Brush="#14000000" Offset="0,4" Radius="12" Opacity="0.45" />
+                        </Border.Shadow>
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnRefreshClicked" />
                         </Border.GestureRecognizers>
@@ -48,6 +54,9 @@
                     <!-- 在线音乐入口已移除：由 IViewContributorPlugin 插件提供入口 -->
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.Shadow>
+                            <Shadow Brush="#14000000" Offset="0,4" Radius="12" Opacity="0.45" />
+                        </Border.Shadow>
                         <Label x:Name="ThemeIcon" Text="&#x1f319;" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" />
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnThemeToggleClicked" />
@@ -56,6 +65,9 @@
                     <!-- 设置入口：侧栏已移除，改放页面右上角 -->
                     <Border WidthRequest="32" HeightRequest="32" StrokeShape="RoundRectangle 8" StrokeThickness="1" Stroke="{DynamicResource GlassStrokeColor}"
                             BackgroundColor="{DynamicResource CardBackgroundColor}" VerticalOptions="Center">
+                        <Border.Shadow>
+                            <Shadow Brush="#14000000" Offset="0,4" Radius="12" Opacity="0.45" />
+                        </Border.Shadow>
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSettingsButtonClicked" />
                         </Border.GestureRecognizers>
@@ -174,23 +186,23 @@
 
             <!-- ═══ Segmented Tabs ═══ -->
             <Grid x:Name="CategoryTabBar" ColumnDefinitions="*,*,*,*,*" ColumnSpacing="8" Margin="0,16,0,16">
-                <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                <Border Grid.Column="0" x:Name="TabRec" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                     <Label x:Name="TabRecLabel" Text="推荐" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="0" /></Border.GestureRecognizers>
                 </Border>
-                <Border Grid.Column="1" x:Name="TabRank" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                <Border Grid.Column="1" x:Name="TabRank" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                     <Label x:Name="TabRankLabel" Text="排行" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="1" /></Border.GestureRecognizers>
                 </Border>
-                <Border Grid.Column="2" x:Name="TabArtist" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                <Border Grid.Column="2" x:Name="TabArtist" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                     <Label x:Name="TabArtistLabel" Text="歌手" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="2" /></Border.GestureRecognizers>
                 </Border>
-                <Border Grid.Column="3" x:Name="TabAlbum" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                <Border Grid.Column="3" x:Name="TabAlbum" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                     <Label x:Name="TabAlbumLabel" Text="专辑" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="3" /></Border.GestureRecognizers>
                 </Border>
-                <Border Grid.Column="4" x:Name="TabStats" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{DynamicResource GlassStrokeColor}">
+                <Border Grid.Column="4" x:Name="TabStats" Style="{StaticResource GlassCardStyle}" Padding="12,10" Stroke="{AppThemeBinding Light=#FFD9E7, Dark=#2AFFFFFF}">
                     <Label x:Name="TabStatsLabel" Text="统计" FontSize="14" FontAttributes="Bold" HorizontalOptions="Center" />
                     <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnCategoryTapped" CommandParameter="4" /></Border.GestureRecognizers>
                 </Border>
@@ -322,6 +334,9 @@
                         <DataTemplate>
                             <Border WidthRequest="136" StrokeShape="RoundRectangle 14" StrokeThickness="1"
                                     Stroke="{DynamicResource GlassStrokeColor}" BackgroundColor="{DynamicResource CardBackgroundStrongColor}">
+                                <Border.Shadow>
+                                    <Shadow Brush="#14000000" Offset="0,8" Radius="20" Opacity="0.55" />
+                                </Border.Shadow>
                                 <VerticalStackLayout Spacing="0">
                                     <Border WidthRequest="136" HeightRequest="136" StrokeShape="RoundRectangle 14 14 0 0" StrokeThickness="0" BackgroundColor="{DynamicResource SurfaceColor}">
                                         <Image Source="{Binding CoverSource, TargetNullValue='ic_music_note'}" Aspect="AspectFill" WidthRequest="136" HeightRequest="136" />

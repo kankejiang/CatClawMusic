@@ -355,6 +355,7 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        Services.StartupTrace.Mark("MainPage.OnAppearing");
 
         // 启动时重新应用主题，确保 TabBar 等控件颜色正确
         try

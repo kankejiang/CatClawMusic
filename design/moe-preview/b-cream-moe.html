@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>猫爪音乐 · 萌系改造方向 B — 奶油软萌(推荐)</title>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#FFF7FA; --bg2:#FFEFF5; --card:#FFFFFF; --stroke:#FFDCE8;
+  --primary:#FF8FB8; --primary-d:#F56FA0; --accent:#7ED8C3; --accent2:#FFB86E;
+  --text:#5A4A52; --sub:#B39AA6; --like:#FF7AAE;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#2a2328;color:var(--text);font-family:"Baloo 2","Nunito","PingFang SC","Microsoft YaHei",sans-serif;padding:36px 24px 60px}
+.cjk{font-family:"ZCOOL KuaiLe","Baloo 2","PingFang SC","Microsoft YaHei",sans-serif}
+.head{text-align:center;margin-bottom:8px;color:#fff}
+.head h1{font-size:26px}
+.head p{color:#c9bcc4;margin-top:6px;font-size:13px}
+.swatches{display:flex;gap:10px;justify-content:center;margin:16px 0 6px}
+.sw{width:88px;border-radius:14px;padding:10px 8px;text-align:center;font-size:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff}
+.sw i{display:block;height:34px;border-radius:8px;margin-bottom:6px}
+.note{color:#a898a0;font-size:12px;text-align:center;margin-bottom:26px}
+.stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center}
+.col{text-align:center}
+.label{color:#d8c8d0;font-size:13px;margin:0 0 10px}
+.phone{width:330px;height:690px;background:linear-gradient(180deg,var(--bg1),var(--bg2));border:9px solid #17171c;border-radius:44px;overflow:hidden;display:flex;flex-direction:column;position:relative;box-shadow:0 30px 70px rgba(0,0,0,.55);text-align:left}
+.paw-bg{position:absolute;font-size:22px;opacity:.10;user-select:none}
+.status{display:flex;justify-content:space-between;padding:12px 22px 6px;font-size:11px;color:var(--sub)}
+.content{flex:1;overflow:hidden;padding:10px 16px 0;position:relative}
+.greet{font-size:20px;font-weight:800;margin:8px 2px 2px;color:var(--text)}
+.greet small{display:block;font-size:11px;color:var(--sub);font-weight:600;margin-top:3px}
+.card{background:var(--card);border-radius:24px;padding:13px 15px;margin-top:12px;box-shadow:0 10px 26px rgba(255,143,184,.16)}
+.hero{display:flex;gap:12px;align-items:center;background:linear-gradient(135deg,#FFD9E7,#FFEFE2);border-radius:24px;padding:14px 15px;margin-top:12px}
+.hero .stat{flex:1;text-align:center}
+.hero .stat b{font-size:17px;color:var(--text)}
+.hero .stat span{display:block;font-size:10px;color:var(--sub);margin-top:2px}
+.row{display:flex;align-items:center;gap:11px;margin-top:11px}
+.cov{width:46px;height:46px;border-radius:15px;flex:none;box-shadow:0 6px 14px rgba(255,143,184,.25)}
+.c1{background:linear-gradient(135deg,#FFB6D1,#FF8FB8)} .c2{background:linear-gradient(135deg,#A5EDE0,#7ED8C3)}
+.c3{background:linear-gradient(135deg,#FFD9A8,#FFB86E)} .c4{background:linear-gradient(135deg,#C9B6FF,#B79CFF)}
+.meta{flex:1;min-width:0}
+.meta b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.meta span{font-size:10.5px;color:var(--sub)}
+.heart{color:var(--like);font-size:15px}
+.mini{margin:12px 16px;background:#fff;border-radius:20px;padding:9px 11px;display:flex;align-items:center;gap:10px;box-shadow:0 12px 28px rgba(255,143,184,.22)}
+.mini .cov{width:38px;height:38px}
+.mini .bar{height:4px;border-radius:3px;background:#FFE3EE;margin-top:6px;position:relative}
+.mini .bar i{position:absolute;left:0;top:0;bottom:0;width:62%;border-radius:3px;background:linear-gradient(90deg,var(--primary),var(--accent))}
+.tabs{display:flex;margin:10px 16px 14px;background:#fff;border-radius:20px;padding:6px;box-shadow:0 12px 28px rgba(255,143,184,.22)}
+.tab{flex:1;text-align:center;font-size:10.5px;color:var(--sub);padding:7px 0;border-radius:14px}
+.tab.on{color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary-d));font-weight:800;box-shadow:0 6px 14px rgba(255,111,160,.4)}
+.tab .ic{display:block;font-size:16px;margin-bottom:2px}
+/* 播放页 */
+.np{background:linear-gradient(180deg,#FFEFF5,#FFE6F0 55%,#FDEFF7)}
+.cover{width:196px;height:196px;margin:18px auto 14px;border-radius:32px;background:linear-gradient(135deg,#FFC7DB,#FF9EBE 55%,#FFE1B8);box-shadow:0 24px 50px rgba(255,143,184,.4);display:flex;align-items:center;justify-content:center;font-size:44px;position:relative}
+.cover::before{content:"🐾";position:absolute;right:-6px;top:-10px;font-size:24px;transform:rotate(24deg)}
+.title{text-align:center;font-size:17px;font-weight:800;color:var(--text)}
+.artist{text-align:center;font-size:11.5px;color:var(--sub);margin-top:4px}
+.pbar{margin:20px 26px 6px;height:6px;border-radius:4px;background:#FFE3EE;position:relative}
+.pbar i{position:absolute;left:0;top:0;bottom:0;width:42%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--accent))}
+.pbar b{position:absolute;left:42%;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--primary);transform:translate(-50%,-50%)}
+.ptime{display:flex;justify-content:space-between;margin:0 26px;font-size:10px;color:var(--sub)}
+.ctrl{display:flex;justify-content:center;align-items:center;gap:26px;margin-top:16px;font-size:20px;color:#7a6a72}
+.ctrl .play{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-d));display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 10px 24px rgba(255,111,160,.45)}
+.ctrl .side{font-size:17px}
+.ctrl .side.on{color:var(--accent)}
+.lyr{margin:16px 26px 0;text-align:center}
+.lyr p{font-size:12.5px;color:var(--sub);line-height:2.1}
+.lyr p.on{color:var(--primary-d);font-size:14.5px;font-weight:800}
+/* 发现页 */
+.disc .banner{margin-top:12px;border-radius:24px;padding:16px;background:linear-gradient(135deg,#FFD9E7,#D6F5EE);border-radius:24px}
+.disc .banner b{font-size:15px;color:var(--text)}
+.disc .banner p{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.6}
+.chips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.chip{font-size:10.5px;padding:6px 12px;border-radius:999px;background:#fff;color:var(--sub);box-shadow:0 4px 10px rgba(255,143,184,.12)}
+.chip.on{color:#fff;background:var(--primary)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:12px}
+.gcard{border-radius:22px;padding:12px;background:#fff;box-shadow:0 10px 24px rgba(255,143,184,.16)}
+.gcard .cov{width:100%;height:74px;border-radius:16px;margin-bottom:8px}
+.gcard b{font-size:12px;color:var(--text)}
+.gcard p{font-size:10px;color:var(--sub);margin-top:3px}
+.empty{text-align:center;margin-top:16px;padding:18px 10px;background:#fff;border-radius:24px;box-shadow:0 10px 24px rgba(255,143,184,.14)}
+.empty .cat{font-size:40px}
+.empty b{display:block;font-size:13px;margin-top:6px;color:var(--text)}
+.empty p{font-size:10.5px;color:var(--sub);margin-top:4px;line-height:1.7}
+.empty .go{display:inline-block;margin-top:9px;font-size:11px;color:#fff;background:var(--primary);border-radius:999px;padding:6px 16px}
+.components{margin:44px auto 0;max-width:1080px}
+.components h2{font-size:15px;margin-bottom:12px;color:#e8dbe2}
+.strip{display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:18px;color:#fff}
+.btn{padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:800}
+.btn.p{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 8px 18px rgba(255,111,160,.4)}
+.btn.s{background:#fff;color:var(--text);border-radius:999px}
+.tag{font-size:11px;color:#b9a8b1;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1 class="cjk">方向 B · 奶油软萌(推荐)</h1>
+  <p>奶油白浅色体系 + 樱粉主色 + 大圆角软阴影 + 圆体标题 + Q 弹动效 —— 气质:奶油杯子蛋糕上的音乐猫窝</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#FF8FB8"></i>Primary #FF8FB8</div>
+    <div class="sw"><i style="background:#7ED8C3"></i>Mint #7ED8C3</div>
+    <div class="sw"><i style="background:#FFB86E"></i>杏黄 #FFB86E</div>
+    <div class="sw"><i style="background:#FFF7FA;border:1px solid #eee;color:#b39aa6"></i>奶白底 #FFF7FA</div>
+    <div class="sw"><i style="background:linear-gradient(180deg,#1E1826,#2A2136)"></i>夜猫深色</div>
+  </div>
+  <p class="note">标题用站酷快乐体(免费可商用)+ Baloo 2 · 卡片圆角 24-28 · 软粉投影替代玻璃描边 · 按压 spring 回弹</p>
+</div>
+
+<div class="stage">
+  <div class="col">
+    <p class="label">① 音乐库主页</p>
+    <div class="phone">
+      <span class="paw-bg" style="left:14px;top:120px">🐾</span>
+      <span class="paw-bg" style="right:18px;top:300px;transform:rotate(-20deg)">🐾</span>
+      <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+      <div class="content">
+        <div class="greet cjk">晚上好,铲屎官 🌙<small>猫爪音乐 · 已陪你听完 3,201 小时</small></div>
+        <div class="hero">
+          <div class="stat"><b>1,286</b><span>歌曲</span></div>
+          <div class="stat"><b>89</b><span>艺术家</span></div>
+          <div class="stat"><b>124</b><span>专辑</span></div>
+          <div class="stat"><b>🐾</b><span>随时开撸</span></div>
+        </div>
+        <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI · The Book</span></div><span class="heart">♥</span></div>
+        <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ · エルマ</span></div><span class="heart" style="color:#E8CBD6">♡</span></div>
+        <div class="row"><div class="cov c3"></div><div class="meta"><b>光るなら</b><span>Goose house</span></div><span class="heart">♥</span></div>
+        <div class="row"><div class="cov c4"></div><div class="meta"><b>打上花火</b><span>DAOKO × 米津玄師</span></div><span class="heart" style="color:#E8CBD6">♡</span></div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:12px;color:var(--text)">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:15px">▶️</span></div>
+      <div class="tabs">
+        <div class="tab on"><span class="ic">🎵</span>播放</div>
+        <div class="tab"><span class="ic">🧭</span>发现</div>
+        <div class="tab"><span class="ic">📚</span>歌单</div>
+        <div class="tab"><span class="ic">🗄️</span>音乐库</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="label">② 播放页(奶油流光)</p>
+    <div class="phone np">
+      <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+      <div class="cover">🎧</div>
+      <div class="title cjk">夜に駆ける</div>
+      <div class="artist">YOASOBI</div>
+      <div class="pbar"><i></i><b></b></div>
+      <div class="ptime"><span>1:32</span><span>4:11</span></div>
+      <div class="ctrl"><span class="side">🔀</span><span>⏮️</span><span class="play">▶</span><span>⏭️</span><span class="side on">🔁</span></div>
+      <div class="lyr">
+        <p>沈むように溶けてゆくように</p>
+        <p class="on">二人だけの空が広がる夜に</p>
+        <p>「さよなら」だけだった</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="label">③ 发现页 + 萌系空状态</p>
+    <div class="phone disc">
+      <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+      <div class="content">
+        <div class="banner"><b class="cjk">🐾 今日的猫粮 · 每日 20 首</b><p>根据你的口味挑选,每天 0 点准时开饭</p></div>
+        <div class="chips"><span class="chip on">推荐</span><span class="chip">华语</span><span class="chip">日语</span><span class="chip">电子</span><span class="chip">助眠</span></div>
+        <div class="grid2">
+          <div class="gcard"><div class="cov c1"></div><b>深夜猫窝电台</b><p>32 首 · 轻电子</p></div>
+          <div class="gcard"><div class="cov c2"></div><b>晨间奶咖</b><p>18 首 · Chill</p></div>
+        </div>
+        <div class="empty">
+          <div class="cat">🐱</div>
+          <b class="cjk">歌单还空空的喵…</b>
+          <p>去找几首喜欢的歌塞满它吧,<br>猫窝暖好了就差音乐啦~</p>
+          <span class="go cjk">去挑歌 🐾</span>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab"><span class="ic">🎵</span>播放</div>
+        <div class="tab on"><span class="ic">🧭</span>发现</div>
+        <div class="tab"><span class="ic">📚</span>歌单</div>
+        <div class="tab"><span class="ic">🗄️</span>音乐库</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="components">
+  <h2>组件样例(B 方向令牌)</h2>
+  <div class="strip">
+    <span class="btn p cjk">▶ 立即开听</span>
+    <span class="btn s cjk">＋ 塞进歌单</span>
+    <span class="btn s" style="border-radius:20px">输入框 · 圆角 22 · 奶油描边</span>
+    <span class="chip on cjk">♥ 已收藏</span>
+    <span class="tag cjk">深色模式 = 暖紫黑「夜猫模式」而非纯黑 · 按压 spring 0.94→1.04 回弹</span>
+  </div>
+</div>
+</body>
+</html>

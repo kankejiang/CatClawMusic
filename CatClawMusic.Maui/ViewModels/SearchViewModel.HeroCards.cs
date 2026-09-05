@@ -24,14 +24,8 @@ public partial class SearchViewModel
     private void GenerateHeroCards()
     {
         var cards = new List<HeroCardItem>();
-        var gradients = new (Color Start, Color End)[]
-        {
-            (Color.FromArgb("#667eea"), Color.FromArgb("#764ba2")),
-            (Color.FromArgb("#f093fb"), Color.FromArgb("#f5576c")),
-            (Color.FromArgb("#4facfe"), Color.FromArgb("#00f2fe")),
-            (Color.FromArgb("#43e97b"), Color.FromArgb("#38f9d7")),
-            (Color.FromArgb("#fa709a"), Color.FromArgb("#fee140"))
-        };
+        // 品牌糖果渐变(单一来源:Helpers/MoePalette.HeroGradients)
+        var gradients = Helpers.MoePalette.HeroGradients;
 
         // AI 智能推荐卡（首位）
         if (IsAiRecommendationEnabled)

@@ -582,8 +582,60 @@ public partial class MusicDatabase
 
     // ═══════════ Artist / Album ═══════════
 
-    /// <summary>
-    /// 根据名称查找或创建艺术家，返回艺术家 ID
+    /// <summary>SQL 端随机采样歌曲(轻量:单条 SQL 内完成随机扫描,不拉全库、不填艺术家/专辑名)。
+    /// 供每日推荐等"抽样 20 首"场景,避免为了一次抽样触发整库加载。</summary>
+    public async Task<List<Song>> QuerySongsRandomAsync(int limit)
+    {
+        await EnsureMaintenanceCompletedAsync().ConfigureAwait(false);
+        return await _database.QueryAsync<Song>(
+            "SELECT * FROM Songs ORDER BY RANDOM() LIMIT ?", limit).ConfigureAwait(false);
+    }
+
+    /// <summary>按 ID 批量取艺术家名称(轻量名称回填;IN 分块,规避 SQLite 变量上限)</summary>
+    public async Task<Dictionary<int, string>> GetArtistNamesByIdsAsync(IEnumerable<int> ids)
+    {
+        await EnsureInitializedAsync().ConfigureAwait(false);
+        var map = new Dictionary<int, string>();
+        var idList = ids.Where(i => i > 0).Distinct().ToList();
+        for (int i = 0; i < idList.Count; i += 400)
+        {
+            var inList = string.Join(",", idList.Skip(i).Take(400));
+            var rows = await _database.QueryAsync<ArtistNameRow>(
+                $"SELECT Id, Name FROM Artists WHERE Id IN ({inList})").ConfigureAwait(false);
+            foreach (var row in rows) map[row.Id] = row.Name;
+        }
+        return map;
+    }
+
+    /// <summary>按 ID 批量取专辑标题(轻量名称回填)</summary>
+    public async Task<Dictionary<int, string>> GetAlbumTitlesByIdsAsync(IEnumerable<int> ids)
+    {
+        await EnsureInitializedAsync().ConfigureAwait(false);
+        var map = new Dictionary<int, string>();
+        var idList = ids.Where(i => i > 0).Distinct().ToList();
+        for (int i = 0; i < idList.Count; i += 400)
+        {
+            var inList = string.Join(",", idList.Skip(i).Take(400));
+            var rows = await _database.QueryAsync<AlbumTitleRow>(
+                $"SELECT Id, Title FROM Albums WHERE Id IN ({inList})").ConfigureAwait(false);
+            foreach (var row in rows) map[row.Id] = row.Title;
+        }
+        return map;
+    }
+
+    private sealed class ArtistNameRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    private sealed class AlbumTitleRow
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+    }
+
+    /// <summary>根据名称查找或创建艺术家，返回艺术家 ID
     /// </summary>
     /// <param name="name">艺术家名称</param>
 }

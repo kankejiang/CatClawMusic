@@ -136,7 +136,10 @@ public class LocalScanService
         }
 
         if (updated > 0)
+        {
             DurationBackfillCompleted?.Invoke(null, updated);
+            StartupTrace.Mark($"duration backfill: done (updated={updated})");
+        }
         return true;
     }
 
@@ -153,14 +156,17 @@ public class LocalScanService
     {
         if (delaySeconds <= 0)
         {
+            StartupTrace.Mark("duration backfill: start (no delay)");
             _ = BackfillMissingDurationsAsync();
             return;
         }
+        StartupTrace.Mark($"duration backfill: queued (+{delaySeconds}s)");
         _ = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                StartupTrace.Mark("duration backfill: start (after delay)");
                 await BackfillMissingDurationsAsync();
             }
             catch (Exception ex) { Log.Debug("LocalScanService", $"[DurationBackfill] 延迟启动失败: {ex.Message}"); }

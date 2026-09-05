@@ -43,7 +43,7 @@ public partial class LibraryViewModel : ObservableObject
     private string _currentTab = "Local";
 
     [ObservableProperty]
-    private string _localTabColor = "#9B7ED8";
+    private string _localTabColor = "#FF8FB8";
 
     [ObservableProperty]
     private string _networkTabColor = "#3D3D3D";
@@ -216,7 +216,7 @@ public partial class LibraryViewModel : ObservableObject
 
         if (tab == "Local")
         {
-            LocalTabColor = "#9B7ED8";
+            LocalTabColor = "#FF8FB8";
             NetworkTabColor = "#3D3D3D";
             IsNetworkTabVisible = false;
             _ = LoadLocalAsync();
@@ -224,7 +224,7 @@ public partial class LibraryViewModel : ObservableObject
         else
         {
             LocalTabColor = "#3D3D3D";
-            NetworkTabColor = "#9B7ED8";
+            NetworkTabColor = "#FF8FB8";
             IsNetworkTabVisible = ProtocolOptions.Count > 2;
             _ = LoadNetworkAsync();
         }

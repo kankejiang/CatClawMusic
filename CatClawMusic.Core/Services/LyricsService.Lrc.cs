@@ -169,7 +169,7 @@ public partial class LyricsService
                 : "";
 
             // 跳过纯音乐标记
-            if (text.Contains("纯音乐") || text.Contains("暂无歌词"))
+            if (text.Contains("纯音乐") || text.Contains("暂无歌词") || text.Contains(NoLyricsPlaceholderText))
             {
                 text = "";
             }
@@ -435,7 +435,7 @@ public partial class LyricsService
                 continue;
             }
 
-            if (line.Contains("纯音乐") || line.Contains("暂无歌词"))
+            if (line.Contains("纯音乐") || line.Contains("暂无歌词") || line.Contains(NoLyricsPlaceholderText))
                 continue;
 
             var timestamp = TimeSpan.FromSeconds(lineIndex * 5);

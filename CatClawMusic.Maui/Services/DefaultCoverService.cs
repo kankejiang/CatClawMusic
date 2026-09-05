@@ -21,14 +21,10 @@ public static class DefaultCoverService
 
     private static readonly string _cacheDir = Path.Combine(FileSystem.CacheDirectory, "defaultcovers");
 
-    /// <summary>各主题主色，与 ThemeService.ThemeMap 的 Primary 保持一致。</summary>
+    /// <summary>主题主色，与 ThemeService.ThemeMap 的 Primary 保持一致（唯一主题：樱粉）。</summary>
     private static readonly Dictionary<CoreAppTheme, string> ThemePrimary = new()
     {
-        [CoreAppTheme.Purple] = "#9B7ED8",
-        [CoreAppTheme.Pink] = "#EC407A",
-        [CoreAppTheme.Blue] = "#42A5F5",
-        [CoreAppTheme.Orange] = "#FF7043",
-        [CoreAppTheme.Teal] = "#26A69A",
+        [CoreAppTheme.Pink] = "#FF8FB8",
     };
 
     /// <summary>
@@ -37,7 +33,7 @@ public static class DefaultCoverService
     /// </summary>
     public static string GetDefaultCoverPath()
     {
-        var theme = CoreAppTheme.Purple;
+        var theme = CoreAppTheme.Pink;
         var isDark = true;
         try
         {
@@ -49,7 +45,7 @@ public static class DefaultCoverService
         }
         catch { /* 主题读取失败时使用默认值 */ }
 
-        if (!ThemePrimary.ContainsKey(theme)) theme = CoreAppTheme.Purple;
+        if (!ThemePrimary.ContainsKey(theme)) theme = CoreAppTheme.Pink;
 
         Directory.CreateDirectory(_cacheDir);
         var path = Path.Combine(_cacheDir, $"vinyl_{theme}_{(isDark ? "dark" : "light")}.png");

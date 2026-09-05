@@ -9,11 +9,18 @@
         <VerticalStackLayout VerticalOptions="Center"
                              HorizontalOptions="Center"
                              Spacing="24">
-            <!-- 可爱的中英文标题 -->
+            <!-- 猫爪 logo(与桌面图标/系统启动屏同源资产) -->
+            <Image Source="splash_logo.png"
+                   WidthRequest="112"
+                   HeightRequest="112"
+                   HorizontalOptions="Center" />
+
+            <!-- 可爱的中英文标题(标题用萌系圆体) -->
             <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
                 <Label Text="🐾 猫爪音乐"
                        FontSize="30"
                        FontAttributes="Bold"
+                       FontFamily="ZCOOLKuaiLe-Regular"
                        TextColor="{DynamicResource TextPrimaryColor}"
                        HorizontalOptions="Center" />
                 <Label Text="CatClaw Music"

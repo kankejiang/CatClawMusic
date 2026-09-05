@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>猫爪音乐 · 深色模式背景方案对比</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#17141a;color:#f0e6ec;font-family:"PingFang SC","Microsoft YaHei",sans-serif;padding:40px 24px 60px}
+h1{text-align:center;font-size:26px}
+.sub{text-align:center;color:#b9a5b1;margin:10px 0 32px;font-size:13px;line-height:1.9}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:1320px;margin:0 auto}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:20px;text-align:center}
+.card h2{font-size:15px;margin-bottom:2px}
+.card .rec{display:inline-block;font-size:10px;color:#0f0c10;background:#FF8FB8;border-radius:999px;padding:2px 10px;margin-top:6px;font-weight:700}
+.hex{font-size:11px;color:#9a8894;margin-top:6px;line-height:1.8}
+.phone{width:100%;max-width:300px;height:560px;margin:14px auto 0;border:8px solid #101014;border-radius:38px;overflow:hidden;display:flex;flex-direction:column;text-align:left;position:relative}
+.content{flex:1;padding:16px 16px 0;position:relative;z-index:2}
+.greet{font-size:17px;font-weight:700;color:#F8EFF5;margin-top:6px}
+.greet small{display:block;font-size:10.5px;color:#9F8B95;font-weight:400;margin-top:3px}
+.gcard{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:20px;padding:12px 14px;margin-top:14px}
+.gcard .cap{font-size:11px;color:#D9C6D0;margin-bottom:9px}
+.row{display:flex;align-items:center;gap:10px;margin-top:9px}
+.cov{width:40px;height:40px;border-radius:11px;flex:none}
+.c1{background:linear-gradient(135deg,#FFB6D1,#FF8FB8)} .c2{background:linear-gradient(135deg,#A5EDE0,#7ED8C3)}
+.meta{flex:1;min-width:0}
+.meta b{font-size:12px;display:block;color:#F8EFF5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta span{font-size:10px;color:#9F8B95}
+.like{color:#FF7AAE;font-size:13px}
+.mini{margin:12px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:8px 10px;display:flex;align-items:center;gap:9px;position:relative;z-index:2}
+.mini .cov{width:34px;height:34px}
+.mini .bar{height:3px;border-radius:2px;background:rgba(255,255,255,.16);margin-top:5px;position:relative}
+.mini .bar i{position:absolute;left:0;top:0;bottom:0;width:58%;border-radius:2px;background:linear-gradient(90deg,#FF8FB8,#7ED8C3)}
+.tabs{display:flex;margin:10px 14px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:5px;position:relative;z-index:2}
+.tab{flex:1;text-align:center;font-size:10px;color:#9F8B95;padding:6px 0}
+.tab.on{color:#fff;background:linear-gradient(135deg,#FF9EBE,#F56FA0);border-radius:12px;font-weight:700}
+footer{text-align:center;color:#8a7683;font-size:12px;margin-top:34px;line-height:2}
+</style>
+</head>
+<body>
+<h1>深色模式背景方案 · 6 选 1</h1>
+<p class="sub">同一套樱粉 UI 元素,只换背景渐变与光晕。看哪种底上"粉色主色"最舒服、最不违和。</p>
+
+<div class="grid">
+  <!-- 1 现状 -->
+  <div class="card">
+    <h2>1 · 现状:夜猫紫红</h2>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.35), transparent 50%), radial-gradient(circle at 80% 18%, rgba(126,216,195,.18), transparent 45%), linear-gradient(180deg,#1E1826,#241C30 55%,#2A2136)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#1E1826 → #241C30 → #2A2136<br>光晕:樱粉 35% + 薄荷 18%</div>
+  </div>
+
+  <!-- 2 暖炭灰 -->
+  <div class="card">
+    <h2>2 · 暖炭灰(中性)</h2>
+    <span class="rec">推荐 · 最百搭</span>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.16), transparent 50%), radial-gradient(circle at 80% 18%, rgba(255,255,255,.05), transparent 45%), linear-gradient(180deg,#1B1A1E,#201F24 55%,#26252B)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#1B1A1E → #201F24 → #26252B<br>光晕:樱粉 16%(弱)+ 白 5%</div>
+    <p style="font-size:11px;color:#9a8894;margin-top:8px;line-height:1.7">几乎无色相的中性深灰,粉色主色最跳、最"糖"。Spotify 同思路。</p>
+  </div>
+
+  <!-- 3 纯黑 -->
+  <div class="card">
+    <h2>3 · 纯黑 OLED</h2>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.14), transparent 50%), linear-gradient(180deg,#0B0B0D,#111114 55%,#161619)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard" style="background:rgba(255,255,255,.05)"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini" style="background:rgba(255,255,255,.05)"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs" style="background:rgba(255,255,255,.05)"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#0B0B0D → #111114 → #161619<br>光晕:樱粉 14%</div>
+    <p style="font-size:11px;color:#9a8894;margin-top:8px;line-height:1.7">OLED 省电、对比最强,粉色像霓虹灯。深色党最爱,但长时间看略硬。</p>
+  </div>
+
+  <!-- 4 咖啡可可 -->
+  <div class="card">
+    <h2>4 · 咖啡可可</h2>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.2), transparent 50%), radial-gradient(circle at 80% 18%, rgba(255,184,110,.1), transparent 45%), linear-gradient(180deg,#1D1713,#241D16 55%,#2B2318)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#1D1713 → #241D16 → #2B2318<br>光晕:樱粉 20% + 杏黄 10%</div>
+    <p style="font-size:11px;color:#9a8894;margin-top:8px;line-height:1.7">暖棕底配奶油系最"奶茶感",和樱粉同属暖调,温柔不突兀。</p>
+  </div>
+
+  <!-- 5 墨蓝夜 -->
+  <div class="card">
+    <h2>5 · 墨蓝夜</h2>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.18), transparent 50%), radial-gradient(circle at 80% 18%, rgba(126,216,195,.12), transparent 45%), linear-gradient(180deg,#11141D,#171C2A 55%,#1E2536)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#11141D → #171C2A → #1E2536<br>光晕:樱粉 18% + 薄荷 12%</div>
+    <p style="font-size:11px;color:#9a8894;margin-top:8px;line-height:1.7">深蓝与樱粉是互补撞色,层次感强;但蓝调重了会回到"冷色工具感"。</p>
+  </div>
+
+  <!-- 6 抹茶夜 -->
+  <div class="card">
+    <h2>6 · 抹茶夜</h2>
+    <div class="phone" style="background:radial-gradient(circle at 22% 88%, rgba(255,143,184,.16), transparent 50%), radial-gradient(circle at 80% 18%, rgba(126,216,195,.14), transparent 45%), linear-gradient(180deg,#151B17,#1A2420 55%,#202D27)">
+      <div class="content">
+        <div class="greet">晚上好,铲屎官 🌙<small>猫爪音乐 · 夜猫模式</small></div>
+        <div class="gcard"><div class="cap">最近在听</div>
+          <div class="row"><div class="cov c1"></div><div class="meta"><b>夜に駆ける</b><span>YOASOBI</span></div><span class="like">♥</span></div>
+          <div class="row"><div class="cov c2"></div><div class="meta"><b>花に亡霊</b><span>ヨルシカ</span></div><span class="like" style="opacity:.4">♥</span></div>
+        </div>
+      </div>
+      <div class="mini"><div class="cov c1"></div><div style="flex:1"><b style="font-size:11px;color:#F8EFF5">夜に駆ける</b><div class="bar"><i></i></div></div><span style="font-size:13px">▶️</span></div>
+      <div class="tabs"><div class="tab on">播放</div><div class="tab">发现</div><div class="tab">歌单</div><div class="tab">音乐库</div></div>
+    </div>
+    <div class="hex">#151B17 → #1A2420 → #202D27<br>光晕:樱粉 16% + 薄荷 14%</div>
+    <p style="font-size:11px;color:#9a8894;margin-top:8px;line-height:1.7">墨绿底与薄荷强调色同族,清新的"抹茶配草莓"感,辨识度高。</p>
+  </div>
+</div>
+
+<footer>选定后我会同步修改:背景渐变(VioletDusk)+ Windows 窗口底色 + 玻璃卡底色/描边色调,<br>让整个深色模式(含播放页流光、侧栏亚克力)一起跟着换。</footer>
+</body>
+</html>

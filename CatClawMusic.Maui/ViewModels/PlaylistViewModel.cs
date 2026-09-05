@@ -147,7 +147,7 @@ public partial class PlaylistViewModel : ObservableObject
 
             _isDirty = false;
             PlaylistCount = Playlists.Count;
-            StatusText = Playlists.Count == 0 ? "暂无播放列表" : "";
+            StatusText = Playlists.Count == 0 ? CatClawMusic.Maui.Helpers.MoeCopy.EmptyPlaylists : "";
         }
         catch (Exception ex)
         {
