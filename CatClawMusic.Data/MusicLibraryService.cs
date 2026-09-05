@@ -464,6 +464,16 @@ public class MusicLibraryService : IMusicLibraryService
     }
 
     /// <summary>
+    /// 委托：批量更新播放列表的自定义排序
+    /// </summary>
+    /// <param name="orderedPlaylistIds">按目标顺序排列的播放列表 ID 集合</param>
+    public async Task UpdatePlaylistsOrderAsync(List<int> orderedPlaylistIds)
+    {
+        await _db.UpdatePlaylistsOrderAsync(orderedPlaylistIds);
+        RaisePlaylistsChanged();
+    }
+
+    /// <summary>
     /// 委托：删除播放列表
     /// </summary>
     /// <param name="playlistId">播放列表 ID</param>

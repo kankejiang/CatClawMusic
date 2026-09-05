@@ -208,6 +208,28 @@ public partial class PlaylistViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 提交长按拖拽后的歌单顺序：先同步内存集合顺序（已由拖拽层就地重排，此处兜底），
+    /// 再批量落库 SortOrder。落库失败不影响当前会话内的顺序展示。
+    /// </summary>
+    /// <param name="orderedPlaylistIds">按目标顺序排列的歌单 ID 集合</param>
+    public async Task CommitPlaylistOrderAsync(List<int> orderedPlaylistIds)
+    {
+        if (orderedPlaylistIds == null || orderedPlaylistIds.Count == 0) return;
+
+        try
+        {
+            await _musicLibrary.UpdatePlaylistsOrderAsync(orderedPlaylistIds);
+            // UpdatePlaylistsOrderAsync 内部会 RaisePlaylistsChanged → MarkDirty，
+            // 这里落库成功后复位，避免下次 OnAppearing 多余的全量重载
+            _isDirty = false;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("PlaylistViewModel", $"[PlaylistVM] CommitPlaylistOrder failed: {ex}");
+        }
+    }
+
+    /// <summary>
     /// 重命名歌单
     /// </summary>
     public async Task RenamePlaylistAsync(int playlistId, string newName)

@@ -133,6 +133,7 @@ public partial class MusicDatabase
             await MigratePlaylistsTableAsync();
             await MigratePlaylistSongsTableAsync();
             await MigratePlaylistSongConstraintsAsync();
+            await MigratePlaylistsSortOrderAsync();
             await MigrateArtistsTableAsync();
             await RecoverArtistsTableAsync();
 

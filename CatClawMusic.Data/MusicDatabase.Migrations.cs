@@ -354,6 +354,58 @@ public partial class MusicDatabase
     }
 
     /// <summary>
+    /// Playlists 表 SortOrder 列补齐与历史数据归一化（幂等）：
+    /// SQLite-net CreateTableAsync 只建表不补列，老库需 ALTER TABLE 添加；
+    /// 历史行 SortOrder 全为 0，按 (Id) 升序（等价创建顺序）写入密集序列，
+    /// 之后新建歌单追加尾部、拖拽重排按行更新。
+    /// </summary>
+    private async Task MigratePlaylistsSortOrderAsync()
+    {
+        try
+        {
+            var cols = await _database.QueryAsync<TableColumn>("PRAGMA table_info(Playlists)");
+            if (cols.Count == 0) return;
+
+            var hasSortOrder = cols.Any(c => string.Equals(c.name, "SortOrder", StringComparison.OrdinalIgnoreCase));
+            if (!hasSortOrder)
+            {
+                try
+                {
+                    await _database.ExecuteAsync("ALTER TABLE Playlists ADD COLUMN SortOrder INTEGER");
+                    // ALTER TABLE 添加的列在已有行上为 NULL，先统一置 0 再归一化
+                    await _database.ExecuteAsync("UPDATE Playlists SET SortOrder = 0 WHERE SortOrder IS NULL");
+                }
+                catch { }
+            }
+            else
+            {
+                // 列已存在的老库同样可能有 NULL 行（上次迁移中途失败等）
+                try { await _database.ExecuteAsync("UPDATE Playlists SET SortOrder = 0 WHERE SortOrder IS NULL"); }
+                catch { }
+            }
+
+            // 归一化：仅当存在 SortOrder 全 0 的多行歌单时执行（幂等，新数据不会命中）
+            var zeroCount = await _database.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM Playlists WHERE SortOrder = 0");
+            if (zeroCount <= 1) return;
+
+            var ids = await _database.QueryAsync<IdNameRow>(
+                "SELECT Id, Name FROM Playlists WHERE SortOrder = 0 ORDER BY Id");
+            await _database.RunInTransactionAsync(tran =>
+            {
+                // 非零档位已经占用正数段，为避免撞档统一追加到现有最大档位之后
+                var maxOrder = tran.ExecuteScalar<int>("SELECT COALESCE(MAX(SortOrder), 0) FROM Playlists");
+                for (int i = 0; i < ids.Count; i++)
+                    tran.Execute("UPDATE Playlists SET SortOrder = ? WHERE Id = ?", maxOrder + 1 + i, ids[i].Id);
+            });
+        }
+        catch
+        {
+            // 失败不致命：下次启动重试；列表仍可按 Id 兜底排序
+        }
+    }
+
+    /// <summary>
     /// 迁移旧版 Playlist 表到新版 Playlists 表
     /// </summary>
     private async Task MigratePlaylistsTableAsync()

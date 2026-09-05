@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -152,14 +152,18 @@
                                        FontSize="12" TextColor="{DynamicResource TextHintColor}" />
                             </VerticalStackLayout>
 
-                            <!-- 更多按钮 -->
-                            <Label Grid.Column="2" Text="⋮" FontSize="18" VerticalOptions="Center"
-                                   TextColor="{DynamicResource TextHintColor}" Padding="6,0"
-                                   IsVisible="{Binding IsSystem, Converter={StaticResource InvertedBoolConverter}}">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnPlaylistMoreTapped" CommandParameter="{Binding}" />
-                                </Label.GestureRecognizers>
-                            </Label>
+                            <!-- 更多按钮（⋮）：弹出重命名/删除菜单。不可见时触摸穿透，点击行其余区域仍可导航 -->
+                            <Border Grid.Column="2" x:Name="MoreButtonHost" IsVisible="{Binding IsSystem, Converter={StaticResource InvertedBoolConverter}}"
+                                    BackgroundColor="Transparent" StrokeThickness="0"
+                                    MinimumWidthRequest="44" MinimumHeightRequest="44"
+                                    HorizontalOptions="End" VerticalOptions="Center">
+                                <Label Text="⋮" FontSize="18"
+                                       TextColor="{DynamicResource TextHintColor}"
+                                       HorizontalOptions="Center" VerticalOptions="Center" />
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnPlaylistMoreTapped" />
+                                </Border.GestureRecognizers>
+                            </Border>
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

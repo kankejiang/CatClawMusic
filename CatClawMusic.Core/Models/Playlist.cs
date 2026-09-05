@@ -40,6 +40,11 @@ public class Playlist
     public bool IsSystem { get; set; }
 
     /// <summary>
+    /// 排序序号（用户长按拖拽自定义顺序，小在前；历史数据由迁移归一化补齐）
+    /// </summary>
+    public int SortOrder { get; set; }
+
+    /// <summary>
     /// 封面歌曲ID（不持久化，运行时赋值）
     /// </summary>
     [Ignore]

@@ -36,12 +36,13 @@ public partial class MusicDatabase
     // ═══════════ Playlist CRUD ═══════════
 
     /// <summary>
-    /// 获取所有播放列表
+    /// 获取所有播放列表（按 SortOrder 升序，历史数据由迁移归一化保证密集序列）
     /// </summary>
     /// <returns>播放列表列表</returns>
-    public Task<List<Playlist>> GetAllPlaylistsAsync()
+    public async Task<List<Playlist>> GetAllPlaylistsAsync()
     {
-        return _database.Table<Playlist>().ToListAsync();
+        var playlists = await _database.Table<Playlist>().ToListAsync();
+        return playlists.OrderBy(p => p.SortOrder).ThenBy(p => p.Id).ToList();
     }
 
     /// <summary>
@@ -55,7 +56,8 @@ public partial class MusicDatabase
     }
 
     /// <summary>
-    /// 创建新的播放列表
+    /// 创建新的播放列表（SortOrder 追加到末尾），返回新歌单的真实自增 Id。
+    /// 注意：sqlite-net InsertAsync 的返回值是受影响行数而非 Id，必须读回 playlist.Id。
     /// </summary>
     /// <param name="name">播放列表名称</param>
     /// <returns>新播放列表的 ID</returns>
@@ -63,8 +65,11 @@ public partial class MusicDatabase
     {
         await EnsureMaintenanceCompletedAsync();
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var playlist = new Playlist { Name = name, CreatedAt = now, UpdatedAt = now };
-        return await _database.InsertAsync(playlist);
+        var maxOrder = await _database.ExecuteScalarAsync<int>(
+            "SELECT COALESCE(MAX(SortOrder), 0) FROM Playlists");
+        var playlist = new Playlist { Name = name, CreatedAt = now, UpdatedAt = now, SortOrder = maxOrder + 1 };
+        await _database.InsertAsync(playlist);
+        return playlist.Id;
     }
 
     /// <summary>
@@ -76,6 +81,23 @@ public partial class MusicDatabase
         await EnsureMaintenanceCompletedAsync();
         playlist.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await _database.UpdateAsync(playlist);
+    }
+
+    /// <summary>
+    /// 批量更新播放列表的自定义排序（长按拖拽重排落库，单事务批量写入）。
+    /// 传入的 ID 集合应包含全部歌单（含系统歌单），按目标顺序排列，逐行覆写 SortOrder。
+    /// </summary>
+    /// <param name="orderedPlaylistIds">按目标顺序排列的播放列表 ID 集合</param>
+    public async Task UpdatePlaylistsOrderAsync(List<int> orderedPlaylistIds)
+    {
+        await EnsureMaintenanceCompletedAsync();
+        if (orderedPlaylistIds == null || orderedPlaylistIds.Count == 0) return;
+
+        await _database.RunInTransactionAsync(tran =>
+        {
+            for (int i = 0; i < orderedPlaylistIds.Count; i++)
+                tran.Execute("UPDATE Playlists SET SortOrder = ? WHERE Id = ?", i + 1, orderedPlaylistIds[i]);
+        });
     }
 
     /// <summary>

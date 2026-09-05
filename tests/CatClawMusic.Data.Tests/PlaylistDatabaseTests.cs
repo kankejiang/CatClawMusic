@@ -106,6 +106,56 @@ public class PlaylistDatabaseTests
     }
 
     [Fact]
+    public async Task GetAllPlaylists_OrdersBySortOrder_NewAppendsToEnd()
+    {
+        var db = await TestDatabaseFactory.CreateInitializedAsync();
+
+        var firstId = await db.CreatePlaylistAsync("第一个");
+        var secondId = await db.CreatePlaylistAsync("第二个");
+        var thirdId = await db.CreatePlaylistAsync("第三个");
+
+        var playlists = await db.GetAllPlaylistsAsync();
+
+        Assert.Equal(3, playlists.Count);
+        Assert.Equal(new[] { firstId, secondId, thirdId }, playlists.Select(p => p.Id));
+    }
+
+    [Fact]
+    public async Task UpdatePlaylistsOrder_PersistsCustomOrder()
+    {
+        var db = await TestDatabaseFactory.CreateInitializedAsync();
+        var a = await db.CreatePlaylistAsync("A");
+        var b = await db.CreatePlaylistAsync("B");
+        var c = await db.CreatePlaylistAsync("C");
+
+        // 拖拽后顺序：C, A, B
+        await db.UpdatePlaylistsOrderAsync(new List<int> { c, a, b });
+
+        var playlists = await db.GetAllPlaylistsAsync();
+        Assert.Equal(new[] { c, a, b }, playlists.Select(p => p.Id));
+        Assert.Equal(new[] { 1, 2, 3 }, playlists.Select(p => p.SortOrder));
+    }
+
+    [Fact]
+    public async Task LegacyPlaylists_AllZeroSortOrder_NormalizedById()
+    {
+        // 构造旧版本遗留数据：Playlists 表无 SortOrder 列、多行历史歌单
+        var dbPath = TestDatabaseFactory.CreateDbPath();
+        TestDatabaseFactory.ExecuteRaw(dbPath,
+            "CREATE TABLE Playlists (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT, CreatedAt INTEGER, UpdatedAt INTEGER, SongCount INTEGER, IsSystem INTEGER)");
+        TestDatabaseFactory.ExecuteRaw(dbPath,
+            "INSERT INTO Playlists (Name, CreatedAt, UpdatedAt, SongCount, IsSystem) VALUES ('旧一', 1, 1, 0, 0), ('旧二', 2, 2, 0, 0), ('旧三', 3, 3, 0, 0)");
+
+        var db = new MusicDatabase(dbPath);
+        await db.EnsureInitializedAsync();
+
+        var playlists = await db.GetAllPlaylistsAsync();
+        Assert.Equal(3, playlists.Count);
+        // 归一化按 (Id) 升序写入密集序列，等价创建顺序
+        Assert.Equal(new[] { 1, 2, 3 }, playlists.Select(p => p.SortOrder));
+    }
+
+    [Fact]
     public async Task FreshInit_CreatesPlaylistCompositeIndexes()
     {
         var dbPath = TestDatabaseFactory.CreateDbPath();

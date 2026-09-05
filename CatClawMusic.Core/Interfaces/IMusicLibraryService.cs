@@ -107,6 +107,8 @@ public interface IMusicLibraryService
     Task<int> CreatePlaylistAsync(string name);
     /// <summary>更新播放列表信息</summary>
     Task UpdatePlaylistAsync(Playlist playlist);
+    /// <summary>批量更新播放列表的自定义排序（按目标顺序传入全部歌单 ID）</summary>
+    Task UpdatePlaylistsOrderAsync(List<int> orderedPlaylistIds);
     /// <summary>删除播放列表</summary>
     Task DeletePlaylistAsync(int playlistId);
     /// <summary>向播放列表添加歌曲</summary>
