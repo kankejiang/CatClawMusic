@@ -95,7 +95,7 @@
                            CharacterSpacing="2" Margin="0,4,0,0" />
 
                     <!-- 排序选项（两列网格排列） -->
-                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start"
+                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start" AlignContent="Start"
                                 BindableLayout.ItemsSource="{Binding SortOptions}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="vm:SortOption">

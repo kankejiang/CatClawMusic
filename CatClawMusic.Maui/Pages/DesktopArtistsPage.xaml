@@ -70,7 +70,7 @@
                            CharacterSpacing="2" Margin="0,4,0,0" />
 
                     <!-- 筛选 chips（两列网格排列） -->
-                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start"
+                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start" AlignContent="Start"
                                 BindableLayout.ItemsSource="{Binding SourceFilters}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="vm:FilterChip">
@@ -99,7 +99,7 @@
                            CharacterSpacing="2" />
 
                     <!-- 排序 chips（两列网格排列） -->
-                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start"
+                    <FlexLayout Direction="Row" Wrap="Wrap" JustifyContent="Start" AlignItems="Start" AlignContent="Start"
                                 BindableLayout.ItemsSource="{Binding SortOptions}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="vm:ArtistsViewModel+SortOption">
