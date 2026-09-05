@@ -36,6 +36,12 @@ public class BlurEngine
     long _lastCaptureTime;
     const long CaptureIntervalMs = 33;
 
+    // 滑动期暂停标志：Tab 切页（ViewPager2 拖拽/归位）期间跳过捕获。
+    // 捕获 = 在主线程重新记录整个 pager 子树 display list（数百个视图逐个 JNI）+
+    // 90dp 模糊 RenderEffect + 使消费者失效重绘，是滑动掉帧的主因。
+    // 暂停期间消费者继续用最后一次捕获的模糊纹理（90dp 模糊下视觉无差别）。
+    volatile bool _capturePaused;
+
     public BlurEngine(NativeBlurHostView host) => _host = host;
 
     /// <summary>
@@ -51,6 +57,19 @@ public class BlurEngine
     }
 
     /// <summary>Updates the blur radius (in dp) and invalidates the cached RenderNode.</summary>
+    /// <summary>滑动期间暂停/恢复模糊捕获。恢复时立即捕获一帧新内容并刷新消费者，
+    /// 避免毛玻璃停留在滑动中间帧。</summary>
+    public void SetCapturePaused(bool paused)
+    {
+        if (_capturePaused == paused) return;
+        _capturePaused = paused;
+        if (!paused)
+        {
+            _lastCaptureTime = 0;   // 解除节流：下一次 CaptureLive 立即执行
+            InvalidateConsumers();  // 触发消费者重绘 → DrawBlurOnto → CaptureLive 取新帧
+        }
+    }
+
     public void SetBlurRadius(float dp)
     {
         _blurRadiusDp = dp;
@@ -94,6 +113,7 @@ public class BlurEngine
     /// </summary>
     void CaptureLive(float density)
     {
+        if (_capturePaused) return;   // 滑动期间跳过：沿用最后一次模糊纹理
         long now = SystemClock.UptimeMillis();
         if (now - _lastCaptureTime < CaptureIntervalMs) return;
         if (_host.ChildCount == 0) return;

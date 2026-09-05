@@ -240,7 +240,8 @@ public partial class MainPage : ContentPage
         UpdateMiniPlayerVisibility();
     }
 
-    /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画，空闲恢复。</summary>
+    /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画与
+    /// BlurHostView 模糊捕获，空闲恢复。</summary>
     private void OnNativeScrollStateChanged(NativeTabPager.ScrollState state)
     {
         switch (state)
@@ -248,13 +249,26 @@ public partial class MainPage : ContentPage
             case NativeTabPager.ScrollState.Dragging:
             case NativeTabPager.ScrollState.Settling:
                 _swipeInteractionToken ??= _interactionState?.BeginInteraction("TabSwipe");
+                SetBlurCapturePaused(true);
                 break;
             case NativeTabPager.ScrollState.Idle:
                 _swipeInteractionToken?.Dispose();
                 _swipeInteractionToken = null;
+                SetBlurCapturePaused(false);
                 break;
         }
     }
+
+#if ANDROID
+    /// <summary>滑动期间暂停 TabBar/MiniPlayer 毛玻璃的实时捕获。
+    /// 捕获 = 主线程重新记录整个 pager 子树 display list + 90dp 模糊 + 消费者重绘，
+    /// 与 ViewPager2 每帧位移叠加是滑动掉帧主因；暂停后毛玻璃沿用最后一帧（视觉无差别）。</summary>
+    private void SetBlurCapturePaused(bool paused)
+    {
+        if (BlurHost?.Handler is Vitrum.Android.Handlers.BlurHostViewHandler handler)
+            handler.Engine.SetCapturePaused(paused);
+    }
+#endif
 #endif
 
     /// <summary>跨平台切换分页：Android 走原生 ViewPager2，Windows 走手动动画。</summary>
