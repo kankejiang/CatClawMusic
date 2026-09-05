@@ -27,9 +27,6 @@ internal static class PopupAnimations
     /// <summary>系统减速插值器张力：越大前段越快、收尾越柔；1.3f ≈ Material decelerate 手感</summary>
     private const float DecelerateTension = 1.3f;
 
-    /// <summary>居中卡片弹入的过冲张力：&gt;0 产生轻微越过目标再回弹的系统弹性</summary>
-    private const float OvershootTension = 0.9f;
-
     /// <summary>底部抽屉/卡片从 fromDp（dp 位移）滑入到位（系统减速曲线，无回弹）。</summary>
     public static Task SlideUpAsync(Microsoft.Maui.Controls.VisualElement v, double fromDp, uint durationMs = 280)
     {
@@ -67,7 +64,7 @@ internal static class PopupAnimations
         return v.TranslateTo(0, toDp, durationMs, Easing.CubicIn);
     }
 
-    /// <summary>居中卡片弹入：缩放 0.92→1 + 淡入，OvershootInterpolator 带一丝系统弹性过冲。</summary>
+    /// <summary>居中卡片弹入：缩放 0.92→1 + 淡入，系统减速曲线（无过冲）。</summary>
     public static Task PopInAsync(Microsoft.Maui.Controls.VisualElement v, uint durationMs = 240)
     {
 #if ANDROID
@@ -78,7 +75,7 @@ internal static class PopupAnimations
             native.Alpha = 0f;
             var tcs = new TaskCompletionSource();
             native.Animate().ScaleX(1f).ScaleY(1f).Alpha(1f).SetDuration(durationMs)
-                .SetInterpolator(new global::Android.Views.Animations.OvershootInterpolator(OvershootTension))
+                .SetInterpolator(new global::Android.Views.Animations.DecelerateInterpolator(DecelerateTension))
                 .WithEndAction(new EndActionRunnable(() => tcs.TrySetResult()))
                 .Start();
             return tcs.Task;
@@ -87,6 +84,53 @@ internal static class PopupAnimations
         return Task.WhenAll(
             v.ScaleTo(1, durationMs, Easing.CubicOut),
             v.FadeTo(1, durationMs, Easing.CubicOut));
+    }
+
+    /// <summary>从锚点缩放揭示（官方 zoom 模式）：PivotX/PivotY 设到点击位置，
+    /// scale fromScale→1 + 淡入——视觉上"从手指按下的地方长大"。
+    /// pivotXpx/pivotYpx 为视图内物理像素坐标。</summary>
+    public static Task RevealFromPointAsync(Microsoft.Maui.Controls.VisualElement v,
+        float pivotXpx, float pivotYpx, float fromScale = 0.55f, uint durationMs = 230)
+    {
+#if ANDROID
+        if (v.Handler?.PlatformView is global::Android.Views.View native)
+        {
+            native.PivotX = pivotXpx;
+            native.PivotY = pivotYpx;
+            native.ScaleX = fromScale;
+            native.ScaleY = fromScale;
+            native.Alpha = 0f;
+            var tcs = new TaskCompletionSource();
+            native.Animate().ScaleX(1f).ScaleY(1f).Alpha(1f).SetDuration(durationMs)
+                .SetInterpolator(new global::Android.Views.Animations.DecelerateInterpolator(DecelerateTension))
+                .WithEndAction(new EndActionRunnable(() => tcs.TrySetResult()))
+                .Start();
+            return tcs.Task;
+        }
+#endif
+        v.Scale = fromScale;
+        return Task.WhenAll(
+            v.ScaleTo(1, durationMs, Easing.CubicOut),
+            v.FadeTo(1, durationMs, Easing.CubicOut));
+    }
+
+    /// <summary>淡出并轻微缩小（RevealFromPoint 的对称退场，pivot 保持不变）。</summary>
+    public static Task FadeScaleOutAsync(Microsoft.Maui.Controls.VisualElement v, float toScale = 0.9f, uint durationMs = 150)
+    {
+#if ANDROID
+        if (v.Handler?.PlatformView is global::Android.Views.View native)
+        {
+            var tcs = new TaskCompletionSource();
+            native.Animate().Alpha(0f).ScaleX(toScale).ScaleY(toScale).SetDuration(durationMs)
+                .SetInterpolator(new global::Android.Views.Animations.DecelerateInterpolator(1f))
+                .WithEndAction(new EndActionRunnable(() => tcs.TrySetResult()))
+                .Start();
+            return tcs.Task;
+        }
+#endif
+        return Task.WhenAll(
+            v.FadeTo(0, durationMs, Easing.CubicIn),
+            v.ScaleTo(toScale, durationMs, Easing.CubicIn));
     }
 
     /// <summary>居中卡片弹出：缩放 0.94 + 淡出。</summary>

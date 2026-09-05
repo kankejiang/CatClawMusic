@@ -25,6 +25,9 @@ public class ContextMenuPopup : ContentView
     private double _maxHeight = 600;
     private double _pendingX;
     private double _pendingY;
+    // 长按锚点（宿主 dp 坐标）：抽屉揭示动画的缩放原点（"从手指按下的地方长大"）
+    private double _anchorX;
+    private double _anchorY;
     private const double CardWidth = 248;
     private const double EdgeMargin = 8;
 
@@ -72,11 +75,12 @@ public class ContextMenuPopup : ContentView
 
         if (IsDrawer)
         {
-            // 底部抽屉：贴底、近全宽、顶部圆角；初始置于屏外（滑入动画起点）
+            // 抽屉：贴底、近全宽、顶部圆角；先置于屏外且透明，揭示动画时归位
             _card.HorizontalOptions = LayoutOptions.Fill;
             _card.VerticalOptions = LayoutOptions.End;
             _card.Margin = new Thickness(8, 0, 8, 8);
             _card.TranslationY = 1200;
+            _card.Opacity = 0;
             _mask = new BoxView { Color = Color.FromArgb("#66000000") };
             // 真毛玻璃背板（横屏侧栏同方案）：挂到 BlurHost 兄弟层后由 handler 自动发现引擎；
             // 深色冷调 tint 提供聚焦暗化，遮罩退化为一层轻纱+点击关闭面
@@ -209,14 +213,16 @@ public class ContextMenuPopup : ContentView
 
         if (maxWidth > 0) _maxWidth = maxWidth;
         if (maxHeight > 0) _maxHeight = maxHeight;
+        _anchorX = x;
+        _anchorY = y;
 
         if (IsDrawer)
         {
             // 抽屉最大高度=屏高一半；内容自然高度低于该值时按内容显示，超出时 ScrollView 内部滚动
             _card.MaximumHeightRequest = Math.Max(160, _maxHeight * 0.5);
             _card.TranslationX = 0;
-            _card.TranslationY = _maxHeight; // 屏外起点，等首次布局后按实际高度滑入
-            _card.Opacity = 1;
+            _card.TranslationY = 0;          // 揭示动画在原位从锚点长大（不再滑入）
+            _card.Opacity = 0;               // 防首帧闪现：揭示动画自带 alpha 0→1
             _card.Scale = 1;
             _mask.Opacity = 0;
             this.Opacity = 1;
@@ -281,11 +287,23 @@ public class ContextMenuPopup : ContentView
 
         try
         {
-            _card.TranslationY = _card.Height + 16;
-            // 系统动画：ViewPropertyAnimator + DecelerateInterpolator（RenderThread 驱动）
-            await Task.WhenAll(
-                PopupAnimations.SlideUpAsync(_card, _card.Height + 16, 260),
-                _mask.FadeTo(1, 200));
+            _card.TranslationY = 0;
+#if ANDROID
+            // 官方 zoom 模式：Pivot 设到长按锚点，卡片"从手指按下的地方长大"（scale 0.55→1 + 淡入）
+            if (_card.Handler?.PlatformView is global::Android.Views.View native)
+            {
+                var d = native.Resources!.DisplayMetrics!.Density;
+                // 卡片在宿主内：左缘 margin 8dp，底缘 margin 8dp
+                var localX = Math.Clamp(_anchorX - 8, 0, _card.Width);
+                var localY = Math.Clamp(_anchorY - (_maxHeight - 8 - _card.Height), 0, _card.Height);
+                _card.Opacity = 1;   // ShowAt 时置 0 防首帧闪现，揭示动画自带 alpha 0→1
+                var maskFade = _mask.FadeTo(1, 200);
+                await PopupAnimations.RevealFromPointAsync(_card, (float)(localX * d), (float)(localY * d));
+                return;
+            }
+#endif
+            await PopupAnimations.SlideUpAsync(_card, _card.Height + 16, 260);
+            await _mask.FadeTo(1, 200);
         }
         catch { }
     }
@@ -350,10 +368,10 @@ public class ContextMenuPopup : ContentView
         {
             try
             {
-                // 系统动画：滑出屏幕下方 + 遮罩淡出
+                // 系统动画：淡出 + 向锚点缩回（与揭示动画对称；拖拽关闭时卡片已位移，原地淡出）
                 await Task.WhenAll(
-                    PopupAnimations.SlideDownAwayAsync(_card, _card.Height + 16, 220),
-                    _mask.FadeTo(0, 180));
+                    PopupAnimations.FadeScaleOutAsync(_card, 0.9f, 150),
+                    _mask.FadeTo(0, 150));
             }
             catch { }
         }
