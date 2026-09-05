@@ -122,23 +122,34 @@ public static class CoverHelper
     /// 迁移完删除旧目录。静默容错；迁移期间个别文件被并发读取最多触发一次重复提取，无副作用。</summary>
     private static void MigrateLegacyCoverCacheDir()
     {
+        var moved = 0;
         try
         {
             var legacy = System.IO.Path.Combine(FileSystem.CacheDirectory, "covers");
-            if (!Directory.Exists(legacy)) return;
+            if (!Directory.Exists(legacy))
+            {
+                StartupTrace.Mark("cover cache migration: no legacy dir");
+                return;
+            }
             foreach (var file in Directory.GetFiles(legacy))
             {
                 try
                 {
                     var dest = System.IO.Path.Combine(_coverCacheDir, System.IO.Path.GetFileName(file));
                     if (!File.Exists(dest))
+                    {
                         File.Move(file, dest);
+                        moved++;
+                    }
+                    else
+                        moved++;
                 }
                 catch { }
             }
             try { Directory.Delete(legacy, recursive: true); } catch { }
         }
         catch { }
+        StartupTrace.Mark($"cover cache migration: {moved} files -> AppDataDirectory/covers");
     }
 
     /// <summary>获取封面缓存目录路径</summary>

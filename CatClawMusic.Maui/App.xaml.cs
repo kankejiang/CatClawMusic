@@ -511,19 +511,24 @@ public partial class App : Application
         if (elapsed < MinSplashDuration)
             await Task.Delay(MinSplashDuration - elapsed);
 
+        // ⚠ 必须无条件换入主界面：Activity 被系统重建（同进程二次 MAIN intent / MIUI 清理重启 /
+        // 深浅色或配置变更等）时会再次走 CreateWindow，新 shell 里装的是新的启动页。
+        // 旧实现用 _coreServicesReady 单次守卫，重建后守卫为 true 直接跳过换入，
+        // 应用会永远卡在启动页（真机复现：清缓存后启动页无限停留）。
+        // MainPage 为 Singleton（横竖屏复用），重新挂入新 Shell 即可。
         if (!_coreServicesReady)
+            StartupLog("EnterMainWhenReadyAsync: ready, entering main UI (first)");
+        else
+            StartupLog("EnterMainWhenReadyAsync: re-entering after activity recreation");
+        _coreServicesReady = true;
+        // 原生旋转方案：Android 唯一根页面 MainPage（横竖屏 chrome 自适应），与启动时方向无关
+        shell.Items.Clear();
+        shell.Items.Add(new ShellContent
         {
-            _coreServicesReady = true;
-            StartupLog("EnterMainWhenReadyAsync: ready, entering main UI");
-            // 原生旋转方案：Android 唯一根页面 MainPage（横竖屏 chrome 自适应），与启动时方向无关
-            shell.Items.Clear();
-            shell.Items.Add(new ShellContent
-            {
-                Content = MauiProgram.Services.GetRequiredService<Pages.MainPage>(),
-                Route = "main",
-            });
-            StartupTrace.Mark("gate: MainPage swapped in");
-        }
+            Content = MauiProgram.Services.GetRequiredService<Pages.MainPage>(),
+            Route = "main",
+        });
+        StartupTrace.Mark("gate: MainPage swapped in");
     }
 
     /// <summary>
