@@ -148,12 +148,9 @@ public partial class AppPopup : ContentView
 
         MainThread.BeginInvokeOnMainThread(async () =>
         {
-            await Task.WhenAll(
-                MaskLayer.FadeTo(1, 220, Easing.CubicOut),
-                PopupCard.FadeTo(1, 220, Easing.CubicOut),
-                PopupCard.TranslateTo(0, 0, 280, Easing.CubicOut),
-                PopupCard.ScaleTo(1, 220, Easing.CubicOut)
-            );
+            await MaskLayer.FadeTo(1, 220, Easing.CubicOut);
+            // 系统动画：ViewPropertyAnimator + OvershootInterpolator（RenderThread 驱动，不占 UI 线程）
+            await PopupAnimations.PopInAsync(PopupCard);
         });
     }
 
@@ -190,9 +187,7 @@ public partial class AppPopup : ContentView
         {
             await Task.WhenAll(
                 MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                PopupCard.TranslateTo(0, 20, 180, Easing.CubicIn),
-                PopupCard.FadeTo(0, 180, Easing.CubicIn),
-                PopupCard.ScaleTo(0.9, 180, Easing.CubicIn)
+                PopupAnimations.PopOutAsync(PopupCard)
             );
 
             this.Opacity = 0;

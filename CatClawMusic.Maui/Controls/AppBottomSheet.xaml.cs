@@ -136,21 +136,17 @@ public partial class AppBottomSheet : ContentView
         {
             if (overlay)
             {
-                await Task.WhenAll(
-                    MaskLayer.FadeTo(1, 220, Easing.CubicOut),
-                    SheetCard.FadeTo(1, 200, Easing.CubicOut),
-                    SheetCard.ScaleTo(1, 260, Easing.CubicOut)
-                );
+                await MaskLayer.FadeTo(1, 220, Easing.CubicOut);
+                // 系统动画：OvershootInterpolator 弹入（RenderThread 驱动，不占 UI 线程）
+                await PopupAnimations.PopInAsync(SheetCard);
             }
             else
             {
-                // 嵌入式宿主中 TranslationY 的 handler 映射失效（MAUI 层归零但原生视图停留在初始位移，
-                // 卡片只露出底部一截），必须直写原生视图 translationY
-                await Task.WhenAll(
-                    MaskLayer.FadeTo(1, 220, Easing.CubicOut),
-                    SheetCard.FadeTo(1, 180, Easing.CubicOut),
-                    AnimateCardTranslationYAsync(600, 0, 300)
-                );
+                await MaskLayer.FadeTo(1, 220, Easing.CubicOut);
+                await SheetCard.FadeTo(1, 180, Easing.CubicOut);
+                // 系统动画：ViewPropertyAnimator + DecelerateInterpolator 直驱原生视图位移
+                // （同时绕开嵌入式宿主中 MAUI TranslationY 映射失效问题）
+                await PopupAnimations.SlideUpAsync(SheetCard, 600, 300);
                 SetCardTranslationY(0);
             }
         });
@@ -170,20 +166,6 @@ public partial class AppBottomSheet : ContentView
 #endif
     }
 
-    /// <summary>逐帧手动插值卡片 TranslationY（三次缓出），直写原生视图，不依赖 ViewExtensions 动画 ticker。</summary>
-    private async Task AnimateCardTranslationYAsync(double from, double to, uint durationMs)
-    {
-        const int frameMs = 16;
-        for (var t = 0; t < durationMs; t += frameMs)
-        {
-            await Task.Delay(frameMs);
-            var p = Math.Min(1.0, (t + frameMs) / (double)durationMs);
-            var eased = 1 - Math.Pow(1 - p, 3);
-            SetCardTranslationY(from + (to - from) * eased);
-        }
-        SetCardTranslationY(to);
-    }
-
     public async Task CloseAsync()
     {
         if (!_isOpen) return;
@@ -197,15 +179,14 @@ public partial class AppBottomSheet : ContentView
             {
                 anim = Task.WhenAll(
                     MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                    SheetCard.ScaleTo(0.96, 200, Easing.CubicIn),
-                    SheetCard.FadeTo(0, 180, Easing.CubicIn)
+                    PopupAnimations.PopOutAsync(SheetCard, 200)
                 );
             }
             else
             {
                 anim = Task.WhenAll(
                     MaskLayer.FadeTo(0, 180, Easing.CubicIn),
-                    AnimateCardTranslationYAsync(SheetCard.TranslationY, 600, 200),
+                    PopupAnimations.SlideDownAwayAsync(SheetCard, 600, 200),
                     SheetCard.FadeTo(0, 180, Easing.CubicIn)
                 );
             }
@@ -252,7 +233,7 @@ public partial class AppBottomSheet : ContentView
                 if (SheetCard.TranslationY > ResolveScreenHeight() * 0.25)
                     _ = CloseAsync();
                 else
-                    _ = AnimateCardTranslationYAsync(SheetCard.TranslationY, 0, 180);
+                    _ = PopupAnimations.SlideUpAsync(SheetCard, Math.Max(0, SheetCard.TranslationY), 180);
                 break;
             }
         }

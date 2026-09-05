@@ -181,8 +181,9 @@ public class ContextMenuPopup : ContentView
                 {
                     try
                     {
+                        // 系统动画：ViewPropertyAnimator + DecelerateInterpolator 回弹到位
                         await Task.WhenAll(
-                            _card.TranslateTo(0, 0, 220, Easing.CubicOut),
+                            PopupAnimations.SlideUpAsync(_card, Math.Max(0, _card.TranslationY), 220),
                             _mask.FadeTo(1, 200));
                     }
                     catch { }
@@ -281,8 +282,9 @@ public class ContextMenuPopup : ContentView
         try
         {
             _card.TranslationY = _card.Height + 16;
+            // 系统动画：ViewPropertyAnimator + DecelerateInterpolator（RenderThread 驱动）
             await Task.WhenAll(
-                _card.TranslateTo(0, 0, 260, Easing.CubicOut),
+                PopupAnimations.SlideUpAsync(_card, _card.Height + 16, 260),
                 _mask.FadeTo(1, 200));
         }
         catch { }
@@ -348,8 +350,9 @@ public class ContextMenuPopup : ContentView
         {
             try
             {
+                // 系统动画：滑出屏幕下方 + 遮罩淡出
                 await Task.WhenAll(
-                    _card.TranslateTo(0, _card.Height + 16, 220, Easing.CubicIn),
+                    PopupAnimations.SlideDownAwayAsync(_card, _card.Height + 16, 220),
                     _mask.FadeTo(0, 180));
             }
             catch { }
