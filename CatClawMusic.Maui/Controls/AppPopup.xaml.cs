@@ -16,15 +16,9 @@ public partial class AppPopup : ContentView
     public static readonly BindableProperty CloseOnMaskTappedProperty =
         BindableProperty.Create(nameof(CloseOnMaskTapped), typeof(bool), typeof(AppPopup), true);
 
-    /// <summary>是否在打开时对弹窗背后的兄弟视图施加实时模糊（默认 true）。
-    /// ⚡ 播放页等带有动画背景的宿主可设为 false：背景每帧变化都会触发全屏模糊重算，是弹窗滚动卡顿的主要来源。</summary>
-    public static readonly BindableProperty BlurSiblingsProperty =
-        BindableProperty.Create(nameof(BlurSiblings), typeof(bool), typeof(AppPopup), true);
-
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public bool ShowCloseButton { get => (bool)GetValue(ShowCloseButtonProperty); set => SetValue(ShowCloseButtonProperty, value); }
     public bool CloseOnMaskTapped { get => (bool)GetValue(CloseOnMaskTappedProperty); set => SetValue(CloseOnMaskTappedProperty, value); }
-    public bool BlurSiblings { get => (bool)GetValue(BlurSiblingsProperty); set => SetValue(BlurSiblingsProperty, value); }
 
     public event EventHandler? Closed;
 
@@ -143,6 +137,10 @@ public partial class AppPopup : ContentView
         this.IsVisible = true;
         this.Opacity = 1;
 
+        // 模糊已移除：卡片底色从 6% 白玻璃提升为 94% SurfaceColor，避免下层内容透过卡片干扰可读性
+        if (Application.Current?.Resources.TryGetValue("SurfaceColor", out var surf) == true && surf is Color surface)
+            PopupCard.BackgroundColor = surface.WithAlpha(0.94f);
+
         MaskLayer.Opacity = 0;
         PopupCard.Opacity = 0;
         PopupCard.Scale = 0.9;
@@ -156,13 +154,6 @@ public partial class AppPopup : ContentView
                 PopupCard.TranslateTo(0, 0, 280, Easing.CubicOut),
                 PopupCard.ScaleTo(1, 220, Easing.CubicOut)
             );
-
-#if ANDROID
-            // ⚡ 性能：模糊在入场动画完成后才施加（与 AppBottomSheet 同策略）。
-            // 模糊与滑入动画同帧启动会在 220ms 内互相抢占 GPU 造成开弹窗掉帧；
-            // 半径 24→14 覆盖效果差异肉眼很小，但每帧重模糊成本显著下降。
-            ApplyBlurToSiblings();
-#endif
         });
     }
 
@@ -204,10 +195,6 @@ public partial class AppPopup : ContentView
                 PopupCard.ScaleTo(0.9, 180, Easing.CubicIn)
             );
 
-#if ANDROID
-            RemoveBlurFromSiblings();
-#endif
-
             this.Opacity = 0;
             this.IsVisible = false;
             this.InputTransparent = true;
@@ -226,41 +213,4 @@ public partial class AppPopup : ContentView
         if (CloseOnMaskTapped)
             _ = CloseAsync();
     }
-
-#if ANDROID
-    private readonly List<global::Android.Views.View> _blurredViews = new();
-
-    /// <summary>对弹窗背后的兄弟视图应用高斯模糊 RenderEffect</summary>
-    private void ApplyBlurToSiblings()
-    {
-        if (!BlurSiblings) return;   // 阅读型弹窗（播放列表等）关闭模糊：避免动画背景每帧触发全屏重模糊
-        _blurredViews.Clear();
-
-        if (this.Parent is Microsoft.Maui.Controls.Layout layout)
-        {
-            foreach (var child in layout.Children)
-            {
-                if (child == this) continue;
-                if (child is Microsoft.Maui.Controls.View view &&
-                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
-                {
-                    nativeView.SetRenderEffect(
-                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
-                            14, 14, global::Android.Graphics.Shader.TileMode.Clamp));
-                    _blurredViews.Add(nativeView);
-                }
-            }
-        }
-    }
-
-    /// <summary>移除兄弟视图上的模糊效果</summary>
-    private void RemoveBlurFromSiblings()
-    {
-        foreach (var view in _blurredViews)
-        {
-            try { view.SetRenderEffect(null); } catch { }
-        }
-        _blurredViews.Clear();
-    }
-#endif
 }

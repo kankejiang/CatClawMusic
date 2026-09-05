@@ -55,7 +55,7 @@ public static class SongContextMenu
     {
         try
         {
-            var host = ResolveWindowRoot() ?? FindPageRoot(row);
+            var host = ResolveWindowRoot(row) ?? FindPageRoot(row);
             if (host == null) return;
 
             var popup = new ContextMenuPopup();
@@ -329,7 +329,7 @@ public static class SongContextMenu
     }
 
     /// <summary>解析窗口级根网格宿主；竖屏 Shell 模式（页面即顶层）返回 null。</summary>
-    private static Layout? ResolveWindowRoot()
+    private static Layout? ResolveWindowRoot(View row)
     {
 #if WINDOWS
         if (Pages.DesktopBlankPage.Instance?.WindowRoot is { } blankRoot)
@@ -337,7 +337,27 @@ public static class SongContextMenu
 #endif
         if (App.IsLandscapeMode() && Pages.DesktopMainPage.Instance?.WindowRoot is { } desktopRoot)
             return desktopRoot;
+#if ANDROID
+        // 竖屏主 tab 页：弹层提升到 MainPage.MobileStage（BlurHost 兄弟层），
+        // ContextMenuPopup 的 BlurConsumerView 背板才能采样 pager 内容做真毛玻璃。
+        // 推入页（PlaylistDetail/AllSongs 等）不在 pager 内 → 走 FindPageRoot，回退纯色遮罩。
+        if (Pages.MainPage.Instance is { } mainPage && IsOnMainTabPage(row) && mainPage.WindowRoot is { } mobileStage)
+            return mobileStage;
+#endif
         return null;
+    }
+
+    /// <summary>行所在的 ContentPage 是否为主 tab 五页之一。</summary>
+    private static bool IsOnMainTabPage(View row)
+    {
+        var node = row as Element;
+        while (node != null)
+        {
+            if (node is ContentPage page && Pages.MainPage.Instance?.OwnsPage(page) == true)
+                return true;
+            node = node.Parent;
+        }
+        return false;
     }
 
     /// <summary>竖屏 Shell 模式：取行所在页面的根布局作为弹层宿主。</summary>

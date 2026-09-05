@@ -70,6 +70,13 @@ public partial class MainPage : ContentPage
     /// <summary>全局实例，供外部调用 SwitchToTab</summary>
     public static MainPage? Instance { get; private set; }
 
+    /// <summary>竖屏移动舞台根网格（BlurHost 的父级）。主 tab 页的弹层挂到这里——
+    /// BlurConsumerView 必须是 BlurHost 的兄弟（不能在其内容子树内）才能采样 pager 内容做真毛玻璃。</summary>
+    public Grid WindowRoot => MobileStage;
+
+    /// <summary>该页是否为主 tab 五页之一（弹层宿主选择用：是 → 挂 WindowRoot 启用毛玻璃；否 → 页面根布局回退纯遮罩）。</summary>
+    public bool OwnsPage(ContentPage page) => _tabPages.Contains(page);
+
     /// <summary>启动页等待期分帧预构建的 5 个 tab 页（仅构造不挂载）；未就绪为 null，SetupPages 走常规解析。
     /// 由 App.PrebuildMainTabs 填充并只消费一次，缓解冷启动进入主界面瞬间的同步构建。</summary>
     public static List<ContentPage>? PrebuiltPages;

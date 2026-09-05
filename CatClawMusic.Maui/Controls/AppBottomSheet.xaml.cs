@@ -25,14 +25,8 @@ public partial class AppBottomSheet : ContentView
     public static readonly BindableProperty SheetModeProperty =
         BindableProperty.Create(nameof(SheetMode), typeof(BottomSheetMode), typeof(AppBottomSheet), BottomSheetMode.Bottom);
 
-    /// <summary>是否在打开时对弹窗背后的兄弟视图施加实时模糊（默认 true）。
-    /// ⚡ 播放页等带有动画背景的宿主可设为 false：背景每帧变化都会触发全屏模糊重算，是滚动卡顿的主要来源。</summary>
-    public static readonly BindableProperty BlurSiblingsProperty =
-        BindableProperty.Create(nameof(BlurSiblings), typeof(bool), typeof(AppBottomSheet), true);
-
     /// <summary>弹出位置：Bottom=底部抽屉（默认），Center=屏幕居中弹窗。</summary>
     public BottomSheetMode SheetMode { get => (BottomSheetMode)GetValue(SheetModeProperty); set => SetValue(SheetModeProperty, value); }
-    public bool BlurSiblings { get => (bool)GetValue(BlurSiblingsProperty); set => SetValue(BlurSiblingsProperty, value); }
 
     public event EventHandler? Closed;
 
@@ -61,6 +55,10 @@ public partial class AppBottomSheet : ContentView
         _isOpen = true;
 
         this.InputTransparent = false;
+
+        // 模糊已移除：卡片底色从 6% 白玻璃提升为 94% SurfaceColor，避免下层内容透过卡片干扰可读性
+        if (Application.Current?.Resources.TryGetValue("SurfaceColor", out var surf) == true && surf is Color surface)
+            SheetCard.BackgroundColor = surface.WithAlpha(0.94f);
 
         MaskLayer.Opacity = 0;
         SheetCard.Opacity = 0;
@@ -155,11 +153,6 @@ public partial class AppBottomSheet : ContentView
                 );
                 SetCardTranslationY(0);
             }
-
-#if ANDROID
-            // 动画完成后才施加模糊，避免与滑入动画竞争 GPU 资源导致丢帧
-            ApplyBlurToSiblings();
-#endif
         });
     }
 
@@ -217,10 +210,6 @@ public partial class AppBottomSheet : ContentView
                 );
             }
             await anim;
-
-#if ANDROID
-            RemoveBlurFromSiblings();
-#endif
 
             this.Opacity = 0;
             this.IsVisible = false;
@@ -339,38 +328,4 @@ public partial class AppBottomSheet : ContentView
         }
         return null;
     }
-
-#if ANDROID
-    private readonly List<global::Android.Views.View> _blurredViews = new();
-
-    private void ApplyBlurToSiblings()
-    {
-        if (!BlurSiblings) return;   // 阅读型列表（播放列表等）关闭模糊：避免动画背景每帧触发全屏重模糊
-        _blurredViews.Clear();
-        if (this.Parent is Microsoft.Maui.Controls.Layout layout)
-        {
-            foreach (var child in layout.Children)
-            {
-                if (child == this) continue;
-                if (child is Microsoft.Maui.Controls.View view &&
-                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
-                {
-                    nativeView.SetRenderEffect(
-                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
-                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
-                    _blurredViews.Add(nativeView);
-                }
-            }
-        }
-    }
-
-    private void RemoveBlurFromSiblings()
-    {
-        foreach (var view in _blurredViews)
-        {
-            try { view.SetRenderEffect(null); } catch { }
-        }
-        _blurredViews.Clear();
-    }
-#endif
 }

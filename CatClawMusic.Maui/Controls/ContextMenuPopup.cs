@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls.Shapes;
+using Vitrum;
 
 namespace CatClawMusic.Maui.Controls;
 
@@ -15,6 +16,10 @@ public class ContextMenuPopup : ContentView
     private readonly BoxView _mask;
     private readonly Border _card;
     private readonly VerticalStackLayout _cardContent;
+    // 抽屉模式（Android）的真毛玻璃背板：与横屏侧栏同方案——BlurConsumerView 作为 BlurHost
+    // 的兄弟层采样下层内容（背景视图本身不再挂 RenderEffect，去掉旧的全屏实时重模糊）。
+    // 引擎未挂上（推入页/无 BlurHost 宿主）时保持隐藏，回退到 _mask 纯色遮罩。
+    private readonly BlurConsumerView? _blurBackdrop;
     private bool _isOpen;
     private double _maxWidth = 400;
     private double _maxHeight = 600;
@@ -73,6 +78,15 @@ public class ContextMenuPopup : ContentView
             _card.Margin = new Thickness(8, 0, 8, 8);
             _card.TranslationY = 1200;
             _mask = new BoxView { Color = Color.FromArgb("#66000000") };
+            // 真毛玻璃背板（横屏侧栏同方案）：挂到 BlurHost 兄弟层后由 handler 自动发现引擎；
+            // 深色冷调 tint 提供聚焦暗化，遮罩退化为一层轻纱+点击关闭面
+            _blurBackdrop = new BlurConsumerView
+            {
+                TintColor = Color.FromArgb("#B2181C2A"),
+                HorizontalOptions = LayoutOptions.Fill,
+                VerticalOptions = LayoutOptions.Fill,
+                IsVisible = false,   // 引擎未确认挂上前不显示（无引擎宿主回退纯色遮罩）
+            };
         }
         else
         {
@@ -90,7 +104,9 @@ public class ContextMenuPopup : ContentView
             Command = new Command(() => { _ = CloseAsync(); })
         });
 
-        _root = new Grid { Children = { _mask, _card } };
+        _root = IsDrawer
+            ? new Grid { Children = { _blurBackdrop!, _mask, _card } }
+            : new Grid { Children = { _mask, _card } };
         Content = _root;
         IsVisible = false;
         Opacity = 0;
@@ -225,11 +241,6 @@ public class ContextMenuPopup : ContentView
             // 若歌曲行位于屏幕底部，菜单底部会超出屏幕；等真实布局（SizeChanged）后按实际尺寸重新约束。
             ScheduleReclamp(x, y);
         }
-
-#if ANDROID
-        // 与播放页弹窗一致的背景高斯模糊（遮罩下透出模糊内容）
-        ApplyBlurToSiblings();
-#endif
     }
 
     /// <summary>内容变化（如进入"添加到歌单"子视图）后重新适配：抽屉贴底由内部滚动消化，下拉模式按原始锚点重定位。</summary>
@@ -250,6 +261,23 @@ public class ContextMenuPopup : ContentView
     {
         _card.SizeChanged -= OnDrawerCardSized;
         if (!_isOpen) return;
+
+#if ANDROID
+        // 首次布局时 BlurHost 引擎必已完成挂载（OnAttachedToWindow 先于布局遍历）：
+        // 引擎在 → 显示真毛玻璃背板，遮罩只留轻纱（否则保持纯色遮罩回退）
+        if (_blurBackdrop != null
+            && _blurBackdrop.Handler?.PlatformView is Vitrum.Android.NativeBlurConsumerView { Engine: not null })
+        {
+            _blurBackdrop.IsVisible = true;
+            _mask.Color = Color.FromArgb("#33000000");
+        }
+        else if (Application.Current?.Resources.TryGetValue("SurfaceColor", out var surf) == true && surf is Color surface)
+        {
+            // 无毛玻璃引擎（推入页等）：卡片底色提升为 94% SurfaceColor，避免下层内容透过干扰可读性
+            _card.Background = new SolidColorBrush(surface.WithAlpha(0.94f));
+        }
+#endif
+
         try
         {
             _card.TranslationY = _card.Height + 16;
@@ -337,48 +365,8 @@ public class ContextMenuPopup : ContentView
             catch { }
         }
 
-#if ANDROID
-        RemoveBlurFromSiblings();
-#endif
-
         this.IsVisible = false;
         this.InputTransparent = true;
         Closed?.Invoke(this, EventArgs.Empty);
     }
-
-#if ANDROID
-    private readonly List<global::Android.Views.View> _blurredViews = new();
-
-    /// <summary>对弹层背后的兄弟视图应用高斯模糊 RenderEffect（与播放页弹窗一致，minSdk=31 无需 API 防护）。</summary>
-    private void ApplyBlurToSiblings()
-    {
-        _blurredViews.Clear();
-
-        if (this.Parent is Microsoft.Maui.Controls.Layout layout)
-        {
-            foreach (var child in layout.Children)
-            {
-                if (child == this) continue;
-                if (child is Microsoft.Maui.Controls.View view &&
-                    view.Handler?.PlatformView is global::Android.Views.View nativeView)
-                {
-                    nativeView.SetRenderEffect(
-                        global::Android.Graphics.RenderEffect.CreateBlurEffect(
-                            24, 24, global::Android.Graphics.Shader.TileMode.Clamp));
-                    _blurredViews.Add(nativeView);
-                }
-            }
-        }
-    }
-
-    /// <summary>移除兄弟视图上的模糊效果。</summary>
-    private void RemoveBlurFromSiblings()
-    {
-        foreach (var view in _blurredViews)
-        {
-            try { view.SetRenderEffect(null); } catch { }
-        }
-        _blurredViews.Clear();
-    }
-#endif
 }

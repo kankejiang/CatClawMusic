@@ -11,7 +11,7 @@
           InputTransparent="False"
           BackgroundColor="Transparent">
         <BoxView x:Name="MaskLayer"
-                 Color="#66000000"
+                 Color="#99101420"
                  InputTransparent="False"
                  Opacity="0">
             <BoxView.GestureRecognizers>
