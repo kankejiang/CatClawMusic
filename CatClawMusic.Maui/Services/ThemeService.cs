@@ -54,13 +54,17 @@ public class ThemeService : IThemeService
     private sealed record BgGlow(float Cx, float Cy, float Radius, string CenterArgb, string EdgeArgb = "#00000000");
     private sealed record BgDesign((float X, float Y) From, (float X, float Y) To, BgStop[] Stops, BgGlow[] Glows);
 
+    // 方案B「冷色统一」（2026-09-05）：原稿右上下冰青光晕(20%)把上半页染成钢青蓝(S 0.35)，
+    // 左下樱粉光晕(14%)与蓝底混出脏紫(hue 245-263°)——一条背景横跨青→紫两个色相家族。
+    // 现改为：青光晕减弱 1/3(13%)，粉光晕换薄荷 #7ED8C3(8%，与深色 HeroBrush 同源)，
+    // 全背景收敛为单一冷色家族，底色不变。
     private static readonly BgDesign VioletDusk = new((0, 0), (0, 1), new[]
     {
         new BgStop("#FF11141D", 0f), new BgStop("#FF171C2A", 0.55f), new BgStop("#FF1E2536", 1f),
     }, new[]
     {
-        new BgGlow(0.80f, 0.18f, 0.55f, "#3355D6FF"),
-        new BgGlow(0.24f, 0.86f, 0.70f, "#24FF8FB8"),
+        new BgGlow(0.80f, 0.18f, 0.52f, "#2A55D6FF"),
+        new BgGlow(0.24f, 0.86f, 0.70f, "#147ED8C3"),
     });
 
     private static readonly BgDesign MorningBlush = new((0, 0), (0, 1), new[]
@@ -368,7 +372,9 @@ public class ThemeService : IThemeService
         // 下次 ApplyTheme 就得在主线程同步重渲染 1080×1920 位图（清缓存后启动卡顿因素之一）
         var dir = Path.Combine(FileSystem.AppDataDirectory, "theme_bg");
         Directory.CreateDirectory(dir);
-        return Path.Combine(dir, $"bg_{theme}_{(isDark ? "dark" : "light")}.png");
+        // 文件名带设计版本号：改 GetBackgroundDesign 配色后必须递增 vN，
+        // 否则旧磁盘缓存命中会一直显示旧配色（内存/磁盘两级缓存都是"一生一次"）。
+        return Path.Combine(dir, $"bg_v2_{theme}_{(isDark ? "dark" : "light")}.png");
     }
 
     private static void TryWriteBackgroundDiskCache(string path, byte[] png)
