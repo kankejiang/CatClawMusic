@@ -74,7 +74,7 @@
                                 BindableLayout.ItemsSource="{Binding SourceFilters}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="vm:FilterChip">
-                                <Border WidthRequest="124"
+                                <Border WidthRequest="118"
                                         Margin="0,0,6,6"
                                         Padding="11,7"
                                         StrokeShape="RoundRectangle 10"
@@ -103,7 +103,7 @@
                                 BindableLayout.ItemsSource="{Binding SortOptions}">
                         <BindableLayout.ItemTemplate>
                             <DataTemplate x:DataType="vm:ArtistsViewModel+SortOption">
-                                <Border WidthRequest="124"
+                                <Border WidthRequest="118"
                                         Margin="0,0,6,6"
                                         Padding="11,7"
                                         StrokeShape="RoundRectangle 10"
