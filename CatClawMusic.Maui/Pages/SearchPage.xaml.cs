@@ -427,6 +427,14 @@ public partial class SearchPage : DiscoverPageBase
             quickEntry.Plugin.ExecuteQuickEntry(quickEntry.Entry.Id, Services);
             return;
         }
+        if (heroItem.Tag == "随机播放")
+        {
+            // 随机播放：从整个曲库随机取歌（受发现页来源筛选限制），以全库随机序列为播放队列
+            var pick = await _vm.GetRandomLibrarySongAsync();
+            if (pick != null)
+                await PlaySongAsync(pick.Value.Song, pick.Value.Queue);
+            return;
+        }
         if (heroItem.Song != null)
             await PlaySongAsync(heroItem.Song, _vm.DailyRecommendSongs.ToList());
     }
@@ -489,6 +497,14 @@ public partial class SearchPage : DiscoverPageBase
         if (_quickEntryMap.TryGetValue(heroItem, out var quickEntry))
         {
             quickEntry.Plugin.ExecuteQuickEntry(quickEntry.Entry.Id, Services);
+            return;
+        }
+        if (heroItem.Tag == "随机播放")
+        {
+            // 随机播放：从整个曲库随机取歌（受发现页来源筛选限制），以全库随机序列为播放队列
+            var pick = await _vm.GetRandomLibrarySongAsync();
+            if (pick != null)
+                await PlaySongAsync(pick.Value.Song, pick.Value.Queue);
             return;
         }
         if (heroItem.Song != null)

@@ -126,11 +126,13 @@ public partial class SearchViewModel
             });
         }
 
-        if (_allDailyRecommendSongs.Count > 0)
+        // 随机播放卡：从整个曲库随机（受发现页来源筛选限制），全库池未就绪时回退每日推荐池
+        var randomPool = _allLibrarySongs is { Count: > 0 } ? _allLibrarySongs : _allDailyRecommendSongs;
+        if (randomPool.Count > 0)
         {
             var random = new Random();
-            var index = random.Next(_allDailyRecommendSongs.Count);
-            var song = _allDailyRecommendSongs[index];
+            var index = random.Next(randomPool.Count);
+            var song = randomPool[index];
             cards.Add(new HeroCardItem
             {
                 Tag = tags[3],
@@ -201,6 +203,26 @@ public partial class SearchViewModel
         DailyRecommendSongs = new ObservableCollection<Song>(shuffled);
         _aiHeroIndex++; // 轮换到当天缓存里的下一首 AI 推荐（不重新调用 AI）
         GenerateHeroCards();
+    }
+
+    /// <summary>从整个曲库随机挑一首（受发现页来源筛选限制），随播放队列一起返回（已随机排序）。
+    /// 「随机播放」卡的点击行为：不再局限于每日推荐的小池子。曲库为空返回 null。</summary>
+    public async Task<(Song Song, List<Song> Queue)?> GetRandomLibrarySongAsync()
+    {
+        try
+        {
+            _allLibrarySongs ??= await _exploreDataService.GetAllSongsAsync();
+            if (_allLibrarySongs.Count == 0) return null;
+
+            var random = new Random();
+            var queue = _allLibrarySongs.OrderBy(_ => random.Next()).ToList();
+            return (queue[0], queue);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("SearchViewModel", $"[SearchVM] 全库随机取歌失败: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>加载收藏歌曲并生成英雄卡片（渲染优先：先显示收藏，封面后台分块解析）</summary>

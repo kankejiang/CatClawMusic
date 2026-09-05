@@ -76,6 +76,10 @@ public class ExploreDataService
     /// <summary>当前生效的来源筛选：all / local / network</summary>
     public string CurrentSourceFilter => _sourceFilter;
 
+    /// <summary>获取经来源筛选和协议过滤的全部曲库歌曲（含 PlayCount，实例级缓存）。
+    /// 供发现页「随机播放」从整个曲库随机取歌：结果受当前发现页来源限制（all/local/network）。</summary>
+    public Task<List<Song>> GetAllSongsAsync() => GetFilteredSongsAsync();
+
     /// <summary>
     /// 使每日推荐缓存失效：清除内存缓存和磁盘缓存。
     /// 在音乐库扫描完成、歌曲发生变化后调用，确保探索页展示最新数据。

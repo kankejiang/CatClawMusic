@@ -103,6 +103,21 @@ public partial class SearchViewModel
             _allTopPlayedSongs = topPlayedTask.Result;
             _allRecentAddedSongs = recentTask.Result;
 
+            // 后台填充全库歌曲池（「随机播放」卡数据源，受发现页来源筛选限制；结果有实例级缓存，首次后零成本）。
+            // 池就绪后刷新英雄卡：随机播放卡改从全库取歌展示
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _allLibrarySongs = await _exploreDataService.GetAllSongsAsync().ConfigureAwait(false);
+                    MainThread.BeginInvokeOnMainThread(GenerateHeroCards);
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("SearchViewModel", $"[SearchVM] 全库随机池加载失败: {ex.Message}");
+                }
+            });
+
             // 先以占位（无封面）构建并显示，不阻塞等待封面提取
             var allSongs = _allDailyRecommendSongs
                 .Concat(_allTopPlayedSongs)

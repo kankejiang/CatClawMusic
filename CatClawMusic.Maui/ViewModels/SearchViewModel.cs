@@ -35,6 +35,8 @@ public partial class SearchViewModel : ObservableObject
     private List<SearchAlbumItem> _allAlbums = [];
     private List<Song> _allTopPlayedSongs = [];
     private List<Song> _allRecentAddedSongs = [];
+    /// <summary>全库歌曲池（受发现页来源筛选限制）：「随机播放」卡的数据源，LoadDataAsync 后台填充。</summary>
+    private List<Song>? _allLibrarySongs;
 
     /// <summary>LoadDataAsync 重入守卫（Interlocked 用）：启动时多处会并发触发加载，只让第一个真正执行。</summary>
     private int _loadInProgress;
