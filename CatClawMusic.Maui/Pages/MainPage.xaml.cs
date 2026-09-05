@@ -1031,6 +1031,11 @@ public partial class MainPage : ContentPage
         }
         DesktopStage.IsVisible = false;
         MobileStage.IsVisible = true;
+#if ANDROID
+        // 旋回竖屏兜底恢复状态栏：横屏内嵌子页时被隐藏（ImmersiveSticky 残留会导致
+        // 旋转按钮路径直接切回竖屏时状态栏消失，而该路径不经过 ShowSystemStatusBar）
+        Platforms.Android.SystemBarHelper.SetStatusBarVisible(true);
+#endif
     }
 
     /// <summary>全屏歌词页和播放页时隐藏导航栏和迷你播放器；AI 聊天模式仅隐藏导航栏。

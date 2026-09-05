@@ -75,6 +75,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         // Android 横屏复用桌面布局：侧栏保持完整宽度（与竖屏版一致），不折叠为图标栏
         _compact = false;
         RootGrid.ColumnDefinitions[0].Width = new GridLength(AndroidSidebarWidth);
+        // 横屏状态栏交给系统慢慢自动隐藏（实测效果好，不做立即强制隐藏）
 #endif
 
         // 顶部搜索/命令栏在两个平台都移除：发现页已有独立搜索框，顶部为重复入口
@@ -1050,24 +1051,21 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
         VolumeSlider.MinimumWidthRequest = 100;
     }
 
-    /// <summary>隐藏系统状态栏，让子页面内容延伸到屏幕顶部（沉浸式）。</summary>
+    /// <summary>隐藏系统状态栏，让子页面内容延伸到屏幕顶部（沉浸式）。
+    /// 统一走 SystemBarHelper（现代 InsetsController），替代 legacy SystemUiVisibility+ImmersiveSticky——
+    /// sticky 标志在旋回竖屏时残留导致状态栏消失（2026-09-05 修复）。
+    /// ⚠ InsetsController.Hide 的请求会在旋转后的 insets 重派发中被系统重置回可见，
+    /// 因此落定后（900ms）重申一次——条件仍是"有嵌入子页"，退出沉浸不会误隐藏。</summary>
     private void HideSystemStatusBar()
     {
         try
         {
-            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
-            var window = activity?.Window;
-            if (window == null) return;
-
-            var decorView = window.DecorView;
-#pragma warning disable CS0618
-            decorView.SystemUiVisibility = (Android.Views.StatusBarVisibility)(
-                (int)decorView.SystemUiVisibility
-                | (int)Android.Views.SystemUiFlags.Fullscreen
-                | (int)Android.Views.SystemUiFlags.ImmersiveSticky
-                | (int)Android.Views.SystemUiFlags.LayoutStable
-                | (int)Android.Views.SystemUiFlags.LayoutFullscreen);
-#pragma warning restore CS0618
+            CatClawMusic.Maui.Platforms.Android.SystemBarHelper.SetStatusBarVisible(false);
+            _ = Task.Delay(900).ContinueWith(_ => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (_embeddedSubPage != null)
+                    CatClawMusic.Maui.Platforms.Android.SystemBarHelper.SetStatusBarVisible(false);
+            }));
         }
         catch (Exception ex)
         {
@@ -1080,18 +1078,7 @@ public partial class DesktopMainPage : ContentPage, ISongContextMenuHost
     {
         try
         {
-            var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
-            var window = activity?.Window;
-            if (window == null) return;
-
-            var decorView = window.DecorView;
-#pragma warning disable CS0618
-            decorView.SystemUiVisibility = (Android.Views.StatusBarVisibility)(
-                (int)decorView.SystemUiVisibility
-                & ~(int)Android.Views.SystemUiFlags.Fullscreen
-                & ~(int)Android.Views.SystemUiFlags.ImmersiveSticky
-                & ~(int)Android.Views.SystemUiFlags.LayoutFullscreen);
-#pragma warning restore CS0618
+            CatClawMusic.Maui.Platforms.Android.SystemBarHelper.SetStatusBarVisible(true);
         }
         catch (Exception ex)
         {

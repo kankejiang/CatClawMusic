@@ -623,6 +623,10 @@ public partial class App : Application
                 activity.RequestedOrientation = Android.Content.PM.ScreenOrientation.SensorPortrait;
         }
         catch (Exception ex) { Log.Debug("App", $"恢复竖屏失败: {ex.Message}"); }
+#if ANDROID
+        // 旋转按钮路径不经过 ShowSystemStatusBar（那是嵌入子页关闭/back 键路径），此处兜底恢复
+        CatClawMusic.Maui.Platforms.Android.SystemBarHelper.SetStatusBarVisible(true);
+#endif
     }
 
     /// <summary>切换横竖屏（播放页旋转按钮）：横屏与竖屏切换。</summary>
