@@ -28,6 +28,8 @@ public partial class LibraryPage : ContentPage
     private readonly IServiceProvider _sp;
     private CancellationTokenSource? _refreshCts;
     private bool _isFirstAppearing = true;
+    // XAML 定义的浅色 Hero 渐变（樱粉→蜜桃），深色模式下被透明玻璃底替换后用于恢复
+    private Brush? _heroLightBackground;
 
     // 数据洞察环形图导航状态
     private List<PieDataset>? _pieDatasets;
@@ -48,7 +50,32 @@ public partial class LibraryPage : ContentPage
         _sp = sp;
         BindingContext = _vm;
 
+        // 捕获 XAML 定义的浅色 Hero 渐变，供深/浅模式切换时恢复
+        _heroLightBackground = HeroCard.Background;
+        ApplyHeroCardTheme();
+
         // 事件订阅由 OnHandlerChanging 管理，支持页面实例复用（Singleton MainPage）
+    }
+
+    /// <summary>深色模式下 Hero 卡改用与资料库卡一致的透明玻璃底（CardBackgroundColor）。
+    /// XAML 里的樱粉→蜜桃渐变是浅色"奶油底"设计，40% 粉压在深色冷蓝背景上会发粉发脏；
+    /// 浅色模式保留原渐变。</summary>
+    private void ApplyHeroCardTheme()
+    {
+        try
+        {
+            if (ThemeService.CurrentIsDark
+                && Application.Current?.Resources.TryGetValue("CardBackgroundColor", out var v) == true
+                && v is Color glass)
+            {
+                HeroCard.Background = new SolidColorBrush(glass);
+            }
+            else if (_heroLightBackground != null)
+            {
+                HeroCard.Background = _heroLightBackground;
+            }
+        }
+        catch { }
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -524,6 +551,9 @@ public partial class LibraryPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // 主题/深浅模式可能在设置页切换后返回，按当前模式刷新 Hero 卡底色
+        ApplyHeroCardTheme();
 
         // 后台预热专辑/艺术家聚合缓存：让用户点击"专辑"/"艺术家"前，重聚合已完成，
         // 进入列表页时直接命中缓存 → 进入即显示内容（与"全部歌曲"一致的秒开体验）。
