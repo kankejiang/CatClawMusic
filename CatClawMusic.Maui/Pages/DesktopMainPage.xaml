@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:services="clr-namespace:CatClawMusic.Maui.Services"
@@ -44,8 +44,8 @@
                             StrokeThickness="0"
                             BackgroundColor="Transparent"
                             VerticalOptions="Center">
-                        <!-- 真实猫爪 logo 资产(替代 emoji 字符) -->
-                        <Image Source="splash_logo.png" Aspect="AspectFill" />
+                        <!-- 真实猫爪 logo 资产(与桌面图标同源) -->
+                        <Image Source="app_icon.png" Aspect="AspectFill" />
                     </Border>
                     <VerticalStackLayout x:Name="LogoText" Grid.Column="1" VerticalOptions="Center" Spacing="1">
                         <Label Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=[AppName]}"

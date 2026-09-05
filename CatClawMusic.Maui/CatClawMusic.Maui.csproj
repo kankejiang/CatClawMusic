@@ -117,8 +117,8 @@
 	<!-- MAUI resources -->
 	<ItemGroup>
 		<MauiIcon Include="Platforms\Android\Resources\mipmap-xxxhdpi\ic_launcher.png" />
-		<!-- 系统启动屏:粉爪黑胶 logo(奶油底),替代旧版全透明 SVG + 深色空屏 -->
-		<MauiSplashScreen Include="Resources\Images\splash_logo.png" Color="#FFF3F7" BaseSize="128,128" />
+		<!-- 系统启动屏:与桌面图标同源的猫爪黑胶 logo(奶油底),替代旧版全透明 SVG + 深色空屏 -->
+		<MauiSplashScreen Include="Resources\Images\app_icon.png" Color="#FFF3F7" BaseSize="128,128" />
 		<MauiImage Include="Resources\Images\*" />
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
