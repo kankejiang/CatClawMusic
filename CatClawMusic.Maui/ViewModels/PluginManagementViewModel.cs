@@ -131,7 +131,7 @@ public partial class PluginManagementViewModel : ObservableObject
         }));
     }
 
-    /// <summary>更新指定插件：下载新版本 → 替换 → 重载</summary>
+    /// <summary>更新指定插件：下载新版本 → 替换 → 重载（提示重启后完全生效）</summary>
     [RelayCommand]
     public async Task UpdatePluginAsync(PluginItemView? item)
     {
@@ -146,8 +146,8 @@ public partial class PluginManagementViewModel : ObservableObject
                 await ShowAlertAsync("插件", $"「{item.DisplayName}」更新失败，请稍后重试");
                 return;
             }
-            await ShowAlertAsync("插件", $"「{item.DisplayName}」已更新到 v{item.UpdateVersion}，重新加载完成");
             await RefreshAsync();
+            await ShowRestartHintAsync($"「{item.DisplayName}」已更新到 v{item.UpdateVersion}");
         }
         catch (Exception ex)
         {
@@ -525,7 +525,7 @@ public partial class PluginManagementViewModel : ObservableObject
         return u.Length <= 70 ? u : u[..70] + "...";
     }
 
-    /// <summary>安装本地插件文件（本地选择或网络下载后共用），成功则刷新列表</summary>
+    /// <summary>安装本地插件文件（本地选择或网络下载后共用），成功则刷新列表并提示重启生效</summary>
     private async Task InstallFileAsync(string path)
     {
         try
@@ -553,7 +553,7 @@ public partial class PluginManagementViewModel : ObservableObject
             if (info != null)
             {
                 await RefreshAsync();
-                await ShowAlertAsync("插件", $"已安装「{info.DisplayName}」v{info.Version}");
+                await ShowRestartHintAsync($"已安装「{info.DisplayName}」v{info.Version}");
             }
             else
             {
@@ -565,6 +565,59 @@ public partial class PluginManagementViewModel : ObservableObject
             Log.Debug("PluginManagementViewModel", $"[PluginManagement] 安装失败: {ex.GetType().Name}: {ex.Message}\n{ex}");
             await ShowAlertAsync("插件", $"安装失败：{ex.Message}");
         }
+    }
+
+    /// <summary>插件安装/更新成功后的统一提示：说明重启后完全生效，并视平台提供「立即重启」按钮。
+    /// 使用系统对话框（DisplayAlert 双按钮）：当前进程即将退出，自绘弹层没有存续意义。</summary>
+    private async Task ShowRestartHintAsync(string successText)
+    {
+        const string restart = "立即重启";
+        const string later = "稍后自行重启";
+        string message = Services.AppRestarter.CanRestart
+            ? $"{successText}\n\n重启应用后插件将完全生效。"
+            : $"{successText}\n\n请手动重启应用以使插件完全生效。";
+
+        var page = CurrentPage();
+        if (page == null) { Log.Debug("PluginManagementViewModel", "[PluginManagement] 重启提示无 Page 宿主，跳过"); return; }
+
+        string choice;
+        if (Services.AppRestarter.CanRestart)
+        {
+            try { choice = await page.DisplayAlertAsync("安装成功", message, restart, later) ? restart : later; }
+            catch
+            {
+                // 系统对话框在该设备上可能不可用（MIUI 上曾静默失效）：退化为提示文本
+                ShowToast(message);
+                return;
+            }
+        }
+        else
+        {
+            try { await page.DisplayAlertAsync("安装成功", message, "知道了"); }
+            catch { ShowToast(message); }
+            return;
+        }
+
+        if (choice == restart)
+        {
+            ShowToast("正在重启应用...");
+            // 给 Toast 一帧时间显示，再退出进程
+            await Task.Delay(400);
+            Services.AppRestarter.Restart();
+        }
+    }
+
+    /// <summary>轻提示（Android 原生 Toast，其余平台静默）</summary>
+    private static void ShowToast(string message)
+    {
+#if ANDROID
+        try
+        {
+            var ctx = Android.App.Application.Context;
+            Android.Widget.Toast.MakeText(ctx, message, Android.Widget.ToastLength.Long)?.Show();
+        }
+        catch { }
+#endif
     }
 
     /// <summary>切换插件启用状态</summary>
