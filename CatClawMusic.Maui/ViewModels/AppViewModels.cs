@@ -268,8 +268,8 @@ public partial class NowPlayingViewModel : ObservableObject
         _sleepTimer = sleepTimer;
         _pluginManager = pluginManager;
 
-        // Initialize cover cache directory
-        _coverCacheDir = Path.Combine(FileSystem.CacheDirectory, "covers");
+        // 封面缓存目录与 CoverHelper 统一（AppDataDirectory/covers，不受清除缓存影响）
+        _coverCacheDir = Services.CoverHelper.CacheDirectory;
         Directory.CreateDirectory(_coverCacheDir);
 
         // Subscribe to audio events

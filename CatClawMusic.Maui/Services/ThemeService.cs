@@ -364,7 +364,9 @@ public class ThemeService : IThemeService
 
     private static string ThemeBackgroundDiskPath(CoreAppTheme theme, bool isDark)
     {
-        var dir = Path.Combine(FileSystem.CacheDirectory, "theme_bg");
+        // 放 AppDataDirectory 而非 CacheDirectory：系统「清除缓存」会删掉主题背景 PNG，
+        // 下次 ApplyTheme 就得在主线程同步重渲染 1080×1920 位图（清缓存后启动卡顿因素之一）
+        var dir = Path.Combine(FileSystem.AppDataDirectory, "theme_bg");
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, $"bg_{theme}_{(isDark ? "dark" : "light")}.png");
     }

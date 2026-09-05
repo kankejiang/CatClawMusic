@@ -333,9 +333,8 @@ public static class SafeContentScanner
             var art = retriever.GetEmbeddedPicture();
             if (art != null)
             {
-                var cacheDir = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "covers");
+                // 统一写入 CoverHelper 缓存目录（AppDataDirectory/covers），扫描期封面与运行期缓存同源
+                var cacheDir = CatClawMusic.Maui.Services.CoverHelper.CacheDirectory;
                 System.IO.Directory.CreateDirectory(cacheDir);
                 // 用 filePath 的哈希值作为文件名
                 var hash = filePath.GetHashCode().ToString("X");

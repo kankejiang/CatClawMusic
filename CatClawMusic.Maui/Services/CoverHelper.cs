@@ -108,8 +108,37 @@ public static class CoverHelper
 
     static CoverHelper()
     {
-        _coverCacheDir = System.IO.Path.Combine(FileSystem.CacheDirectory, "covers");
+        // ⚠ 封面缓存放 AppDataDirectory（files）而非 CacheDirectory：
+        // 系统/应用「清除缓存」会整体清空 CacheDirectory，清完后全库每首歌都要重新
+        // TagLib 全文件提取 + Skia 下采样，数千首库会形成数分钟的 IO/CPU 风暴，
+        // 表现为「清空缓存后 app 卡顿一段时间」。files 目录不受清除缓存影响。
+        // （Android SAF 扫描器的封面本来也写在 files/covers，此处顺带统一两个目录。）
+        _coverCacheDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "covers");
         Directory.CreateDirectory(_coverCacheDir);
+        _ = Task.Run(MigrateLegacyCoverCacheDir);
+    }
+
+    /// <summary>一次性迁移：把旧 CacheDirectory/covers 的封面搬到新目录（同卷 rename，成本低），
+    /// 迁移完删除旧目录。静默容错；迁移期间个别文件被并发读取最多触发一次重复提取，无副作用。</summary>
+    private static void MigrateLegacyCoverCacheDir()
+    {
+        try
+        {
+            var legacy = System.IO.Path.Combine(FileSystem.CacheDirectory, "covers");
+            if (!Directory.Exists(legacy)) return;
+            foreach (var file in Directory.GetFiles(legacy))
+            {
+                try
+                {
+                    var dest = System.IO.Path.Combine(_coverCacheDir, System.IO.Path.GetFileName(file));
+                    if (!File.Exists(dest))
+                        File.Move(file, dest);
+                }
+                catch { }
+            }
+            try { Directory.Delete(legacy, recursive: true); } catch { }
+        }
+        catch { }
     }
 
     /// <summary>获取封面缓存目录路径</summary>
@@ -191,8 +220,11 @@ public static class CoverHelper
         {
             var cachedPath = GetCachedPath(song.Id, maxSize);
             if (File.Exists(cachedPath))
+            {
                 song.CoverArtPath = cachedPath;
-            return;
+                return;
+            }
+            // 缓存文件缺失（如旧目录迁移竞态）：继续走完整解析
         }
 
         var path = ResolveSingleCover(song, maxSize);
@@ -213,15 +245,20 @@ public static class CoverHelper
     {
         if (song.Id <= 0) return null;
 
-        // 1. 命中尺寸分桶缓存
+        // 1. 命中尺寸分桶缓存。
+        // 性能：不再对命中文件做头部校验（OpenRead 读 magic）——全库数千首每次冷启动
+        // 逐文件打开是可感知的 IO 开销（冷页缓存下尤甚，构成"每天第一次启动卡顿"的一部分）。
+        // 缓存写入均为临时文件+原子重命名，半截文件不可能出现；用 FileInfo.Length 单次 stat
+        // 兜底过滤 0 字节/异常小的残留文件。
         var cachedPath = GetCachedPath(song.Id, maxSize);
-        if (File.Exists(cachedPath))
+        var cachedInfo = new FileInfo(cachedPath);
+        if (cachedInfo.Exists && cachedInfo.Length > 64)
         {
-            if (IsValidImageFile(cachedPath))
-                return cachedPath;
-            // 缓存损坏，删除后继续重新提取
-            TryDeleteSource(cachedPath);
+            return cachedPath;
         }
+        // 缓存缺失/损坏（过小），删除后继续重新提取
+        if (cachedInfo.Exists)
+            TryDeleteSource(cachedPath);
 
         // 1.5 网络来源歌曲（WebDAV/SMB/Navidrome）：封面缓存在 covers/cover_{id}.jpg
         // （由播放页 LoadCoverArt 步骤6 下载并写入）。命中则返回；

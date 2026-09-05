@@ -114,13 +114,10 @@ public partial class GeneralSettingsViewModel : ObservableObject
         try
         {
             await AudioCacheService.Instance.ClearAllAsync();
-            // 也清理旧的本地封面缓存目录
-            var coverDir = Path.Combine(FileSystem.CacheDirectory, "covers");
-            if (Directory.Exists(coverDir))
-            {
-                Directory.Delete(coverDir, true);
-                Directory.CreateDirectory(coverDir);
-            }
+            // ⚠ 不再删除封面缩略图（AppDataDirectory/covers）：全库封面重建 = 每首歌
+            // 全文件提取+下采样，清完立刻触发数分钟 IO/CPU 风暴（"清空缓存后卡顿"）。
+            // 封面是从音频文件可再生的持久化数据，已移出 cache 目录；「清除图片缓存」
+            // 仍可清理网络封面/艺术家/专辑封面（ImageCacheService）。
             await ImageCacheService.Instance.ClearAllAsync();
             await RefreshCacheSizeAsync();
         }
@@ -226,8 +223,9 @@ public partial class GeneralSettingsViewModel : ObservableObject
         {
             var (totalSize, imageSize) = await Task.Run(() =>
             {
+                // 封面缩略图已在 AppDataDirectory/covers（不受清除缓存影响），仍计入缓存占用展示
                 long audioSize = GetDirectorySize(Path.Combine(FileSystem.CacheDirectory, "music_cache"))
-                               + GetDirectorySize(Path.Combine(FileSystem.CacheDirectory, "covers"));
+                               + GetDirectorySize(Path.Combine(FileSystem.AppDataDirectory, "covers"));
                 long imgSize = ImageCacheService.Instance.GetCacheSizeBytes();
                 return (audioSize + imgSize, imgSize);
             });

@@ -19,7 +19,8 @@ public static class DefaultCoverService
     /// <summary>渲染边长（像素）。播放页封面约 220dp，3x 设备约 660px，720 足够清晰。</summary>
     private const int RenderSize = 720;
 
-    private static readonly string _cacheDir = Path.Combine(FileSystem.CacheDirectory, "defaultcovers");
+    // 放 AppDataDirectory 而非 CacheDirectory：避免系统「清除缓存」删掉后下次首用同步重渲染 720px PNG
+    private static readonly string _cacheDir = Path.Combine(FileSystem.AppDataDirectory, "defaultcovers");
 
     /// <summary>主题主色，与 ThemeService.ThemeMap 的 Primary 保持一致（唯一主题：樱粉）。</summary>
     private static readonly Dictionary<CoreAppTheme, string> ThemePrimary = new()
