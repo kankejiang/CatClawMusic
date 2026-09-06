@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Services.AI;
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
+using CatClawMusic.Maui.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -19,13 +22,33 @@ public partial class ModelManagerPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
+        InitFrostedBackground();
     }
+
+    /// <summary>
+    /// 初始化雾面动态背景：与播放页/歌词页同款封面流（绑 NowPlayingViewModel 单例）。
+    /// </summary>
+    private void InitFrostedBackground()
+    {
+        var vm = MauiProgram.Services.GetService<NowPlayingViewModel>();
+        if (vm == null) return;
+        FrostedBg.BindingContext = vm;
+        FrostedBg.SetBinding(FrostedBackground.IsActiveProperty, nameof(NowPlayingViewModel.IsPlaying));
+        FrostedBg.SetBinding(FrostedBackground.TintColorProperty, nameof(NowPlayingViewModel.CoverTintColor));
+        FrostedBg.SetBinding(FrostedBackground.CoverSourceProperty, nameof(NowPlayingViewModel.CoverFlowSource));
+        SyncFrostedDark();
+    }
+
+    /// <summary>雾面背景的洗色/底色/scrim 随深浅主题切换（Halcyon isDark），与播放页同样显式同步。</summary>
+    private void SyncFrostedDark()
+        => FrostedBg.IsDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
 
     /// <summary>页面显示时重新加载配置列表，刷新主模型标识。</summary>
     protected override void OnAppearing()
     {
         base.OnAppearing();
         Shell.SetNavBarIsVisible(this, false);
+        SyncFrostedDark();
         LoadConfigs();
         LoadAgentRunSettings();
     }

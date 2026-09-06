@@ -13,14 +13,11 @@
     <Grid RowDefinitions="Auto,*,Auto"
           Background="{DynamicResource PageBackgroundBrush}">
 
-        <!-- Frosted glass background: blurred theme image, semi-transparent -->
-        <controls:FrostedBackground Grid.RowSpan="3"
-            IsActive="{DynamicResource ThemeBackgroundEnabled}"
-            IsVisible="{DynamicResource ThemeBackgroundEnabled}"
-            TintColor="{DynamicResource TabBarGlassTint}"
+        <!-- 雾面动态背景：与播放页/歌词页同款封面流（IsActive/TintColor/CoverSource 由 code-behind 绑 NowPlayingViewModel 单例） -->
+        <controls:FrostedBackground x:Name="FrostedBg" Grid.RowSpan="3"
+            IsVisible="{DynamicResource FrostedBackgroundEnabled}"
             TintOpacity="0.60"
             DimAmount="0.12"
-            Opacity="0.8"
             InputTransparent="True" />
 
         <!-- 顶部栏：返回 + 标题 -->

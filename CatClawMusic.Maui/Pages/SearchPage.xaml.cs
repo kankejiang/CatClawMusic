@@ -69,6 +69,13 @@ public partial class SearchPage : DiscoverPageBase
 
         ChatMiniPlayer.BindingContext = _nowPlayingVm;
 
+        // 设置面板毛玻璃层：改为与播放页/歌词页同款的雾面动态背景（封面流，绑 NowPlayingViewModel 单例）
+        SettingsFrostedBg.BindingContext = _nowPlayingVm;
+        SettingsFrostedBg.SetBinding(FrostedBackground.IsActiveProperty, nameof(NowPlayingViewModel.IsPlaying));
+        SettingsFrostedBg.SetBinding(FrostedBackground.TintColorProperty, nameof(NowPlayingViewModel.CoverTintColor));
+        SettingsFrostedBg.SetBinding(FrostedBackground.CoverSourceProperty, nameof(NowPlayingViewModel.CoverFlowSource));
+        SettingsFrostedBg.IsDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+
         // 静态/单例事件：通过 HandlerChanged 管理订阅生命周期，支持页面实例复用（Singleton MainPage）。
         // 页面挂载时订阅、分离时取消，避免横竖屏切换后旧订阅残留或新挂载时漏订阅。
         HandlerChanged += (_, _) =>
@@ -235,6 +242,8 @@ public partial class SearchPage : DiscoverPageBase
         base.OnAppearing();
         // 注册为 Agent 浏览器宿主（browser_open 工具在聊天页顶部弹出预览）
         CatClawMusic.Maui.Services.AgentBrowser.AgentBrowserCoordinator.Instance.RegisterHost(AgentBrowserPreview);
+        // 雾面背景的洗色/底色/scrim 随深浅主题切换（Halcyon isDark）：主题切换发生在设置页，返回时在此同步
+        SettingsFrostedBg.IsDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
         _vm.GreetingText = CalculateGreeting();
         _vm.RefreshOnlineProviders(); // 刷新已启用在线音源（插件安装/启用后入口即时更新）
 
