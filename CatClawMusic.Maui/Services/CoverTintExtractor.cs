@@ -15,8 +15,8 @@ public static class CoverTintExtractor
 {
     private const int MaxSide = 480;
 
-    /// <summary>封面视觉分析结果：主题色 + 封面流背景源</summary>
-    public readonly record struct CoverVisualData(Color? Tint, CoverFlowProcessor.CoverSource Source);
+    /// <summary>封面视觉分析结果：主题色（主）+ 次色（色相分离的次强调色，供动态封面背景双色光晕）+ 封面流背景源</summary>
+    public readonly record struct CoverVisualData(Color? Tint, Color? Secondary, CoverFlowProcessor.CoverSource Source);
 
     /// <summary>一次性解码封面并同时产出主题色与封面流源（旧流程 Extract + ExtractCoverSource
     /// 各自完整解码同一张图两次，480px ARGB 解码 ≈ 每次 0.9MB 像素分配）。</summary>
@@ -89,9 +89,9 @@ public static class CoverTintExtractor
         {
             argb[i] = (bytes[idx + 3] << 24) | (bytes[idx + 2] << 16) | (bytes[idx + 1] << 8) | bytes[idx];
         }
-        var tint = ToneToColor(argb, (int)tw, (int)th);
+        var (tint, secondary) = ToneToColorPair(argb, (int)tw, (int)th);
         var source = CoverFlowProcessor.ScaleSource(argb, (int)tw, (int)th, CoverFlowProcessor.SourceMaxDim);
-        return new CoverVisualData(tint, source);
+        return new CoverVisualData(tint, secondary, source);
     }
 #endif
 
@@ -119,9 +119,9 @@ public static class CoverTintExtractor
         {
             var px = new int[bmp.Width * bmp.Height];
             bmp.GetPixels(px, 0, bmp.Width, 0, 0, bmp.Width, bmp.Height);
-            var tint = ToneToColor(px, bmp.Width, bmp.Height);
+            var (tint, secondary) = ToneToColorPair(px, bmp.Width, bmp.Height);
             var source = CoverFlowProcessor.ScaleSource(px, bmp.Width, bmp.Height, CoverFlowProcessor.SourceMaxDim);
-            return new CoverVisualData(tint, source);
+            return new CoverVisualData(tint, secondary, source);
         }
         finally { bmp.Recycle(); }
     }
@@ -161,6 +161,15 @@ public static class CoverTintExtractor
             ? null
             : Microsoft.Maui.Graphics.Color.FromRgb(
                 (accent >> 16) & 0xFF, (accent >> 8) & 0xFF, accent & 0xFF);
+    }
+
+    /// <summary>共享：ARGB 像素流 → 主/次强调色对（次色取不到时为 null，调用方按主色回退）。</summary>
+    private static (Color? Tint, Color? Secondary) ToneToColorPair(int[] argb, int width, int height)
+    {
+        var (primary, secondary) = AccentColorPicker.CalculatePair(argb, width, height);
+        if (primary == 0) return (null, null);
+        Color ToC(int v) => Microsoft.Maui.Graphics.Color.FromRgb((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+        return (ToC(primary), secondary != 0 ? ToC(secondary) : null);
     }
 
     /// <summary>解码封面为封面流源（ARGB，长边缩到 ≤ CoverFlowProcessor.SourceMaxDim）。</summary>

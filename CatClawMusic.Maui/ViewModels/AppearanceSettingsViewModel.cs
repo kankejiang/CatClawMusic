@@ -50,6 +50,10 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _monetBackgroundEnabled = false;
 
+    /// <summary>是否开启动态封面取色背景（背景色跟随当前歌曲封面）</summary>
+    [ObservableProperty]
+    private bool _coverBackgroundEnabled = false;
+
     /// <summary>
     /// 初始化 <see cref="AppearanceSettingsViewModel"/> 实例。
     /// </summary>
@@ -92,6 +96,12 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     {
         if (_isLoadingTheme) return;
         _themeService?.SetMonetBackgroundEnabled(value);
+    }
+
+    partial void OnCoverBackgroundEnabledChanged(bool value)
+    {
+        if (_isLoadingTheme) return;
+        _themeService?.SetCoverBackgroundEnabled(value);
     }
 
     /// <summary>选择自定义背景图：通过文件选择器选取图片并应用为应用背景</summary>
@@ -157,6 +167,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         BackgroundOpacity = _themeService.CustomBackgroundOpacity;
         FrostedBackgroundEnabled = _themeService.FrostedBackgroundEnabled;
         MonetBackgroundEnabled = _themeService.MonetBackgroundEnabled;
+        CoverBackgroundEnabled = _themeService.CoverBackgroundEnabled;
             if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
             {
                 try

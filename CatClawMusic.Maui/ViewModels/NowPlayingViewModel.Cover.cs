@@ -75,8 +75,16 @@ public partial class NowPlayingViewModel
         {
             CoverTintColor = visual.Tint ?? Colors.Transparent;
             CoverFlowSource = visual.Source;
+            // 动态封面取色背景：把封面主/次色回传给 ThemeService（指纹变化时自动重画背景）。
+            // 内部按调色板去重，同色系换歌不触发重刷。
+            MauiProgram.Services.GetService<IThemeService>()?
+                .UpdateCoverPalette(ToRgbInt(visual.Tint), ToRgbInt(visual.Secondary));
         });
     }
+
+    /// <summary>MAUI Color → 0xRRGGBB（null → 0，表示无色）。</summary>
+    private static int ToRgbInt(Microsoft.Maui.Graphics.Color? c)
+        => c == null ? 0 : ((int)(c.Red * 255f) << 16) | ((int)(c.Green * 255f) << 8) | (int)(c.Blue * 255f);
 
     /// <summary>判断是否在线封面标识（http/https URL）。与 LoadCoverAsync 判定保持一致。</summary>
     private static bool _onlineCoverRef(string path)
@@ -454,6 +462,9 @@ public partial class NowPlayingViewModel
             {
                 CoverImage = ImageSource.FromFile(DefaultCoverService.GetDefaultCoverPath());
                 HasCover = false;
+                // 当前歌无封面：清空封面取色，背景回退莫奈/标准渐变（此时才触发重刷，
+                // 换歌下载/取色间隙保持旧歌背景色不闪变）
+                MauiProgram.Services.GetService<IThemeService>()?.UpdateCoverPalette(0, 0);
             });
 
 #if ANDROID || WINDOWS

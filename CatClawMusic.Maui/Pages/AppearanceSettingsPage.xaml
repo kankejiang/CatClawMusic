@@ -193,6 +193,26 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="动态封面背景"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding CoverBackgroundEnabled, Mode=TwoWay}"
+                                    OnColor="{DynamicResource PrimaryColor}"
+                                    ThumbColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                        <Label Text="背景颜色跟随当前歌曲封面自动生成：切换歌曲时背景色调随之变换，营造沉浸氛围。优先级高于莫奈取色，当前歌曲无封面时自动回退壁纸取色或主题背景。"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
             </VerticalStackLayout>
         </ScrollView>
 </Grid>

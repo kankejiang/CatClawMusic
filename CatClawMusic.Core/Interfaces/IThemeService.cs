@@ -29,6 +29,9 @@ public interface IThemeService
     /// <summary>是否启用莫奈取色背景（背景色跟随系统壁纸，Material You）</summary>
     bool MonetBackgroundEnabled { get; }
 
+    /// <summary>是否开启动态封面取色背景（背景色跟随当前歌曲封面）</summary>
+    bool CoverBackgroundEnabled { get; }
+
     /// <summary>主题/背景应用完成事件：ApplyTheme 结束时触发。
     /// 用于修复运行时替换自定义背景时 DynamicResource 不通知原生视图、
     /// 以及返回主页面后背景丢失的问题（页面侧收到后强制重刷背景。</summary>
@@ -70,6 +73,15 @@ public interface IThemeService
     /// <summary>设置莫奈取色背景开关（背景色跟随系统壁纸）</summary>
     /// <param name="enabled">是否启用莫奈取色背景</param>
     void SetMonetBackgroundEnabled(bool enabled);
+
+    /// <summary>设置动态封面取色背景开关（背景色跟随当前歌曲封面）</summary>
+    /// <param name="enabled">是否开启动态封面取色背景</param>
+    void SetCoverBackgroundEnabled(bool enabled);
+
+    /// <summary>封面取色回传：当前歌曲封面的主/次强调色（0xRRGGBB）。
+    /// primaryRgb 传 0 表示当前无封面（清空封面色，背景回退莫奈/标准渐变）。
+    /// 取色结果与已存调色板相同时内部去重，不触发背景重刷。</summary>
+    void UpdateCoverPalette(int primaryRgb, int secondaryRgb);
 }
 
 /// <summary>

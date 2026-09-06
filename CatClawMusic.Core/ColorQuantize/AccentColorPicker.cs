@@ -17,11 +17,28 @@ public static class AccentColorPicker
     public static int Calculate(int[] argb, int width, int height)
     {
         if (argb == null || width <= 0 || height <= 0) return 0;
-        var tone = RepresentativeRgb(argb, width, height);
-        return tone is { } c ? ToPlayerAccent(c.R, c.G, c.B) : 0;
+        var cands = RepresentativeCandidates(argb, width, height);
+        return cands.Count > 0 ? ToPlayerAccent(cands[0].R, cands[0].G, cands[0].B) : 0;
     }
 
-    private static (byte R, byte G, byte B)? RepresentativeRgb(int[] argb, int width, int height)
+    /// <summary>
+    /// 强调色对（0xRRGGBB）：主色同 <see cref="Calculate"/>；
+    /// 次色 = 得分次高且色相距主色 ≥30° 的色桶（供动态背景的双色光晕层次），
+    /// 无足够分离度的次候选时回退主色（调用方可按需旋转色相合成次色）。无法取色返回 (0, 0)。
+    /// </summary>
+    public static (int Primary, int Secondary) CalculatePair(int[] argb, int width, int height)
+    {
+        if (argb == null || width <= 0 || height <= 0) return (0, 0);
+        var cands = RepresentativeCandidates(argb, width, height);
+        if (cands.Count == 0) return (0, 0);
+        var primary = ToPlayerAccent(cands[0].R, cands[0].G, cands[0].B);
+        var secondary = cands.Count > 1 ? ToPlayerAccent(cands[1].R, cands[1].G, cands[1].B) : primary;
+        return (primary, secondary);
+    }
+
+    /// <summary>候选色列表（按得分降序、色相互距 ≥30° 去重，最多取前 2 个）。
+    /// 无彩/亮中性回退路径返回单元素列表（整图平均色）。</summary>
+    private static List<(byte R, byte G, byte B)> RepresentativeCandidates(int[] argb, int width, int height)
     {
         int step = Math.Max(1, Math.Min(width, height) / SampleGrid);
 
@@ -64,7 +81,7 @@ public static class AccentColorPicker
             }
         }
 
-        if (fallbackCount == 0) return null;
+        if (fallbackCount == 0) return new List<(byte R, byte G, byte B)>();
 
         // 无彩封面（黑白灰，不限亮度）：JPEG 色度噪声会让个别"微彩灰"桶饱和度略高，
         // 若走打分会被饱和度加成捧成冠军、再被 ToPlayerAccent 强提为鲜艳紫粉。
@@ -72,7 +89,7 @@ public static class AccentColorPicker
         if (sampled > 0 && lowSat / (float)sampled > 0.80f)
         {
             long _n = Math.Max(1L, fallbackCount);
-            return ((byte)(fallbackR / _n), (byte)(fallbackG / _n), (byte)(fallbackB / _n));
+            return new List<(byte R, byte G, byte B)> { ((byte)(fallbackR / _n), (byte)(fallbackG / _n), (byte)(fallbackB / _n)) };
         }
 
         // 封面绝大多数是亮中性色、彩色像素稀少 → 回退整图平均色
@@ -81,13 +98,12 @@ public static class AccentColorPicker
             && eligible / (float)sampled < 0.24f)
         {
             long _count = Math.Max(1L, fallbackCount);
-            return ((byte)(fallbackR / _count), (byte)(fallbackG / _count), (byte)(fallbackB / _count));
+            return new List<(byte R, byte G, byte B)> { ((byte)(fallbackR / _count), (byte)(fallbackG / _count), (byte)(fallbackB / _count)) };
         }
 
         // 打分：样本多 + 高饱和 + 亮度接近中间值。
         // 低饱和桶(<0.15)一律跳过：它们不可能承载主题色，只会让噪声灰夺冠。
-        long bestCount = 0, bestR = 0, bestG = 0, bestB = 0;
-        double bestScore = double.MinValue;
+        var scored = new List<(double Score, long Count, int R, int G, int B)>();
         for (int key = 0; key < 4096; key++)
         {
             long count = bucketCount[key];
@@ -102,16 +118,31 @@ public static class AccentColorPicker
             float lum = (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f;
             float balance = 1f - Math.Abs(lum - 0.50f).Clamp01() * 1.25f;
             double score = count * (0.55 + sat * 1.65) * (0.75 + balance * 0.55);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestCount = count; bestR = r; bestG = g; bestB = b;
-            }
+            scored.Add((score, count, r, g, b));
         }
 
-        if (bestCount == 0) return null;
-        long n = Math.Max(1L, bestCount);
-        return ((byte)(bestR / n), (byte)(bestG / n), (byte)(bestB / n));
+        if (scored.Count == 0) return new List<(byte R, byte G, byte B)>();
+        scored.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+        // 贪心取前 2 个色相分离（≥30°）的候选：主色 = 最高分桶，次色 = 色相离主色最远的次高分行
+        //（scored 中 r/g/b 已是桶平均值，直接使用，勿再除以 count）
+        var picked = new List<(byte R, byte G, byte B)>();
+        foreach (var (_, _, r, g, b) in scored)
+        {
+            RgbToHsv(r, g, b, out float h, out _, out _);
+            bool tooClose = false;
+            foreach (var (pr, pg, pb) in picked)
+            {
+                RgbToHsv(pr, pg, pb, out float ph2, out _, out _);
+                float d = Math.Abs(h - ph2);
+                if (Math.Min(d, 360f - d) < 30f) { tooClose = true; break; }
+            }
+            if (tooClose) continue;
+
+            picked.Add(((byte)r, (byte)g, (byte)b));
+            if (picked.Count >= 2) break;
+        }
+        return picked;
     }
 
     /// <summary>强调色规范：低饱和回退钢蓝；否则提升饱和度下限、钳制亮度(0.46~0.88)。</summary>
