@@ -9,14 +9,16 @@
              Shell.NavBarIsVisible="False"
              BackgroundColor="{DynamicResource WindowBackgroundColor}">
 
-    <Grid RowDefinitions="Auto,*"
+    <Grid RowDefinitions="*"
           Background="{DynamicResource PageBackgroundBrush}">
         <Grid.Behaviors>
             <controls:SafeAreaPaddingBehavior />
         </Grid.Behaviors>
 
-        <!-- ═══ 顶部英雄卡（含返回按钮，复用 HeroCard，与设置二级菜单一致）═══ -->
-        <controls:HeroCard Grid.Row="0" ShowBackButton="True">
+        <!-- ═══ 内容滚动区：顶部英雄卡随内容一起滚动（不再固定悬浮透出下层）═══ -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Spacing="0">
+                <controls:HeroCard ShowBackButton="True">
             <controls:HeroCard.CardContent>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Padding="44,0,4,0">
                     <VerticalStackLayout Spacing="6" VerticalOptions="Center">
@@ -47,9 +49,8 @@
             </controls:HeroCard.CardContent>
         </controls:HeroCard>
 
-        <!-- ═══ 内容滚动区 ═══ -->
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16,4,16,16" Spacing="10">
+        <!-- 内容卡片列表（顶部 Padding 归零：与英雄卡自带下边距衔接） -->
+        <VerticalStackLayout Padding="16,0,16,16" Spacing="10">
 
                 <!-- ═══ Section: 内容与服务 ═══ -->
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="4,8,0,0">
@@ -389,6 +390,7 @@
 
                 </VerticalStackLayout>
 
+            </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>
