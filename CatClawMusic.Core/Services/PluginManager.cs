@@ -613,7 +613,9 @@ public class PluginManager : IPluginManager
         // 第一个实例作为主插件，其余作为子插件
         var primary = instances[0];
         var info = CreatePluginInfo(primary);
-        info.DisplayNameOverride = Path.GetFileNameWithoutExtension(localPath);
+        // 显示名优先用插件自报名；文件名可能带日期/版本号（每次更新都变，会导致列表名漂移），仅作空值兜底
+        if (string.IsNullOrWhiteSpace(info.Plugin.Name))
+            info.DisplayNameOverride = Path.GetFileNameWithoutExtension(localPath);
         info.Source = PluginSource.Installed;
         info.AssemblyPath = localPath;
         info.InstallUrl = sourceUrl;
@@ -1248,7 +1250,10 @@ public class PluginManager : IPluginManager
                     // 构建插件信息并恢复启用状态
                     var primary = instances[0];
                     var info = CreatePluginInfo(primary);
-                    info.DisplayNameOverride = Path.GetFileNameWithoutExtension(entry.AssemblyPath);
+                    // 显示名优先用插件自报名，文件名仅作空值兜底（历史安装的 DisplayNameOverride
+                    // 未持久化到 installed.json，恢复时同样以自报名为准，避免日期文件名漂移）
+                    if (string.IsNullOrWhiteSpace(info.Plugin.Name))
+                        info.DisplayNameOverride = Path.GetFileNameWithoutExtension(entry.AssemblyPath);
                     info.Source = PluginSource.Installed;
                     info.AssemblyPath = entry.AssemblyPath;
                     info.InstallUrl = entry.InstallUrl;
