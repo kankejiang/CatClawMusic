@@ -90,17 +90,35 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     {
         if (_isLoadingTheme) return;
         _themeService?.SetFrostedBackgroundEnabled(value);
+        // 动态封面背景依赖雾面：关闭雾面时联动关闭动态封面（service 内已级联持久化，这里同步 UI 状态）
+        if (!value && CoverBackgroundEnabled)
+            CoverBackgroundEnabled = false;
     }
 
     partial void OnMonetBackgroundEnabledChanged(bool value)
     {
         if (_isLoadingTheme) return;
+        // 单选互斥：开启莫奈时自动关闭动态封面（属性赋值会链式触发 OnCoverBackgroundEnabledChanged → service 持久化）
+        if (value && CoverBackgroundEnabled)
+            CoverBackgroundEnabled = false;
         _themeService?.SetMonetBackgroundEnabled(value);
     }
 
     partial void OnCoverBackgroundEnabledChanged(bool value)
     {
         if (_isLoadingTheme) return;
+        if (value)
+        {
+            // 动态封面依赖雾面：雾面未开时回弹为关（UI Switch 已禁用，此为逻辑层兜底）
+            if (_themeService != null && !_themeService.FrostedBackgroundEnabled)
+            {
+                CoverBackgroundEnabled = false;
+                return;
+            }
+            // 单选互斥：开启动态封面时自动关闭莫奈
+            if (MonetBackgroundEnabled)
+                MonetBackgroundEnabled = false;
+        }
         _themeService?.SetCoverBackgroundEnabled(value);
     }
 

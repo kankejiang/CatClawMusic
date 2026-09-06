@@ -250,21 +250,33 @@ public class ThemeService : IThemeService
         SetCustomBackground(null);
     }
 
-    /// <summary>设置雾面动态背景开关并持久化</summary>
+    /// <summary>设置雾面动态背景开关并持久化。
+    /// 关闭时级联关闭动态封面背景（动态封面依赖雾面：只有雾面开启才允许生效）。</summary>
     /// <param name="enabled">是否启用雾面背景</param>
     public void SetFrostedBackgroundEnabled(bool enabled)
     {
         _frostedBackgroundEnabled = enabled;
         Preferences.Default.Set(KeyFrostedBg, enabled);
+        if (!enabled && _coverBackgroundEnabled)
+        {
+            _coverBackgroundEnabled = false;
+            Preferences.Default.Set(KeyCoverBg, false);
+        }
         ApplyTheme();
     }
 
-    /// <summary>设置莫奈取色背景开关并持久化（背景色跟随系统壁纸）</summary>
+    /// <summary>设置莫奈取色背景开关并持久化（背景色跟随系统壁纸）。
+    /// 与动态封面背景单选互斥：开启莫奈时自动关闭动态封面。</summary>
     /// <param name="enabled">是否启用莫奈取色背景</param>
     public void SetMonetBackgroundEnabled(bool enabled)
     {
         _monetBackgroundEnabled = enabled;
         Preferences.Default.Set(KeyMonetBg, enabled);
+        if (enabled && _coverBackgroundEnabled)
+        {
+            _coverBackgroundEnabled = false;
+            Preferences.Default.Set(KeyCoverBg, false);
+        }
         MonetPalette.Refresh();
         ApplyTheme();
     }
@@ -281,11 +293,18 @@ public class ThemeService : IThemeService
     public bool CoverBackgroundEnabled => _coverBackgroundEnabled;
 
     /// <summary>设置动态封面取色背景开关并持久化（背景色跟随当前歌曲封面）。
-    /// 与莫奈互为回退：封面开启时优先封面色，无封面歌曲回退莫奈/标准。</summary>
+    /// 约束：①与莫奈单选互斥——开启动态封面时自动关闭莫奈；
+    /// ②依赖雾面动态背景——雾面关闭时开关无效（调用方 UI 已禁用，此处兜底拒绝）。</summary>
     public void SetCoverBackgroundEnabled(bool enabled)
     {
+        if (enabled && !_frostedBackgroundEnabled) return;   // 雾面未开：拒绝开启
         _coverBackgroundEnabled = enabled;
         Preferences.Default.Set(KeyCoverBg, enabled);
+        if (enabled && _monetBackgroundEnabled)
+        {
+            _monetBackgroundEnabled = false;
+            Preferences.Default.Set(KeyMonetBg, false);
+        }
         ApplyTheme();
     }
 
@@ -509,12 +528,12 @@ public class ThemeService : IThemeService
     /// <summary>标准渐变背景的缓存键（非莫奈）</summary>
     private const string BgKeyStandard = "std";
 
-    /// <summary>当前背景缓存键（三级优先）：封面取色开启且有封面色 → cover_{指纹}；
+    /// <summary>当前背景缓存键（单选互斥）：动态封面开启（需雾面已开）且有封面色 → cover_{指纹}；
     /// 莫奈开启且取到壁纸色 → monet_{指纹}；否则 std。
-    /// 封面色取不到（无封面歌曲/未播放）自动逐级回退。</summary>
+    /// 两者由设置层保证至多一个开启；封面色取不到（无封面歌曲/未播放）自动回退标准渐变。</summary>
     private string CurrentBgKey()
     {
-        if (_coverBackgroundEnabled && s_coverPrimary != null && s_coverFingerprint != null)
+        if (_frostedBackgroundEnabled && _coverBackgroundEnabled && s_coverPrimary != null && s_coverFingerprint != null)
             return $"cover_{s_coverFingerprint}";
         if (_monetBackgroundEnabled && MonetPalette.Current != null)
             return $"monet_{MonetPalette.Fingerprint}";
@@ -768,6 +787,18 @@ public class ThemeService : IThemeService
             _frostedBackgroundEnabled = Preferences.Default.Get(KeyFrostedBg, true);
             _monetBackgroundEnabled = Preferences.Default.Get(KeyMonetBg, false);
             _coverBackgroundEnabled = Preferences.Default.Get(KeyCoverBg, false);
+            // 收敛历史遗留：莫奈与动态封面现为单选互斥，同开时保留动态封面（封面取色更具体）；
+            // 动态封面依赖雾面，雾面关闭时一并关闭。
+            if (_monetBackgroundEnabled && _coverBackgroundEnabled)
+            {
+                _monetBackgroundEnabled = false;
+                Preferences.Default.Set(KeyMonetBg, false);
+            }
+            if (!_frostedBackgroundEnabled && _coverBackgroundEnabled)
+            {
+                _coverBackgroundEnabled = false;
+                Preferences.Default.Set(KeyCoverBg, false);
+            }
             if (_customBackgroundPath != null && !File.Exists(_customBackgroundPath))
                 _customBackgroundPath = null;
 

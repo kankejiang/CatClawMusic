@@ -167,7 +167,7 @@
                                     OnColor="{DynamicResource PrimaryColor}"
                                     ThumbColor="{DynamicResource TextPrimaryColor}" />
                         </Grid>
-                        <Label Text="在播放页和歌词页面使用封面雾面动态背景。将封面裁成4块旋转拼接，再经过多重模糊和色调处理，形成雾面玻璃质感的动态背景。"
+                        <Label Text="全站使用当前歌曲封面实时生成的雾面动态背景：封面流光缓动 + 玻璃质感轻纱遮罩，随歌曲切换自动变换氛围。"
                                FontSize="12"
                                TextColor="{DynamicResource TextSecondaryColor}" />
                     </VerticalStackLayout>
@@ -187,7 +187,7 @@
                                     OnColor="{DynamicResource PrimaryColor}"
                                     ThumbColor="{DynamicResource TextPrimaryColor}" />
                         </Grid>
-                        <Label Text="背景颜色跟随系统壁纸自动生成（Material You 取色）。更换壁纸后应用背景将随之变换色调，与系统保持一致的视觉风格。"
+                        <Label Text="背景颜色跟随系统壁纸自动生成（Material You 取色）。更换壁纸后应用背景将随之变换色调，与系统保持一致的视觉风格。与动态封面背景单选互斥：开启其一时自动关闭另一个。"
                                FontSize="12"
                                TextColor="{DynamicResource TextSecondaryColor}" />
                     </VerticalStackLayout>
@@ -204,10 +204,11 @@
                                    VerticalOptions="Center" />
                             <Switch Grid.Column="1"
                                     IsToggled="{Binding CoverBackgroundEnabled, Mode=TwoWay}"
+                                    IsEnabled="{Binding FrostedBackgroundEnabled}"
                                     OnColor="{DynamicResource PrimaryColor}"
                                     ThumbColor="{DynamicResource TextPrimaryColor}" />
                         </Grid>
-                        <Label Text="背景颜色跟随当前歌曲封面自动生成：切换歌曲时背景色调随之变换，营造沉浸氛围。优先级高于莫奈取色，当前歌曲无封面时自动回退壁纸取色或主题背景。"
+                        <Label Text="背景颜色跟随当前歌曲封面自动生成：切换歌曲时背景色调随之变换，营造沉浸氛围。需先开启雾面动态背景；与莫奈取色背景单选互斥。"
                                FontSize="12"
                                TextColor="{DynamicResource TextSecondaryColor}" />
                     </VerticalStackLayout>

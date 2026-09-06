@@ -23,13 +23,15 @@ public interface IThemeService
     /// <summary>是否设置了自定义背景</summary>
     bool HasCustomBackground { get; }
 
-    /// <summary>是否启用雾面动态背景（播放页/歌词页）</summary>
+    /// <summary>是否启用雾面动态背景（全站封面流雾面）</summary>
     bool FrostedBackgroundEnabled { get; }
 
-    /// <summary>是否启用莫奈取色背景（背景色跟随系统壁纸，Material You）</summary>
+    /// <summary>是否启用莫奈取色背景（背景色跟随系统壁纸，Material You）。
+    /// 与动态封面背景单选互斥。</summary>
     bool MonetBackgroundEnabled { get; }
 
-    /// <summary>是否开启动态封面取色背景（背景色跟随当前歌曲封面）</summary>
+    /// <summary>是否开启动态封面取色背景（背景色跟随当前歌曲封面）。
+    /// 与莫奈单选互斥，且依赖雾面动态背景开启。</summary>
     bool CoverBackgroundEnabled { get; }
 
     /// <summary>主题/背景应用完成事件：ApplyTheme 结束时触发。
@@ -66,15 +68,15 @@ public interface IThemeService
     /// <summary>清除自定义背景设置</summary>
     void ClearCustomBackground();
 
-    /// <summary>设置雾面动态背景开关</summary>
+    /// <summary>设置雾面动态背景开关（关闭时级联关闭动态封面背景）</summary>
     /// <param name="enabled">是否启用雾面背景</param>
     void SetFrostedBackgroundEnabled(bool enabled);
 
-    /// <summary>设置莫奈取色背景开关（背景色跟随系统壁纸）</summary>
+    /// <summary>设置莫奈取色背景开关（与动态封面单选互斥：开启时自动关闭对方）</summary>
     /// <param name="enabled">是否启用莫奈取色背景</param>
     void SetMonetBackgroundEnabled(bool enabled);
 
-    /// <summary>设置动态封面取色背景开关（背景色跟随当前歌曲封面）</summary>
+    /// <summary>设置动态封面取色背景开关（与莫奈单选互斥；依赖雾面动态背景，雾面关闭时拒绝开启）</summary>
     /// <param name="enabled">是否开启动态封面取色背景</param>
     void SetCoverBackgroundEnabled(bool enabled);
 
