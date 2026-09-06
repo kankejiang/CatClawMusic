@@ -205,6 +205,52 @@ public partial class DownloadsPage : ContentPage
                 if (error != null)
                     await AlertAsync("文件删除失败", error, "确定");
                 break;
+            case "more":
+                var moreItem = _manager.Tasks.FirstOrDefault(t => t.Id == id);
+                if (moreItem != null)
+                    await OpenWithSystemAsync(moreItem.LocalPath);
+                break;
+        }
+    }
+
+    /// <summary>用系统弹窗打开已完成文件（Android 弹系统"打开文件"底部选择器，任何格式由系统分发给可处理的应用；
+    /// Windows 走 ShellExecute）。目录则提示保存路径。</summary>
+    private async Task OpenWithSystemAsync(string path)
+    {
+        try
+        {
+            var isDir = Directory.Exists(path);
+            if (!isDir && !File.Exists(path))
+            {
+                await AlertAsync("提示", "文件不存在或已被移动", "确定");
+                return;
+            }
+#if WINDOWS
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+#elif ANDROID
+            if (isDir)
+            {
+                // Android 打开目录需文件管理器授权，直接提示路径（BT 种子目录）
+                await AlertAsync("下载完成", $"文件已保存到：\n{path}", "确定");
+            }
+            else
+            {
+                await Launcher.OpenAsync(new OpenFileRequest
+                {
+                    Title = "打开文件",
+                    File = new ReadOnlyFile(path)
+                });
+            }
+#endif
+        }
+        catch (Exception ex)
+        {
+            await AlertAsync("打开失败", ex.Message, "确定");
         }
     }
 
@@ -239,35 +285,8 @@ public partial class DownloadsPage : ContentPage
             return;
         }
 
-        try
-        {
-#if WINDOWS
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = path,
-                UseShellExecute = true
-            };
-            System.Diagnostics.Process.Start(psi);
-#elif ANDROID
-            if (isDir)
-            {
-                // Android 打开目录需文件管理器授权，直接提示路径（BT 种子目录）
-                await AlertAsync("下载完成", $"文件已保存到：\n{path}", "确定");
-            }
-            else
-            {
-                await Launcher.OpenAsync(new OpenFileRequest
-                {
-                    Title = "打开文件",
-                    File = new ReadOnlyFile(path)
-                });
-            }
-#endif
-        }
-        catch (Exception ex)
-        {
-            await AlertAsync("打开失败", ex.Message, "确定");
-        }
+        // 非音频文件：系统弹窗打开（音频也可经"更多"按钮走此路径）
+        await OpenWithSystemAsync(path);
     }
 
     // ═══ 已完成音频任务：底部抽屉操作菜单（播放 / 加入音乐库 / 匹配元数据） ═══
