@@ -173,6 +173,26 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <Border Style="{StaticResource GlassCardStyle}">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="莫奈取色背景"
+                                   FontSize="16"
+                                   FontFamily="OpenSansSemibold"
+                                   TextColor="{DynamicResource TextPrimaryColor}"
+                                   VerticalOptions="Center" />
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding MonetBackgroundEnabled, Mode=TwoWay}"
+                                    OnColor="{DynamicResource PrimaryColor}"
+                                    ThumbColor="{DynamicResource TextPrimaryColor}" />
+                        </Grid>
+                        <Label Text="背景颜色跟随系统壁纸自动生成（Material You 取色）。更换壁纸后应用背景将随之变换色调，与系统保持一致的视觉风格。"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondaryColor}" />
+                    </VerticalStackLayout>
+                </Border>
+
             </VerticalStackLayout>
         </ScrollView>
 </Grid>

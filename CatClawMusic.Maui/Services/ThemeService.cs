@@ -19,12 +19,14 @@ public class ThemeService : IThemeService
     private const string KeyCustomBgPath = "custom_bg_path";
     private const string KeyCustomBgOpacity = "custom_bg_opacity";
     private const string KeyFrostedBg = "frosted_bg_enabled";
+    private const string KeyMonetBg = "monet_bg_enabled";
 
     private CoreAppTheme _currentTheme;
     private DarkModeSetting _darkModeSetting;
     private string? _customBackgroundPath;
     private double _customBackgroundOpacity = 0.5;
     private bool _frostedBackgroundEnabled = true;
+    private bool _monetBackgroundEnabled = false;
 
     // ═══ 统一全局背景（GlobalBackgroundService）状态 ═══
     // 供 GlobalBackgroundService 在每次主题/背景切换后，把当前生效的背景一次性绘制到 Window 层。
@@ -76,9 +78,60 @@ public class ThemeService : IThemeService
         new BgGlow(0.20f, 0.88f, 0.60f, "#387ED8C3"),
     });
 
-    /// <summary>主题 + 深浅模式 → 背景渐变设计（唯一樱粉主题的深/浅两套）</summary>
-    private static BgDesign GetBackgroundDesign(CoreAppTheme theme, bool isDark)
-        => isDark ? VioletDusk : MorningBlush;
+    /// <summary>主题 + 深浅模式 → 背景渐变设计。
+    /// 莫奈取色开启且成功取到壁纸色时：由壁纸主/次色动态生成设计（Material You）；
+    /// 否则回退唯一樱粉主题的深/浅标准两套。</summary>
+    private static BgDesign GetBackgroundDesign(CoreAppTheme theme, bool isDark, bool monet)
+        => monet ? GetMonetDesign(isDark) : isDark ? VioletDusk : MorningBlush;
+
+    // ═══ 莫奈取色背景（Material You）：壁纸主/次色 → 渐变 + 光晕 ═══
+    // 结构语言与标准两套一致：1 层 3 停靠线性渐变 + 2 层径向光晕；
+    // 底色饱和度固定压低档（背景不抢内容），光晕保留壁纸色相、饱和度钳制防荧光。
+
+    /// <summary>莫奈深色：壁纸主色 hue 的暗夜底 + 主/次色光晕（仿 VioletDusk 结构）</summary>
+    private static BgDesign GetMonetDesign(bool isDark)
+    {
+        var pal = MonetPalette.Current!;
+        var primary = ParseHexColor(pal.Primary);
+        var secondary = ParseHexColor(pal.Secondary);
+        var (ph, ps, _) = MonetPalette.ToHsl(primary);
+        var (sh, ss, _) = MonetPalette.ToHsl(secondary);
+        ps = Math.Clamp(ps, 0.15, 0.60);
+        ss = Math.Clamp(ss, 0.15, 0.60);
+
+        if (isDark)
+        {
+            return new BgDesign((0, 0), (0, 1), new[]
+            {
+                new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.26, 0.075), 0xFF), 0f),
+                new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.26, 0.105), 0xFF), 0.55f),
+                new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.26, 0.145), 0xFF), 1f),
+            }, new[]
+            {
+                new BgGlow(0.80f, 0.18f, 0.52f, ArgbWithAlpha(MonetPalette.FromHsl(ph, ps, 0.62), 0x2A)),
+                new BgGlow(0.24f, 0.86f, 0.70f, ArgbWithAlpha(MonetPalette.FromHsl(sh, ss, 0.62), 0x14)),
+            });
+        }
+
+        return new BgDesign((0, 0), (0, 1), new[]
+        {
+            new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.40, 0.97), 0xFF), 0f),
+            new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.42, 0.945), 0xFF), 0.55f),
+            new BgStop(ArgbWithAlpha(MonetPalette.FromHsl(ph, 0.44, 0.91), 0xFF), 1f),
+        }, new[]
+        {
+            new BgGlow(0.80f, 0.14f, 0.70f, "#F2FFFFFF"),
+            new BgGlow(0.20f, 0.88f, 0.60f, ArgbWithAlpha(MonetPalette.FromHsl(sh, ss, 0.70), 0x38)),
+        });
+    }
+
+    private static (byte R, byte G, byte B) ParseHexColor(string hex)
+        => ((byte)Convert.ToInt32(hex.Substring(1, 2), 16),
+            (byte)Convert.ToInt32(hex.Substring(3, 2), 16),
+            (byte)Convert.ToInt32(hex.Substring(5, 2), 16));
+
+    private static string ArgbWithAlpha((byte R, byte G, byte B) c, byte a)
+        => $"#{a:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
     /// <summary>获取当前主题色枚举</summary>
     public CoreAppTheme CurrentTheme => _currentTheme;
@@ -93,6 +146,9 @@ public class ThemeService : IThemeService
 
     /// <summary>获取是否启用雾面动态背景（播放页/歌词页）</summary>
     public bool FrostedBackgroundEnabled => _frostedBackgroundEnabled;
+
+    /// <summary>获取是否启用莫奈取色背景（背景色跟随系统壁纸，Material You）</summary>
+    public bool MonetBackgroundEnabled => _monetBackgroundEnabled;
 
     /// <summary>主题/背景应用完成事件：ApplyTheme 结束时触发。页面侧据此强制重刷原生背景。</summary>
     public event Action? Applied;
@@ -117,6 +173,9 @@ public class ThemeService : IThemeService
     public ThemeService()
     {
         LoadSettings();
+        // 莫奈取色：启动时取一次壁纸色；之后监听壁纸变化（Android）自动重取重画
+        MonetPalette.Refresh();
+        MonetPalette.Watch(OnMonetColorsChanged);
         // 启动时立即设置 UserAppTheme，确保 RequestedTheme 正确
         if (Application.Current != null)
         {
@@ -178,6 +237,24 @@ public class ThemeService : IThemeService
         _frostedBackgroundEnabled = enabled;
         Preferences.Default.Set(KeyFrostedBg, enabled);
         ApplyTheme();
+    }
+
+    /// <summary>设置莫奈取色背景开关并持久化（背景色跟随系统壁纸）</summary>
+    /// <param name="enabled">是否启用莫奈取色背景</param>
+    public void SetMonetBackgroundEnabled(bool enabled)
+    {
+        _monetBackgroundEnabled = enabled;
+        Preferences.Default.Set(KeyMonetBg, enabled);
+        MonetPalette.Refresh();
+        ApplyTheme();
+    }
+
+    /// <summary>壁纸颜色变化回调（MonetPalette.Watch）：重取色 → 指纹变化时重新应用主题，
+    /// 背景 PNG 缓存按指纹分键，自动失效重画。</summary>
+    private void OnMonetColorsChanged()
+    {
+        MonetPalette.Refresh();
+        MainThread.BeginInvokeOnMainThread(ApplyTheme);
     }
 
     /// <summary>切换主题色并持久化</summary>
@@ -294,18 +371,22 @@ public class ThemeService : IThemeService
     /// </summary>
     private void ApplyThemeBackgroundImage(ResourceDictionary resources, CoreAppTheme theme, bool isDark)
     {
-        var key = (theme, isDark);
+        // 缓存键第三维 bgKey：莫奈取色时带壁纸指纹（壁纸变化 → 指纹变化 → 缓存自动失效重画），
+        // 标准渐变固定 "std"。修掉"改配色后旧 PNG 命中"的坑：指纹不进 key 就必须人肉递增版本号。
+        var bgKey = CurrentBgKey();
+        var monet = bgKey != BgKeyStandard;
+        var key = (theme, isDark, bgKey);
 
         // 1) 内存命中：立即上屏(主题切换来回零成本)
         if (BackgroundPngMemory.TryGetValue(key, out var memPng))
         {
-            SetThemePng(resources, theme, isDark, memPng);
+            SetThemePng(resources, theme, isDark, bgKey, memPng);
             return;
         }
 
         // 2) 磁盘命中(每天第一次启动走这里,仅一次几十 KB 文件读):后台读取后上屏。
         //    期间保留旧图 —— 同主题同模式的旧图与新图像素一致,无闪烁。
-        var diskPath = ThemeBackgroundDiskPath(theme, isDark);
+        var diskPath = ThemeBackgroundDiskPath(theme, isDark, bgKey);
         if (File.Exists(diskPath))
         {
             _ = Task.Run(async () =>
@@ -318,10 +399,10 @@ public class ThemeService : IThemeService
                     {
                         var app = Application.Current;
                         if (app?.Resources == null) return;
-                        // 上屏前校验主题/模式未再变化,且用户未设置自定义背景
-                        if (_currentTheme != theme || IsEffectivelyDark() != isDark) return;
+                        // 上屏前校验主题/模式/bgKey 未再变化,且用户未设置自定义背景
+                        if (_currentTheme != theme || IsEffectivelyDark() != isDark || CurrentBgKey() != bgKey) return;
                         if (CurrentCustomBackgroundPath != null) return;
-                        SetThemePng(app.Resources, theme, isDark, png);
+                        SetThemePng(app.Resources, theme, isDark, bgKey, png);
                         NotifyApplied();
                     });
                 }
@@ -330,7 +411,7 @@ public class ThemeService : IThemeService
             return;
         }
 
-        // 3) 首次生成(每主题×模式一生一次,之后永远走缓存):
+        // 3) 首次生成(每主题×模式×bgKey一生一次,之后永远走缓存):
         //    已有旧图在屏 → 后台渲染+写盘后换图;完全无图 → 同步渲染兜底(仅影响首次安装)。
         bool hasStale = resources["ThemeBackgroundImage"] != null;
         if (hasStale)
@@ -339,16 +420,17 @@ public class ThemeService : IThemeService
             {
                 try
                 {
-                    var png = RenderThemeBackgroundPng(theme, isDark);
+                    var png = RenderThemeBackgroundPng(theme, isDark, monet);
                     TryWriteBackgroundDiskCache(diskPath, png);
+                    PruneStaleMonetBackgrounds(bgKey);
                     BackgroundPngMemory[key] = png;
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         var app = Application.Current;
                         if (app?.Resources == null) return;
-                        if (_currentTheme != theme || IsEffectivelyDark() != isDark) return;
+                        if (_currentTheme != theme || IsEffectivelyDark() != isDark || CurrentBgKey() != bgKey) return;
                         if (CurrentCustomBackgroundPath != null) return;
-                        SetThemePng(app.Resources, theme, isDark, png);
+                        SetThemePng(app.Resources, theme, isDark, bgKey, png);
                         NotifyApplied();
                     });
                 }
@@ -357,24 +439,51 @@ public class ThemeService : IThemeService
             return;
         }
 
-        var syncPng = RenderThemeBackgroundPng(theme, isDark);
+        var syncPng = RenderThemeBackgroundPng(theme, isDark, monet);
         TryWriteBackgroundDiskCache(diskPath, syncPng);
         BackgroundPngMemory[key] = syncPng;
-        SetThemePng(resources, theme, isDark, syncPng);
+        SetThemePng(resources, theme, isDark, bgKey, syncPng);
     }
 
-    /// <summary>PNG 字节缓存(主题×深浅模式,渲染结果确定,最多 10 份 ≈ 几 MB)</summary>
-    private static readonly ConcurrentDictionary<(CoreAppTheme Theme, bool IsDark), byte[]> BackgroundPngMemory = new();
+    /// <summary>标准渐变背景的缓存键（非莫奈）</summary>
+    private const string BgKeyStandard = "std";
 
-    private static string ThemeBackgroundDiskPath(CoreAppTheme theme, bool isDark)
+    /// <summary>当前背景缓存键：莫奈开启且取到壁纸色 → monet_{指纹}；否则 std。
+    /// 取不到色（无壁纸/异常）自动落回标准渐变，开关名义上开但无色可用。</summary>
+    private string CurrentBgKey()
+        => _monetBackgroundEnabled && MonetPalette.Current != null
+            ? $"monet_{MonetPalette.Fingerprint}"
+            : BgKeyStandard;
+
+    /// <summary>清理旧指纹的莫奈背景磁盘缓存（壁纸频繁更换时防止 PNG 无限堆积；
+    /// 只删 monet_ 前缀且非当前指纹的文件，标准 std 文件不动）</summary>
+    private static void PruneStaleMonetBackgrounds(string currentBgKey)
+    {
+        try
+        {
+            var dir = Path.Combine(FileSystem.AppDataDirectory, "theme_bg");
+            if (!Directory.Exists(dir)) return;
+            foreach (var file in Directory.GetFiles(dir, "bg_v2_*_monet_*.png"))
+            {
+                if (file.Contains($"_{currentBgKey}_")) continue;
+                try { File.Delete(file); } catch { }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>PNG 字节缓存(主题×深浅模式×bgKey,渲染结果确定,最多若干份 ≈ 几 MB)</summary>
+    private static readonly ConcurrentDictionary<(CoreAppTheme Theme, bool IsDark, string BgKey), byte[]> BackgroundPngMemory = new();
+
+    private static string ThemeBackgroundDiskPath(CoreAppTheme theme, bool isDark, string bgKey)
     {
         // 放 AppDataDirectory 而非 CacheDirectory：系统「清除缓存」会删掉主题背景 PNG，
         // 下次 ApplyTheme 就得在主线程同步重渲染 1080×1920 位图（清缓存后启动卡顿因素之一）
         var dir = Path.Combine(FileSystem.AppDataDirectory, "theme_bg");
         Directory.CreateDirectory(dir);
-        // 文件名带设计版本号：改 GetBackgroundDesign 配色后必须递增 vN，
-        // 否则旧磁盘缓存命中会一直显示旧配色（内存/磁盘两级缓存都是"一生一次"）。
-        return Path.Combine(dir, $"bg_v2_{theme}_{(isDark ? "dark" : "light")}.png");
+        // 文件名含 bgKey：莫奈取色时为 monet_{壁纸指纹}，壁纸变化自动换文件；
+        // 标准渐变为 std（历史文件名为 bg_v2_{theme}_{mode}.png，std 命名与其同构，互不影响）。
+        return Path.Combine(dir, $"bg_v2_{theme}_{bgKey}_{(isDark ? "dark" : "light")}.png");
     }
 
     private static void TryWriteBackgroundDiskCache(string path, byte[] png)
@@ -383,26 +492,26 @@ public class ThemeService : IThemeService
         catch (Exception ex) { Log.Debug("ThemeService", $"[ThemeBg] 写磁盘缓存失败: {ex.Message}"); }
     }
 
-    private void SetThemePng(ResourceDictionary resources, CoreAppTheme theme, bool isDark, byte[] png)
+    private void SetThemePng(ResourceDictionary resources, CoreAppTheme theme, bool isDark, string bgKey, byte[] png)
     {
-        resources["ThemeBackgroundImage"] = GetOrCreateBackgroundImage(theme, isDark, png);
+        resources["ThemeBackgroundImage"] = GetOrCreateBackgroundImage(theme, isDark, bgKey, png);
         resources["ThemeBackgroundEnabled"] = true;
         CurrentThemeBackgroundPng = png;
         CurrentCustomBackgroundPath = null;
         CurrentBackgroundEnabled = true;
     }
 
-    /// <summary>代码绘制背景缓存（主题色 + 深/浅模式 双键），带容量上限的 LRU：
-    /// 每套 1080×1920 ARGB ≈ 8MB 解码内存，10 套全缓存常驻几十 MB（低端机伤）。
+    /// <summary>代码绘制背景缓存（主题色 + 深/浅模式 + bgKey 三键），带容量上限的 LRU：
+    /// 每套 1080×1920 ARGB ≈ 8MB 解码内存，全缓存常驻几十 MB（低端机伤）。
     /// 最多保留 4 套（当前主题的深浅两套 + 最近切换过的），最久未用的先淘汰。</summary>
-    private static readonly Dictionary<(CoreAppTheme Theme, bool IsDark), ImageSource> BackgroundImageCache = new();
-    private static readonly LinkedList<(CoreAppTheme Theme, bool IsDark)> BackgroundImageLru = new();
+    private static readonly Dictionary<(CoreAppTheme Theme, bool IsDark, string BgKey), ImageSource> BackgroundImageCache = new();
+    private static readonly LinkedList<(CoreAppTheme Theme, bool IsDark, string BgKey)> BackgroundImageLru = new();
     private const int BackgroundImageCacheLimit = 4;
 
     /// <summary>获取（或生成并缓存）代码绘制的主题背景 ImageSource</summary>
-    private static ImageSource GetOrCreateBackgroundImage(CoreAppTheme theme, bool isDark, byte[] png)
+    private static ImageSource GetOrCreateBackgroundImage(CoreAppTheme theme, bool isDark, string bgKey, byte[] png)
     {
-        var key = (theme, isDark);
+        var key = (theme, isDark, bgKey);
         if (BackgroundImageCache.TryGetValue(key, out var cached))
         {
             // 命中：移到 LRU 尾部（最近使用）
@@ -429,12 +538,12 @@ public class ThemeService : IThemeService
     /// 与 docs/theme-backgrounds-10.html 原型配色一致。
     /// Windows 用 Win2D（项目已引用 Microsoft.Graphics.Win2D），Android 用系统 Canvas。
     /// </summary>
-    private static byte[] RenderThemeBackgroundPng(CoreAppTheme theme, bool isDark)
+    private static byte[] RenderThemeBackgroundPng(CoreAppTheme theme, bool isDark, bool monet)
     {
         // 1080x1920（2K 竖屏）：手机端约 1:1 显示；PC 横屏拉伸后仍保持清晰。
         // 光晕半径按 max(w,h) 计算，PC 宽屏下光晕也能铺开，避免竖屏参数拉伸后不明显。
         const int width = 1080, height = 1920;
-        var design = GetBackgroundDesign(theme, isDark);
+        var design = GetBackgroundDesign(theme, isDark, monet);
 
 #if ANDROID
         using var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
@@ -588,6 +697,7 @@ public class ThemeService : IThemeService
             _customBackgroundPath = Preferences.Default.Get<string?>(KeyCustomBgPath, null);
             _customBackgroundOpacity = Preferences.Default.Get(KeyCustomBgOpacity, 0.5);
             _frostedBackgroundEnabled = Preferences.Default.Get(KeyFrostedBg, true);
+            _monetBackgroundEnabled = Preferences.Default.Get(KeyMonetBg, false);
             if (_customBackgroundPath != null && !File.Exists(_customBackgroundPath))
                 _customBackgroundPath = null;
 
@@ -600,6 +710,7 @@ public class ThemeService : IThemeService
             _darkModeSetting = DarkModeSetting.FollowSystem;
             _customBackgroundPath = null;
             _customBackgroundOpacity = 0.5;
+            _monetBackgroundEnabled = false;
         }
     }
 

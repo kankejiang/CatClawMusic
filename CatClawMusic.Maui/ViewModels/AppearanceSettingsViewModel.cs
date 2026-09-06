@@ -46,6 +46,10 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _frostedBackgroundEnabled = true;
 
+    /// <summary>是否启用莫奈取色背景（背景色跟随系统壁纸，Material You）</summary>
+    [ObservableProperty]
+    private bool _monetBackgroundEnabled = false;
+
     /// <summary>
     /// 初始化 <see cref="AppearanceSettingsViewModel"/> 实例。
     /// </summary>
@@ -82,6 +86,12 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     {
         if (_isLoadingTheme) return;
         _themeService?.SetFrostedBackgroundEnabled(value);
+    }
+
+    partial void OnMonetBackgroundEnabledChanged(bool value)
+    {
+        if (_isLoadingTheme) return;
+        _themeService?.SetMonetBackgroundEnabled(value);
     }
 
     /// <summary>选择自定义背景图：通过文件选择器选取图片并应用为应用背景</summary>
@@ -146,6 +156,7 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         HasCustomBackground = _themeService.HasCustomBackground;
         BackgroundOpacity = _themeService.CustomBackgroundOpacity;
         FrostedBackgroundEnabled = _themeService.FrostedBackgroundEnabled;
+        MonetBackgroundEnabled = _themeService.MonetBackgroundEnabled;
             if (HasCustomBackground && _themeService.CustomBackgroundPath != null)
             {
                 try
