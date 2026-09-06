@@ -222,8 +222,21 @@ public class TagReader
             var fileName = Path.GetFileNameWithoutExtension(filePath) + "_cover.jpg";
             var outputPath = Path.Combine(outputDirectory, fileName);
 
-            IOFile.WriteAllBytes(outputPath, coverBytes);
-            return outputPath;
+            // 唯一临时名 + 原子重命名：播放页(1000桶)与列表(256桶)可能并发解析同一首歌，
+            // 两个线程若直接 WriteAllBytes 同一个确定性文件名，互相截断重写会让另一线程
+            // OpenRead 读到半截文件 → 下采样出"上半内容下半黑"的坏封面进缓存（播放页黑块）。
+            var tmpPath = outputPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+            try
+            {
+                IOFile.WriteAllBytes(tmpPath, coverBytes);
+                IOFile.Move(tmpPath, outputPath, overwrite: true);
+                return outputPath;
+            }
+            catch
+            {
+                try { IOFile.Delete(tmpPath); } catch { }
+                throw;
+            }
         }
         catch
         {

@@ -331,7 +331,17 @@ public static class CoverHelper
             // 下采样失败则直接使用源文件
             if (source != cachedPath && File.Exists(source))
             {
-                try { File.Copy(source, cachedPath, overwrite: true); } catch { }
+                // 同样走唯一临时名 + 原子重命名，避免并发读者读到半截文件
+                var tmpCopy = cachedPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+                try
+                {
+                    File.Copy(source, tmpCopy, overwrite: true);
+                    File.Move(tmpCopy, cachedPath, overwrite: true);
+                }
+                catch
+                {
+                    try { File.Delete(tmpCopy); } catch { }
+                }
                 if (source != song.CoverArtPath) TryDeleteSource(source);
                 return File.Exists(cachedPath) ? cachedPath : source;
             }
@@ -498,7 +508,19 @@ public static class CoverHelper
             {
                 if (sourcePath != destPath)
                 {
-                    File.Copy(sourcePath, destPath, overwrite: true);
+                    // 唯一临时名 + 原子重命名：File.Copy 直接覆盖 destPath 的瞬间，
+                    // 并发读者（列表/播放页 DecodeFile）会读到半截文件解码出坏封面。
+                    var tmpCopy = destPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+                    try
+                    {
+                        File.Copy(sourcePath, tmpCopy, overwrite: true);
+                        File.Move(tmpCopy, destPath, overwrite: true);
+                    }
+                    catch
+                    {
+                        try { File.Delete(tmpCopy); } catch { }
+                        throw;
+                    }
                 }
                 return true;
             }
