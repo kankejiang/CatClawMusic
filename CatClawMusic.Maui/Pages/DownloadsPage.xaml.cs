@@ -1,8 +1,12 @@
 using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Models;
+using CatClawMusic.Core.Services;
+using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Layouts;
+using Path = System.IO.Path; // 消歧义：Microsoft.Maui.Controls.Shapes.Path vs System.IO.Path
 
 namespace CatClawMusic.Maui.Pages;
 
@@ -204,7 +208,17 @@ public partial class DownloadsPage : ContentPage
         }
     }
 
-    /// <summary>点击任务卡片：已完成任务打开文件/所在文件夹；磁力多文件种子打开所在目录</summary>
+    /// <summary>支持菜单操作（播放/入库/元数据匹配）的音频扩展名</summary>
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wma", ".ape", ".alac", ".aiff", ".aif", ".wv", ".mka", ".tta"
+    };
+
+    private static bool IsAudioFile(string path)
+        => !string.IsNullOrWhiteSpace(path) && AudioExtensions.Contains(Path.GetExtension(path));
+
+    /// <summary>点击任务卡片：已完成音频文件弹出操作菜单（播放/加入音乐库/匹配元数据），
+    /// 其他文件保持打开行为（音频外的文件直接打开；磁力目录提示路径）。</summary>
     private async void OnTaskTapped(object? sender, TappedEventArgs e)
     {
         if (sender is not Border { BindingContext: DownloadTaskItem item }) return;
@@ -216,6 +230,12 @@ public partial class DownloadsPage : ContentPage
         if (!isDir && !File.Exists(path))
         {
             await AlertAsync("提示", "文件不存在或已被移动", "确定");
+            return;
+        }
+
+        if (!isDir && IsAudioFile(path))
+        {
+            ShowCompletedAudioMenu(item, path);
             return;
         }
 
@@ -248,6 +268,237 @@ public partial class DownloadsPage : ContentPage
         {
             await AlertAsync("打开失败", ex.Message, "确定");
         }
+    }
+
+    // ═══ 已完成音频任务：底部抽屉操作菜单（播放 / 加入音乐库 / 匹配元数据） ═══
+
+    /// <summary>弹出已完成音频任务的操作菜单。匹配元数据项由 IMenuContributorPlugin 贡献
+    /// （如歌词搜索插件），未配置对应插件时不显示。</summary>
+    private void ShowCompletedAudioMenu(DownloadTaskItem item, string path)
+    {
+        var host = Content as Grid;
+        if (host == null) return;
+
+        // 读取文件标签构造临时 Song（FilePath 为插件/入库的唯一必填依据），失败回退文件名
+        var song = TagReader.ReadSongInfo(path, readDuration: true)
+            ?? new Song
+            {
+                Title = Path.GetFileNameWithoutExtension(path),
+                FilePath = path,
+                Source = SongSource.Local
+            };
+        if (string.IsNullOrWhiteSpace(song.FilePath)) song.FilePath = path;
+
+        var popup = new Controls.ContextMenuPopup();
+        BuildDownloadMenu(popup, song, item);
+
+        // 全窗覆盖挂到页面根 Grid（推入页不设 RowSpan 全覆盖问题：本页 2 行）
+        Grid.SetRow(popup, 0);
+        Grid.SetRowSpan(popup, Math.Max(1, host.RowDefinitions.Count));
+        Grid.SetColumn(popup, 0);
+        Grid.SetColumnSpan(popup, Math.Max(1, host.ColumnDefinitions.Count));
+        host.Children.Add(popup);
+
+        EventHandler? closed = null;
+        closed = (_, _) =>
+        {
+            popup.Closed -= closed;
+            try { if (popup.Parent is Layout parent) parent.Children.Remove(popup); } catch { }
+        };
+        popup.Closed += closed;
+
+        var maxW = Width > 0 ? Width : (Application.Current?.Windows.FirstOrDefault()?.Width ?? 0);
+        var maxH = Height > 0 ? Height : (Application.Current?.Windows.FirstOrDefault()?.Height ?? 0);
+        // Android 抽屉贴底弹出忽略锚点；Windows 下拉卡片锚在卡片中下部
+        popup.ShowAt(maxW / 2, maxH * 0.7, maxW, maxH);
+    }
+
+    /// <summary>构建已完成音频任务菜单：头部文件信息 + 播放 / 加入音乐库 / 插件贡献项（元数据匹配等）。</summary>
+    private void BuildDownloadMenu(Controls.ContextMenuPopup popup, Song song, DownloadTaskItem item)
+    {
+        popup.ClearContent();
+
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var textSecondary = (Color)Application.Current!.Resources["TextSecondaryColor"];
+
+        // 头部：标题 + 歌手/大小副文本
+        var header = new VerticalStackLayout
+        {
+            Spacing = 3,
+            Padding = new Thickness(14, 10, 14, 8)
+        };
+        header.Add(new Label
+        {
+            Text = string.IsNullOrWhiteSpace(song.Title) ? item.DisplayName : song.Title,
+            FontSize = 15,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = textPrimary,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1
+        });
+        var sizeText = item.TotalBytes > 0 ? DownloadTaskItem.FormatBytes(item.TotalBytes) : "";
+        header.Add(new Label
+        {
+            Text = string.IsNullOrWhiteSpace(song.Artist)
+                ? (string.IsNullOrEmpty(sizeText) ? "本地音频文件" : sizeText)
+                : (string.IsNullOrEmpty(sizeText) ? song.Artist : $"{song.Artist} · {sizeText}"),
+            FontSize = 12,
+            TextColor = textSecondary,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1
+        });
+        popup.AddContent(header);
+        popup.AddContent(new BoxView
+        {
+            HeightRequest = 1,
+            Color = (Color)Application.Current!.Resources["DividerColor"],
+            Opacity = 0.6,
+            Margin = new Thickness(10, 0, 10, 4)
+        });
+
+        popup.AddContent(CreateMenuRow("▶", "播放", async () =>
+        {
+            await popup.CloseAsync();
+            await PlayDownloadedAsync(song);
+        }));
+        popup.AddContent(CreateMenuRow("＋", "加入音乐库", async () =>
+        {
+            await popup.CloseAsync();
+            await ImportToLibraryAsync(song);
+        }));
+
+        // 插件贡献菜单项（如歌词搜索插件提供「元数据匹配」；未配置对应插件时不显示）
+        try
+        {
+            var pluginMgr = MauiProgram.Services?.GetService<IPluginManager>();
+            if (pluginMgr != null)
+            {
+                foreach (var contributor in pluginMgr.GetEnabledPlugins<IMenuContributorPlugin>())
+                {
+                    List<MenuItemEntry>? items = null;
+                    try { items = contributor.GetMenuItems(song); } catch { }
+                    if (items == null || items.Count == 0) continue;
+
+                    foreach (var mi in items)
+                    {
+                        var contributorRef = contributor;
+                        var itemId = mi.Id;
+                        popup.AddContent(CreateMenuRow("✎", mi.Title, async () =>
+                        {
+                            await popup.CloseAsync();
+                            try { await contributorRef.OnMenuItemClicked(itemId, song, this); }
+                            catch (Exception ex) { SongContextMenu.Toast($"打开失败：{ex.Message}"); }
+                        }));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DownloadsPage", $"[DownloadsMenu] 加载插件菜单失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>播放下载完成的文件：先幂等入库（本地歌曲走完整封面/歌词管线，并取得真实 Id
+    /// 供播放队列选中），再以单曲队列播放。</summary>
+    private async Task PlayDownloadedAsync(Song song)
+    {
+        try
+        {
+            Song playSong = song;
+            var lib = MauiProgram.Services?.GetService<IMusicLibraryService>();
+            if (lib != null && !string.IsNullOrWhiteSpace(song.FilePath))
+            {
+                var imported = await lib.ImportSongsAsync(new List<Song> { song });
+                playSong = imported.FirstOrDefault(s => string.Equals(s.FilePath, song.FilePath, StringComparison.OrdinalIgnoreCase))
+                           ?? song;
+            }
+
+            var queue = MauiProgram.Services?.GetService<PlayQueue>();
+            var audio = MauiProgram.Services?.GetService<IAudioPlayerService>();
+            if (queue != null)
+            {
+                queue.SetSongs(new[] { playSong });
+                queue.SelectSong(playSong.Id);
+            }
+            if (audio != null && !string.IsNullOrWhiteSpace(playSong.FilePath))
+                await audio.PlayAsync(playSong.FilePath);
+            SongContextMenu.Toast("开始播放");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DownloadsPage", $"[DownloadsMenu] 播放失败: {ex.Message}");
+            SongContextMenu.Toast($"播放失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>把下载文件导入音乐库（幂等：重复导入按 FilePath 去重）。</summary>
+    private async Task ImportToLibraryAsync(Song song)
+    {
+        try
+        {
+            var lib = MauiProgram.Services?.GetService<IMusicLibraryService>();
+            if (lib == null || string.IsNullOrWhiteSpace(song.FilePath))
+            {
+                SongContextMenu.Toast("音乐库服务不可用");
+                return;
+            }
+            await lib.ImportSongsAsync(new List<Song> { song });
+            SongContextMenu.Toast("已加入音乐库");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("DownloadsPage", $"[DownloadsMenu] 入库失败: {ex.Message}");
+            SongContextMenu.Toast($"加入失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>创建一行菜单项（图标 + 文字，与歌曲上下文菜单同款紧凑样式）。</summary>
+    private static View CreateMenuRow(string icon, string text, Func<Task> onTap)
+    {
+        var textPrimary = (Color)Application.Current!.Resources["TextPrimaryColor"];
+        var primary = (Color)Application.Current!.Resources["PrimaryColor"];
+
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new() { Width = 28 },
+                new() { Width = GridLength.Star }
+            },
+            ColumnSpacing = 10
+        };
+        row.Add(new Label
+        {
+            Text = icon,
+            FontSize = 14,
+            TextColor = primary,
+            HorizontalTextAlignment = TextAlignment.Center,
+            VerticalTextAlignment = TextAlignment.Center
+        }, 0);
+        row.Add(new Label
+        {
+            Text = text,
+            FontSize = 14,
+            TextColor = textPrimary,
+            VerticalTextAlignment = TextAlignment.Center
+        }, 1);
+
+        var border = new Border
+        {
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(9) },
+            StrokeThickness = 0,
+            BackgroundColor = Colors.Transparent,
+            Padding = new Thickness(12, 11),
+            Margin = new Thickness(2, 2),
+            HorizontalOptions = LayoutOptions.Fill,
+            Content = row
+        };
+        border.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () => await onTap())
+        });
+        return border;
     }
 
     /// <summary>更改下载位置：Android 走自研文件管理器（需所有文件访问权限），Windows 走系统文件夹选择器</summary>
