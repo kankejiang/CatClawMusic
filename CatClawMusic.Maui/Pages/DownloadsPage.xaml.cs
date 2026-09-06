@@ -235,11 +235,27 @@ public partial class DownloadsPage : ContentPage
             }
             else
             {
-                await Launcher.OpenAsync(new OpenFileRequest
-                {
-                    Title = "打开文件",
-                    File = new ReadOnlyFile(path)
-                });
+                // 原生 Intent 直发（零拷贝、免 Essentials 封装层）：复用 MAUI 注入的 Essentials
+                // FileProvider（authority 实际为 {package}.fileProvider，见 dumpsys package），
+                // 其 file_paths external-path 已覆盖 /storage/emulated/0，秒弹系统选择器
+                var ctx = global::Android.App.Application.Context;
+                var uri = global::AndroidX.Core.Content.FileProvider.GetUriForFile(
+                    ctx,
+                    ctx.PackageName + ".fileProvider",
+                    new Java.IO.File(path));
+                var ext = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+                var mime = global::Android.Webkit.MimeTypeMap.Singleton.GetMimeTypeFromExtension(ext)
+                           ?? "application/octet-stream";
+                var intent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionView);
+                intent.SetDataAndType(uri, mime);
+                intent.AddFlags(global::Android.Content.ActivityFlags.GrantReadUriPermission);
+                var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+                if (activity != null)
+                    activity.StartActivity(intent);
+                else
+                    intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+                if (activity == null)
+                    ctx.StartActivity(intent);
             }
 #endif
         }
@@ -412,11 +428,12 @@ public partial class DownloadsPage : ContentPage
             Log.Debug("DownloadsPage", $"[DownloadsMenu] 加载插件菜单失败: {ex.Message}");
         }
 
-        // 弹窗底部「更多」：关闭抽屉后弹系统"打开文件"底部弹窗（任意格式由系统分发给可处理的应用）
+        // 弹窗底部「更多」：立即启动系统"打开文件"选择器（任意格式由系统分发），
+        // 抽屉关闭动画与系统弹窗启动并行——消除"先关抽屉再等弹窗"的串行卡顿感
         popup.AddContent(CreateMenuRow("⋯", "更多", async () =>
         {
+            _ = OpenWithSystemAsync(item.LocalPath);
             await popup.CloseAsync();
-            await OpenWithSystemAsync(item.LocalPath);
         }));
     }
 
