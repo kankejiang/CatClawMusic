@@ -87,7 +87,7 @@
                                      BindableLayout.ItemsSource="{Binding Tasks}">
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="services:DownloadTaskItem">
-                            <Border Style="{StaticResource GlassCardStyle}">
+                            <controls:PressableCard Style="{StaticResource GlassCardStyle}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnTaskTapped" />
                                 </Border.GestureRecognizers>
@@ -178,7 +178,7 @@
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
                                     </HorizontalStackLayout>
                                 </VerticalStackLayout>
-                            </Border>
+                            </controls:PressableCard>
                         </DataTemplate>
                     </BindableLayout.ItemTemplate>
                 </VerticalStackLayout>
