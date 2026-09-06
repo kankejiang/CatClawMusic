@@ -104,11 +104,9 @@ public partial class DownloadTaskItem : ObservableObject
         ? SizeText
         : $"{SizeText} · {SpeedText}";
 
-    /// <summary>保存路径展示文本</summary>
-    public string PathText => string.IsNullOrWhiteSpace(LocalPath) ? "" : LocalPath;
-
-    /// <summary>完成时间文本（运行时字段，持久化恢复后重新计算）</summary>
-    public string CompletedText => Status == DownloadStatus.Completed ? $"保存至 {LocalPath}" : "";
+    /// <summary>完成时间文本（运行时字段，持久化恢复后重新计算）。
+    /// 完成态附带文件大小，任务卡片全程可见大小信息。</summary>
+    public string CompletedText => Status == DownloadStatus.Completed ? $"{FormatBytes(TotalBytes)} · 保存至 {LocalPath}" : "";
 
     /// <summary>批量刷新计算属性（供 DownloadManager 在进度/状态变化后调用）</summary>
     public void RaiseDerivedChanged()
@@ -469,7 +467,7 @@ public class DownloadManager : IDisposable, IDownloadManager
                 }
             }
             MainThread.BeginInvokeOnMainThread(() => Tasks.Remove(task));
-            SaveTasks();
+            SaveTasksOnMainThread();
             TasksChanged?.Invoke();
         }
         return fileError;
@@ -545,7 +543,7 @@ public class DownloadManager : IDisposable, IDownloadManager
                         t.DownloadedBytes = t.TotalBytes;
                         t.SpeedText = "";
                     });
-                    SaveTasks();
+                    SaveTasksOnMainThread();
                 });
             if (error != null)
             {
@@ -831,7 +829,7 @@ public class DownloadManager : IDisposable, IDownloadManager
             try { t.TotalBytes = new FileInfo(task.LocalPath).Length; } catch { }
             t.DownloadedBytes = t.TotalBytes;
         });
-        SaveTasks();
+        SaveTasksOnMainThread();
         TasksChanged?.Invoke();
     }
 
@@ -839,7 +837,7 @@ public class DownloadManager : IDisposable, IDownloadManager
     {
         DeletePartFile(task);
         UpdateTask(task, t => { t.Status = DownloadStatus.Failed; t.Error = message; t.SpeedText = ""; });
-        SaveTasks();
+        SaveTasksOnMainThread();
         TasksChanged?.Invoke();
     }
 
@@ -850,9 +848,14 @@ public class DownloadManager : IDisposable, IDownloadManager
     private void AddTask(DownloadTaskItem item)
     {
         MainThread.BeginInvokeOnMainThread(() => Tasks.Insert(0, item));
-        SaveTasks();
+        SaveTasksOnMainThread();
         TasksChanged?.Invoke();
     }
+
+    /// <summary>把任务列表序列化落盘。⚠ 必须投递主线程执行：状态修改（UpdateTask）与
+    /// Tasks 增删均异步投递主线程，主线程 FIFO 保证先应用内存状态再序列化——
+    /// 否则 SaveTasks 在线程池先跑会把旧状态写盘（历史 bug：完成任务重启后显示"已暂停"）。</summary>
+    private void SaveTasksOnMainThread() => MainThread.BeginInvokeOnMainThread(SaveTasks);
 
     private void UpdateTask(DownloadTaskItem task, Action<DownloadTaskItem> apply)
     {

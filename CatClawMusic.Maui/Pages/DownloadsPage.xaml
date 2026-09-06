@@ -104,17 +104,19 @@
                                                VerticalOptions="Center" />
                                     </Grid>
 
-                                    <!-- 进度条（下载中/排队/暂停） -->
+                                    <!-- 进度条（排队/下载中/暂停/已完成满格）。
+                                         ⚠ 多状态参数必须用单引号包裹：Binding 标记扩展内逗号是属性分隔符，
+                                         不加引号会被截断为第一个词（历史 bug：下载中进度条/大小/取消按钮全部不显示） -->
                                     <ProgressBar Progress="{Binding Progress}"
                                                  ProgressColor="{DynamicResource PrimaryColor}"
                                                  HeightRequest="5"
-                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter='Queued,Downloading,Paused,Completed'}" />
 
                                     <!-- 大小/速度 -->
                                     <Label Text="{Binding DownloadingText}"
                                            FontSize="11"
                                            TextColor="{DynamicResource TextHintColor}"
-                                           IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+                                           IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter='Queued,Downloading,Paused'}" />
 
                                     <!-- 保存路径（已完成） -->
                                     <Label Text="{Binding CompletedText}"
@@ -153,14 +155,14 @@
                                                 TextColor="{DynamicResource TextPrimaryColor}"
                                                 Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
-                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Queued,Downloading,Paused}" />
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter='Queued,Downloading,Paused'}" />
                                         <Button Text="重试" ClassId="retry"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource PrimaryColor}"
                                                 TextColor="White"
                                                 Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
-                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Failed,Completed}" />
+                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter='Failed,Completed'}" />
                                         <Button Text="删除" ClassId="delete"
                                                 FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
                                                 BackgroundColor="{DynamicResource GlassButtonColor}"
