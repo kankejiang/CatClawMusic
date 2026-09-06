@@ -428,12 +428,12 @@ public partial class DownloadsPage : ContentPage
             Log.Debug("DownloadsPage", $"[DownloadsMenu] 加载插件菜单失败: {ex.Message}");
         }
 
-        // 弹窗底部「更多」：立即启动系统"打开文件"选择器（任意格式由系统分发），
-        // 抽屉关闭动画与系统弹窗启动并行——消除"先关抽屉再等弹窗"的串行卡顿感
+        // 弹窗底部「更多」：先完整播放抽屉关闭动画（应用内独占渲染不掉帧），
+        // 结束后再拉起系统"打开文件"弹窗——串行顺序，避免两段动画并行抢帧
         popup.AddContent(CreateMenuRow("⋯", "更多", async () =>
         {
-            _ = OpenWithSystemAsync(item.LocalPath);
             await popup.CloseAsync();
+            await OpenWithSystemAsync(item.LocalPath);
         }));
     }
 
