@@ -17,8 +17,8 @@
             IsActive="{DynamicResource ThemeBackgroundEnabled}"
             IsVisible="{DynamicResource ThemeBackgroundEnabled}"
             TintColor="{DynamicResource TabBarGlassTint}"
-            TintOpacity="0.45"
-            DimAmount="0.25"
+            TintOpacity="0.60"
+            DimAmount="0.12"
             Opacity="0.8"
             InputTransparent="True" />
 
