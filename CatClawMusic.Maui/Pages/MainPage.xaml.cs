@@ -275,14 +275,14 @@ public partial class MainPage : ContentPage
 
     private bool _sharedFrostedSubscribed;
 
-    /// <summary>共享背景显隐：仅在播放页(index 1)/歌词页(index 0) 且雾面背景开关打开时显示，
-    /// 其余 tab（发现/歌单/音乐库）隐藏，避免整站都铺上雾面背景。</summary>
+    /// <summary>共享背景显隐：雾面背景开关打开时所有 tab（歌词/播放/发现/歌单/音乐库）统一铺
+    /// 播放页同款封面流雾面，保证整站背景一致（用户要求全站同款）。</summary>
     private void UpdateSharedFrostedVisibility()
     {
         var enabled = Application.Current?.Resources != null
             && Application.Current.Resources.TryGetValue("FrostedBackgroundEnabled", out var value)
             && value is bool b && b;
-        SharedFrostedBg.IsVisible = enabled && (_currentIndex == 0 || _currentIndex == 1);
+        SharedFrostedBg.IsVisible = enabled;
     }
 
 #if ANDROID
