@@ -380,16 +380,10 @@ public class PluginManager : IPluginManager
             }
 
             var destPath = Path.Combine(_pluginsDir, fileName);
-            // 若目标路径已存在同名文件，添加时间戳后缀避免覆盖
-            if (File.Exists(destPath))
-            {
-                var ext = Path.GetExtension(fileName);
-                destPath = Path.Combine(_pluginsDir,
-                    $"{Path.GetFileNameWithoutExtension(fileName)}_{DateTime.Now:yyyyMMddHHmmss}{ext}");
-            }
-
+            // 同名旧文件直接覆盖：旧版插件会在注册新版本前被自动卸载（同 ID 高版本替换旧版本），
+            // 覆盖安全（插件以字节方式加载不锁文件）；不再加时间戳后缀——避免 displayName 带时间戳
             progress?.Report(("正在复制插件...", 30));
-            File.Copy(filePath, destPath);
+            File.Copy(filePath, destPath, overwrite: true);
 
             progress?.Report(("正在加载插件...", 60));
 
@@ -630,6 +624,21 @@ public class PluginManager : IPluginManager
             info.SubPlugins.Add(instances[i]);
         }
 
+        // 同 ID 插件自动替换：安装新版本时自动卸载已装的旧版本，避免同 ID 插件共存
+        // （旧行为：本地安装加时间戳后缀、在线安装重复注册 → 列表出现两个同 ID 插件、功能重复执行）。
+        // 匹配条件：已安装来源 + PluginTypeId 相同或插件名相同（插件新版本增删接口会改变分类前缀，仅比 ID 会漏）。
+        var existing = _plugins.FirstOrDefault(p => p.Source == PluginSource.Installed &&
+            (p.PluginTypeId == info.PluginTypeId ||
+             string.Equals(p.Plugin.Name, info.Plugin.Name, StringComparison.OrdinalIgnoreCase)));
+        if (existing != null)
+        {
+            progress?.Report((
+                $"正在替换旧版本 (v{existing.Version} → v{info.Version})...", 80));
+            Log.Debug("PluginManager",
+                $"[PluginManager] 检测到已安装插件 {existing.DisplayName} v{existing.Version}，自动替换为 v{info.Version}");
+            await ReplaceExistingVersionAsync(existing, localPath).ConfigureAwait(false);
+        }
+
         _plugins.Add(info);
 
         _setPrefFunc($"plugin_enabled_{info.PluginTypeId}", true);
@@ -819,6 +828,35 @@ public class PluginManager : IPluginManager
             }
         }
         return instances2;
+    }
+
+    /// <summary>
+    /// 替换同 ID 旧版本插件：关闭旧实例并从内存/索引移除，然后删除旧文件。
+    /// <para>文件删除有保护：当旧版文件路径与新安装文件相同（同名覆盖安装）时跳过删除，
+    /// 避免误删刚下载/复制的新文件。索引持久化由调用方（LoadAndRegisterPluginAsync）统一完成。</para>
+    /// </summary>
+    private async Task ReplaceExistingVersionAsync(PluginInfo existing, string newPath)
+    {
+        // 关闭已启用的旧实例（主插件 + 子插件），失败不阻断替换
+        if (existing.IsEnabled)
+        {
+            try { await existing.Plugin.ShutdownAsync(); } catch (Exception ex) { Log.Debug("PluginManager", $"替换旧版关闭失败: {ex.Message}"); }
+            foreach (var sub in existing.SubPlugins)
+            {
+                try { await sub.ShutdownAsync(); } catch { }
+            }
+        }
+
+        // 从内存与索引中移除旧版
+        _plugins.Remove(existing);
+        _installedPluginIds.Remove(existing.PluginTypeId);
+
+        // 删除旧版文件；与新版文件同路径时跳过（同名覆盖安装场景，文件里已是新版本）
+        if (!string.Equals(existing.AssemblyPath, newPath, StringComparison.OrdinalIgnoreCase))
+        {
+            try { if (File.Exists(existing.AssemblyPath)) File.Delete(existing.AssemblyPath); }
+            catch (Exception ex) { Log.Debug("PluginManager", $"替换旧版删除文件失败: {ex.Message}"); }
+        }
     }
 
     /// <summary>
