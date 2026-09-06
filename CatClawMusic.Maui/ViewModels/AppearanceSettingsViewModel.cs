@@ -1,14 +1,13 @@
 using CatClawMusic.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using AppTheme = CatClawMusic.Core.Interfaces.AppTheme;
 using Microsoft.Maui.Storage;
 using System.IO;
 
 namespace CatClawMusic.Maui.ViewModels;
 
 /// <summary>
-/// 外观设置页 ViewModel：管理深色模式、主题色、启动页选择、自定义背景图与背景透明度等外观相关配置。
+/// 外观设置页 ViewModel：管理深色模式、启动页选择、自定义背景图与背景透明度等外观相关配置。
 /// </summary>
 public partial class AppearanceSettingsViewModel : ObservableObject
 {
@@ -18,10 +17,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     /// <summary>是否启用深色模式</summary>
     [ObservableProperty]
     private bool _isDarkMode = false;
-
-    /// <summary>当前选中的主题色（十六进制）</summary>
-    [ObservableProperty]
-    private string _selectedThemeColor = "#FF8FB8";
 
     /// <summary>启动页可选项列表</summary>
     [ObservableProperty]
@@ -51,12 +46,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _frostedBackgroundEnabled = true;
 
-    /// <summary>可选主题色列表（唯一主题：猫爪粉）</summary>
-    public static readonly (string Name, string Color)[] ThemeColors = new[]
-    {
-        ("猫爪粉", "#FF8FB8"),
-    };
-
     /// <summary>
     /// 初始化 <see cref="AppearanceSettingsViewModel"/> 实例。
     /// </summary>
@@ -64,23 +53,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
     public AppearanceSettingsViewModel(IThemeService? themeService = null)
     {
         _themeService = themeService;
-    }
-
-    /// <summary>选择主题色：根据十六进制颜色值切换主题，并同步到主题服务</summary>
-    /// <param name="colorHex">主题色十六进制字符串</param>
-    [RelayCommand]
-    public async Task SelectThemeColorAsync(string? colorHex)
-    {
-        if (string.IsNullOrEmpty(colorHex)) return;
-        SelectedThemeColor = colorHex;
-
-        if (_themeService != null)
-        {
-            // 唯一主题：樱粉（任何选择都落到 Pink）
-            _themeService.SetTheme(AppTheme.Pink);
-        }
-
-        await Task.CompletedTask;
     }
 
     partial void OnIsDarkModeChanged(bool value)
@@ -169,7 +141,6 @@ public partial class AppearanceSettingsViewModel : ObservableObject
         _isLoadingTheme = true;
         if (_themeService == null) { _isLoadingTheme = false; return; }
         IsDarkMode = _themeService.DarkModeSetting == DarkModeSetting.Dark;
-        SelectedThemeColor = "#FF8FB8";
         SelectedStartupPageIndex = Preferences.Default.Get("StartupPageIndex", 2);
 
         HasCustomBackground = _themeService.HasCustomBackground;
