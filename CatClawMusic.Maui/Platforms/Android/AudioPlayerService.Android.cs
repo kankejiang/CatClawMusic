@@ -1304,13 +1304,29 @@ public partial class AudioPlayerService
             {
                 try
                 {
-                    var raw = global::Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length);
-                    if (raw != null)
+                    // 两遍解码：先读边界算 InSampleSize，再按采样直接解码（通知最大 512）。
+                    // 禁止对原图 DecodeByteArray 全尺寸解码（网易云 3000px 原图瞬时 ~36MB 位图）再缩小——
+                    // 通知栏根本用不到全尺寸，白付一次内存尖峰。
+                    var boundsOpts = new global::Android.Graphics.BitmapFactory.Options { InJustDecodeBounds = true };
+                    global::Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length, boundsOpts);
+                    if (boundsOpts.OutWidth > 0 && boundsOpts.OutHeight > 0)
                     {
-                        if (_notificationBitmap != null) _notificationBitmap.Recycle();
-                        // DecodeBitmapDownsampled 内部负责回收 raw（缩小时回收源，否则原样返回）
-                        _notificationBitmap = DecodeBitmapDownsampled(raw, 512);
-                        _lastNotifCoverPath = coverKey;
+                        var maxDim = Math.Max(boundsOpts.OutWidth, boundsOpts.OutHeight);
+                        var sampleSize = 1;
+                        while (maxDim / sampleSize > 512) sampleSize *= 2;
+
+                        boundsOpts.InJustDecodeBounds = false;
+                        boundsOpts.InSampleSize = sampleSize;
+                        boundsOpts.InPreferredConfig = global::Android.Graphics.Bitmap.Config.Argb8888;
+                        var raw = global::Android.Graphics.BitmapFactory.DecodeByteArray(coverBytes, 0, coverBytes.Length, boundsOpts);
+                        if (raw != null)
+                        {
+                            if (_notificationBitmap != null) _notificationBitmap.Recycle();
+                            // DecodeBitmapDownsampled 兜底：采样后仍在 512~1024 之间的中间尺寸继续缩到 512
+                            //（内部负责回收 raw：缩小时回收源，否则原样返回）
+                            _notificationBitmap = DecodeBitmapDownsampled(raw, 512);
+                            _lastNotifCoverPath = coverKey;
+                        }
                     }
                 }
                 catch (Exception ex) { Log.Debug("AudioPlayerService.Android", $"[Notif] decode online cover error: {ex.Message}"); }

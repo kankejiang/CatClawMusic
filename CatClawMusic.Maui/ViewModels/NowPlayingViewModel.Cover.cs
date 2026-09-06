@@ -83,6 +83,26 @@ public partial class NowPlayingViewModel
         => path.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
            || path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>在线封面下载 URL：网易云 CDN（*.music.126.net）追加缩略参数 param=1000y1000。
+    /// 原图常为 3000px 数 MB，而播放页直显上限 1024px、通知栏 512px、色调提取 1000px 足够；
+    /// CDN 会等比缩放（长边 ≤1000），流量与下载耗时省 90% 以上，解码内存同步下降。
+    /// 已带 param 的 URL 不重复追加；其他图源（Navidrome/WebDAV 等）原样返回。</summary>
+    private static string GetDisplayCoverUrl(string url)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(url)
+                && url.Contains(".music.126.net/", StringComparison.OrdinalIgnoreCase)
+                && !url.Contains("param=", StringComparison.OrdinalIgnoreCase))
+            {
+                var sep = url.Contains('?') ? '&' : '?';
+                return $"{url}{sep}param=1000y1000";
+            }
+        }
+        catch { }
+        return url;
+    }
+
     private async Task LoadCoverAsync(Song song, CancellationToken ct)
     {
         // 换歌（Id 不同）：旧歌的封面流背景数据必须立刻作废，
@@ -153,7 +173,7 @@ public partial class NowPlayingViewModel
             try
             {
                 ct.ThrowIfCancellationRequested();
-                var bytes = await SharedHttpClient.GetByteArrayAsync(song.CoverArtPath, ct);
+                var bytes = await SharedHttpClient.GetByteArrayAsync(GetDisplayCoverUrl(song.CoverArtPath), ct);
                 if (bytes != null && bytes.Length > 0)
                 {
                     onlineCoverBytes = bytes;          // 内存暂存，不写缓存目录
