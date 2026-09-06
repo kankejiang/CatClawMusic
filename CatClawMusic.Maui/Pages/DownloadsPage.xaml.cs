@@ -205,11 +205,6 @@ public partial class DownloadsPage : ContentPage
                 if (error != null)
                     await AlertAsync("文件删除失败", error, "确定");
                 break;
-            case "more":
-                var moreItem = _manager.Tasks.FirstOrDefault(t => t.Id == id);
-                if (moreItem != null)
-                    await OpenWithSystemAsync(moreItem.LocalPath);
-                break;
         }
     }
 
@@ -416,6 +411,13 @@ public partial class DownloadsPage : ContentPage
         {
             Log.Debug("DownloadsPage", $"[DownloadsMenu] 加载插件菜单失败: {ex.Message}");
         }
+
+        // 弹窗底部「更多」：关闭抽屉后弹系统"打开文件"底部弹窗（任意格式由系统分发给可处理的应用）
+        popup.AddContent(CreateMenuRow("⋯", "更多", async () =>
+        {
+            await popup.CloseAsync();
+            await OpenWithSystemAsync(item.LocalPath);
+        }));
     }
 
     /// <summary>播放下载完成的文件：先幂等入库（本地歌曲走完整封面/歌词管线，并取得真实 Id

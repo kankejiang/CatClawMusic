@@ -176,13 +176,6 @@
                                                 Clicked="OnTaskActionClicked"
                                                 CommandParameter="{Binding Id}"
                                                 IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
-                                        <Button Text="更多" ClassId="more"
-                                                FontSize="11" HeightRequest="30" CornerRadius="15" Padding="14,0"
-                                                BackgroundColor="{DynamicResource GlassButtonColor}"
-                                                TextColor="{DynamicResource TextPrimaryColor}"
-                                                Clicked="OnTaskActionClicked"
-                                                CommandParameter="{Binding Id}"
-                                                IsVisible="{Binding Status, Converter={StaticResource DownloadStatusConverter}, ConverterParameter=Completed}" />
                                     </HorizontalStackLayout>
                                 </VerticalStackLayout>
                             </Border>
