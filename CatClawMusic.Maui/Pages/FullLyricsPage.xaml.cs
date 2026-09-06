@@ -566,6 +566,9 @@ public partial class FullLyricsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        // 手机竖屏 ViewPager：雾面背景已上提为 MainPage 共享层，本页这层停用
+        //（保留 DynamicResource 之外的显式判定：切页/设置变更回到本页时都会重算）
+        FrostedBg.IsVisible = Services.SharedPlayerBackground.PageBackgroundVisible;
         // 标记歌词表面可见 → AudioPlayerService 位置定时器切到 60fps（逐字歌词平滑着色）
         _playerSurfaceToken ??= Services.PlayerSurfaceTracker.Acquire();
 #if WINDOWS

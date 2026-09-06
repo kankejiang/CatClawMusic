@@ -3,6 +3,7 @@ using System.Linq;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
+using CatClawMusic.Maui.Services;
 using CatClawMusic.Maui.ViewModels;
 using System.ComponentModel;
 using Microsoft.Maui.Storage;
@@ -231,6 +232,57 @@ public partial class MainPage : ContentPage
         // 懒加载：仅当前页±1 可见，远页隐藏（保留 handler，滚动位置不丢）
         UpdatePageVisibility();
 #endif
+
+        InitSharedFrostedBackground();
+    }
+
+    /// <summary>
+    /// 初始化共享雾面背景：绑到 NowPlayingViewModel 单例（两页绑的是同一批属性，参数与页内背景一致）。
+    /// 背景挂在 ViewPager 之外，播放页↔歌词页切换时不再随页面平移，消除"背景跟着页面切"的跳变。
+    /// </summary>
+    private void InitSharedFrostedBackground()
+    {
+        // 竖屏 ViewPager 场景启用共享背景：两页据此隐藏各自的页内 FrostedBackground
+        SharedPlayerBackground.Enabled = true;
+
+        SharedFrostedBg.BindingContext = _nowPlayingVm;
+        SharedFrostedBg.SetBinding(FrostedBackground.IsActiveProperty, nameof(NowPlayingViewModel.IsPlaying));
+        SharedFrostedBg.SetBinding(FrostedBackground.IsScrollingProperty, nameof(NowPlayingViewModel.IsUserScrolling));
+        SharedFrostedBg.SetBinding(FrostedBackground.TintColorProperty, nameof(NowPlayingViewModel.CoverTintColor));
+        SharedFrostedBg.SetBinding(FrostedBackground.CoverSourceProperty, nameof(NowPlayingViewModel.CoverFlowSource));
+
+        // 雾面背景的洗色/底色/scrim 随深浅主题切换（Halcyon isDark），与两页页内背景同样显式同步
+        SharedFrostedBg.IsDark = Application.Current?.RequestedTheme
+            == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+
+        // 设置里开关雾面背景 / 主题变化后立即同步（静态事件与实例事件，各仅订阅一次）
+        if (!_sharedFrostedSubscribed)
+        {
+            _sharedFrostedSubscribed = true;
+            Services.ThemeService.StaticApplied += () =>
+                MainThread.BeginInvokeOnMainThread(UpdateSharedFrostedVisibility);
+            if (Application.Current != null)
+                Application.Current.RequestedThemeChanged += (_, _) =>
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        SharedFrostedBg.IsDark = Application.Current?.RequestedTheme
+                            == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+                    });
+        }
+
+        UpdateSharedFrostedVisibility();
+    }
+
+    private bool _sharedFrostedSubscribed;
+
+    /// <summary>共享背景显隐：仅在播放页(index 1)/歌词页(index 0) 且雾面背景开关打开时显示，
+    /// 其余 tab（发现/歌单/音乐库）隐藏，避免整站都铺上雾面背景。</summary>
+    private void UpdateSharedFrostedVisibility()
+    {
+        var enabled = Application.Current?.Resources != null
+            && Application.Current.Resources.TryGetValue("FrostedBackgroundEnabled", out var value)
+            && value is bool b && b;
+        SharedFrostedBg.IsVisible = enabled && (_currentIndex == 0 || _currentIndex == 1);
     }
 
 #if ANDROID
@@ -245,6 +297,8 @@ public partial class MainPage : ContentPage
         UpdateTabBarSelection();
         // 切到播放页（index 1）或歌词页（index 0）时 MiniPlayer 必须隐藏，否则被全屏播放页压住
         UpdateMiniPlayerVisibility();
+        // 共享雾面背景显隐（播放页/歌词页显示，其余 tab 隐藏）
+        UpdateSharedFrostedVisibility();
     }
 
     /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画与
@@ -809,6 +863,8 @@ public partial class MainPage : ContentPage
             UpdateMiniPlayerVisibility();
             // 切页后更新懒加载可见范围：新相邻页显示、远页隐藏
             UpdatePageVisibility();
+            // 共享雾面背景显隐（播放页/歌词页显示，其余 tab 隐藏）
+            UpdateSharedFrostedVisibility();
         }
     }
 
@@ -955,6 +1011,8 @@ public partial class MainPage : ContentPage
     {
         if (_desktopActive) return;
         _desktopActive = true;
+        // 横屏桌面舞台：页面独立呈现（内嵌），不再共享背景 → 恢复各页页内 FrostedBackground
+        SharedPlayerBackground.Enabled = false;
         try
         {
             var desktop = _desktopPage ??= _services.GetRequiredService<DesktopMainPage>();
@@ -1022,6 +1080,9 @@ public partial class MainPage : ContentPage
     {
         if (!_desktopActive) return;
         _desktopActive = false;
+        // 回到竖屏 ViewPager 舞台：重新启用共享背景（两页隐藏各自的页内背景）
+        SharedPlayerBackground.Enabled = true;
+        UpdateSharedFrostedVisibility();
         if (_desktopPage != null && _desktopRoot != null && _desktopRoot.Parent != null)
         {
             // 页面不可视前通知 OnDisappearing（停止桌面持续性工作），再归还 Content
