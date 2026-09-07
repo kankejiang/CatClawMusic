@@ -27,61 +27,6 @@ public partial class SearchViewModel
         // 品牌糖果渐变(单一来源:Helpers/MoePalette.HeroGradients)
         var gradients = Helpers.MoePalette.HeroGradients;
 
-        // AI 智能推荐卡（首位）
-        if (IsAiRecommendationEnabled)
-        {
-            var today = DateTime.Today.ToString("yyyy-MM-dd");
-            if (_aiRecommendBatchDate == today && _aiRecommendBatch.Count > 0)
-            {
-                // 命中当天缓存：直接从批次中轮换取一首展示，不再调用 AI（零 token 消耗）
-                AiRecItem? item = null;
-                Song? aiSong = null;
-                var start = _aiHeroIndex % _aiRecommendBatch.Count;
-                for (int i = 0; i < _aiRecommendBatch.Count; i++)
-                {
-                    var cand = _aiRecommendBatch[(start + i) % _aiRecommendBatch.Count];
-                    var s = ResolveSongById(cand.SongId);
-                    if (s != null) { item = cand; aiSong = s; break; }
-                }
-                if (aiSong != null)
-                {
-                    _aiRecommendedSong = aiSong;
-                    cards.Add(new HeroCardItem
-                    {
-                        Tag = "✨ AI 智能推荐",
-                        Title = aiSong.Title ?? "未知歌曲",
-                        Description = string.IsNullOrWhiteSpace(item?.Reason) ? AiRecommendReason : item!.Reason,
-                        Song = aiSong,
-                        GradientStart = gradients[4].Start,
-                        GradientEnd = gradients[4].End
-                    });
-                }
-            }
-            else
-            {
-                // 当天尚无缓存：先用本地挑一首占位，并在后台向 AI 获取「当天全部推荐」（每天仅一次）
-                var aiSong = PickAiRecommendedSong();
-                _aiRecommendedSong = aiSong;
-                if (aiSong != null)
-                {
-                    cards.Add(new HeroCardItem
-                    {
-                        Tag = "✨ AI 智能推荐",
-                        Title = aiSong.Title ?? "未知歌曲",
-                        Description = IsAiRecommending ? "AI 正在分析你的口味…" : AiRecommendReason,
-                        Song = aiSong,
-                        GradientStart = gradients[4].Start,
-                        GradientEnd = gradients[4].End
-                    });
-                }
-
-                if (_agentService.IsConfigured && !_aiFetchInProgress && _aiAttemptDate != today)
-                {
-                    _ = EnsureDailyAiRecommendationsAsync(regenerateAfter: true);
-                }
-            }
-        }
-
         var tags = new[] { "每日推荐", "最多播放", "我的最爱", "随机播放" };
 
         if (_allDailyRecommendSongs.Count > 0)
@@ -153,11 +98,6 @@ public partial class SearchViewModel
         HeroCards = new ObservableCollection<HeroCardItem>(cards.Take(4));
     }
 
-    /// <summary>
-    /// 基于听歌数据智能挑选一首 AI 推荐歌曲。
-    /// 策略：优先从「常听但非榜首」中随机选择，避免永远推荐同一首。
-    /// </summary>
-
     private async Task RefreshAsync()
     {
         if (IsRefreshing) return;
@@ -165,7 +105,6 @@ public partial class SearchViewModel
         try
         {
             _exploreDataService.InvalidateDailyRecommendCache();
-            InvalidateAiCache();
             Services.CoverHelper.ClearCache();
             Preferences.Default.Remove("explore_last_load_date");
 
@@ -175,10 +114,6 @@ public partial class SearchViewModel
             _allAlbums = [];
             _allRecentAddedSongs = [];
             ApplyFilters();
-
-            // 手动刷新：重新生成当天 AI 歌单（清内存+磁盘缓存 → Ensure 强制重新调用 AI）
-            InvalidateAiPlaylistsCache(clearDisk: true);
-            _ = EnsureDailyAiPlaylistsAsync();
 
             await LoadDataAsync();
         }
@@ -201,7 +136,6 @@ public partial class SearchViewModel
         _allDailyRecommendSongs = _allDailyRecommendSongs.OrderBy(_ => random.Next()).ToList();
         var shuffled = _allDailyRecommendSongs.Take(20).ToList();
         DailyRecommendSongs = new ObservableCollection<Song>(shuffled);
-        _aiHeroIndex++; // 轮换到当天缓存里的下一首 AI 推荐（不重新调用 AI）
         GenerateHeroCards();
     }
 

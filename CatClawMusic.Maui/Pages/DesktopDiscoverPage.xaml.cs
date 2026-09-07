@@ -88,7 +88,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         // 注意：本页被 DesktopMainPage 提取 Content 后，ContentPage 自身脱离可视化树，
         // 因此监听 HeroScroll（仍留在树中）的尺寸变化来重排 Hero 卡片宽度。
         HeroScroll.SizeChanged += OnHeroSizeChanged;
-        // 根容器尺寸变化 → 横屏（高度偏小时）自适应卡片尺寸，缓解 AI 歌单卡过大 + 布局拥挤。
+        // 根容器尺寸变化 → 横屏（高度偏小时）自适应卡片尺寸，缓解卡片过大 + 布局拥挤。
         RootStack.SizeChanged += OnRootStackSizeChanged;
 
 #if WINDOWS
@@ -660,8 +660,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
     }
 
     /// <summary>横屏自适应卡片：依据【可视高度】（HeroScroll / 父窗口高度）分档
-    /// 下调 AI 歌单 / 每日推荐 / 推荐艺人 等卡片尺寸与间距，
-    /// 避免 AI 歌单单卡占据可视高度的 60%+ 导致布局过度拥挤。
+    /// 下调每日推荐 / 推荐艺人 等卡片尺寸与间距，避免单卡占据可视高度的 60%+ 导致布局过度拥挤。
     /// 关键修复：不再使用 ScrollView 内被内容撑高的 RootStack.Height 做阈值。</summary>
     private void ApplyResponsiveMetrics(double width, double height)
     {
@@ -687,24 +686,19 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         bool presetChanged = preset != _currentPreset;
         _currentPreset = preset;
 
-        // 预设切换 → 按档重设各横滑行/网格的固定尺寸。整体再缩小一档，确保横屏首屏至少可见 Hero+AI+每日。
-        // 元组：(AI 歌单行高, AI 卡宽, 每日行高, 每日卡宽, 艺人行高, 艺人卡宽, Hero 卡宽上限)
-        (double aiRowH, double aiCardW, double dailyRowH, double dailyCardW, double artistRowH, double artistCardW, double heroCap) = preset switch
+        // 预设切换 → 按档重设各横滑行/网格的固定尺寸。整体再缩小一档，确保横屏首屏至少可见 Hero+每日。
+        // 元组：(每日行高, 每日卡宽, 艺人行高, 艺人卡宽, Hero 卡宽上限)
+        (double dailyRowH, double dailyCardW, double artistRowH, double artistCardW, double heroCap) = preset switch
         {
-            LayoutPreset.Compact => (110, 250, 142, 104, 100, 66, 176),
-            LayoutPreset.SuperCompact => (96, 220, 114, 84, 82, 54, 136),
-            _ => (310, 240, 184, 136, 128, 82, 210)
+            LayoutPreset.Compact => (142, 104, 100, 66, 176),
+            LayoutPreset.SuperCompact => (114, 84, 82, 54, 136),
+            _ => (184, 136, 128, 82, 210)
         };
 
         if (presetChanged)
         {
             // ── Hero 轨道：按新档位重建（扁宽/方形内容差异在 CreateHeroCardView 内按 preset 决定）──
             RebuildHeroTrack();
-
-            // ── AI 歌单横滑行 ──
-            AiPlaylistRow.HeightRequest = aiRowH;
-            AiPlaylistRow.ItemTemplate = BuildAiPlaylistCardTemplate(aiCardW);
-            ForceReloadItems(AiPlaylistRow);
 
             // ── 每日推荐横滑行 ──
             DailyList.HeightRequest = dailyRowH;
@@ -734,11 +728,6 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             ApplyRootStackPadding();
 
             // 区块标题行：紧凑档收紧上下边距，释放纵向空间
-            AiSectionHeader.Margin = preset == LayoutPreset.SuperCompact
-                ? new Thickness(0, 2, 0, 6)
-                : preset == LayoutPreset.Compact
-                    ? new Thickness(0, 4, 0, 8)
-                    : new Thickness(0, 6, 0, 12);
             AlbumSectionHeader.Margin = preset == LayoutPreset.SuperCompact
                 ? new Thickness(0, 4, 0, 6)
                 : preset == LayoutPreset.Compact
@@ -759,158 +748,10 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             double rightPad = preset == LayoutPreset.Regular ? 40 : 28;
             DailyList.Margin = new Thickness(0, 0, rightPad, 16);
             ArtistsRow.Margin = new Thickness(0, 0, rightPad, 16);
-            AiPlaylistRow.Margin = new Thickness(0, 0, rightPad, 16);
         }
 
         // Hero 卡按新上限重排（无论 preset 是否变化都需要，因为宽度可能改变）
         LayoutHeroCards(heroCap);
-    }
-
-    private DataTemplate BuildAiPlaylistCardTemplate(double cardW)
-    {
-        bool horizontal = _currentPreset != LayoutPreset.Regular;
-        return new DataTemplate(() =>
-        {
-            if (horizontal)
-            {
-                // 横屏紧凑档：横向布局——封面居左（小方形），文字居右，卡片高度大幅降低
-                var cover = new Border
-                {
-                    WidthRequest = 84,
-                    HeightRequest = 84,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12, 0, 0, 12) },
-                    StrokeThickness = 0,
-                };
-                cover.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
-                var coverImg = new Image { Aspect = Aspect.AspectFill };
-                coverImg.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
-                cover.Content = coverImg;
-
-                var name = new Label
-                {
-                    FontFamily = "OpenSansSemibold",
-                    FontSize = 12.5,
-                    MaxLines = 1
-                };
-                name.SetBinding(Label.TextProperty, "Name");
-                name.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
-
-                var reason = new Label
-                {
-                    FontSize = 10,
-                    MaxLines = 1,
-                    LineBreakMode = LineBreakMode.TailTruncation
-                };
-                reason.SetBinding(Label.TextProperty, "Reason");
-                reason.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
-
-                var subtitle = new Label
-                {
-                    FontSize = 9.5,
-                    MaxLines = 1,
-                    LineBreakMode = LineBreakMode.TailTruncation
-                };
-                subtitle.SetBinding(Label.TextProperty, "Subtitle");
-                subtitle.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
-
-                var body = new VerticalStackLayout
-                {
-                    Padding = new Thickness(10, 8, 10, 8),
-                    Spacing = 3,
-                    VerticalOptions = LayoutOptions.Center,
-                    Children = { name, reason, subtitle }
-                };
-
-                var root = new Grid
-                {
-                    ColumnDefinitions = new ColumnDefinitionCollection
-                    {
-                        new ColumnDefinition(GridLength.Auto),
-                        new ColumnDefinition(GridLength.Star),
-                    }
-                };
-                root.Add(cover, 0, 0);
-                root.Add(body, 1, 0);
-
-                var card = new Border
-                {
-                    WidthRequest = cardW,
-                    StrokeShape = new RoundRectangle { CornerRadius = 12 },
-                    StrokeThickness = 1,
-                    Content = root
-                };
-                card.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
-                card.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
-                var tap = new TapGestureRecognizer();
-                tap.Tapped += OnAiPlaylistTapped;
-                card.GestureRecognizers.Add(tap);
-                return card;
-            }
-
-            var coverV = new Border
-            {
-                WidthRequest = cardW,
-                HeightRequest = cardW,
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16, 16, 0, 0) },
-                StrokeThickness = 0,
-            };
-            coverV.SetDynamicResource(BackgroundColorProperty, "SurfaceColor");
-            var coverImgV = new Image { Aspect = Aspect.AspectFill };
-            coverImgV.SetBinding(Image.SourceProperty, new Binding("CoverPath") { TargetNullValue = "ic_music_note" });
-            coverV.Content = coverImgV;
-
-            var nameV = new Label
-            {
-                FontFamily = "OpenSansSemibold",
-                FontSize = cardW >= 200 ? 14 : 12.5,
-                MaxLines = 1
-            };
-            nameV.SetBinding(Label.TextProperty, "Name");
-            nameV.SetDynamicResource(Label.TextColorProperty, "TextPrimaryColor");
-
-            var reasonV = new Label
-            {
-                FontSize = cardW >= 200 ? 11 : 10,
-                MaxLines = cardW >= 200 ? 2 : 1,
-                LineBreakMode = LineBreakMode.TailTruncation
-            };
-            reasonV.SetBinding(Label.TextProperty, "Reason");
-            reasonV.SetDynamicResource(Label.TextColorProperty, "TextSecondaryColor");
-
-            var subtitleV = new Label
-            {
-                FontSize = cardW >= 200 ? 10.5 : 9.5,
-                MaxLines = 1,
-                LineBreakMode = LineBreakMode.TailTruncation
-            };
-            subtitleV.SetBinding(Label.TextProperty, "Subtitle");
-            subtitleV.SetDynamicResource(Label.TextColorProperty, "PrimaryColor");
-
-            var bodyV = new VerticalStackLayout
-            {
-                Padding = new Thickness(cardW >= 200 ? 12 : 9, cardW >= 200 ? 10 : 7, cardW >= 200 ? 12 : 9, cardW >= 200 ? 12 : 9),
-                Spacing = Math.Max(2, (cardW >= 200 ? 4 : 2)),
-                Children = { nameV, reasonV, subtitleV }
-            };
-
-            var rootV = new VerticalStackLayout { Spacing = 0 };
-            rootV.Children.Add(coverV);
-            rootV.Children.Add(bodyV);
-
-            var cardV = new Border
-            {
-                WidthRequest = cardW,
-                StrokeShape = new RoundRectangle { CornerRadius = 16 },
-                StrokeThickness = 1,
-                Content = rootV
-            };
-            cardV.SetDynamicResource(Border.StrokeProperty, "GlassStrokeColor");
-            cardV.SetDynamicResource(Border.BackgroundColorProperty, "CardBackgroundStrongColor");
-            var tapV = new TapGestureRecognizer();
-            tapV.Tapped += OnAiPlaylistTapped;
-            cardV.GestureRecognizers.Add(tapV);
-            return cardV;
-        });
     }
 
     private DataTemplate BuildDailyCardTemplate(double cardW)
@@ -1216,9 +1057,6 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             Log.Debug("DesktopDiscoverPage.xaml", $"[OnAppearing] HeroTrack 初始化失败(继续): {ex.Message}");
         }
 
-        // 准备当天 AI 歌单（幂等：内部有会话级 loaded 标记；未开启/未配置模型时自动跳过）
-        _ = _vm.EnsureDailyAiPlaylistsAsync();
-
 #if WINDOWS
 
         // PC 端：将横向 CollectionView 的纵向滚轮事件转发给父级 ScrollView，
@@ -1248,9 +1086,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
         if (_vm.DailyRecommendSongs.Count > 0 || _vm.TopPlayedSongs.Count > 0)
         {
-            // 缓存命中早退：数据已在内存池（_allTopPlayedSongs 等）中，直接准备 AI 歌单
-
-            _ = _vm.EnsureDailyAiPlaylistsAsync();
+            // 缓存命中早退：数据已在内存池（_allTopPlayedSongs 等）中
             RefreshArrowVisibility();
             return;
         }
@@ -1265,9 +1101,6 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
             Log.Debug("DesktopDiscoverPage.xaml", $"DesktopDiscover OnAppearing: {ex.Message}");
 
         }
-
-        // 数据加载完成后准备当天 AI 歌单（候选池已就绪）
-        _ = _vm.EnsureDailyAiPlaylistsAsync();
 
         RebuildHeroTrack();
         if (_vm.HeroCards.Count > 0)
@@ -1489,28 +1322,13 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
         }
     }
 
-    /// <summary>播放 Hero 卡歌曲：以每日推荐为播放队列，但确保被点击的歌曲（如 AI 推荐歌）也在队列中。</summary>
+    /// <summary>播放 Hero 卡歌曲：以每日推荐为播放队列，但确保被点击的歌曲也在队列中。</summary>
     private async Task PlayHeroSongAsync(Song song)
     {
         var list = _vm.DailyRecommendSongs.ToList();
         if (!list.Any(s => s.Id == song.Id))
             list.Insert(0, song);
         await PlaySongAsync(song, list);
-    }
-
-    /// <summary>AI 歌单卡片点击：以歌单内歌曲为播放队列，播放第一首。</summary>
-    private async void OnAiPlaylistTapped(object? sender, TappedEventArgs e)
-    {
-        if ((sender as BindableObject)?.BindingContext is not AiPlaylist playlist) return;
-        if (playlist.Songs.Count == 0) return;
-        var first = playlist.Songs[0];
-        await PlaySongAsync(first, playlist.Songs);
-    }
-
-    /// <summary>手动重新生成 AI 歌单（清缓存后强制调用 AI）</summary>
-    private async void OnAiPlaylistRegenerateTapped(object? sender, TappedEventArgs e)
-    {
-        await _vm.RegenerateAiPlaylistsAsync();
     }
 
     // === 搜索结果中的歌曲播放 ===
@@ -1643,7 +1461,7 @@ public partial class DesktopDiscoverPage : DiscoverPageBase
 
     private void OnRefreshClicked(object? sender, EventArgs e)
     {
-        // 统一走 RefreshCommand（清探索缓存 + 重新生成 AI 歌单 + IsRefreshing 转圈反馈）；
+        // 统一走 RefreshCommand（清探索缓存 + IsRefreshing 转圈反馈）；
         // 不再用 IsLoading 无感拦截（加载中点击也要有反馈）
         if (_vm.IsRefreshing) return;
         _ = _vm.RefreshCommand.ExecuteAsync(null);

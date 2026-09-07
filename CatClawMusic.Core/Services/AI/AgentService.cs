@@ -845,37 +845,8 @@ public class AgentService : IAgentService
     }
 
     /// <summary>
-    /// 一次性快速问答（流式）：使用独立临时对话，不污染主对话历史，也不注入音乐库/记忆上下文。
-    /// 推理内容（reasoning_content）增量实时回调 onReasoning（后台线程触发，调用方自行 marshal）。
-    /// </summary>
-    /// <param name="reasoningEffortOverride">请求级推理力度覆盖（如 AI 歌单固定 low），null 跟随配置/全局</param>
-    public async Task<string> QuickAskStreamAsync(string systemPrompt, string userPrompt,
-        Action<string>? onReasoning = null, string? reasoningEffortOverride = null, CancellationToken ct = default)
-    {
-        var tempMessages = new List<ChatMessage>
-        {
-            new() { Role = "system", Content = systemPrompt },
-            new() { Role = "user", Content = userPrompt }
-        };
-
-        try
-        {
-            var response = await Task.Run(async () => await _llmClient.ChatStreamAsync(tempMessages, null, delta =>
-            {
-                if (onReasoning != null && !string.IsNullOrEmpty(delta.ReasoningContent))
-                    onReasoning(delta.ReasoningContent);
-            }, ct, reasoningEffortOverride), ct);
-            return (response.Content ?? string.Empty).Trim();
-        }
-        catch (Exception ex)
-        {
-            _logService.Warn("Agent", $"QuickAsk 流式失败: {ex.Message}");
-            return string.Empty;
-        }
-    }
-    /// <summary>
     /// 一次性快速问答：使用独立临时对话，不污染主对话历史，也不注入音乐库/记忆上下文。
-    /// 用于 AI 推荐理由等后台自动生成场景。
+    /// 用于聊天工具调用等后台自动生成场景。
     /// </summary>
     public async Task<string> QuickAskAsync(string systemPrompt, string userPrompt, CancellationToken ct = default)
     {

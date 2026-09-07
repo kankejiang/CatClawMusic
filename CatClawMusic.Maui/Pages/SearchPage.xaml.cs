@@ -51,9 +51,9 @@ public partial class SearchPage : DiscoverPageBase
         Loaded += (_, _) => UpdateReasoningEffortChips();
 
         // Android：外层 ViewPager2 与内层横向卡片列表的手势仲裁——
-        // 卡片横向滑动时不误切 tab（Hero/AI 歌单/推荐专辑/每日推荐/艺人）
+        // 卡片横向滑动时不误切 tab（Hero/推荐专辑/每日推荐/艺人）
 #if ANDROID
-        foreach (var cv in new CollectionView[] { HeroGrid, AiPlaylistRow, RecommendAlbumGrid, DailyList, ArtistsList })
+        foreach (var cv in new CollectionView[] { HeroGrid, RecommendAlbumGrid, DailyList, ArtistsList })
         {
             // 双保险挂载：HandlerChanged（Handler 创建/重建时）+ Loaded（视图就绪后），
             // 避免某一时机 Handler/PlatformView 未就绪导致监听漏挂
@@ -144,7 +144,7 @@ public partial class SearchPage : DiscoverPageBase
     protected override Grid CategoryTabBarControl => CategoryTabBar;
     protected override VerticalStackLayout PluginExtensionsRootControl => PluginExtensionsBox;
 
-    /// <summary>覆盖基类播放逻辑：确保被点击的歌曲（如 AI 推荐歌）一定在播放队列里，
+    /// <summary>覆盖基类播放逻辑：确保被点击的歌曲一定在播放队列里，
     /// 否则 PlayQueue.SelectSong 找不到该 Id 会把 CurrentSong 置空，导致声音在播但歌词/封面无法刷新。</summary>
     protected override async Task PlaySongAsync(Song song, IReadOnlyList<Song> songs)
     {
@@ -631,20 +631,6 @@ public partial class SearchPage : DiscoverPageBase
     {
         if (ArtistsList.ItemsSource is not System.Collections.IList list || list.Count == 0) return;
         ArtistsList.ScrollTo(Math.Max(0, list.Count - 1), -1, ScrollToPosition.End, true);
-    }
-
-    /// <summary>点击 AI 歌单卡片：播放歌单全部歌曲</summary>
-    private async void OnAiPlaylistTapped(object? sender, TappedEventArgs e)
-    {
-        if ((sender as BindableObject)?.BindingContext is not AiPlaylist playlist) return;
-        if (playlist.Songs.Count == 0) return;
-        await PlaySongAsync(playlist.Songs[0], playlist.Songs);
-    }
-
-    /// <summary>手动重新生成 AI 歌单（清缓存后强制调用 AI）</summary>
-    private async void OnAiPlaylistRegenerateTapped(object? sender, TappedEventArgs e)
-    {
-        await _vm.RegenerateAiPlaylistsAsync();
     }
 
     private void OnRefreshClicked(object? sender, EventArgs e)

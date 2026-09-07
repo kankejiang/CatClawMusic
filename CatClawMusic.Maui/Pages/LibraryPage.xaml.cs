@@ -502,7 +502,6 @@ public partial class LibraryPage : ContentPage
     private void OnDiscoverSourceChanged()
     {
         _exploreDataService?.InvalidateDailyRecommendCache();
-        _searchVm?.InvalidateAiPlaylistsForSourceChange();
         if (_searchVm != null)
         {
             _ = MainThread.InvokeOnMainThreadAsync(async () =>

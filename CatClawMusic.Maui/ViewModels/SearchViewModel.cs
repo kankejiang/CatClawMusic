@@ -234,34 +234,6 @@ public partial class SearchViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowOnlineEntry))]
     private bool _isSearchOpen;
 
-    /// <summary>是否启用 AI 智能推荐 Hero 卡</summary>
-    [ObservableProperty]
-    private bool _isAiRecommendationEnabled;
-
-    /// <summary>AI 推荐的歌曲</summary>
-    private Song? _aiRecommendedSong;
-
-    /// <summary>AI 推荐理由文字</summary>
-    [ObservableProperty]
-    private string _aiRecommendReason = "AI 根据你的听歌口味为你精选";
-
-    /// <summary>AI 是否正在生成推荐</summary>
-    [ObservableProperty]
-    private bool _isAiRecommending;
-
-    /// <summary>当天 AI 推荐批次（歌曲 ID + 理由），每天仅向 AI 获取一次并整批缓存</summary>
-    private List<AiRecItem> _aiRecommendBatch = new();
-    /// <summary>AI 推荐批次对应的日期（"yyyy-MM-dd"），用于判定是否需要重新获取</summary>
-    private string? _aiRecommendBatchDate;
-    /// <summary>当天是否已尝试向 AI 请求（无论成功失败），避免失败后在同一天反复调用浪费 token</summary>
-    private string? _aiAttemptDate;
-    /// <summary>是否正在向 AI 请求推荐批次，防止并发重复请求</summary>
-    private bool _aiFetchInProgress;
-    /// <summary>Hero 卡当前展示的 AI 推荐索引，换批时轮换（仅读缓存，不消耗 token）</summary>
-    private int _aiHeroIndex;
-    /// <summary>AI 每日推荐磁盘缓存文件路径（复用探索缓存目录）</summary>
-    private readonly string _aiCacheFilePath = Path.Combine(FileSystem.AppDataDirectory, "cache", "ai_recommend.json");
-
     /// <summary>发现页 CollectionView 的占位数据源（内容全部放在 Header 中，使用 CollectionView 获得更好的手势处理）</summary>
     public ObservableCollection<int> DiscoverPageItems { get; } = new() { 0 };
 
@@ -317,9 +289,6 @@ public partial class SearchViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ShuffleDailyCommand = new RelayCommand(ShuffleDaily);
         ToggleThinkingCommand = new RelayCommand(() => IsThinkingExpanded = !IsThinkingExpanded);
-
-        // 读取 AI 推荐开关持久化状态
-        IsAiRecommendationEnabled = Preferences.Default.Get("ai_recommendation_enabled", false);
 
         GreetingText = CalculateGreeting();
 
@@ -407,7 +376,7 @@ public partial class SearchViewModel : ObservableObject
 
         // 注意：必须原地更新既有 ObservableCollection（Clear + Add），而非重新赋值一个新实例。
         // .NET 11 WinUI 的 ItemsView2 对直接替换 ItemsSource 的新实例可能不触发渲染（表现为
-        // 数据已填充但界面空白）；而 AiPlaylists 等原地更新集合的分区能正常显示。
+        // 数据已填充但界面空白）；而原地更新集合的分区能正常显示。
         UpdateCollection(DailyRecommendSongs, FilterSongs(_allDailyRecommendSongs, query));
         UpdateCollection(Artists, hasQuery
             ? _allArtists.Where(a =>

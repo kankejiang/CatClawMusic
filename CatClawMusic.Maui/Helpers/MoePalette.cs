@@ -8,14 +8,13 @@ namespace CatClawMusic.Maui.Helpers;
 /// </summary>
 public static class MoePalette
 {
-    /// <summary>Hero 卡渐变（槽位顺序固定：每日推荐/最多播放/我的最爱/随机播放/AI 推荐）</summary>
+    /// <summary>Hero 卡渐变（槽位顺序固定：每日推荐/最多播放/我的最爱/随机播放）</summary>
     public static readonly (Color Start, Color End)[] HeroGradients =
     {
         (Color.FromArgb("#FF8FB8"), Color.FromArgb("#F56FA0")), // 樱粉
         (Color.FromArgb("#FFB86E"), Color.FromArgb("#FF8A65")), // 蜜桃杏
         (Color.FromArgb("#7ED8C3"), Color.FromArgb("#4FC3A1")), // 薄荷
         (Color.FromArgb("#B79CFF"), Color.FromArgb("#9F82F0")), // 芋紫
-        (Color.FromArgb("#55D6FF"), Color.FromArgb("#7ED8C3")), // 冰青薄荷
     };
 
     /// <summary>Yuki/AI 卡渐变（薄荷 → 冰青）</summary>
