@@ -11,5 +11,9 @@
     <PackageReference Include="sqlite-net-pcl" Version="1.11.285" />
     <!-- 覆盖 SQLitePCLRaw 2.1.2 传递依赖，锁定 16KB 对齐版本（Android 16 兼容） -->
     <PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
+    <!-- JS 运行时（宿主统一持有，插件不再各自嵌入）：供 IJsRuntimeService 与插件脚本引擎共用，
+         版本必须与插件编译引用保持一致（插件经 ProjectReference 传递统一） -->
+    <PackageReference Include="Jint" Version="4.16.0" />
+    <PackageReference Include="Acornima" Version="1.7.0" />
   </ItemGroup>
 </Project>

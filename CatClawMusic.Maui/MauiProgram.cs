@@ -315,6 +315,10 @@ public static class MauiProgram
         // 供插件（Lyrico 式标签编辑/批量整理）经 IServiceProvider 解析使用。
         services.AddSingleton<Core.Interfaces.IAudioFileService, AudioFileService>();
 
+        // 宿主统一 JS 运行时（Jint）：插件不再各自嵌入 Jint/Acornima，经此服务创建脚本引擎。
+        // 供 Lrclib（Lyrico 歌词源脚本）与 LxSource（lx 自定义音源脚本）解析使用。
+        services.AddSingleton<Core.Interfaces.IJsRuntimeService, Core.Services.JsRuntimeService>();
+
         // 桌面歌词服务（Android 使用 WindowManager 悬浮窗；Windows 使用独立悬浮歌词窗口；其他平台空实现）
 #if ANDROID
         services.AddSingleton<Core.Interfaces.IDesktopLyricService, Platforms.Android.DesktopLyricService>();
