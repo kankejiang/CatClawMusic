@@ -70,8 +70,11 @@ public partial class LyricsService : ILyricsService
             fpPreview = song.FilePath.Length <= 40 ? song.FilePath : song.FilePath[..40];
         Log.Debug("LyricsService", $"[Lyrics] GetLyricsAsync: Protocol={song.Protocol}, RemoteId={song.RemoteId ?? "null"}, FilePath={fpPreview}");
 
-        // Navidrome/Subsonic: 优先通过 API 获取歌词（避免下载整个音频文件读内嵌歌词）
-        if (!localOnly && song.Protocol == ProtocolType.Navidrome && !string.IsNullOrEmpty(song.RemoteId))
+        // 网络歌曲（Navidrome/WebDAV/SMB）：优先经 INetworkMusicService 取歌词——
+        // WebDAV/SMB 读取扫描时配对的同目录 .lrc（GetLyricsAsync 内部推导），失败再内嵌回退。
+        // 此前守卫只放行 Navidrome，导致 WebDAV/SMB 的 .lrc 直读实现永远不被执行（外挂歌词必失效）。
+        if (!localOnly && song.Protocol is ProtocolType.Navidrome or ProtocolType.WebDAV or ProtocolType.SMB
+            && !string.IsNullOrEmpty(song.RemoteId))
         {
             try
             {
@@ -79,7 +82,7 @@ public partial class LyricsService : ILyricsService
                 if (networkSvc != null)
                 {
                     var profiles = await networkSvc.GetProfilesAsync();
-                    var profile = profiles.FirstOrDefault(p => p.Protocol == ProtocolType.Navidrome);
+                    var profile = profiles.FirstOrDefault(p => p.Protocol == song.Protocol);
                     if (profile != null)
                     {
                         var lrcText = await networkSvc.GetLyricsAsync(song.RemoteId, profile);
@@ -93,7 +96,7 @@ public partial class LyricsService : ILyricsService
             }
             catch (Exception ex)
             {
-                Log.Debug("LyricsService", $"[Lyrics] Navidrome API 获取失败: {ex.Message}");
+                Log.Debug("LyricsService", $"[Lyrics] 网络歌词获取失败 ({song.Protocol}): {ex.Message}");
             }
         }
 
@@ -206,6 +209,31 @@ public partial class LyricsService : ILyricsService
             {
                 Log.Debug("LyricsService", "[Lyrics] 跳过 Navidrome 内嵌歌词");
                 return null;
+            }
+            // 外挂 .lrc（扫描时配对的远程 LyricsPath）：小文件直读，优先于内嵌（省一次 2MB 头请求）。
+            // 此前远程分支从不读 LyricsPath，导致 WebDAV/SMB 外挂歌词永远取不到。
+            if (!skipExternal && RemoteUrlStreamOpenerAsync != null && !string.IsNullOrEmpty(song.LyricsPath))
+            {
+                try
+                {
+                    Log.Debug("LyricsService", "[Lyrics] 尝试读取远程 LyricsPath（外挂 .lrc）");
+                    await using var lrcStream = await RemoteUrlStreamOpenerAsync(song.LyricsPath);
+                    if (lrcStream != null)
+                    {
+                        using var reader = new StreamReader(lrcStream);
+                        var lrcText = await reader.ReadToEndAsync();
+                        if (!string.IsNullOrWhiteSpace(lrcText))
+                        {
+                            Log.Debug("LyricsService", $"[Lyrics] 远程 LyricsPath 读取成功 ({lrcText.Length} 字符)");
+                            var parsed = await Task.Run(() => TryParseLyrics(lrcText));
+                            if (parsed != null) return parsed;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug("LyricsService", $"[Lyrics] 远程 LyricsPath 读取失败: {ex.Message}");
+                }
             }
             Log.Debug("LyricsService", "[Lyrics] 调用 ReadEmbeddedLyricsAsync (isRemoteUrl=true)");
             var embeddedLyrics = await ReadEmbeddedLyricsAsync(songPath, isContentUri: false, isRemoteUrl: true);

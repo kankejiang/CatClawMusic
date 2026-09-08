@@ -335,6 +335,9 @@ public partial class NetworkMusicService
             }
         }
 
+        // 侧车封面配对：写入骨架 RemoteCoverPath 持久化（免逐次探测）
+        BuildCoverMaps(allFiles, out var exactCoverMap, out var dirCoverMap);
+
         Log.Debug("NetworkMusicService", $"[WebDAV Scan] 过滤后音频文件: {audioFiles.Count}");
         progress?.Report((0, audioFiles.Count, $"发现 {audioFiles.Count} 个音频文件，正在提取元数据..."));
 
@@ -387,6 +390,13 @@ public partial class NetworkMusicService
                     else
                         song.LyricsPath = BuildWebDavStreamUrl(lrcFile.Path, profile);
                 }
+
+                // 侧车封面远程路径持久化（同名图 > 目录通用封面）
+                if (!string.IsNullOrEmpty(audioNameNoExt)
+                    && exactCoverMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var exactCover))
+                    song.RemoteCoverPath = exactCover.Path;
+                else if (dirCoverMap.TryGetValue(audioParentDir, out var dirCover))
+                    song.RemoteCoverPath = dirCover.Path;
 
                 // 扫描阶段不下载标签头取元数据（避免拖慢扫描），交由播放/取图时懒加载
                 song.Artist = "未知艺术家";
@@ -476,6 +486,9 @@ public partial class NetworkMusicService
         }
 
         // 并行扫描子目录（限制并发数避免服务器过载）
+        // 侧车封面配对（folder/cover/front/album/同名图）：写入骨架 RemoteCoverPath 持久化，
+        // 播放/取封面时免逐次 PROPFIND 探测父目录
+        BuildCoverMaps(files, out var exactCoverMap, out var dirCoverMap);
         var subDirTasks = subDirs.Select(subDir => Task.Run(async () =>
         {
             await DirScanSemaphore.WaitAsync();
@@ -543,6 +556,13 @@ public partial class NetworkMusicService
                     else
                         song.LyricsPath = BuildWebDavStreamUrl(lrcFile.Path, profile);
                 }
+
+                // 侧车封面远程路径持久化（同名图 > 目录通用封面）
+                if (!string.IsNullOrEmpty(audioNameNoExt)
+                    && exactCoverMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var exactCover))
+                    song.RemoteCoverPath = exactCover.Path;
+                else if (dirCoverMap.TryGetValue(audioParentDir, out var dirCover))
+                    song.RemoteCoverPath = dirCover.Path;
 
                 // 扫描阶段不下载标签头取元数据（避免拖慢扫描），交由播放/取图时懒加载
                 song.Artist = "未知艺术家";
@@ -682,6 +702,9 @@ public partial class NetworkMusicService
             }
         }
 
+        // 侧车封面配对：写入骨架 RemoteCoverPath 持久化（免逐次探测）
+        BuildCoverMaps(files, out var exactCoverMap, out var dirCoverMap);
+
         // 并行扫描子目录（与 WebDAV 版本一致），上限 4 并发避免 SMB 协议压力
         if (subDirs.Count > 0)
         {
@@ -745,6 +768,13 @@ public partial class NetworkMusicService
                 var audioParentDir = System.IO.Path.GetDirectoryName(file.Path)?.Replace('\\', '/').TrimEnd('/') ?? "";
                 if (!string.IsNullOrEmpty(audioNameNoExt) && lyricsMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var lrcFile))
                     song.LyricsPath = BuildSmbStreamUrl(lrcFile.Path, profile);
+
+                // 侧车封面远程路径持久化（同名图 > 目录通用封面）
+                if (!string.IsNullOrEmpty(audioNameNoExt)
+                    && exactCoverMap.TryGetValue($"{audioParentDir}/{audioNameNoExt}", out var exactCover))
+                    song.RemoteCoverPath = exactCover.Path;
+                else if (dirCoverMap.TryGetValue(audioParentDir, out var dirCover))
+                    song.RemoteCoverPath = dirCover.Path;
 
                 // 扫描阶段不下载标签头取元数据（避免拖慢扫描），交由播放/取图时懒加载
                 song.Artist = "未知艺术家";

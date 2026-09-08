@@ -273,9 +273,8 @@ public static class CoverHelper
 
         // 1.5 网络来源歌曲（WebDAV/SMB/Navidrome）：封面缓存在 covers/cover_{id}.jpg
         // （由播放页 LoadCoverArt 步骤6 下载并写入）。命中则返回；
-        // 未命中【不再自动触发远程下载】——列表批量加载时若逐首发起远程 Range 请求，
-        // 歌多时会形成请求风暴拖垮网络/线程池（表现为"网络音乐列表一进就卡死"）。
-        // 封面改为播放时获取：播放页会下载封面并写缓存，之后列表自然命中缓存显示。
+        // 未命中 → fire-and-forget 后台补下（TriggerNetworkCoverResolve 自带 inflight 去重 +
+        // 信号量 4 限流，逐首一次请求不会形成风暴），列表占位图在下载完成后经 INPC 自动刷新。
         if (song.Source != SongSource.Local && !string.IsNullOrEmpty(song.RemoteId))
         {
             var netCached = System.IO.Path.Combine(_coverCacheDir, $"cover_{song.Id}.jpg");
@@ -284,7 +283,8 @@ public static class CoverHelper
                 var bucket = GetCachedPath(song.Id, maxSize);
                 return File.Exists(bucket) ? bucket : netCached;
             }
-            // 无缓存：返回 null（列表显示占位图），不触发下载
+            // 无缓存：返回占位图，同时后台补下封面
+            TriggerNetworkCoverResolve(song);
         }
 
         // 2. 选择可用源：优先使用 >= maxSize 的已有文件，否则从音频文件重新提取全分辨率

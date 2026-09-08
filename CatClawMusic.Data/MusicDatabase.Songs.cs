@@ -415,6 +415,29 @@ public partial class MusicDatabase
     }
 
     /// <summary>
+    /// 回写网络歌曲的侧车封面远程路径（RemoteCoverPath）。
+    /// 懒探测命中后调用：持久化后下次会话免重复 PROPFIND 探测父目录。
+    /// </summary>
+    /// <param name="remoteId">远程歌曲路径（Songs.RemoteId）</param>
+    /// <param name="coverPath">侧车封面远程路径</param>
+    public async Task UpdateRemoteCoverPathAsync(string remoteId, string coverPath)
+    {
+        try
+        {
+            var songs = await _database.Table<Song>()
+                .Where(s => s.RemoteId == remoteId)
+                .ToListAsync();
+            foreach (var s in songs)
+            {
+                if (s.RemoteCoverPath == coverPath) continue;
+                s.RemoteCoverPath = coverPath;
+                await _database.UpdateAsync(s);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// 删除指定歌曲
     /// </summary>
     /// <param name="song">要删除的歌曲对象</param>

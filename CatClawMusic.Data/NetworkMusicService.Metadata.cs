@@ -120,6 +120,13 @@ public partial class NetworkMusicService
                 }
             }
 
+            // 负缓存：2MB 头已确认无内嵌封面（整首下载兜底已淘汰），跳过重复头部请求
+            if (_noEmbeddedCoverCache.ContainsKey(songId))
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 内嵌封面负缓存命中，跳过: {songId}");
+                return null;
+            }
+
             // OpenList: 使用 raw_url (CDN 直链) 下载文件头，WebDAV 端点 302 到 CDN 会拒绝 Basic Auth
             var isOpenList = (WebDavServerType)profile.ServerType == WebDavServerType.OpenList;
             if (!isOpenList && _webDav is WebDavService wdsCheck2 && wdsCheck2.CurrentServerType == WebDavServerType.OpenList)
@@ -173,12 +180,12 @@ public partial class NetworkMusicService
 
             try
             {
-                var (ms, truncated) = await DownloadHeadAsync(songId);
+                var (ms, _) = await DownloadHeadAsync(songId);
                 if (ms != null)
                 {
                     try
                     {
-                        // 非音频头：放弃提取与整首兜底（头都坏了整首更不可能有封面）
+                        // 非音频头：放弃提取（头都坏了不可能有封面）
                         if (IsAudioHeader(ms))
                         {
                             var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
@@ -187,22 +194,10 @@ public partial class NetworkMusicService
                                 Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 内嵌封面提取成功 ({coverBytes.Length} 字节)");
                                 return new MemoryStream(coverBytes);
                             }
-                            // 头部未抽到封面且文件被截断（封面可能超过头部范围）→ 整首下载兜底
-                            if (truncated)
-                            {
-                                Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 头部无内嵌封面，整首下载兜底: {songId}");
-                                ms.Dispose();
-                                using var full = await _webDav.OpenReadAsync(songId);
-                                var fms = new MemoryStream();
-                                await full.CopyToAsync(fms);
-                                fms.Position = 0;
-                                var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
-                                if (fullCover != null)
-                                {
-                                    Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 整首兜底提取封面成功 ({fullCover.Length} 字节)");
-                                    return new MemoryStream(fullCover);
-                                }
-                            }
+                            // 头部有效但无内嵌封面：记负缓存（整首下载兜底已淘汰——
+                            // 无封面歌每次播放重复整首下载是扫描/播放慢的主因之一，改依赖侧车路径）
+                            Log.Debug("NetworkMusicService", $"[CatClaw] WebDAV 头部无内嵌封面，记负缓存: {songId}");
+                            _noEmbeddedCoverCache.TryAdd(songId, 0);
                         }
                     }
                     finally { ms.Dispose(); }
@@ -236,14 +231,21 @@ public partial class NetworkMusicService
                 }
             }
 
+            // 负缓存：2MB 头已确认无内嵌封面（整首下载兜底已淘汰），跳过重复头部请求
+            if (_noEmbeddedCoverCache.ContainsKey(songId))
+            {
+                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 内嵌封面负缓存命中，跳过: {songId}");
+                return null;
+            }
+
             try
             {
-                var (ms, truncated) = await DownloadSmbHeadAsync(songId, profile);
+                var (ms, _) = await DownloadSmbHeadAsync(songId, profile);
                 if (ms != null)
                 {
                     try
                     {
-                        // 非音频头：放弃提取与整首兜底
+                        // 非音频头：放弃提取（头都坏了不可能有封面）
                         if (IsAudioHeader(ms))
                         {
                             var coverBytes = TagReader.ExtractCoverFromStream(ms, songId);
@@ -252,22 +254,9 @@ public partial class NetworkMusicService
                                 Log.Debug("NetworkMusicService", $"[CatClaw] SMB 内嵌封面提取成功 ({coverBytes.Length} 字节)");
                                 return new MemoryStream(coverBytes);
                             }
-                            if (truncated)
-                            {
-                                Log.Debug("NetworkMusicService", $"[CatClaw] SMB 头部无内嵌封面，整首下载兜底: {songId}");
-                                ms.Dispose();
-                                _smb.Configure(profile);
-                                using var full = await _smb.OpenReadAsync(songId);
-                                var fms = new MemoryStream();
-                                await full.CopyToAsync(fms);
-                                fms.Position = 0;
-                                var fullCover = TagReader.ExtractCoverFromStream(fms, songId);
-                                if (fullCover != null)
-                                {
-                                    Log.Debug("NetworkMusicService", $"[CatClaw] SMB 整首兜底提取封面成功 ({fullCover.Length} 字节)");
-                                    return new MemoryStream(fullCover);
-                                }
-                            }
+                            // 头部有效但无内嵌封面：记负缓存（整首下载兜底已淘汰）
+                            Log.Debug("NetworkMusicService", $"[CatClaw] SMB 头部无内嵌封面，记负缓存: {songId}");
+                            _noEmbeddedCoverCache.TryAdd(songId, 0);
                         }
                     }
                     finally { ms.Dispose(); }
@@ -282,18 +271,23 @@ public partial class NetworkMusicService
         return null;
     }
 
-    /// <summary>
-    /// 侧车封面懒探测缓存：键=音频远程路径，值=探测到的侧车封面远程路径（null 表示无）。
-    /// 避免同一首歌在会话内重复列举父目录。
-    /// </summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> _sideCarCoverCache
+    /// <summary>侧车封面目录级缓存：键=父目录，值=该目录的（同名图映射, 目录通用封面映射）。
+    /// 同目录 N 首歌共享一次 PROPFIND 列举；null 表示该目录已探测过且无封面图。</summary>
+    private sealed record SideCarDirMaps(
+        System.Collections.Generic.Dictionary<string, RemoteFile> ExactCoverMap,
+        System.Collections.Generic.Dictionary<string, RemoteFile> DirCoverMap);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SideCarDirMaps?> _sideCarDirCache
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>负缓存：已确认 2MB 头部无内嵌封面的远程文件（整首下载兜底淘汰后，避免重复头部请求）</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _noEmbeddedCoverCache
         = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 播放/取封面时按需探测同目录侧车封面：列举音频文件父目录，按优先级
     /// （folder &gt; cover &gt; front &gt; album &gt; 同名图）选出封面图，返回其远程路径。
-    /// 扫描阶段不再写入 RemoteCoverPath（避免拖慢扫描），封面统一在此处懒探测，
-    /// 命中后缓存，无需重新扫描即可拿到侧车封面。
+    /// 探测按父目录缓存（同目录 N 首歌共享一次 PROPFIND），命中后回写 DB 的
+    /// RemoteCoverPath（扫描已写入的不再探测），下次会话无需重扫。
     /// </summary>
     /// <param name="songId">音频文件远程路径（WebDAV 用 '/'，SMB 用 '\'）</param>
     /// <param name="profile">连接配置</param>
@@ -301,19 +295,39 @@ public partial class NetworkMusicService
     private async Task<string?> ProbeSideCarCoverAsync(string songId, ConnectionProfile profile)
     {
         if (string.IsNullOrEmpty(songId)) return null;
-        if (_sideCarCoverCache.TryGetValue(songId, out var cached))
-            return cached;
+        var normalized = songId.Replace('\\', '/').TrimEnd('/');
+        var parentDir = System.IO.Path.GetDirectoryName(normalized)?.Replace('\\', '/').TrimEnd('/') ?? "";
+        if (string.IsNullOrEmpty(parentDir)) return null;
+        var audioNameNoExt = System.IO.Path.GetFileNameWithoutExtension(normalized) ?? "";
 
+        // 目录级缓存（非阻塞双检：不能在 UI 上下文同步等待，否则可能死锁）
+        if (!_sideCarDirCache.TryGetValue(parentDir, out var maps))
+        {
+            var loaded = await LoadSideCarMapsAsync(parentDir, profile);
+            maps = _sideCarDirCache.GetOrAdd(parentDir, loaded);
+        }
+        if (maps == null) return null;
+
+        // 优先：与音频同名的图片（如 song.jpg 配 song.flac）；回退：目录级通用封面
         string? result = null;
+        if (!string.IsNullOrEmpty(audioNameNoExt)
+            && maps.ExactCoverMap.TryGetValue($"{parentDir}/{audioNameNoExt}", out var exact))
+            result = exact.Path;
+        else if (maps.DirCoverMap.TryGetValue(parentDir, out var dir))
+            result = dir.Path;
+
+        // 命中后回写 DB（fire-and-forget，幂等）：老歌无需重扫，下次会话直接命中 RemoteCoverPath
+        if (!string.IsNullOrEmpty(result))
+            _ = _db.UpdateRemoteCoverPathAsync(songId, result);
+        return result;
+    }
+
+    /// <summary>列举父目录并构建封面配对映射；失败返回 null（计入目录级缓存，避免反复重试）</summary>
+    private async Task<SideCarDirMaps?> LoadSideCarMapsAsync(string parentDir, ConnectionProfile profile)
+    {
         try
         {
-            // 归一化父目录（兼容 WebDAV 的 '/' 与 SMB 的 '\'）
-            var normalized = songId.Replace('\\', '/').TrimEnd('/');
-            var parentDir = System.IO.Path.GetDirectoryName(normalized)?.Replace('\\', '/').TrimEnd('/') ?? "";
-            if (string.IsNullOrEmpty(parentDir)) return null;
-            var audioNameNoExt = System.IO.Path.GetFileNameWithoutExtension(normalized) ?? "";
-
-            System.Collections.Generic.List<RemoteFile>? files = null;
+            System.Collections.Generic.List<RemoteFile>? files;
             if (profile.Protocol == ProtocolType.WebDAV && _webDav is WebDavService wds)
             {
                 wds.Configure(profile);
@@ -325,26 +339,17 @@ public partial class NetworkMusicService
                 smb.Configure(profile);
                 files = await _smb.ListFilesAsync(parentDir);
             }
+            else return null;
             if (files == null) return null;
 
             BuildCoverMaps(files, out var exactCoverMap, out var dirCoverMap);
-            // 优先：与音频同名的图片（如 song.jpg 配 song.flac）
-            if (!string.IsNullOrEmpty(audioNameNoExt)
-                && exactCoverMap.TryGetValue($"{parentDir}/{audioNameNoExt}", out var exact))
-                result = exact.Path;
-            // 回退：目录级通用封面（folder/cover/front/album...）
-            else if (dirCoverMap.TryGetValue(parentDir, out var dir))
-                result = dir.Path;
+            return new SideCarDirMaps(exactCoverMap, dirCoverMap);
         }
         catch (Exception ex)
         {
-            Log.Debug("NetworkMusicService", $"[CatClaw] 懒探测侧车封面失败 ({profile.Protocol} {songId}): {ex.Message}");
+            Log.Debug("NetworkMusicService", $"[CatClaw] 懒探测侧车封面失败 ({profile.Protocol} {parentDir}): {ex.Message}");
+            return null;
         }
-        finally
-        {
-            _sideCarCoverCache.TryAdd(songId, result);
-        }
-        return result;
     }
 
     /// <summary>
