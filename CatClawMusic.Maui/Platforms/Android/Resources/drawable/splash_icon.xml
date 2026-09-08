@@ -1,55 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 启动画面图标：旋转黑胶（1600ms/圈，线性循环）+ 静态猫爪，呼应应用图标"猫爪打碟"意象。
-     深色底(#11141D)上悬浮元素，关键内容控制在中央 66dp 安全区内，兼容图标圆形裁切机型。 -->
-<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt">
-  <aapt:attr name="android:drawable">
-    <vector android:width="108dp" android:height="108dp"
-            android:viewportWidth="108" android:viewportHeight="108">
-      <!-- 黑胶唱片（整组旋转） -->
-      <group android:name="disc" android:pivotX="58" android:pivotY="62">
-        <!-- 盘体 -->
-        <path android:fillColor="#0B0E16"
-              android:pathData="M34,62 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0"/>
-        <!-- 盘沿 -->
-        <path android:strokeColor="#39415A" android:strokeWidth="1.2"
-              android:pathData="M34,62 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0"/>
-        <!-- 唱纹 -->
-        <path android:strokeColor="#232A3B" android:strokeWidth="0.9"
-              android:pathData="M38.5,62 a19.5,19.5 0 1,0 39,0 a19.5,19.5 0 1,0 -39,0"/>
-        <path android:strokeColor="#232A3B" android:strokeWidth="0.9"
-              android:pathData="M42,62 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0"/>
-        <path android:strokeColor="#232A3B" android:strokeWidth="0.9"
-              android:pathData="M45.5,62 a12.5,12.5 0 1,0 25,0 a12.5,12.5 0 1,0 -25,0"/>
-        <!-- 高光弧（旋转时的运动线索） -->
-        <path android:strokeColor="#4A5470" android:strokeWidth="1.6" android:strokeLineCap="round"
-              android:pathData="M40.5,50.5 A21,21 0 0,1 56,41.2"/>
-        <!-- 盘心标 -->
-        <path android:fillColor="#D7E3F4"
-              android:pathData="M50,62 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0"/>
-        <!-- 标上粉点（随盘旋转，让转动可感知） -->
-        <path android:fillColor="#FF7BAC"
-              android:pathData="M56.4,55.6 a1.9,1.9 0 1,0 3.8,0 a1.9,1.9 0 1,0 -3.8,0"/>
-        <!-- 中孔 -->
-        <path android:fillColor="#11141D"
-              android:pathData="M56.2,62 a1.8,1.8 0 1,0 3.6,0 a1.8,1.8 0 1,0 -3.6,0"/>
-      </group>
-      <!-- 猫爪（静态，压住唱片左上） -->
-      <group android:name="paw">
-        <!-- 掌 -->
-        <path android:fillColor="#FFFFFF"
-              android:pathData="M34,48 a13,12.5 0 1,0 26,0 a13,12.5 0 1,0 -26,0"/>
-        <!-- 四趾 -->
-        <path android:fillColor="#FFFFFF" android:pathData="M31,42 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
-        <path android:fillColor="#FFFFFF" android:pathData="M38.5,36.5 a5.5,5.5 0 1,0 11,0 a5.5,5.5 0 1,0 -11,0"/>
-        <path android:fillColor="#FFFFFF" android:pathData="M48,35.5 a5.5,5.5 0 1,0 11,0 a5.5,5.5 0 1,0 -11,0"/>
-        <path android:fillColor="#FFFFFF" android:pathData="M56.5,40 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
-        <!-- 爪尖小三角（呼应应用图标的尖刺） -->
-        <path android:fillColor="#FFFFFF" android:pathData="M32.5,54.5 l-4.5,3.5 l5.5,1.5 z"/>
-        <path android:fillColor="#FFFFFF" android:pathData="M40,57.5 l-2.5,5.5 l4.5,-1 z"/>
-        <path android:fillColor="#FFFFFF" android:pathData="M60.5,49.5 l4.5,4 l-5.5,1 z"/>
-      </group>
-    </vector>
-  </aapt:attr>
-  <target android:name="disc" android:animation="@animator/splash_disc_spin"/>
-</animated-vector>
+<!-- 启动画面图标：沿用应用图标本体（与桌面图标同源的专业设计），108dp 居中。
+     此前自绘矢量黑胶+猫爪观感不及原版，回退为原图标；品牌字样由 splash_branding 承担。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:width="108dp" android:height="108dp" android:gravity="center">
+        <bitmap android:src="@drawable/app_icon" android:gravity="fill"/>
+    </item>
+</layer-list>

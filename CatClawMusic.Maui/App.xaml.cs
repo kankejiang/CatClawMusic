@@ -496,7 +496,9 @@ public partial class App : Application
         });
         StartupTrace.Mark("gate: MainPage swapped in");
 
-        // 放行系统启动画面：keep-on-screen 条件解除，退出动画直接揭示已换入的主界面
+        // 留 120ms 给主线程渲染 MainPage 首帧，再放行系统启动画面——
+        // 否则淡出瞬间主界面尚未绘制，露出纯色 windowBackground 产生"闪一下"的观感
+        await Task.Delay(120);
         StartupUiReady = true;
     }
 

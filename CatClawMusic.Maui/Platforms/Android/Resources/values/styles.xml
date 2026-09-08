@@ -12,10 +12,12 @@
 
     <style name="MainTheme.Base" parent="MainTheme" />
 
-    <!-- 启动画面主题：在 Maui.SplashTheme 基础上替换为"旋转黑胶 + 猫爪"动态图标（AVD），
-         并在底部加品牌字样。仅覆盖系统启动画面（Android 12+）属性，windowBackground 等沿用父主题 -->
+    <!-- 启动画面主题：在 Maui.SplashTheme 基础上仅换底部品牌字样（图标沿用生成的 app_icon），
+         并把 windowBackground 改为纯 #11141D——启动画面淡出瞬间若主界面首帧未就绪，
+         露出的是纯深色底而不是旧版静态图标（避免"闪一下旧启动画面"） -->
     <style name="CatSplashTheme" parent="Maui.SplashTheme">
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
         <item name="android:windowSplashScreenBrandingImage">@drawable/splash_branding</item>
+        <item name="android:windowBackground">#11141D</item>
     </style>
 </resources>
