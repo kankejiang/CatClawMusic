@@ -12,7 +12,7 @@ namespace CatClawMusic.Maui;
 
 /// <summary>Android 主 Activity，承载应用入口、Edge-to-Edge 显示、Android Context 注入以及 FolderPicker 结果处理</summary>
 [Activity(
-    Theme = "@style/Maui.SplashTheme",
+    Theme = "@style/CatSplashTheme",
     MainLauncher = true,
     LaunchMode = LaunchMode.SingleTop,
     // 保留全部 ConfigurationChanges：MAUI Shell 的 scoped IServiceProvider 不支持 Activity 重建，
@@ -23,13 +23,23 @@ namespace CatClawMusic.Maui;
         | ConfigChanges.ScreenLayout
         | ConfigChanges.SmallestScreenSize
         | ConfigChanges.Density)]
-public class MainActivity : MauiAppCompatActivity, AndroidX.Core.SplashScreen.SplashScreen.IKeepOnScreenCondition
+public class MainActivity : MauiAppCompatActivity,
+    AndroidX.Core.SplashScreen.SplashScreen.IKeepOnScreenCondition,
+    AndroidX.Core.SplashScreen.SplashScreen.IOnExitAnimationListener
 {
     /// <summary>交互状态服务：全局触摸事件上报，用于在手指操作期间暂停雾面动画、英雄卡轮播等持续工作</summary>
     private IInteractionStateService? _interaction;
 
     /// <summary>系统 SplashScreen keep-on-screen 条件：主界面就绪（App.StartupUiReady 置位）前保持启动画面显示</summary>
     public bool ShouldKeepOnScreen() => !App.StartupUiReady;
+
+    /// <summary>启动画面退出动画：整体温柔淡出（260ms）替代系统默认滑出，品牌动画缓慢让位于主界面</summary>
+    /// <param name="provider">系统提供的启动画面视图提供器，动画结束后需 Remove 释放</param>
+    public void OnSplashScreenExit(AndroidX.Core.SplashScreen.SplashScreenViewProvider provider)
+    {
+        provider.View.Animate()?.Alpha(0f)?.SetDuration(260)
+            ?.WithEndAction(new Java.Lang.Runnable(provider.Remove))?.Start();
+    }
 
     /// <summary>Activity 创建时回调：安装系统 SplashScreen（keep-on-screen 保持显示直到主界面就绪）、
     /// 执行基类创建、设置 Edge-to-Edge 并将自身注入到 AudioPlayerService</summary>
@@ -43,6 +53,7 @@ public class MainActivity : MauiAppCompatActivity, AndroidX.Core.SplashScreen.Sp
         // 会遮蔽 AndroidX.Core.SplashScreen.SplashScreen 类型名
         var systemSplash = AndroidX.Core.SplashScreen.SplashScreen.InstallSplashScreen(this);
         systemSplash?.SetKeepOnScreenCondition(this);
+        systemSplash?.SetOnExitAnimationListener(this);
 
         base.OnCreate(savedInstanceState);
         SetupEdgeToEdge();

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动画面黑胶旋转动画：线性匀速一圈 1.6s，无限循环（keep-on-screen 期间持续播放） -->
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:propertyName="rotation"
+    android:valueType="floatType"
+    android:valueFrom="0"
+    android:valueTo="360"
+    android:duration="1600"
+    android:repeatCount="-1"
+    android:interpolator="@android:interpolator/linear" />
