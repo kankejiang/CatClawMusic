@@ -2,8 +2,9 @@ namespace CatClawMusic.Maui.Pages;
 
 /// <summary>
 /// 启动占位页（Android 冷启动）：纯代码构建（无 XAML 膨胀、无 ActivityIndicator、无文本），
-/// 背景/图标与系统启动画面（Maui.SplashTheme: #11141D + 居中 app_icon）完全一致，
-/// 系统启动画面关闭后视觉无缝衔接；核心服务就绪后由 App 无条件换入 MainPage。
+/// 作为 Shell 首个内容项避免空 Shell 渲染风险。系统 SplashScreen keep-on-screen 期间
+/// 被其完全覆盖、不可见；万一 keep-on-screen 失效，其背景/图标与系统启动画面
+/// （Maui.SplashTheme: #11141D + 居中 app_icon）一致，视觉仍无缝。核心服务就绪后由 App 换入 MainPage。
 /// </summary>
 public sealed class StartupPlaceholderPage : ContentPage
 {

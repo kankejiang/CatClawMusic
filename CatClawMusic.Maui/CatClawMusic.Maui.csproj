@@ -150,6 +150,9 @@
 		<!-- 显式引入 Browser 包：MAUI WebAuthenticator 内部生成 CustomTabsServiceConnectionImpl.java
 		     等桩代码，依赖 androidx.browser.customtabs.*，但 SDK 不会自动传递该依赖 -->
 		<PackageReference Include="Xamarin.AndroidX.Browser" Version="1.10.0.1" />
+		<!-- 系统 SplashScreen API（androidx.core:core-splashscreen）：InstallSplashScreen +
+		     SetKeepOnScreenCondition 让系统启动画面保持显示直到主界面就绪，全程仅一个启动画面 -->
+		<PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.1" />
 	</ItemGroup>
 
 	<!-- Android release signing：必须显式 AndroidKeyStore=true，且用 PropertyGroup 属性（非 ItemGroup）。

@@ -116,8 +116,8 @@ public partial class App : Application
         catch { }
 
         // 初始化所有已启用的插件（后台）。PluginManager 构造 + LyricsService 注入 + InitializeAllAsync 全在池线程。
-        // 策略改为「把加载压力集中到启动页」:插件初始化任务被启动闸门 await(有 20s 总预算兜底),
-        // 进入主界面后插件已就绪,不再有后台 JIT/网络恢复造成的间歇卡顿。失败也放行。
+        // 纯后台执行，不阻塞启动闸门（启动门控只等数据库+FFmpeg+预加载）：插件就绪前后消费方均有
+        // 空引用保护，换页后插件在后台完成 JIT/网络恢复，完成时经 StartupTrace 打点。失败也放行。
         _pluginInitTask = Task.Run(async () =>
         {
             try
@@ -348,8 +348,12 @@ public partial class App : Application
 #endif
     }
 
-    /// <summary>插件初始化任务(双平台;Android 启动闸门第二段等待)</summary>
+    /// <summary>插件初始化任务(双平台;纯后台执行,不阻塞启动闸门,完成后经 StartupTrace 打点)</summary>
     private static Task? _pluginInitTask;
+
+    /// <summary>系统启动画面放行标志（Android）：MainActivity 安装的 SplashScreen 以 keep-on-screen
+    /// 条件轮询此标志，换入主界面时置位 → 系统启动画面退出动画揭示主界面（全程仅一个启动画面）</summary>
+    public static volatile bool StartupUiReady;
 
 #if ANDROID
     /// <summary>正在强制切换到横屏的过渡标志（实际到达横屏后由 DisplayOrientationChanged 清除）。</summary>
@@ -491,6 +495,9 @@ public partial class App : Application
             Route = "main",
         });
         StartupTrace.Mark("gate: MainPage swapped in");
+
+        // 放行系统启动画面：keep-on-screen 条件解除，退出动画直接揭示已换入的主界面
+        StartupUiReady = true;
     }
 
     /// <summary>
