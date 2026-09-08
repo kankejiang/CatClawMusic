@@ -282,7 +282,8 @@ public partial class PluginMarketViewModel : ObservableObject
                     throw new Exception("仓库安装失败");
                 item.InstallStatus = "";
                 await MarkInstalledStatesAsync();
-                await ShowAlertAsync("插件市场", $"已安装「{item.DisplayName}」v{info.Version}");
+                // 安装成功 → 统一重启提示（重启后插件才完全生效，可一键重启）
+                await Services.PluginRestartPrompt.ShowAsync($"已安装「{item.DisplayName}」v{info.Version}");
                 return;
             }
 
@@ -295,7 +296,8 @@ public partial class PluginMarketViewModel : ObservableObject
 
             item.InstallStatus = "";
             await MarkInstalledStatesAsync();
-            await ShowAlertAsync("插件市场", $"已安装「{item.DisplayName}」v{result.Version}");
+            // 安装成功 → 统一重启提示（重启后插件才完全生效，可一键重启）
+            await Services.PluginRestartPrompt.ShowAsync($"已安装「{item.DisplayName}」v{result.Version}");
         }
         catch (Exception ex)
         {

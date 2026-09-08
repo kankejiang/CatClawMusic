@@ -567,58 +567,9 @@ public partial class PluginManagementViewModel : ObservableObject
         }
     }
 
-    /// <summary>插件安装/更新成功后的统一提示：说明重启后完全生效，并视平台提供「立即重启」按钮。
-    /// 使用系统对话框（DisplayAlert 双按钮）：当前进程即将退出，自绘弹层没有存续意义。</summary>
+    /// <summary>插件安装/更新成功后的统一提示（共享实现，插件市场安装链路同样走这里）</summary>
     private async Task ShowRestartHintAsync(string successText)
-    {
-        const string restart = "立即重启";
-        const string later = "稍后自行重启";
-        string message = Services.AppRestarter.CanRestart
-            ? $"{successText}\n\n重启应用后插件将完全生效。"
-            : $"{successText}\n\n请手动重启应用以使插件完全生效。";
-
-        var page = CurrentPage();
-        if (page == null) { Log.Debug("PluginManagementViewModel", "[PluginManagement] 重启提示无 Page 宿主，跳过"); return; }
-
-        string choice;
-        if (Services.AppRestarter.CanRestart)
-        {
-            try { choice = await page.DisplayAlertAsync("安装成功", message, restart, later) ? restart : later; }
-            catch
-            {
-                // 系统对话框在该设备上可能不可用（MIUI 上曾静默失效）：退化为提示文本
-                ShowToast(message);
-                return;
-            }
-        }
-        else
-        {
-            try { await page.DisplayAlertAsync("安装成功", message, "知道了"); }
-            catch { ShowToast(message); }
-            return;
-        }
-
-        if (choice == restart)
-        {
-            ShowToast("正在重启应用...");
-            // 给 Toast 一帧时间显示，再退出进程
-            await Task.Delay(400);
-            Services.AppRestarter.Restart();
-        }
-    }
-
-    /// <summary>轻提示（Android 原生 Toast，其余平台静默）</summary>
-    private static void ShowToast(string message)
-    {
-#if ANDROID
-        try
-        {
-            var ctx = Android.App.Application.Context;
-            Android.Widget.Toast.MakeText(ctx, message, Android.Widget.ToastLength.Long)?.Show();
-        }
-        catch { }
-#endif
-    }
+        => await Services.PluginRestartPrompt.ShowAsync(successText);
 
     /// <summary>切换插件启用状态</summary>
     [RelayCommand]
