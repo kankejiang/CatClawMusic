@@ -74,22 +74,23 @@ public partial class NowPlayingViewModel
                 (p.Protocol == ProtocolType.WebDAV && song.Source == SongSource.WebDAV));
             if (profile == null) return;
 
+            // FetchSongMetadataAsync（WebDAV/SMB 分支）会经 ApplyTagToSong 原地更新 song
+            // 并返回同一实例——不能用 tagged.X != song.X 判变化（同一对象自比恒 false，
+            // changed 恒 false，元数据永不落库，表现为 WebDAV 播放后仍显示"未知艺术家"）。
+            // 改为调用前快照、调用后与快照对比。
+            var prevTitle = song.Title;
+            var prevArtist = song.Artist;
+            var prevAlbum = song.Album;
+            var prevDuration = song.Duration;
+
             var tagged = await _networkMusic.FetchSongMetadataAsync(song, profile);
             if (tagged == null) return;
 
-            // 更新 song 对象
-            bool changed = false;
-            if (!string.IsNullOrWhiteSpace(tagged.Title) && tagged.Title != song.Title)
-            { song.Title = tagged.Title; changed = true; }
-            if (!string.IsNullOrWhiteSpace(tagged.Artist) && tagged.Artist != "未知艺术家" && tagged.Artist != song.Artist)
-            { song.Artist = tagged.Artist; changed = true; }
-            if (!string.IsNullOrWhiteSpace(tagged.Album) && tagged.Album != "未知专辑" && tagged.Album != song.Album)
-            { song.Album = tagged.Album; changed = true; }
-            if (tagged.Duration > 0 && song.Duration <= 0)
-            { song.Duration = tagged.Duration; changed = true; }
-            if (tagged.Year > 0) song.Year = tagged.Year;
-            if (tagged.TrackNumber > 0) song.TrackNumber = tagged.TrackNumber;
-            song.Genre = tagged.Genre;
+            // Year/TrackNumber/Genre 已由 Fetch 内部就地写入；变化判定以展示关键字段为准
+            bool changed = !string.Equals(prevTitle, song.Title, StringComparison.Ordinal)
+                || !string.Equals(prevArtist, song.Artist, StringComparison.Ordinal)
+                || !string.Equals(prevAlbum, song.Album, StringComparison.Ordinal)
+                || (prevDuration <= 0 && song.Duration > 0);
 
             if (changed)
             {
