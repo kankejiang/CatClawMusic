@@ -35,7 +35,8 @@ public partial class NowPlayingPage
     private int _winMeasureRetries;        // 行高测量重试计数（布局未就绪时补偿）
 
     /// <summary>滚动 tween 的动画键（精确取消；不用 CancelAnimations——它会无差别掐断本元素上所有动画）。
-    /// 实现用显式 Animation.Commit 平移而非 TranslateTo：与本页模糊 tween 同机制（Windows 实测可用），
+    /// 实现：MAUI 11 preview.7 的 WinUI Ticker 不逐帧驱动 Animation.Commit（实测 380ms tween
+    /// 0ms 内 3 帧跑完 = 视觉瞬移），本页歌词过渡动画统一走 WinRunTween 自驱 DispatcherTimer 插值,
     /// 且钉位路径可识别"tween 正飞向同一目标"从而不打断动画——旧版每次行高重测/测量重试的
     /// 即时钉位都会把飞行中的 380ms tween 掐断，表现为切句瞬移、没有向上滚动的动画。</summary>
     private const string WinScrollAnimName = "WinLyricScroll";
@@ -517,7 +518,7 @@ public partial class NowPlayingPage
 
         if (setScale)
         {
-            row.Main.AbortAnimation("ScaleTo");
+            WinAbortTween(row.Main, "WinLyricScale");
             row.Main.Scale = i == index ? WinLyricCurrentScale : 1.0;
         }
     }
@@ -526,8 +527,8 @@ public partial class NowPlayingPage
     private void SetWinRowBlurInstant(int i, double blur)
     {
         var container = _winRows[i].Container;
-        container.AbortAnimation(WinBlurAnimName);
-        container.AbortAnimation("FadeTo");
+        WinAbortTween(container, WinBlurAnimName);
+        WinAbortTween(container, "WinLyricFade");
 
         CatClawMusic.Maui.Effects.LyricBlurEffect.SetBlurAmount(container, blur);
         if (WinLyricBlurHideSource)
@@ -550,14 +551,13 @@ public partial class NowPlayingPage
         var from = CatClawMusic.Maui.Effects.LyricBlurEffect.GetBlurAmount(container);
         if (Math.Abs(from - target) < 0.05) return;
 
-        container.AbortAnimation(WinBlurAnimName);
-        new Animation(v => CatClawMusic.Maui.Effects.LyricBlurEffect.SetBlurAmount(container, v), from, target)
-            .Commit(container, WinBlurAnimName, 16, WinLyricScaleMs, Easing.CubicInOut);
+        WinRunTween(container, WinBlurAnimName, from, target, v =>
+            CatClawMusic.Maui.Effects.LyricBlurEffect.SetBlurAmount(container, v));
 
         if (WinLyricBlurHideSource)
         {
-            container.AbortAnimation("FadeTo");
-            _ = container.FadeTo(target > 0.01 ? 0 : 1, WinLyricScaleMs, Easing.CubicInOut);
+            double opFrom = container.Opacity, opTo = target > 0.01 ? 0 : 1;
+            WinRunTween(container, "WinLyricFade", opFrom, opTo, v => container.Opacity = v);
         }
     }
 
@@ -568,8 +568,8 @@ public partial class NowPlayingPage
         var main = _winRows[i].Main;
         if (Math.Abs(main.Scale - target) < 0.01) return;
 
-        main.AbortAnimation("ScaleTo");
-        _ = main.ScaleTo(target, WinLyricScaleMs, Easing.CubicInOut);
+        double sFrom = main.Scale;
+        WinRunTween(main, "WinLyricScale", sFrom, target, v => main.Scale = v);
     }
 
     /// <summary>
@@ -591,12 +591,72 @@ public partial class NowPlayingPage
             var container = _winRows[i].Container;
             if (Math.Abs(container.TranslationY - target) < 0.5) continue;
 
-            // 精确取消：容器上同时跑着模糊过渡与原文淡入淡出，CancelAnimations 会把它们一起掐断
-            container.AbortAnimation("TranslateTo");
+            // 按名停旧 tween（容器上可能同时跑着模糊/淡入淡出过渡）
+            WinAbortTween(container, "WinLyricGap");
             if (animate)
-                _ = container.TranslateTo(0, target, WinLyricScaleMs, Easing.CubicInOut);
+            {
+                double gFrom = container.TranslationY;
+                WinRunTween(container, "WinLyricGap", gFrom, target, v => container.TranslationY = v);
+            }
             else
                 container.TranslationY = target;
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // 自驱 tween 引擎：MAUI 11 preview.7 的 WinUI Ticker 不逐帧驱动 Animation.Commit
+    // （380ms tween 实测 0ms 内 3 帧跑完 = 视觉瞬移），故本页歌词过渡动画统一改用
+    // DispatcherTimer（16ms 约 60fps）逐帧插值，与 EQ 频谱动画同款机制、实测稳定。
+    // ═══════════════════════════════════════
+
+    /// <summary>运行中的 tween 状态（按 元素+动画名 键控）。</summary>
+    private sealed class WinTweenState
+    {
+        public int ElapsedMs;
+        public DispatcherTimer? Timer;
+    }
+
+    /// <summary>运行中的 tween 表（key=元素+动画名）。同键重启前先停旧 timer。</summary>
+    private readonly System.Collections.Generic.Dictionary<(object, string), WinTweenState> _winTweens = new();
+
+    private static double WinEaseCubicInOut(double t) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.Pow(-2 * t + 2, 3) / 2;
+
+    /// <summary>
+    /// 逐帧插值 tween：from → to，WinLyricScaleMs 时长 CubicInOut（与原 MAUI 动画参数一致）。
+    /// 每帧回调 apply 写回属性；结束时回调 finished。同元素同名动画自动取消旧的。
+    /// 必须在 UI 线程调用（DispatcherTimer 要求）——本页所有调用点已在主线程。
+    /// </summary>
+    private void WinRunTween(object target, string name, double from, double to, Action<double> apply, Action? finished = null)
+    {
+        WinAbortTween(target, name);
+        var state = new WinTweenState();
+        _winTweens[(target, name)] = state;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        state.Timer = timer;
+        timer.Tick += (_, _) =>
+        {
+            state.ElapsedMs += 16;
+            double t = Math.Min(1.0, (double)state.ElapsedMs / WinLyricScaleMs);
+            apply(from + (to - from) * WinEaseCubicInOut(t));
+            if (t >= 1.0)
+            {
+                timer.Stop();
+                _winTweens.Remove((target, name));
+                finished?.Invoke();
+            }
+        };
+        timer.Start();
+    }
+
+    /// <summary>取消指定元素上的同名 tween（停 timer 并移除表项）。</summary>
+    private void WinAbortTween(object target, string name)
+    {
+        var key = (target, name);
+        if (_winTweens.TryGetValue(key, out var state))
+        {
+            state.Timer?.Stop();
+            _winTweens.Remove(key);
         }
     }
 
@@ -648,13 +708,19 @@ public partial class NowPlayingPage
             return;
         }
 
-        // 与行放大/行距/模糊三动画同步的 380ms CubicInOut 显式 tween
-        // （Animation.Commit 机制在本页模糊过渡上已验证可用，且支持命名键精确取消）
+        // 与行放大/行距/模糊三过渡同步的 380ms CubicInOut（WinRunTween 自驱逐帧插值）
         _winScrollTargetY = targetY;
         _winScrollAnimating = true;
-        new Animation(v => WinLyricStack.TranslationY = v, from, targetY)
-            .Commit(WinLyricStack, WinScrollAnimName, 16, WinLyricScaleMs, Easing.CubicInOut,
-                finished: (_, _) => _winScrollAnimating = false);
+        var scrollSw = System.Diagnostics.Stopwatch.StartNew();
+        WinRunTween(WinLyricStack, WinScrollAnimName, from, targetY, v =>
+        {
+            WinLyricStack.TranslationY = v;
+            _winScrollTargetY = v;
+        }, finished: () =>
+        {
+            _winScrollAnimating = false;
+            WinLog($"ScrollTweenDone ms={scrollSw.ElapsedMilliseconds}");
+        });
 
         WinLog($"Scroll idx={index} targetY={targetY:F1} topGap={topGap:F1} from={from:F1}");
     }
