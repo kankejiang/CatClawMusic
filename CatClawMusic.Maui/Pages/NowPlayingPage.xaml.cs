@@ -624,7 +624,9 @@ public partial class NowPlayingPage : ContentPage
     {
         try
         {
-            FrostedBg.CoverSource = _viewModel.CoverFlowSource;
+            var src = _viewModel.CoverFlowSource;
+            Helpers.StartupLog.Log($"[CoverFlow] Page push: srcEmpty={src.IsEmpty}, px={src.Argb?.Length ?? 0}");
+            FrostedBg.CoverSource = src;
         }
         catch { /* 页面已销毁 */ }
     }

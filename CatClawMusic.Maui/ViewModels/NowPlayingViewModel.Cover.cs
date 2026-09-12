@@ -40,10 +40,14 @@ public partial class NowPlayingViewModel
         var path = CurrentCoverPath;
         var onlineBytes = _pendingOnlineCoverBytes;
         _pendingOnlineCoverBytes = null; // 一次性消费，避免陈旧字节污染后续本地歌曲
+        CatClawMusic.Maui.Helpers.StartupLog.Log($"[CoverFlow] Refresh enter: path={(path ?? "null")[..Math.Min(60, path?.Length ?? 0)]}, onlineBytes={onlineBytes?.Length ?? 0}");
 
         // 在线封面（http/https 直显、不落盘）：依赖内存字节，无字节则保留现状等重新下载
         if (!string.IsNullOrEmpty(path) && _onlineCoverRef(path) && onlineBytes is not { Length: > 0 })
+        {
+            CatClawMusic.Maui.Helpers.StartupLog.Log("[CoverFlow] ABORT: online cover but no bytes (download failed or bytes consumed)");
             return;
+        }
         // 本地封面取不到（无封面歌曲）：保留当前背景，由换歌清空逻辑负责作废旧色
         if (string.IsNullOrEmpty(path) || (!_onlineCoverRef(path) && !File.Exists(path)))
             return;
@@ -66,15 +70,20 @@ public partial class NowPlayingViewModel
         _coverVisualLoadKey = path;
 
         var visual = await analysisTask;
+        CatClawMusic.Maui.Helpers.StartupLog.Log($"[CoverFlow] extracted: tint={(visual.Tint != null)}, srcEmpty={visual.Source.IsEmpty}, px={(visual.Source.Argb?.Length ?? 0)}");
 
         // 代次校验：分析期间已换歌（或封面路径已变）→ 丢弃，不覆盖新歌状态
         if (_loadedCoverSongId != songId || CurrentCoverPath != path)
+        {
+            CatClawMusic.Maui.Helpers.StartupLog.Log($"[CoverFlow] DISCARD: song generation changed (loaded={_loadedCoverSongId}, task={songId})");
             return;
+        }
 
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
             CoverTintColor = visual.Tint ?? Colors.Transparent;
             CoverFlowSource = visual.Source;
+            CatClawMusic.Maui.Helpers.StartupLog.Log($"[CoverFlow] VM CoverFlowSource SET: empty={visual.Source.IsEmpty}");
             // 动态封面取色背景：把封面主/次色回传给 ThemeService（指纹变化时自动重画背景）。
             // 内部按调色板去重，同色系换歌不触发重刷。
             MauiProgram.Services.GetService<IThemeService>()?

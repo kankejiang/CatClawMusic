@@ -149,6 +149,7 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void UpdateCover(CoverFlowProcessor.CoverSource src)
     {
+        try { CatClawMusic.Maui.Helpers.StartupLog.Log($"[CoverFlow] Handler UpdateCover: srcEmpty={src.IsEmpty}, px={src.Argb?.Length ?? 0}, flowMode={!_coverSrc.IsEmpty}->{!src.IsEmpty}"); } catch { }
         // 去重：数组引用不同（新解码的封面）或尺寸不同即视为新源。
         // 旧版只在"双空 或 旧源空"时短路，非空→非空的引用变化必须继续走到重渲染，
         // 否则切歌时新 CoverSource 被误判同源，背景停留在上一首（重开页面才恢复）。
