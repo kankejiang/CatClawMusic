@@ -63,10 +63,20 @@ internal sealed class DonutDrawable : IDrawable
             return;
 
         float size = Math.Min(dirtyRect.Width, dirtyRect.Height);
+        // 尺寸守卫：切页瞬间 GraphicsView 可能以近零/NaN 尺寸先绘制一帧，
+        // 此时中心文字的 requestedWidth/Height 过小（或非法）会让 Win2D CanvasTextLayout
+        // 抛 ArgumentException（UnhandledException → 应用闪退，音乐库→首页必现）。
+        // 尺寸不足以渲染环形+文字时直接跳过本帧，布局就绪后 SizeChanged 会再触发重绘。
+        if (float.IsNaN(size) || float.IsInfinity(size) || size < 24f)
+            return;
+        if (float.IsNaN(dirtyRect.Width) || float.IsNaN(dirtyRect.Height))
+            return;
         float cx = dirtyRect.Center.X;
         float cy = dirtyRect.Center.Y;
         float stroke = size * 0.11f;
         float radius = size / 2f - stroke * 0.6f;
+        if (radius <= 0f)
+            return;
 
         // 背景轨道
         canvas.StrokeColor = TrackColor;
