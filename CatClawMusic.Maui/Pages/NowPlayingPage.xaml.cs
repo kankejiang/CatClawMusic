@@ -686,6 +686,15 @@ public partial class NowPlayingPage : ContentPage
                 case nameof(NowPlayingViewModel.IsPlaying):
                     MainThread.BeginInvokeOnMainThread(OnWinPlayingChanged);
                     return;
+                case nameof(NowPlayingViewModel.CurrentCoverPath):
+                    // 切歌信号：从封面提取主导色 + 更新封面流背景。
+                    // 此前这两个 case 只写在 #endif 之后的通用区——WINDOWS 分支结尾的
+                    // 无条件 return 使其永远不可达，表现为切歌背景不换、重开页面才加载。
+                    MainThread.BeginInvokeOnMainThread(() => _ = _viewModel.RefreshCoverTintAsync());
+                    return;
+                case nameof(NowPlayingViewModel.CoverImage):
+                    MainThread.BeginInvokeOnMainThread(ScheduleCoverCenterCrop);
+                    return;
                 case nameof(NowPlayingViewModel.IsLiked):
                     MainThread.BeginInvokeOnMainThread(UpdateWinLikeIcon);
                     return;
