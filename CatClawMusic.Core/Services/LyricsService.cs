@@ -573,6 +573,39 @@ public partial class LyricsService : ILyricsService
         catch { /* 缓存失败不影响歌词展示 */ }
     }
 
+    /// <summary>
+    /// 判定是否歌词元数据/署名行（作词/作曲/编曲/出品/OP/SP 等）。
+    /// 网易等源会把署名行混在正文时间轴里，且常与正文首句时间戳相同——
+    /// 若参与译文配对会把正文首句吞成署名行的"译文"（走在冷风中 case）。
+    /// </summary>
+    internal static bool IsLyricsMetadataLine(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var t = text.TrimStart();
+        foreach (var prefix in new[]
+        {
+            "作词", "作詞", "作曲", "编曲", "編曲", "填词", "填詞", "谱曲", "譜曲",
+            "出品", "发行", "發行", "制作", "製作", "混音", "母带", "母帶",
+            "监制", "監制", "统筹", "統籌", "和声", "和聲", "吉他", "贝斯", "貝斯",
+            "OP", "SP", "OP:", "SP:", "Lyrics", "Composer", "Arranger", "Producer"
+        })
+        {
+            if (t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                // "op"/"sp" 等缩写要求后跟全角冒号/半角冒号/空格，避免误伤以 Op 开头的外文正文
+                if (prefix is "OP" or "SP" or "Lyrics" or "Composer" or "Arranger" or "Producer")
+                {
+                    var rest = t.Substring(prefix.Length);
+                    if (rest.Length > 0 && !rest.StartsWith("：") && !rest.StartsWith(":")
+                        && !rest.StartsWith(" ") && !rest.StartsWith("\u3000"))
+                        continue;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static string FormatTs(TimeSpan ts)
         => $"{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
 
@@ -617,9 +650,19 @@ public partial class LyricsService : ILyricsService
                 if (text.Length == 0) continue;
                 var ts = new TimeSpan(0, 0, minutes, seconds, millis);
 
+                // 元数据/署名行独立成行：绝不参与原文/译文配对
+                //（署名行与正文首句同时间戳时，会把正文吞成"译文"——走在冷风中 case）
+                if (IsLyricsMetadataLine(text))
+                {
+                    groups.Add((ts, new List<string> { text, "\u0000META" }));
+                    continue;
+                }
+
                 bool matched = false;
                 for (int i = groups.Count - 1; i >= 0; i--)
                 {
+                    // META 组不吸收任何行（否则署名行会把同刻正文吞成"译文"）
+                    if (groups[i].Texts.Count > 1 && groups[i].Texts[1] == "\u0000META") continue;
                     if (Math.Abs((groups[i].Ts - ts).TotalMilliseconds) < 1)
                     {
                         groups[i].Texts.Add(text);
@@ -635,12 +678,14 @@ public partial class LyricsService : ILyricsService
             foreach (var g in groups)
             {
                 if (g.Texts.Count == 0) continue;
+                bool isMeta = g.Texts.Count > 1 && g.Texts[1] == "\u0000META";
+                if (isMeta) g.Texts.RemoveAt(1);
                 lines.Add(new LrcLyricLine
                 {
                     Timestamp = g.Ts,
                     Text = g.Texts[0],
-                    Translation = g.Texts.Count > 1 ? g.Texts[1] : null,
-                    Roma = g.Texts.Count > 2 ? g.Texts[2] : null
+                    Translation = (!isMeta && g.Texts.Count > 1) ? g.Texts[1] : null,
+                    Roma = (!isMeta && g.Texts.Count > 2) ? g.Texts[2] : null
                 });
             }
             if (lines.Count == 0) return null;

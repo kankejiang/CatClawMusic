@@ -250,12 +250,16 @@ public partial class LyricsService
             }
 
             // 组内第一个与原文文本不同的行 = 译文
-            if (string.IsNullOrEmpty(main.Translation))
+            // 元数据/署名行不参与配对：既不当主行吸收译文，也不把其他行吞为自己的译文
+            //（署名行常与正文首句同时间戳，配对会把正文吞成"译文"——走在冷风中 case）
+            bool mainIsMeta = IsLyricsMetadataLine(main.Text);
+            if (string.IsNullOrEmpty(main.Translation) && !mainIsMeta)
             {
                 foreach (var g in group)
                 {
                     if (ReferenceEquals(g, main)) continue;
                     if (g.WordTimestamps is { Count: > 0 }) continue; // 逐字行不可能是译文
+                    if (IsLyricsMetadataLine(g.Text)) continue;      // 署名行不充当译文
                     if (!string.Equals(main.Text.Trim(), g.Text.Trim(), StringComparison.Ordinal))
                     {
                         main.Translation = g.Text;
