@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 
 namespace CatClawMusic.Maui.Controls;
 
+#if ANDROID
 /// <summary>Action → Java.Lang.IRunnable 适配（ViewPropertyAnimator.WithEndAction 需要）</summary>
 internal sealed class EndActionRunnable : Java.Lang.Object, Java.Lang.IRunnable
 {
@@ -9,6 +10,7 @@ internal sealed class EndActionRunnable : Java.Lang.Object, Java.Lang.IRunnable
     public EndActionRunnable(Action action) { _action = action; }
     public void Run() => _action();
 }
+#endif
 
 /// <summary>
 /// 弹窗系统动画封装：Android 用框架级 ViewPropertyAnimator + 系统 Interpolator——
