@@ -849,10 +849,12 @@ public class ThemeService : IThemeService
         resources["DividerColor"] = Color.FromArgb("#14FFFFFF");
         resources["GlassStrokeColor"] = Color.FromArgb("#14FFFFFF");            // 白描边从 16% 降到 8%
         resources["GlassStrokeStrongColor"] = Color.FromArgb("#24FFFFFF");
-        // 桌面浮层卡（侧栏/播放条）毛玻璃配色：白色磨砂基底 + 主题色微光
-        resources["GlassCardTintColor"] = Blend(Colors.White.WithAlpha(0.30f), primary.WithAlpha(0.07f));
-        resources["GlassCardStrokeColor"] = primary.WithAlpha(0.18f);
-        resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.22f);
+        // 桌面浮层卡（侧栏/播放条）毛玻璃配色：深藏青磨砂（与 #12151F 底同源）。
+        // 旧版"白色磨砂 30%"叠模糊内容呈灰蒙蒙（#555A62），用户反馈"灰灰的丑死了"——
+        // 改深藏青主基调后浮层沉入主题，仅保留主题色微光与高光描边。
+        resources["GlassCardTintColor"] = Blend(Color.FromArgb("#C0121521"), primary.WithAlpha(0.06f));
+        resources["GlassCardStrokeColor"] = primary.WithAlpha(0.14f);
+        resources["GlassCardHighlightColor"] = Colors.White.WithAlpha(0.10f);
         resources["GlassCardButtonBgColor"] = Colors.White.WithAlpha(0.10f);
         resources["ChipInactiveColor"] = Color.FromArgb("#15FFFFFF");
         resources["ChipActiveColor"] = primary;
