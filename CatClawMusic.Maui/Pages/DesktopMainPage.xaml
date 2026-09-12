@@ -27,12 +27,13 @@
                 BackgroundColor="Transparent">
             <Grid RowDefinitions="Auto,Auto,*" Padding="0,0,0,0">
                 <!-- Windows 无 Vitrum handler 时的兜底底色（浅色半透明毛玻璃色调，Android 被下方模糊层完全覆盖） -->
-                <BoxView Grid.RowSpan="3" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
+                <!-- 兜底底色：深色=近实心深藏青（与 WindowBackgroundColor 同源，去灰）；浅色维持原半透白 -->
+                    <BoxView Grid.RowSpan="3" Color="{AppThemeBinding Light={DynamicResource CardBackgroundStrongColor}, Dark=#E6121521}" InputTransparent="True" />
                 <!-- 真毛玻璃背景：BlurConsumerView 实时模糊 BlurHostView 内容，并按 16dp 圆角裁剪贴合浮层卡。
                      AlignToHostOrigin：侧栏在宿主左侧，对齐宿主原点以显示内容区内容从左侧延伸进侧栏 -->
                 <vitrum:BlurConsumerView Grid.RowSpan="3" AlignToHostOrigin="True" ClipCornerRadius="16">
                     <vitrum:BlurConsumerView.TintColor>
-                        <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                        <AppThemeBinding Light="#99FFFFFF" Dark="#B3161A28" />
                     </vitrum:BlurConsumerView.TintColor>
                 </vitrum:BlurConsumerView>
 
@@ -189,11 +190,12 @@
                     <BoxView Grid.Row="0" HeightRequest="1"
                              Color="#21FFFFFF" VerticalOptions="Start" />
                     <!-- Windows 无 Vitrum handler 时的兜底底色（Android 被下方模糊层完全覆盖） -->
-                    <BoxView Grid.Row="1" Color="{DynamicResource CardBackgroundStrongColor}" InputTransparent="True" />
+                    <!-- 兜底底色：深色=近实心深藏青（去灰） -->
+                    <BoxView Grid.Row="1" Color="{AppThemeBinding Light={DynamicResource CardBackgroundStrongColor}, Dark=#E6121521}" InputTransparent="True" />
                     <!-- 真毛玻璃背景：BlurConsumerView 实时模糊下层 BlurHostView 内容（透列表内容，非封面），并按 16dp 圆角裁剪 -->
                     <vitrum:BlurConsumerView Grid.Row="1" ClipCornerRadius="16">
                 <vitrum:BlurConsumerView.TintColor>
-                    <AppThemeBinding Light="#99FFFFFF" Dark="#8C1C1C25" />
+                    <AppThemeBinding Light="#99FFFFFF" Dark="#B3161A28" />
                 </vitrum:BlurConsumerView.TintColor>
                 <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Padding="24,8,24,8" ColumnSpacing="24">
 
