@@ -376,7 +376,12 @@ FodyWeavers.xsd
 /.trae/specs/enhance-lyric-scroll-effects
 /.trae/
 /.reasonix/
-/.workbuddy/memory
+/.workbuddy/
+/.claude/
+/.cursor/
+/.codebuddy/
+/CLAUDE.md
+/AGENTS.md
 /temp_download
 /build_output3.txt
 
