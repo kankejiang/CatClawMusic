@@ -149,8 +149,13 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void UpdateCover(CoverFlowProcessor.CoverSource src)
     {
-        if (_coverSrc.IsEmpty == src.IsEmpty
-            && (_coverSrc.IsEmpty || _coverSrc.Argb == src.Argb)) return;
+        // 去重：数组引用不同（新解码的封面）或尺寸不同即视为新源。
+        // 旧版只在"双空 或 旧源空"时短路，非空→非空的引用变化必须继续走到重渲染，
+        // 否则切歌时新 CoverSource 被误判同源，背景停留在上一首（重开页面才恢复）。
+        if (_coverSrc.IsEmpty && src.IsEmpty) return;
+        if (!_coverSrc.IsEmpty && !src.IsEmpty
+            && ReferenceEquals(_coverSrc.Argb, src.Argb)
+            && _coverSrc.Width == src.Width && _coverSrc.Height == src.Height) return;
         _coverSrc = src;
         RefreshLayers();
         // 封面源就绪且共享帧同源：直接上屏（首次/重建时不黑屏不等渲染）

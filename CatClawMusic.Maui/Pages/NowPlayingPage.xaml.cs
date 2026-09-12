@@ -140,10 +140,18 @@ public partial class NowPlayingPage : ContentPage
             // 单例 VM 的多播委托钉住所有历史页面实例 → 泄漏整棵视觉树 + 重复导航回调）
             _viewModel.FmModePageRequested -= OnFmModePageRequested;
             _viewModel.FmModePageRequested += OnFmModePageRequested;
+            // 切歌动态背景：直接订阅 CoverFlowSource 变化直推 FrostedBg。
+            // XAML binding 对 struct（CoverSource）在 MAUI 11 preview 上存在更新不可靠的场景
+            // （SetProperty 值相等去重 / TypedBinding 缓存），实测切歌背景停留上一首，
+            // 重开页面才刷新；代码订阅 + 显式赋值绕开整条 binding 管线。
+            _viewModel.PropertyChanged -= OnVmCoverFlowChanged;
+            _viewModel.PropertyChanged += OnVmCoverFlowChanged;
+            PushCoverFlowToBg();
         }
         else
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.PropertyChanged -= OnVmCoverFlowChanged;
             SafeAreaHelper.SafeAreaChanged -= OnSafeAreaChanged;
             App.Resumed -= OnAppResumed;
             _viewModel.LyricResumeRequested -= OnLyricResumeRequested;
@@ -590,6 +598,7 @@ public partial class NowPlayingPage : ContentPage
 
 #if !WINDOWS
     // WindowsStage 桌面面板在安卓端不可见；这些处理器仅为满足共享 XAML 的事件绑定编译。
+
     private void OnWinPlayTapped(object? sender, TappedEventArgs e)
         => _viewModel.TogglePlayPauseCommand.Execute(null);
 
@@ -602,6 +611,23 @@ public partial class NowPlayingPage : ContentPage
 
     private void OnWinMuteTapped(object? sender, EventArgs e) { }
 #endif
+
+    /// <summary>VM 的 CoverFlowSource 变化 → 直推 FrostedBg（绕过 XAML binding 的 struct 更新不可靠问题）。</summary>
+    private void OnVmCoverFlowChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NowPlayingViewModel.CoverFlowSource))
+            MainThread.BeginInvokeOnMainThread(PushCoverFlowToBg);
+    }
+
+    /// <summary>把 VM 当前封面流源显式赋给页面背景层（值相同也强制走一遍，Handler 侧按引用去重）。</summary>
+    private void PushCoverFlowToBg()
+    {
+        try
+        {
+            FrostedBg.CoverSource = _viewModel.CoverFlowSource;
+        }
+        catch { /* 页面已销毁 */ }
+    }
 
     /// <summary>当视图模型属性变更时触发，根据变更的属性重建歌词视图或更新高亮行。</summary>
     /// <param name="sender">事件源。</param>
