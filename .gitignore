@@ -414,3 +414,14 @@ FodyWeavers.xsd
 
 # 上游 VitrumMAUI 参考源码（已集成到项目内，此目录仅作对照）
 vitrum-src/
+
+# ---- AI 工具产物（本地缓存/记忆，不入库） ----
+.codeium/
+.gemini/
+.windsurf/
+.aider*
+.cline*
+.continue/
+.openclaw*
+.autoclaw*
+CLAUDE.local.md
