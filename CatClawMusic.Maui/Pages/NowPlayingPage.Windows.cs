@@ -173,11 +173,21 @@ public partial class NowPlayingPage
     // 歌词
     // ═══════════════════════════════════════
 
-    // 歌词层次配色（参考设计稿：纯白当前 + 冷灰递进，避免品牌色干扰阅读）
-    private static readonly Color WinLyricCurrentColor = Colors.White;                  // 当前行
-    private static readonly Color WinLyricNearColor = Color.FromArgb("#A8AAB0");      // 偏亮的中性灰(参考图未唱档)
-    // 已唱档的冷灰：2026-08-02 按用户要求已停用（已唱与未唱同色），保留常量以便回退。
-    private static readonly Color WinLyricFarColor = Color.FromArgb("#5A5C66");
+    // 歌词层次配色按主题动态取值：深色=白字冷灰（原设计），浅色=深炭字中灰。
+    // 浅色背景改由封面原色柔和调和提供（不再提白），白字在浅背景不可读——用户实测反馈。
+    private static bool WinIsLightTheme =>
+        Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Light;
+
+    private static Color WinLyricCurrentColor => WinIsLightTheme
+        ? Color.FromArgb("#1F2430")                          // 浅色：深炭（当前行）
+        : Colors.White;                                      // 深色：纯白
+    private static Color WinLyricNearColor => WinIsLightTheme
+        ? Color.FromArgb("#4A5058")                          // 浅色：中深灰（未唱行/逐字未填充）
+        : Color.FromArgb("#A8AAB0");                         // 深色：偏亮中性灰
+    // 已唱档的冷灰：2026-08-02 按用户要求已停用（已唱与未唱同色），保留以便回退。
+    private static Color WinLyricFarColor => WinIsLightTheme
+        ? Color.FromArgb("#9AA0AC")                          // 浅色：浅灰
+        : Color.FromArgb("#5A5C66");                         // 深色：暗灰
 
     // 滚动缓动时长（毫秒）：~380ms + CubicInOut，与 BetterLyrics 的 ScrollOffset tween 同量级，
     // 切句时整列平缓上移一格，丝滑无跳动。

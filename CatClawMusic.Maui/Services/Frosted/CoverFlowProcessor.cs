@@ -33,9 +33,11 @@ public static class CoverFlowProcessor
         if ((accentArgb & 0xFFFFFF) == 0) { ar = 11; ag = 13; ab = 32; }
         if (isDark)
             return ((int)(ar * 0.34f), (int)(ag * 0.34f), (int)(ab * 0.34f));
-        return ((int)(ar + (255 - ar) * 0.72f),
-                (int)(ag + (255 - ag) * 0.72f),
-                (int)(ab + (255 - ab) * 0.72f));
+        // Apple Music 式浅色：保留封面原色色相，仅轻微向白提亮 20%（原 72% 提白会把
+        // 高调封面冲成一片灰白，歌词白字完全不可读——用户实测反馈）。
+        return ((int)(ar + (255 - ar) * 0.20f),
+                (int)(ag + (255 - ag) * 0.20f),
+                (int)(ab + (255 - ab) * 0.20f));
     }
 
     /// <summary>Halcyon 帧下采样系数：高 dpi(≥420) 视口 1/24、否则 1/16；Windows(dpi≤0) 用 1/18。
