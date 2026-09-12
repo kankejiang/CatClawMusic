@@ -173,7 +173,10 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         if (_tintOverlay != null) _tintOverlay.Fill = null;
         if (PlatformView is WGrid g)
             g.Background = new WSolidColorBrush(CoverFlowMode ? MiddleWColor() : WColor.FromArgb(255, 11, 13, 32));
-        if (_dimOverlay != null) _dimOverlay.Fill = CoverFlowMode ? ScrimBrush() : null;
+        // 用户要求无遮罩：封面流不再叠 Halcyon 镜面 scrim——浅色模式的白纱（0.14/0.22）
+        // 显得刺眼、深色模式的黑纱（0.18/0.30）压得过暗，直接呈现封面流原色。
+        // 文字可读性由前景文字阴影/歌词列局部底色承担（WinLyricClip 已有渐隐遮罩）。
+        if (_dimOverlay != null) _dimOverlay.Fill = null;
     }
 
     /// <summary>palette.middle（与 CoverFlowProcessor 底色一致），用于封面流铺底。</summary>
@@ -228,11 +231,8 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         // 流光：有封面色时作为半透明顶层，否则不透明底色
         if (_image != null)
             _image.Opacity = hasTint ? FlowOverCoverAlpha : 1.0;
-        if (_dimOverlay != null)
-        {
-            byte a = (byte)Math.Clamp(dimAmount * 255, 0, 255);
-            _dimOverlay.Fill = new WSolidColorBrush(WColor.FromArgb(a, 0, 0, 0));
-        }
+        // 用户要求无遮罩：不再叠 DimAmount 暗化层（属性保留以兼容 Android 端与绑定）
+        if (_dimOverlay != null) _dimOverlay.Fill = null;
     }
 
     /// <summary>Halcyon 式纵向镜面渐变遮罩（上轻/中透明/下轻），仅用于前景文字可读。
