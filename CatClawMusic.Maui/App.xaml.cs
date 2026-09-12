@@ -351,9 +351,9 @@ public partial class App : Application
     /// <summary>插件初始化任务(双平台;纯后台执行,不阻塞启动闸门,完成后经 StartupTrace 打点)</summary>
     private static Task? _pluginInitTask;
 
-    /// <summary>系统启动画面放行标志（Android）：MainActivity 安装的 SplashScreen 以 keep-on-screen
-    /// 条件轮询此标志，换入主界面时置位 → 系统启动画面退出动画揭示主界面（全程仅一个启动画面）</summary>
-    public static volatile bool StartupUiReady;
+    /// <summary>MAUI 启动加载页已渲染上屏标志（Android）：MainActivity 安装的 SplashScreen 以 keep-on-screen
+    /// 条件轮询此标志，启动页 Loaded 后尽快置位 → 系统启动画面尽早淡出，交接给应用内启动页</summary>
+    public static volatile bool StartupSplashPageShown;
 
 #if ANDROID
     /// <summary>正在强制切换到横屏的过渡标志（实际到达横屏后由 DisplayOrientationChanged 清除）。</summary>
@@ -369,6 +369,10 @@ public partial class App : Application
 
     /// <summary>启动加载页最多等待时长：服务初始化异常未报告就绪时强制放行，避免无限卡在启动页。</summary>
     private static readonly TimeSpan StartupWaitTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>启动加载页最短展示时长：保证用户能看清启动页（logo/标题/加载动画），
+    /// 也避免加载太快时主界面在首帧渲染前就被替换（服务就绪太早会让启动页一帧都来不及显示）。</summary>
+    private static readonly TimeSpan MinSplashDuration = TimeSpan.FromSeconds(3);
 
     /// <summary>
     /// 启动页展示期间分帧预构建主界面 5 个 tab 页面（仅构造、不挂载）。
@@ -419,13 +423,17 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 冷启动入口：原生视觉占位（系统启动画面 + 主题 windowBackground + 纯代码占位页，视觉一致）
-    /// 期间等核心服务就绪（数据库 + FFmpeg + 库/媒体预加载，各自超时兜底）后按当前方向
-    /// 构建主界面（MainPage/DesktopMainPage）。插件与封面批量解析不再阻塞换页，转后台完成。
+    /// 冷启动入口：先展示轻量启动加载页，等关键服务全部就绪（或超时兜底）后再按当前方向
+    /// 构建主界面（MainPage/DesktopMainPage）。主界面构建（ViewPager2 + 5 个子页面）与
+    /// 数据库/插件/FFmpeg 初始化错峰执行，消除「App 已能操作但仍卡顿」的冷启动窗口。
+    /// 插件与封面批量解析不阻塞换页，转后台完成。
     /// </summary>
     /// <param name="shell">应用 Shell 实例</param>
-    private async Task EnterMainWhenReadyAsync(Shell shell)
+    /// <param name="splash">启动加载页实例（用于感知其真正渲染上屏的时机）</param>
+    private async Task EnterMainWhenReadyAsync(Shell shell, VisualElement splash)
     {
+        // 计时起点：最短展示时长与预加载并行计时（预加载完成后只补不足最短时长的差值）。
+        long startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
 
         // 并行化启动：数据库就绪后，音乐库数据预加载 / 封面歌词预加载 /
         // 插件+FFmpeg 就绪 三路同时进行（互不依赖），各自带超时兜底，
@@ -477,6 +485,33 @@ public partial class App : Application
             _ = Services.CoverHelper.LastBatchTask.ContinueWith(_ => StartupTrace.Mark("bg: cover batch done"));
         StartupTrace.Mark("gate: core ready (db+ffmpeg+preloads)");
 
+        // 等启动页真正渲染上屏（Loaded）后再计最短展示时长：
+        // 若从 CreateWindow 起算，慢设备上首帧尚未渲染时预加载可能已完成，
+        // 导致主界面在启动页亮相前就替换掉它，用户根本看不到启动页。
+        var splashShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler? onLoaded = null;
+        onLoaded = (_, _) =>
+        {
+            splash.Loaded -= onLoaded;
+            splashShown.TrySetResult();
+            // 启动页已渲染上屏：立即放行系统启动画面（keep-on-screen 条件轮询此标志），
+            // 让系统启动画面尽早淡出、交接给应用内启动页，缩短其驻留时间
+            StartupSplashPageShown = true;
+        };
+        splash.Loaded += onLoaded;
+        try
+        {
+            await Task.WhenAny(splashShown.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        }
+        catch { }
+        // 兜底：Loaded 迟迟未触发（渲染异常等）时也放行系统启动画面，避免其无限驻留
+        StartupSplashPageShown = true;
+
+        // 启动页最短展示时长：只补「总耗时不足最短时长」的差值（并行计时，不额外白等）
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp);
+        if (elapsed < MinSplashDuration)
+            await Task.Delay(MinSplashDuration - elapsed);
+
         // ⚠ 必须无条件换入主界面：Activity 被系统重建（同进程二次 MAIN intent / MIUI 清理重启 /
         // 深浅色或配置变更等）时会再次走 CreateWindow，新 shell 里装的是新的启动页。
         // 旧实现用 _coreServicesReady 单次守卫，重建后守卫为 true 直接跳过换入，
@@ -495,11 +530,6 @@ public partial class App : Application
             Route = "main",
         });
         StartupTrace.Mark("gate: MainPage swapped in");
-
-        // 留 120ms 给主线程渲染 MainPage 首帧，再放行系统启动画面——
-        // 否则淡出瞬间主界面尚未绘制，露出纯色 windowBackground 产生"闪一下"的观感
-        await Task.Delay(120);
-        StartupUiReady = true;
     }
 
     /// <summary>
@@ -792,16 +822,16 @@ public partial class App : Application
         DeviceDisplay.MainDisplayInfoChanged -= OnDisplayOrientationChanged;
         DeviceDisplay.MainDisplayInfoChanged += OnDisplayOrientationChanged;
 
-        // 先展示零成本占位页（纯代码、无 XAML，视觉与系统启动画面一致），等核心服务就绪后再按方向构建主界面，
+        // 先展示轻量启动加载页（logo + 标题 + 转圈），等核心服务就绪后再按方向构建主界面，
         // 避免 ViewPager2 + 5 子页面构建与服务初始化并发竞争主线程/IO 导致启动卡顿。
-        StartupLog("CreateWindow: showing startup placeholder");
-        var splashPage = new Pages.StartupPlaceholderPage();
+        StartupLog("CreateWindow: showing splash loading page");
+        var splashPage = new Pages.SplashLoadingPage();
         shell.Items.Clear();
         shell.Items.Add(new ShellContent { Content = splashPage });
-        // 占位页展示期间分帧预构建主界面 5 个 tab 页（构造不挂载），把进入主界面瞬间的
+        // 启动页展示期间分帧预构建主界面 5 个 tab 页（构造不挂载），把进入主界面瞬间的
         // 同步构建 + JIT 摊到等待期，缓解每日首次冷启动卡顿；失败/未完成则 MainPage 回退原解析路径。
         PrebuildMainTabs();
-        _ = EnterMainWhenReadyAsync(shell);
+        _ = EnterMainWhenReadyAsync(shell, splashPage);
 #endif
 #endif
 

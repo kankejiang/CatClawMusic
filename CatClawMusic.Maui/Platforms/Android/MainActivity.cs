@@ -30,8 +30,9 @@ public class MainActivity : MauiAppCompatActivity,
     /// <summary>交互状态服务：全局触摸事件上报，用于在手指操作期间暂停雾面动画、英雄卡轮播等持续工作</summary>
     private IInteractionStateService? _interaction;
 
-    /// <summary>系统 SplashScreen keep-on-screen 条件：主界面就绪（App.StartupUiReady 置位）前保持启动画面显示</summary>
-    public bool ShouldKeepOnScreen() => !App.StartupUiReady;
+    /// <summary>系统 SplashScreen keep-on-screen 条件：MAUI 启动加载页渲染上屏（App.StartupSplashPageShown 置位）
+    /// 前保持显示，之后尽快淡出交接给应用内启动页 —— 尽量缩短系统启动画面的驻留时间</summary>
+    public bool ShouldKeepOnScreen() => !App.StartupSplashPageShown;
 
     /// <summary>启动画面退出动画：整体温柔淡出（260ms）替代系统默认滑出，品牌动画缓慢让位于主界面</summary>
     /// <param name="provider">系统提供的启动画面视图提供器，动画结束后需 Remove 释放</param>
@@ -46,9 +47,9 @@ public class MainActivity : MauiAppCompatActivity,
     /// <param name="savedInstanceState">保存的实例状态</param>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        // 系统启动画面是 Android 12+ 强制渲染的，无法删除；改为让它保持显示直到
-        // App.EnterMainWhenReadyAsync 换入主界面时置位 App.StartupUiReady ——
-        // 全程只有系统这一个启动画面，不再出现第二个占位画面（需在 base.OnCreate 前安装）。
+        // 系统启动画面是 Android 12+ 强制渲染的，无法删除；让它保持显示到 MAUI 启动加载页
+        // 渲染上屏（Loaded 后置位 App.StartupSplashPageShown）即尽早淡出，交接给应用内启动页 ——
+        // 系统启动画面仅作短暂过渡（需在 base.OnCreate 前安装）。
         // 注意须全限定：Activity 基类的 SplashScreen 属性（Android.Window.ISplashScreen，API 31+）
         // 会遮蔽 AndroidX.Core.SplashScreen.SplashScreen 类型名
         var systemSplash = AndroidX.Core.SplashScreen.SplashScreen.InstallSplashScreen(this);
