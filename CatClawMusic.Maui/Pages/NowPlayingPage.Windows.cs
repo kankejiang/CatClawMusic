@@ -605,58 +605,80 @@ public partial class NowPlayingPage
 
     // ═══════════════════════════════════════
     // 自驱 tween 引擎：MAUI 11 preview.7 的 WinUI Ticker 不逐帧驱动 Animation.Commit
-    // （380ms tween 实测 0ms 内 3 帧跑完 = 视觉瞬移），故本页歌词过渡动画统一改用
-    // DispatcherTimer（16ms 约 60fps）逐帧插值，与 EQ 频谱动画同款机制、实测稳定。
+    // （380ms tween 实测 0ms 内 3 帧跑完 = 视觉瞬移）；DispatcherTimer 又受消息泵分辨率
+    // 限制（约 64Hz 封顶，高刷屏吃不满）。改挂 CompositionTarget.Rendering——每个合成帧
+    // 触发一次、天然跟随显示器刷新率（60/120/144Hz 满帧），Stopwatch 实测时长驱动插值。
     // ═══════════════════════════════════════
 
     /// <summary>运行中的 tween 状态（按 元素+动画名 键控）。</summary>
     private sealed class WinTweenState
     {
-        public int ElapsedMs;
-        public DispatcherTimer? Timer;
+        public object Target = null!;
+        public string Name = "";
+        public double From, To;
+        public Action<double> Apply = null!;
+        public Action? Finished;
+        public readonly System.Diagnostics.Stopwatch Sw = System.Diagnostics.Stopwatch.StartNew();
     }
 
-    /// <summary>运行中的 tween 表（key=元素+动画名）。同键重启前先停旧 timer。</summary>
+    /// <summary>运行中的 tween 表（key=元素+动画名）。同键重启前先取消旧 tween。</summary>
     private readonly System.Collections.Generic.Dictionary<(object, string), WinTweenState> _winTweens = new();
+
+    /// <summary>Rendering 挂钩状态：首个 tween 启动时挂上，最后一个结束时摘除。</summary>
+    private bool _winRenderingHooked;
 
     private static double WinEaseCubicInOut(double t) =>
         t < 0.5 ? 4 * t * t * t : 1 - Math.Pow(-2 * t + 2, 3) / 2;
 
     /// <summary>
     /// 逐帧插值 tween：from → to，WinLyricScaleMs 时长 CubicInOut（与原 MAUI 动画参数一致）。
-    /// 每帧回调 apply 写回属性；结束时回调 finished。同元素同名动画自动取消旧的。
-    /// 必须在 UI 线程调用（DispatcherTimer 要求）——本页所有调用点已在主线程。
+    /// 挂 CompositionTarget.Rendering（每个合成帧触发，跟随显示器刷新率），Stopwatch 实测
+    /// 时长驱动进度，不受 DispatcherTimer 消息泵分辨率限制。同元素同名动画自动取消旧的。
+    /// 必须在 UI 线程调用——本页所有调用点已在主线程。
     /// </summary>
     private void WinRunTween(object target, string name, double from, double to, Action<double> apply, Action? finished = null)
     {
         WinAbortTween(target, name);
-        var state = new WinTweenState();
+        var state = new WinTweenState { Target = target, Name = name, From = from, To = to, Apply = apply, Finished = finished };
         _winTweens[(target, name)] = state;
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-        state.Timer = timer;
-        timer.Tick += (_, _) =>
+        if (!_winRenderingHooked)
         {
-            state.ElapsedMs += 16;
-            double t = Math.Min(1.0, (double)state.ElapsedMs / WinLyricScaleMs);
-            apply(from + (to - from) * WinEaseCubicInOut(t));
-            if (t >= 1.0)
-            {
-                timer.Stop();
-                _winTweens.Remove((target, name));
-                finished?.Invoke();
-            }
-        };
-        timer.Start();
+            _winRenderingHooked = true;
+            CompositionTarget.Rendering += OnWinRenderingTick;
+        }
     }
 
-    /// <summary>取消指定元素上的同名 tween（停 timer 并移除表项）。</summary>
+    /// <summary>取消指定元素上的同名 tween（移除表项，按需摘除 Rendering 挂钩）。</summary>
     private void WinAbortTween(object target, string name)
     {
-        var key = (target, name);
-        if (_winTweens.TryGetValue(key, out var state))
+        if (_winTweens.Remove((target, name)) && _winTweens.Count == 0 && _winRenderingHooked)
         {
-            state.Timer?.Stop();
-            _winTweens.Remove(key);
+            _winRenderingHooked = false;
+            CompositionTarget.Rendering -= OnWinRenderingTick;
+        }
+    }
+
+    /// <summary>每个合成帧推进所有活动 tween；全部结束后摘除 Rendering 挂钩。</summary>
+    private void OnWinRenderingTick(object? sender, object args)
+    {
+        List<WinTweenState>? done = null;
+        foreach (var kv in _winTweens)
+        {
+            var s = kv.Value;
+            double t = Math.Min(1.0, (double)s.Sw.ElapsedMilliseconds / WinLyricScaleMs);
+            s.Apply(s.From + (s.To - s.From) * WinEaseCubicInOut(t));
+            if (t >= 1.0) (done ??= new List<WinTweenState>()).Add(s);
+        }
+        if (done == null) return;
+        foreach (var s in done)
+        {
+            _winTweens.Remove((s.Target, s.Name));
+            s.Finished?.Invoke();
+        }
+        if (_winTweens.Count == 0 && _winRenderingHooked)
+        {
+            _winRenderingHooked = false;
+            CompositionTarget.Rendering -= OnWinRenderingTick;
         }
     }
 
