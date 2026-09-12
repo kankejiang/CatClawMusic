@@ -260,6 +260,9 @@ public partial class LyricsService
                     if (ReferenceEquals(g, main)) continue;
                     if (g.WordTimestamps is { Count: > 0 }) continue; // 逐字行不可能是译文
                     if (IsLyricsMetadataLine(g.Text)) continue;      // 署名行不充当译文
+                    // 书写系统判定：候选与主行同文种（中文↔中文）不配对——
+                    // 那是快节奏堆叠的连续句，不是译文（天女珞 case）
+                    if (!IsTranslationPair(main.Text, g.Text)) continue;
                     if (!string.Equals(main.Text.Trim(), g.Text.Trim(), StringComparison.Ordinal))
                     {
                         main.Translation = g.Text;

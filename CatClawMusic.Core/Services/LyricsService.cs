@@ -606,6 +606,53 @@ public partial class LyricsService : ILyricsService
         return false;
     }
 
+    /// <summary>文本包含的书写系统集合（Hangul/Kana/Han/Latin/Cyrillic/Other），忽略标点空格数字。</summary>
+    internal static System.Collections.Generic.HashSet<string> GetScriptSet(string? text)
+    {
+        var set = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(text)) return set;
+        foreach (var ch in text)
+        {
+            if (char.IsWhiteSpace(ch) || char.IsPunctuation(ch) || char.IsSymbol(ch) || char.IsDigit(ch)) continue;
+            if ((ch >= 0xAC00 && ch <= 0xD7AF) || (ch >= 0x1100 && ch <= 0x11FF) || (ch >= 0x3130 && ch <= 0x318F))
+                set.Add("Hangul");
+            else if ((ch >= 0x3040 && ch <= 0x30FF) || (ch >= 0x31F0 && ch <= 0x31FF))
+                set.Add("Kana");
+            else if ((ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) || (ch >= 0xF900 && ch <= 0xFAFF))
+                set.Add("Han");
+            else if (ch >= 0x0400 && ch <= 0x04FF)
+                set.Add("Cyrillic");
+            else if ((ch >= 0x0041 && ch <= 0x007A) || (ch >= 0x00C0 && ch <= 0x024F))
+                set.Add("Latin");
+            else
+                set.Add("Other");
+        }
+        return set;
+    }
+
+    /// <summary>
+    /// 同时间戳两行是否构成"原文+译文"对：候选行必须引入主行没有的书写系统
+    /// （韩文→中文、英文→中文、中文→英文等）；纯中文↔纯中文的同刻两行是快节奏
+    /// 堆叠的连续歌词句（天女珞 case），配对会把正文吞成"译文"。
+    /// 例外：主行含 Kana（日语，汉字假名混排）时，纯汉字候选行视为中文译文。
+    /// 真正的在线译文走 TLrc 独立流（MergeExtendedLines），不依赖本判定。
+    /// </summary>
+    internal static bool IsTranslationPair(string main, string candidate)
+    {
+        var ms = GetScriptSet(main);
+        if (ms.Count == 0) return false;
+        var cs = GetScriptSet(candidate);
+        if (cs.Count == 0) return false;
+        if (!cs.IsSubsetOf(ms)) return true;          // 候选引入了新文种 → 译文
+        if (ms.Contains("Kana"))                       // 日语原文特例
+        {
+            var candNoHan = new System.Collections.Generic.HashSet<string>(cs, System.StringComparer.Ordinal);
+            candNoHan.Remove("Han");
+            if (candNoHan.Count == 0) return true;     // 候选是纯汉字 → 中文译文
+        }
+        return false;
+    }
+
     private static string FormatTs(TimeSpan ts)
         => $"{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
 
@@ -680,6 +727,19 @@ public partial class LyricsService : ILyricsService
                 if (g.Texts.Count == 0) continue;
                 bool isMeta = g.Texts.Count > 1 && g.Texts[1] == "\u0000META";
                 if (isMeta) g.Texts.RemoveAt(1);
+                // 兼容旧坏缓存：同刻第二行与首行同文种（非译文对）→ 拆成独立行
+                //（旧版把快节奏堆叠句误写成 原文+译文 对，这里读时纠正——天女珞 case）
+                if (!isMeta && g.Texts.Count > 1 && !IsTranslationPair(g.Texts[0], g.Texts[1]))
+                {
+                    lines.Add(new LrcLyricLine { Timestamp = g.Ts, Text = g.Texts[0] });
+                    lines.Add(new LrcLyricLine
+                    {
+                        Timestamp = g.Ts,
+                        Text = g.Texts[1],
+                        Roma = g.Texts.Count > 2 ? g.Texts[2] : null
+                    });
+                    continue;
+                }
                 lines.Add(new LrcLyricLine
                 {
                     Timestamp = g.Ts,
