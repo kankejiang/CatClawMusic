@@ -183,8 +183,14 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private WColor MiddleWColor()
     {
         int accent = _tintColor.Alpha <= 0 ? 0 : PackRgb(_tintColor);
-        var (r, g, b) = CoverFlowProcessor.MiddleColor(accent, _isDark);
-        return WColor.FromArgb(255, (byte)r, (byte)g, (byte)b);
+        int ar = (accent >> 16) & 0xFF, ag = (accent >> 8) & 0xFF, ab = accent & 0xFF;
+        if ((accent & 0xFFFFFF) == 0) { ar = 11; ag = 13; ab = 32; }
+        // 深浅主题统一（用户定稿）：封面原色轻微提亮 20%，深色模式不再压暗加黑——
+        // 与浅色模式同一套调和，背景呈现封面原色。Android 端仍走 CoverFlowProcessor.MiddleColor。
+        return WColor.FromArgb(255,
+            (byte)(ar + (255 - ar) * 0.20f),
+            (byte)(ag + (255 - ag) * 0.20f),
+            (byte)(ab + (255 - ab) * 0.20f));
     }
 
     private void UpdateDark(bool isDark)
