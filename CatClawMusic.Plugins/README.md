@@ -27,7 +27,7 @@ CatClawMusic.Plugins/
 dotnet build -c Release
 ```
 
-产物 `bin/Release/net10.0/CatClawMusic.Plugins.Template.ccp`（改名为
+产物 `bin/Release/net11.0/CatClawMusic.Plugins.Template.ccp`（改名为
 `CatClawMusic.Plugins.MyPlugin.ccp`），在宿主应用
 **插件管理 → ＋ 添加 → 本地安装** 导入后启用。
 
