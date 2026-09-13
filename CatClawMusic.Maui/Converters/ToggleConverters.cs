@@ -1,68 +1,18 @@
-using System.Globalization;
-
 namespace CatClawMusic.Maui.Converters;
 
-/// <summary>
-/// 根据布尔值返回开关背景色（开=渐变紫，关=灰）。
-/// </summary>
-public class AutoScanToggleColorConverter : IValueConverter
-{
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is bool b && b)
-        {
-            // 返回渐变色无法做到，用紫色替代
-            return Color.FromArgb("#8C7BFF");
-        }
-        return Color.FromArgb("#2A3870");
-    }
+// 以下 3 个转换器实现已上移至共享库 CatClaw.Shared.Maui（与猫爪影视共用），本文件保留同名占位子类。
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
+/// <summary>开关背景色转换器（开=紫，关=深灰蓝）</summary>
+public class AutoScanToggleColorConverter : CatClaw.Shared.Maui.Converters.AutoScanToggleColorConverter
+{
 }
 
-/// <summary>
-/// 根据布尔值返回开关圆点的水平位置（开=End，关=Start）。
-/// </summary>
-public class ToggleKnobPositionConverter : IValueConverter
+/// <summary>开关圆点位置转换器（开=End，关=Start）</summary>
+public class ToggleKnobPositionConverter : CatClaw.Shared.Maui.Converters.ToggleKnobPositionConverter
 {
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is bool b && b)
-            return LayoutOptions.End;
-        return LayoutOptions.Start;
-    }
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
 }
 
-/// <summary>
-/// 将进度值转换为宽度请求（用于进度条）。
-/// 自动检测 0-1 或 0-100 范围。
-/// </summary>
-public class ProgressToWidthConverter : IValueConverter
+/// <summary>进度值转宽度请求转换器</summary>
+public class ProgressToWidthConverter : CatClaw.Shared.Maui.Converters.ProgressToWidthConverter
 {
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        double ratio = 0;
-        if (value is double d)
-        {
-            ratio = d > 1 ? d / 100.0 : d;
-        }
-        else if (value is int i)
-        {
-            ratio = i > 1 ? (double)i / 100.0 : i;
-        }
-        
-        if (ratio > 0)
-        {
-            var maxWidth = parameter is double p ? p : 320.0;
-            return Math.Max(4, ratio * maxWidth);
-        }
-        return 0;
-    }
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
 }
