@@ -8,6 +8,11 @@
 #
 # 说明: 脚本结尾会等待按键再关闭窗口，便于在双击运行时查看构建结果/报错。
 #       若从已打开的终端运行，构建完成后按 Enter 即可退出。
+#       CI/自动化场景可传 -NoPause 跳过等待。
+
+param(
+    [switch]$NoPause   # 静默模式：不等待按键（CI/命令行用）
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -16,6 +21,7 @@ function Pause-And-Exit {
     param(
         [int]$Code = 0
     )
+    if ($NoPause) { exit $Code }
     Write-Host ""
     if ($Code -eq 0) {
         Write-Host "构建流程结束。" -ForegroundColor Green
