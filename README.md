@@ -11,6 +11,7 @@ _Modern cross-platform music player built with .NET MAUI._
 [![Release](https://img.shields.io/github/v/release/kankejiang/CatClawMusic)](https://github.com/kankejiang/CatClawMusic/releases/latest)
 [![License](https://img.shields.io/github/license/kankejiang/CatClawMusic)](./LICENSE.txt)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-blue)](https://github.com/kankejiang/CatClawMusic/releases/latest)
+[![QQ 交流群](https://img.shields.io/badge/QQ%E7%BE%A4-855383639-blue)](https://qm.qq.com/q/Fhu3IEzqa4)
 
 </div>
 
