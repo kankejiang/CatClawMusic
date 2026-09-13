@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="../CatClaw.Shared/src/CatClaw.Shared.Core/CatClaw.Shared.Core.csproj" />
+  <Project Path="../CatClaw.Shared/src/CatClaw.Shared.Maui/CatClaw.Shared.Maui.csproj" />
   <Project Path="CatClawMusic.Core/CatClawMusic.Core.csproj" />
   <Project Path="CatClawMusic.Data/CatClawMusic.Data.csproj" />
   <Project Path="CatClawMusic.Maui/CatClawMusic.Maui.csproj">

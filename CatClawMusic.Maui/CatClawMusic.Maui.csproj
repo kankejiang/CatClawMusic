@@ -107,6 +107,8 @@
 	<ItemGroup>
 		<ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
 		<ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
+		<!-- 猫爪家族共享库（与 CatClawVideo 共用）：DownloadStatusConverter 等 MAUI 层共享代码 -->
+		<ProjectReference Include="..\..\CatClaw.Shared\src\CatClaw.Shared.Maui\CatClaw.Shared.Maui.csproj" />
 	</ItemGroup>
 
 	<!-- Android-specific native lib (FFmpeg) -->

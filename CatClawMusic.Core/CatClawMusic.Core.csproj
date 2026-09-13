@@ -16,4 +16,10 @@
     <PackageReference Include="Jint" Version="4.16.0" />
     <PackageReference Include="Acornima" Version="1.7.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 猫爪家族共享库（与 CatClawVideo 共用）：JsRuntimeServiceBase 等纯 C# 共享实现。
+         插件 SDK 接口（IJsRuntimeService 等）仍保留在本项目 Interfaces/ 内，不下沉。 -->
+    <ProjectReference Include="..\..\CatClaw.Shared\src\CatClaw.Shared.Core\CatClaw.Shared.Core.csproj" />
+  </ItemGroup>
 </Project>
