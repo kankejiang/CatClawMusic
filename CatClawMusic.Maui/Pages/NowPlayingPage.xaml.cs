@@ -1,4 +1,4 @@
-﻿using CatClawMusic.Core.Interfaces;
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Maui.Controls;
 using CatClawMusic.Maui.Helpers;
@@ -79,6 +79,11 @@ public partial class NowPlayingPage : ContentPage
         _audioPlayer = audioPlayer;
         _desktopLyricManager = desktopLyricManager;
         BindingContext = _viewModel;
+
+        // 播放页固定深色配色（用户定稿：播放页不区分深浅色，统一使用深色模式配色）：
+        // 把深色调色板作用到本页资源字典 —— 页面作用域内所有 {DynamicResource} 恒为深色值，
+        // 应用其余页面仍正常跟随深浅色主题。
+        Services.ThemeService.ApplyPlayerDarkScheme(Resources);
 
         // 控件级事件：在构造函数中订阅一次，永不取消（控件实例随页面存活，无泄漏风险）
         LyricClip.HandlerChanged += OnCollectionViewHandlerChanged;
@@ -537,8 +542,9 @@ public partial class NowPlayingPage : ContentPage
             LandscapeProgressSlider.Value = _viewModel.Progress;
 
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
-        // 雾面背景封面流的洗色/底色/scrim 均随深浅主题切换（Halcyon isDark），必须显式同步
-        FrostedBg.IsDark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        // 播放页固定深色配色（用户定稿：播放页不区分深浅色，统一深色模式配色）：
+        // 背景流光预设恒为深色，页面作用域内的主题资源也由 ApplyPlayerDarkScheme 固定为深色值。
+        FrostedBg.IsDark = true;
 
 #if WINDOWS
         // Windows 桌面端：构建 WindowsStage 歌词视图、同步滑块、初始化音量与图标
@@ -588,7 +594,8 @@ public partial class NowPlayingPage : ContentPage
     /// <param name="e">主题变更事件参数。</param>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
-        FrostedBg.IsDark = e.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        // 播放页固定深色：系统深浅色切换不影响本页背景预设（仅重建歌词视图以刷新文字颜色）
+        FrostedBg.IsDark = true;
 #if WINDOWS
         MainThread.BeginInvokeOnMainThread(BuildWindowsLyricViews);
 #else

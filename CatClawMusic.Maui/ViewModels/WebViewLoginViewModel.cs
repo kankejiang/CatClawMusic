@@ -35,9 +35,16 @@ public partial class WebViewLoginViewModel : ObservableObject, IQueryAttributabl
     /// <summary>路由参数注入：platform=netease 等</summary>
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
+        // 【临时诊断】这条链决定 LoginInfo 是否就绪（为 null 时登录页的 WebView 永远不会加载）
+        Services.NavDiagnostics.Write("ApplyQueryAttributes",
+            $"query=[{string.Join(",", query.Select(kv => $"{kv.Key}={kv.Value}"))}]");
+
         if (query.TryGetValue("platform", out var platObj) && platObj is string platform)
         {
-            foreach (var p in _aggregator.GetProviders())
+            var providers = _aggregator.GetProviders();
+            Services.NavDiagnostics.Write("ApplyQueryAttributes",
+                $"platform={platform} 在线音源数={providers.Count} 列表=[{string.Join(",", providers.Select(p => p.PlatformName))}]");
+            foreach (var p in providers)
             {
                 if (string.Equals(p.PlatformName, platform, StringComparison.OrdinalIgnoreCase))
                 {
@@ -46,14 +53,26 @@ public partial class WebViewLoginViewModel : ObservableObject, IQueryAttributabl
                 }
             }
         }
-        if (_provider == null) return;
+        if (_provider == null)
+        {
+            Services.NavDiagnostics.Write("ApplyQueryAttributes",
+                "provider==null → 直接 return，LoginInfo 保持 null（页面会显示“该音源暂不支持登录”）");
+            return;
+        }
 
         try
         {
             LoginInfo = _provider.GetBrowserLoginInfoAsync().GetAwaiter().GetResult();
             IsReady = LoginInfo != null;
+            Services.NavDiagnostics.Write("ApplyQueryAttributes",
+                $"provider={_provider.GetType().Name}({_provider.PlatformName}) LoginUrl={LoginInfo?.LoginUrl ?? "null"} "
+                + $"domain={LoginInfo?.CookieDomain ?? "null"} IsReady={IsReady}");
         }
-        catch { IsReady = false; }
+        catch (Exception ex)
+        {
+            Services.NavDiagnostics.Write("ApplyQueryAttributes", $"取登录配置抛异常: {ex}");
+            IsReady = false;
+        }
     }
 
     /// <summary>WebView 提取到 Cookie 后调用：回传插件并标记完成</summary>

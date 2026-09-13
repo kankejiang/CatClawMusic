@@ -16,6 +16,7 @@ using WRectangle = Microsoft.UI.Xaml.Shapes.Rectangle;
 using WStretch = Microsoft.UI.Xaml.Media.Stretch;
 using WHorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment;
 using WVerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment;
+using WVisibility = Microsoft.UI.Xaml.Visibility;
 using WSolidColorBrush = Microsoft.UI.Xaml.Media.SolidColorBrush;
 using WLinearGradientBrush = Microsoft.UI.Xaml.Media.LinearGradientBrush;
 using WGradientStop = Microsoft.UI.Xaml.Media.GradientStop;
@@ -25,8 +26,16 @@ namespace CatClawMusic.Maui.Platforms.Windows;
 
 /// <summary>
 /// Windows 端流光喷发背景（Halcyon / Apple Music 风格，程序化生成，不读封面）。
-/// 复用 WriteableBitmap + DispatcherTimer 基础设施，每帧把共享 FrostedFlowProcessor 的
-/// 低分辨率渲染结果写进同一位图并放大铺满，另叠一层柔和漂移。与 Android 端跑同一套 C# 数学。
+/// 复用 WriteableBitmap 基础设施，每帧把共享 FrostedFlowProcessor 的低分辨率渲染结果
+/// 写进同一位图并放大铺满，另叠一层柔和漂移。与 Android 端跑同一套 C# 数学。
+///
+/// 驱动语义与 Android 端对齐（三处平台差异的移植）：
+/// - 节拍源：<see cref="CompositionTarget.Rendering"/>（逐帧、vsync 对齐；窗口不可见时自动停）
+///   + 时间戳节流到 ~8fps，替代原 DispatcherTimer（低优先级，重负载/非前台时会被合并延迟）；
+/// - 启动时机：平台视图 Loaded 即启动（等价 Android 的 OnAttachedToWindow），Unloaded/断开连接停表；
+/// - 暂停门控：IsActive（播放状态）与 IsScrolling 共同决定，等价 Android 的
+///   ShouldAnimate = isEnabled &amp;&amp; isPlaying &amp;&amp; !isScrolling；另在逐帧回调中跳过
+///   折叠（IsVisible=false）状态，等价 Android 的 SetEnabled 停表。
 /// </summary>
 public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, WGrid>
 {
@@ -45,7 +54,11 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private WImage? _image;
     private WRectangle? _tintOverlay;
     private WRectangle? _dimOverlay;
-    private DispatcherTimer? _timer;
+    /// <summary>是否已订阅 <see cref="CompositionTarget.Rendering"/>（静态事件，必须成对退订防泄漏/重复订阅）</summary>
+    private bool _renderingHooked;
+    /// <summary>IsActive（播放页/歌词页绑定 IsPlaying）：非激活时停表，对齐 Android 的 ShouldAnimate。
+    /// 默认 true，未绑定 IsActive 的装饰性背景（模型页/设置页等）行为不变。</summary>
+    private volatile bool _isActive = true;
     private volatile bool _isScrolling;
     private FrostedFlowAnimator? _animator;
     private FrostedFlowPreset? _preset;
@@ -56,6 +69,10 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
     private int _flowW;
     private int _flowH;
     private long _lastTickTicks;
+
+    /// <summary>节拍最小间隔（ms）：CompositionTarget.Rendering 逐帧回调，按此节流到 ~8fps，
+    /// 与 Android 端 ValueAnimator 125ms 的节奏和"雾面背景低帧率省电"目标保持一致。</summary>
+    private const double MinTickIntervalMs = 110.0;
 
     private const float FlowRatio = 0.78f;
     // 有封面色时，流光作为盖在封面色底上的半透明叠层（贴合 Halcyon：封面色是底色）
@@ -95,8 +112,10 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         _image = new WImage
         {
             Stretch = WStretch.UniformToFill,
-            HorizontalAlignment = WHorizontalAlignment.Center,
-            VerticalAlignment = WVerticalAlignment.Center,
+            // 必须 Stretch 铺满：Center 对齐 + 初始无 Source 时 Image 量出 0×0，
+            // 而 EnsureFlowBuffer 需要视口尺寸才建位图 → 位图不建、Source 不设、尺寸永远为 0（死锁，背景永远渲染不出帧）。
+            HorizontalAlignment = WHorizontalAlignment.Stretch,
+            VerticalAlignment = WVerticalAlignment.Stretch,
             RenderTransformOrigin = new WPoint(0.5, 0.5),
             RenderTransform = new CompositeTransform(),
         };
@@ -106,11 +125,36 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
         grid.Children.Add(_tintOverlay);
         grid.Children.Add(_image);
         grid.Children.Add(_dimOverlay);
+
+        // 上屏调度锚点在平台视图创建时（UI 线程）就取好：后台渲染完成后的上屏必须与
+        // 「动画是否在跑」解耦。原先只在 StartAnimation 里赋值，导致未播放（门控停表）时
+        // 后台算好的帧永远无法上屏，背景一直空白，直到动画启动才补首帧。
+        _uiDispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
+        // 加载即启动（等价 Android 的 OnAttachedToWindow 启动点）：
+        // 不能只依赖 IsScrolling 变更触发——IsScrolling 初值 false 且属性默认值也是 false，
+        // 首次应用绑定不产生变更通知 → 映射器不被调用 → 定时器永不启动（背景静止）。
+        grid.Loaded += OnPlatformLoaded;
+        grid.Unloaded += OnPlatformUnloaded;
         return grid;
     }
 
+    /// <summary>平台视图加载：复用共享帧避免首帧黑场，先渲染一帧（保证立即有画面），随后按门控启动动画。</summary>
+    private void OnPlatformLoaded(object sender, RoutedEventArgs e)
+    {
+        _uiDispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        TryRestoreSharedFrame();
+        TryDispatchBackgroundRender();   // 一次性出首帧：即使未播放也要立刻显示动态背景的静态画面
+        UpdateAnimationState();
+    }
+
+    /// <summary>平台视图卸载（切页/移除）：停表，避免对不可见背景继续做后台渲染。</summary>
+    private void OnPlatformUnloaded(object sender, RoutedEventArgs e) => StopAnimation();
+
     protected override void DisconnectHandler(WGrid platformView)
     {
+        platformView.Loaded -= OnPlatformLoaded;
+        platformView.Unloaded -= OnPlatformUnloaded;
         StopAnimation();
         _image = null;
         _tintOverlay = null;
@@ -122,8 +166,10 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private static void MapIsActive(FrostedBackgroundHandler handler, Controls.FrostedBackground view)
     {
-        // 桌面端始终常驻显示并漂移，不随播放状态停；启用开关由控件 IsVisible 决定
-        // _isActive 字段省略：动画仅受 IsScrolling 门控
+        // 与 Android 对齐：IsActive（播放页/歌词页绑定 IsPlaying）参与动画门控，非播放时停表。
+        // 未绑定 IsActive 的装饰性背景默认 true，仍常驻漂移，行为不变。
+        handler._isActive = view.IsActive;
+        handler.UpdateAnimationState();
     }
 
     private static void MapIsScrolling(FrostedBackgroundHandler handler, Controls.FrostedBackground view)
@@ -192,6 +238,15 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
             (byte)(ar + (255 - ar) * 0.20f),
             (byte)(ag + (255 - ag) * 0.20f),
             (byte)(ab + (255 - ab) * 0.20f));
+    }
+
+    /// <summary>确保流光预设与计时器已初始化。IsDark 未绑定到控件时 MapIsDark 不会触发，
+    /// 若首个渲染（加载出首帧 / 封面源就绪）早于动画启动，快照会取到 null 的计时器。</summary>
+    private void EnsureFlowInitialized()
+    {
+        if (_animator != null && _preset != null) return;
+        _preset = FrostedFlowPreset.Choose(_isDark);
+        _animator = new FrostedFlowAnimator(_preset.ColorInterpPeriod);
     }
 
     private void UpdateDark(bool isDark)
@@ -269,7 +324,8 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void UpdateAnimationState()
     {
-        if (!_isScrolling)
+        // 与 Android 的 ShouldAnimate 等价：激活（播放中）且未在滑动列表时跑动画
+        if (_isActive && !_isScrolling)
             StartAnimation();
         else
             StopAnimation();
@@ -277,28 +333,39 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
     private void StartAnimation()
     {
-        if (_animator == null) UpdateDark(false);
-        if (_timer != null) return;
+        if (_animator == null) UpdateDark(_isDark);   // 首次启动补齐预设/计时器与图层底色
+        if (_renderingHooked) return;
         _uiDispatcher ??= Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         _lastTickTicks = System.Diagnostics.Stopwatch.GetTimestamp();
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(125) };  // ~8fps，与 Android 一致，省电
-        _timer.Tick += OnTick;
-        _timer.Start();
+        // 逐帧回调（vsync 对齐）替代 DispatcherTimer：后者优先级低，重负载或窗口非前台时
+        // 会被合并/延迟，表现为背景动画停顿；CompositionTarget.Rendering 是 WinUI 官方逐帧点，
+        // 窗口不可见时自动停止（天然省电），与 Android ValueAnimator 的驱动语义一致。
+        CompositionTarget.Rendering += OnRendering;
+        _renderingHooked = true;
     }
 
     private void StopAnimation()
     {
-        _timer?.Stop();
-        _timer = null;
+        if (!_renderingHooked) return;
+        CompositionTarget.Rendering -= OnRendering;
+        _renderingHooked = false;
     }
 
-    private void OnTick(object? sender, object e)
+    /// <summary>逐帧回调：按时间戳节流到 ~8fps（丢弃中间帧），其余逻辑与原定时器节拍一致。</summary>
+    private void OnRendering(object? sender, object e)
     {
         if (_image == null || _animator == null || _preset == null) return;
 
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
         var dtMs = (now - _lastTickTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        if (dtMs < MinTickIntervalMs) return;   // 未到节拍间隔：丢弃该帧
         _lastTickTicks = now;
+
+        // 隐藏态不做渲染与漂移：等价 Android 的 SetEnabled 停表语义。
+        // 没有这道闸，"加载即启动"会让已关闭（IsVisible=false → Collapsed）的雾面背景
+        // 仍在后台 8fps 渲染，白白占用线程池与 GPU 上传。
+        if (PlatformView is null || PlatformView.Visibility != WVisibility.Visible) return;
+
         // 封面流旋转时钟：进程级共享增量（同一时刻仅一个页面在动画，切页相位无缝衔接）
         s_sharedRenderMs += (long)(dtMs * FrostedFlowAnimator.TimeScale);
         _renderTimeMs = s_sharedRenderMs;
@@ -306,15 +373,26 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
 
         TryRestoreSharedFrame();
         TryDispatchBackgroundRender();
-        PresentPendingFrame();   // 后台算完则本 tick 上屏
+        PresentPendingFrame();   // 后台算完则本帧上屏
         ApplyDrift();
     }
 
     /// <summary>把这一帧的渲染派发到线程池（快照全部输入，纯计算，不碰 UI 对象）。</summary>
     private void TryDispatchBackgroundRender()
     {
+        if (_image == null) return;
+        // IsDark 未绑定到控件时 MapIsDark 不会触发，首个渲染前需自兜底初始化预设/计时器
+        EnsureFlowInitialized();
+
         var viewW = (float)_image.ActualWidth;
         var viewH = (float)_image.ActualHeight;
+        // 兜底：Image 首帧尚未量出尺寸（未设 Source 时可能为 0×0）时用承载 Grid 的尺寸，
+        // 否则会陷入「无尺寸→不建位图→不设 Source→永远无尺寸」的死锁，背景永不渲染。
+        if ((viewW < 1 || viewH < 1) && PlatformView != null)
+        {
+            viewW = (float)PlatformView.ActualWidth;
+            viewH = (float)PlatformView.ActualHeight;
+        }
         if (viewW < 1 || viewH < 1) return;
 
         EnsureFlowBuffer(viewW, viewH);
@@ -371,8 +449,9 @@ public class FrostedBackgroundHandler : ViewHandler<Controls.FrostedBackground, 
                     }
                     _renderBusy = false;
                 }
-                // UI 线程上屏（后台完成的帧交给 UI DispatcherQueue 处理）
-                if (_uiDispatcher != null && !_uiDispatcher.HasThreadAccess)
+                // UI 线程上屏（后台完成的帧交给 UI DispatcherQueue 处理）。
+                // 不再要求"动画在跑"：未播放（门控停表）时也要把这一帧贴上，否则背景空白。
+                if (_uiDispatcher != null)
                     _uiDispatcher.TryEnqueue(() => PresentPendingFrame());
             }
         });

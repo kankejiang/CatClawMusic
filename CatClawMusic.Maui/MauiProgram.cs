@@ -20,6 +20,36 @@ public static class MauiProgram
         Timeout = TimeSpan.FromSeconds(20)
     };
 
+#if WINDOWS
+    /// <summary>
+    /// 去掉滑块拇指在浅色主题下的深色描边（进度条/音量圆点外的黑圈）。
+    /// WinUI 的拇指描边来自主题刷 SliderThumbBorderThemeBrush（深色主题下是浅色，
+    /// 与白色填充重合所以看不到；浅色主题下是深色 → 白点外出现黑圈）。
+    /// 这里只把三个描边主题刷在应用级资源里覆盖为透明（应用级直接键优先于合并的主题字典）。
+    /// 注意：不要碰 SliderThumb*BackgroundThemeBrush 系列——它们被模板的轨道/容器引用，
+    /// 改白会让整条滑块变成白色实心条（实测 122×24 区域全白）。
+    /// 圆点填充色由 MAUI 的 ThumbColor（现代键 SliderThumbBackground*）负责，无需在此处理。
+    /// </summary>
+    private static void RemoveSliderThumbRing()
+    {
+        try
+        {
+            var res = Microsoft.UI.Xaml.Application.Current?.Resources;
+            if (res == null) return;
+
+            var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            foreach (var key in new[]
+            {
+                "SliderThumbBorderThemeBrush",
+                "SliderThumbPointerOverBorderThemeBrush",
+                "SliderThumbPressedBorderThemeBrush",
+            })
+                res[key] = transparent;
+        }
+        catch { }
+    }
+#endif
+
     public static MauiApp CreateMauiApp()
     {
         // 启动打点统一走 Services.StartupTrace(app 数据目录 startup_trace.log,Release 可用),
@@ -35,6 +65,33 @@ public static class MauiProgram
         }
 
         StartupLog("Step 0: CreateMauiApp entry");
+
+#if WINDOWS
+        // ═══ WebView2 用户数据目录（必须早于任何 WebView2 初始化）═══
+        // 现象：安装版（C:\Program Files\CatClawMusic）打开网易云登录页时，页面框架正常
+        // （标题/返回/完成都在），但 WebView 整块空白；debug 日志显示 EnsureCoreWebView2Async
+        // 约 31ms 即抛异常被 catch 吞掉，且系统里从未出现本应用拉起的 msedgewebview2.exe。
+        // 根因：非打包应用的 WebView2 默认把用户数据目录建在 **exe 同级**
+        // （<exe名>.exe.WebView2）。装到 Program Files 后该目录属 Administrators，
+        // 非管理员进程创建被拒（实测：Program Files 下 Users 仅 ReadAndExecute，
+        // 建目录报"访问被拒绝"；同一操作在绿色发布目录可成功）→ 环境创建失败 → 不渲染。
+        // 修法：官方支持用 WEBVIEW2_USER_DATA_FOLDER 覆盖默认位置（WebView2Loader.dll 内
+        // 即按此名读取环境变量），指向用户可写的 LocalAppData。
+        try
+        {
+            var wv2Dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CatClawMusic.Maui", "WebView2");
+            Directory.CreateDirectory(wv2Dir);
+            Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", wv2Dir);
+            StartupLog($"Step 0a: WebView2 用户数据目录 = {wv2Dir}");
+        }
+        catch (Exception ex)
+        {
+            StartupLog($"Step 0a 失败: 设置 WebView2 用户数据目录异常 {ex.Message}");
+        }
+#endif
+
 #if WINDOWS
         StartupLog("Step 0b: WINDOWS symbol IS defined");
 #else
@@ -86,6 +143,11 @@ public static class MauiProgram
                     typeof(CatClawMusic.Maui.Platforms.Windows.BackdropBlurHandler));
                 handlers.AddHandler(typeof(CatClawMusic.Maui.Controls.SwapChainHost),
                     typeof(CatClawMusic.Maui.Platforms.Windows.SwapChainHostHandler));
+
+                // 滑块圆点：浅色主题下 WinUI 的拇指描边主题刷是深色 → 白点外多出一圈黑边
+                // （深色主题下该描边为浅色，与白色填充重合所以看不出来）。用户要求与深色模式
+                // 一致 → 三个描边刷统一透明，填充刷三态固定纯白。
+                RemoveSliderThumbRing();
 #endif
             })
             .ConfigureEffects(effects =>
@@ -333,6 +395,9 @@ public static class MauiProgram
         // Infrastructure services
         // ═══════════════════════════════════════════════════
         services.AddSingleton<INavigationService, NavigationService>();
+        // 子页面内嵌能力：桌面壳层下，插件等外部模块的页面内嵌到主内容区
+        // （否则只能整窗模态推页 → 详情页盖住侧栏与底部播放条）
+        services.AddSingleton<ISubPageHost, Services.SubPageHost>();
         services.AddSingleton<IDialogService, DialogService>();
 
         // ═══════════════════════════════════════════════════
@@ -491,6 +556,10 @@ public static class MauiProgram
         }
         Services = app.Services;
         StartupLog("Step 51: Services set");
+
+        // 【临时诊断】清空上次的导航埋点日志（定位「点登录后内容区空白」；定位完成后连同
+        // NavDiagnostics.cs 与各调用点一并删除）
+        try { CatClawMusic.Maui.Services.NavDiagnostics.Reset(); } catch { }
 
         AgentService.LibrarySnapshotProvider = () => MusicLibrarySnapshotService.LoadSnapshot();
         var chatMemoryService = Services.GetRequiredService<Services.ChatMemoryService>();

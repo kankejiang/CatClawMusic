@@ -27,6 +27,9 @@ public class NavigationService : INavigationService
         try
         {
             var shell = DesktopNavigation.TryGetShell();
+            // 【临时诊断】导航入口：确认插件的「登录」点击是否真的到达宿主
+            NavDiagnostics.Write("NavigateToAsync",
+                $"route={route} shell={(shell == null ? "null(桌面壳层)" : "有 Shell")} params={parameters?.Count ?? 0}");
             if (shell == null)
             {
                 // 桌面无 Shell（窗口直连不走导航栈）：解析注册路由为页面类型并嵌入主区域打开。
@@ -41,10 +44,12 @@ public class NavigationService : INavigationService
             var navStack = shell.CurrentPage?.Navigation?.NavigationStack;
             if (navStack != null && navStack.Count > 1)
             {
+                NavDiagnostics.Write("NavigateToAsync", $"Push 栈长度={navStack.Count} → 走 PushByRoute");
                 PushByRoute(route, parameters);
                 return;
             }
 
+            NavDiagnostics.Write("NavigateToAsync", $"走 Shell.GoToAsync({route})");
             if (parameters != null)
             {
                 await shell.GoToAsync(route, parameters);
@@ -56,6 +61,7 @@ public class NavigationService : INavigationService
         }
         catch (Exception ex)
         {
+            NavDiagnostics.Write("NavigateToAsync", $"异常: {ex}");
             Log.Debug("NavigationService", $"Navigation error: {ex.Message}");
         }
     }
@@ -88,6 +94,7 @@ public class NavigationService : INavigationService
 
             if (!_embeddedRoutes.TryGetValue(routeName, out var pageType))
             {
+                NavDiagnostics.Write("PushByRoute", $"未登记路由 {routeName} → 静默返回（什么都没发生）");
                 Log.Debug("NavigationService", $"PushByRoute: 未登记路由 {routeName}");
                 return;
             }
@@ -98,10 +105,13 @@ public class NavigationService : INavigationService
             if (page.BindingContext is IQueryAttributable attributable && query.Count > 0)
                 attributable.ApplyQueryAttributes(query);
 
+            NavDiagnostics.Write("PushByRoute",
+                $"解析到 {page.GetType().Name}（BindingContext={page.BindingContext?.GetType().Name ?? "null"}）→ PushAsync");
             _ = Shell.Current?.CurrentPage?.Navigation?.PushAsync(page);
         }
         catch (Exception ex)
         {
+            NavDiagnostics.Write("PushByRoute", $"异常: {ex}");
             Log.Debug("NavigationService", $"PushByRoute error: {ex.Message}");
         }
     }
@@ -135,6 +145,7 @@ public class NavigationService : INavigationService
 
             if (!_embeddedRoutes.TryGetValue(routeName, out var pageType))
             {
+                NavDiagnostics.Write("OpenEmbeddedByRoute", $"未登记桌面嵌入路由 {routeName} → 静默返回");
                 Log.Debug("NavigationService", $"OpenEmbeddedByRoute: 未登记桌面嵌入路由 {routeName}");
                 return;
             }
@@ -146,6 +157,10 @@ public class NavigationService : INavigationService
             if (page.BindingContext is IQueryAttributable attributable && query.Count > 0)
                 attributable.ApplyQueryAttributes(query);
 
+            NavDiagnostics.Write("OpenEmbeddedByRoute",
+                $"route={routeName} 解析到 {page.GetType().Name} query=[{string.Join(",", query.Select(kv => $"{kv.Key}={kv.Value}"))}] "
+                + $"isContentPage={page is Microsoft.Maui.Controls.ContentPage}");
+
             if (page is Microsoft.Maui.Controls.ContentPage contentPage)
                 DesktopNavigation.OpenEmbedded(contentPage);
             else
@@ -153,6 +168,7 @@ public class NavigationService : INavigationService
         }
         catch (Exception ex)
         {
+            NavDiagnostics.Write("OpenEmbeddedByRoute", $"异常: {ex}");
             Log.Debug("NavigationService", $"OpenEmbeddedByRoute error: {ex.Message}");
         }
     }

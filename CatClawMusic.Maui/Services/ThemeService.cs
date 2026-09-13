@@ -374,6 +374,7 @@ public class ThemeService : IThemeService
             var colors = ThemeMap[_currentTheme];
             var isDark = IsEffectivelyDark();
             CurrentIsDark = isDark;
+            s_currentColors = colors;   // 供 ApplyPlayerDarkScheme（播放页/播放条固定深色）取当前主题色
 
             app.Resources["PrimaryColor"] = Color.FromArgb(colors.Primary);
             app.Resources["PrimaryLightColor"] = Color.FromArgb(colors.Light);
@@ -390,8 +391,9 @@ public class ThemeService : IThemeService
             app.Resources["PlayerPlayBtnBg"] = isDark ? Color.FromArgb("#26FFFFFF") : Color.FromArgb("#22000000");
             app.Resources["PlayerTitleColor"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb("#4A3A44");
             app.Resources["PlayerSubColor"] = isDark ? Color.FromArgb("#CCFFFFFF") : Color.FromArgb("#866B77");
-            // 浅色模式下拇指与已播进度使用当前主题主色（避免固定深色"黑点"难看，跟随 5 套主题）
-            app.Resources["PlayerSliderThumb"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
+            // 滑块圆点（进度条/音量条拇指）：深浅模式统一为全白（用户定稿：与深色模式的圆点一致，
+            // 浅色下不再跟随主题主色）。已播进度色仍按主题取色（深色=白 / 浅色=主题主色）。
+            app.Resources["PlayerSliderThumb"] = Color.FromArgb("#FFFFFF");
             app.Resources["PlayerSliderProgress"] = isDark ? Color.FromArgb("#FFFFFF") : Color.FromArgb(colors.Primary);
             app.Resources["PlayerSliderTrack"] = isDark ? Color.FromArgb("#40FFFFFF") : Color.FromArgb("#33000000");
             app.Resources["PlayerSliderTrackDim"] = isDark ? Color.FromArgb("#24FFFFFF") : Color.FromArgb("#14000000");
@@ -823,9 +825,53 @@ public class ThemeService : IThemeService
 
     #endregion
 
-    private static void ApplyDarkPalette(ResourceDictionary resources, ThemeColors colors)
+    /// <summary>当前主题的配色表快照（供 ApplyPlayerDarkScheme 作用域化使用）</summary>
+    private static ThemeColors? s_currentColors;
+
+    /// <summary>
+    /// 把「深色模式配色」应用到指定作用域资源字典：**播放页 / 播放条固定深色**用。
+    /// 作用域内所有 {DynamicResource} 解析为深色值，作用域外不受影响（不改变应用整体深浅色）。
+    /// 含深色调色板 + 深色播放器控件色（PlayerIconColor/Title/Sub/Slider 等）。
+    /// </summary>
+    public static void ApplyPlayerDarkScheme(ResourceDictionary resources)
     {
-        // 深色模式整体转冷色系:墨蓝夜底 + 冰青主色 #55D6FF。
+        if (resources == null) return;
+        try
+        {
+            ApplyDarkPalette(resources, s_currentColors ?? ThemeMap[CoreAppTheme.Pink]);
+
+            resources["PlayerIconColor"] = Color.FromArgb("#FFFFFF");
+            resources["PlayerLikeColor"] = Color.FromArgb("#FFFFFF");
+            resources["PlayerPlayBtnBg"] = Color.FromArgb("#26FFFFFF");
+            resources["PlayerTitleColor"] = Color.FromArgb("#FFFFFF");
+            resources["PlayerSubColor"] = Color.FromArgb("#CCFFFFFF");
+            resources["PlayerSliderThumb"] = Color.FromArgb("#FFFFFF");
+            resources["PlayerSliderProgress"] = Color.FromArgb("#FFFFFF");
+            resources["PlayerSliderTrack"] = Color.FromArgb("#40FFFFFF");
+            resources["PlayerSliderTrackDim"] = Color.FromArgb("#24FFFFFF");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 取「深色模式」的页面兜底底色（播放页/歌词页在无封面时使用）。
+    /// 注意：深色调色板的 PageBackgroundBrush/WindowBackgroundColor 在 Android 上是**全透明**的
+    /// （深底靠系统 DayNight 窗口底色透出），所以这里取深色播放条底色（非透明 #12151F）。
+    /// </summary>
+    public static Color GetPlayerDarkBaseColor()
+    {
+        try
+        {
+            var dict = new ResourceDictionary();
+            ApplyPlayerDarkScheme(dict);
+            if (dict.TryGetValue("PlayerBarBackgroundColor", out var value) && value is Color c) return c;
+        }
+        catch { }
+        return Color.FromArgb("#12151F");
+    }
+
+    private static void ApplyDarkPalette(ResourceDictionary resources, ThemeColors colors)
+    {        // 深色模式整体转冷色系:墨蓝夜底 + 冰青主色 #55D6FF。
         // 樱粉压在深底上明度对比不足会发灰发脏,故深色主色不用粉;
         // 粉仅保留在红心(LikeColor)与微弱的品牌光晕里。
         var primary = Color.FromArgb("#55D6FF");

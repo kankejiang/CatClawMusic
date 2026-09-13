@@ -42,6 +42,9 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     /// <summary>当前嵌入 MainArea 的子页面（OpenEmbeddedPage 打开、SwitchTab/关闭时清空）。</summary>
     private ContentPage? _embeddedPage;
+    /// <summary>桌面内嵌子页栈（插件多级跳转逐级返回）：_embeddedPage 恒等于栈顶页；
+    /// 原先只有单槽位 → 二级页会顶掉一级页，返回时直接跳回 tab 根内容（观感＝退出插件）。</summary>
+    private readonly List<(ContentPage Page, View Content)> _embeddedStack = new();
 
     /// <summary>
     /// 歌曲上下文菜单宿主转发：嵌入子页面的 Content 被摘出后，行父链走不到子页面，
@@ -65,6 +68,11 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         _playlistDetailVm = services.GetRequiredService<PlaylistDetailViewModel>();
         BindingContext = _npVm;
         Instance = this;
+
+        // 播放页覆盖层固定深色配色（用户定稿：播放页不区分深浅色，统一深色模式配色）。
+        // 注意：**底部播放条不在此列**——播放条属于应用壳层，仍跟随深浅色主题
+        // （把 PlayerArea 也套深色方案会让浅色模式下播放条变成深色玻璃，用户反馈不符预期）。
+        CatClawMusic.Maui.Services.ThemeService.ApplyPlayerDarkScheme(PlayerOverlay.Resources);
 
         InitVolumeSlider();
 
@@ -142,6 +150,17 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
 
     private void SwitchTab(DesktopTab tab, bool animate = true)
     {
+        // ⚠ 重复点击「当前 tab」必须直接返回：否则下面 oldContent 与 content 是**同一个视图实例**
+        // （内容取自 _pageCache），会被 MainArea.Children.Add 两次 → WinUI 把已挂载元素再插入时
+        // 抛 COMException 0x800F1000 "没有检测到已安装的组件" → 应用闪退。
+        // 发现页是初始 tab（构造时已填充 MainArea），所以「启动后点侧栏发现」必崩。
+        // 例外：当前有嵌入子页（如插件页/设置子页）时，点击同 tab = 回到该 tab 根内容，需继续执行。
+        if (tab == _currentTab && _embeddedPage == null)
+        {
+            UpdateNavHighlight();
+            return;
+        }
+
         // 通知旧 tab 消失（触发数据保存等生命周期）
         if (_pageHostCache.TryGetValue(_currentTab, out var oldHost))
             InvokeLifecycle(oldHost, "OnDisappearing");
@@ -170,7 +189,8 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
         MainArea.Children.Clear();
         if (content != null)
             MainArea.Children.Add(content);
-        if (oldContent != null)
+        // 防御：oldContent 与 content 为同一实例时绝不能重复添加到 MainArea（见方法开头注释的闪退）
+        if (oldContent != null && !ReferenceEquals(oldContent, content))
         {
             MainArea.Children.Add(oldContent);
             DesktopTransitions.FadeThrough(MainArea, content!, oldContent);
@@ -230,9 +250,14 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
                     .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
             }
             method?.Invoke(page, null);
+            // 【临时诊断】反射生命周期是静默的：方法找不到 / 调用抛异常都只会进 debug 输出
+            Services.NavDiagnostics.Write("InvokeLifecycle",
+                $"{page.GetType().Name}.{methodName} → {(method == null ? "未找到方法（未触发）" : "已调用")}");
         }
         catch (Exception ex)
         {
+            Services.NavDiagnostics.Write("InvokeLifecycle",
+                $"{page.GetType().Name}.{methodName} 调用抛异常: {ex}");
             Log.Debug("DesktopBlankPage.xaml", $"[Desktop] InvokeLifecycle {methodName} on {page.GetType().Name} FAILED: {ex.Message}");
         }
     }
@@ -405,9 +430,20 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     {
         try
         {
+            // 【临时诊断】内嵌入口：page 类型 / 容器尺寸 / 现有孩子
+            Services.NavDiagnostics.Write("OpenEmbedded",
+                $"enter page={page?.GetType().Name ?? "null"} contentNull={page?.Content == null} "
+                + $"MainArea.w={MainArea.Width:F0} children={MainArea.Children.Count} stack={_embeddedStack.Count}");
+
             if (page == null) return;
             var content = page.Content;
-            if (content == null) return;
+            if (content == null)
+            {
+                // 静默返回：MainArea 保持原样（若上一次已把本页 Content 摘走，这里会什么都不发生）
+                Services.NavDiagnostics.Write("OpenEmbedded",
+                    $"early-return：{page.GetType().Name}.Content == null → 不内嵌、容器不动");
+                return;
+            }
             page.Content = null;
             content.BindingContext = page.BindingContext;
             content.VerticalOptions = LayoutOptions.Fill;
@@ -422,14 +458,23 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
                 MainArea.Children.Add(outgoing); // 旧内容垫底（视差滑出层）
             MainArea.Children.Add(content);
             _embeddedPage = page;
+            _embeddedStack.Add((page, content));
+
+            Services.NavDiagnostics.Write("OpenEmbedded",
+                $"{page.GetType().Name} 已加入 MainArea: outgoing={(outgoing?.GetType().Name ?? "null")} "
+                + $"children={MainArea.Children.Count} stack={_embeddedStack.Count}");
+            Services.NavDiagnostics.DumpContainer("OpenEmbedded", "加入后立即快照", MainArea);
 
             InvokeLifecycle(page, "OnAppearing");
 
             if (outgoing != null)
                 DesktopTransitions.PushSwap(MainArea, content, outgoing, fromLeft: false);
+            else
+                Services.NavDiagnostics.Write("OpenEmbedded", "outgoing==null → 未走 PushSwap（内容应保持可见）");
         }
         catch (Exception ex)
         {
+            Services.NavDiagnostics.Write("OpenEmbedded", $"异常: {ex}");
             Log.Debug("DesktopBlankPage.xaml", $"[Desktop] OpenEmbeddedPage failed: {ex}");
         }
     }
@@ -439,11 +484,31 @@ public partial class DesktopBlankPage : ContentPage, ISongContextMenuHost
     {
         try
         {
-            // 过渡：详情页从右侧滑出揭幕（与推入方向对称），底层直接恢复 tab 内容
+            // 逐级返回：栈内还有上一级内嵌页 → 用它作底（插件多级跳转）；栈空 → 恢复当前 tab 内容
             View? outgoing = _embeddedPage != null && MainArea.Width > 10 && MainArea.Children.Count > 0
                 ? MainArea.Children[^1] as View : null;
-            SwitchTab(_currentTab, animate: false);
-            if (outgoing != null)
+
+            if (_embeddedStack.Count > 0)
+                _embeddedStack.RemoveAt(_embeddedStack.Count - 1);
+
+            if (_embeddedStack.Count > 0)
+            {
+                // 回到上一级内嵌页（不触碰 tab 内容）；_embeddedPage 保持非空，SwitchTab 守卫不受影响
+                var lower = _embeddedStack[^1];
+                _embeddedPage = lower.Page;
+                MainArea.Children.Clear();
+                MainArea.Children.Add(lower.Content);
+                InvokeLifecycle(lower.Page, "OnAppearing");
+            }
+            else
+            {
+                // 栈空：恢复 tab 根内容。必须先调用 SwitchTab（其内部才把 _embeddedPage 置空），
+                // 否则"同 tab 短路"守卫会直接 return 导致内容区空白。
+                SwitchTab(_currentTab, animate: false);
+            }
+
+            var baseContent = _embeddedStack.Count > 0 ? _embeddedStack[^1].Content : null;
+            if (outgoing != null && !ReferenceEquals(outgoing, baseContent))
             {
                 MainArea.Children.Add(outgoing);
                 DesktopTransitions.PushExit(MainArea, outgoing, exitLeft: false);

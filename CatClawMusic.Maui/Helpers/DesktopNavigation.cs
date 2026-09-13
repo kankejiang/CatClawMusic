@@ -53,6 +53,10 @@ public static class DesktopNavigation
         {
             if (page == null) return;
 
+            // 【临时诊断】桌面壳层实例是否存在（Instance 为 null 时会静默什么都不做）
+            Services.NavDiagnostics.Write("OpenEmbedded",
+                $"page={page.GetType().Name} hideBack={hideBack} DesktopBlankPage.Instance={(Pages.DesktopBlankPage.Instance == null ? "null!" : "ok")}");
+
             // 嵌入模式下隐藏左上角返回按钮（左侧导航栏提供全局返回）。
             // 返回按钮可能是根 Grid 直接子元素（BackButton）或 HeroCard 内嵌（专辑/艺术家详情页）。
             if (hideBack && page.Content is Grid root)
@@ -76,6 +80,7 @@ public static class DesktopNavigation
         }
         catch (Exception ex)
         {
+            Services.NavDiagnostics.Write("OpenEmbedded", $"异常: {ex}");
             Log.Debug("DesktopNavigation", $"[DesktopNav] OpenEmbedded failed: {ex.Message}");
         }
     }

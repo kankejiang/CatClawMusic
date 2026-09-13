@@ -43,6 +43,7 @@ public partial class WebViewLoginPage : ContentPage
     protected override void OnNavigatedTo(NavigatedToEventArgs args)
     {
         base.OnNavigatedTo(args);
+        Services.NavDiagnostics.Write("WebViewLogin", "OnNavigatedTo（Shell 路径）触发");
         EnsureLoginLoaded();
     }
 
@@ -57,10 +58,13 @@ public partial class WebViewLoginPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        Services.NavDiagnostics.Write("WebViewLogin", "OnAppearing（桌面嵌入路径）触发");
         var info = _vm.LoginInfo;
         if (!string.IsNullOrWhiteSpace(info?.CookieDomain))
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             await ClearDomainCookiesAsync(info.CookieDomain);
+            Services.NavDiagnostics.Write("WebViewLogin", $"清 Cookie 完成，耗时 {sw.ElapsedMilliseconds}ms");
             // 若 OnNavigatedTo 已加载过（Shell 模式），用干净 Cookie 强制重载
             if (_loginLoadStarted && LoginWebView.Source != null)
             {
@@ -75,6 +79,11 @@ public partial class WebViewLoginPage : ContentPage
     /// <summary>幂等加载：LoginInfo 就绪后给 WebView 指定登录 URL 并启动 Cookie 轮询</summary>
     private void EnsureLoginLoaded()
     {
+        // 【临时诊断】登录页是否真的把 URL 交给 WebView
+        Services.NavDiagnostics.Write("WebViewLogin",
+            $"EnsureLoginLoaded: started={_loginLoadStarted} LoginInfo={( _vm.LoginInfo == null ? "null" : "ok")} "
+            + $"LoginUrl={_vm.LoginInfo?.LoginUrl ?? "null"} handler={LoginWebView.Handler?.GetType().Name ?? "null"}");
+
         if (_loginLoadStarted) return;
 
         var info = _vm.LoginInfo;
@@ -86,11 +95,34 @@ public partial class WebViewLoginPage : ContentPage
                 LoginWebView.Source = new UrlWebViewSource { Url = url };
             StatusHint.Text = "请在下方页面完成登录，登录成功后自动返回";
             StartCookiePolling();
+            Services.NavDiagnostics.Write("WebViewLogin", $"已设置 WebView.Source={url} 并启动 Cookie 轮询");
+            LogWebView2State();
         }
         else
         {
             StatusHint.Text = "该音源暂不支持登录";
+            Services.NavDiagnostics.Write("WebViewLogin", "LoginUrl 为空 → WebView 不会加载任何页面");
         }
+    }
+
+    /// <summary>【临时诊断】WebView2 核心是否真的初始化成功——「页面框架正常但网页区全空」的直接判据</summary>
+    private void LogWebView2State()
+    {
+#if WINDOWS
+        try
+        {
+            var wv2 = LoginWebView.Handler?.PlatformView as Microsoft.UI.Xaml.Controls.WebView2;
+            var core = wv2?.CoreWebView2;
+            Services.NavDiagnostics.Write("WebViewLogin",
+                $"WebView2状态: platformView={(wv2 == null ? "null" : "ok")} "
+                + $"CoreWebView2={(core == null ? "null（未初始化 → 必然空白）" : "已初始化")} "
+                + $"UDF={Environment.GetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER") ?? "(未设置)"}");
+        }
+        catch (Exception ex)
+        {
+            Services.NavDiagnostics.Write("WebViewLogin", $"读取 WebView2 状态失败: {ex.Message}");
+        }
+#endif
     }
 
     /// <summary>启动 Cookie 轮询（每 1.5 秒检测一次成功标识 Cookie；不依赖 SPA hash 路由跳转）</summary>
@@ -344,14 +376,24 @@ public partial class WebViewLoginPage : ContentPage
             {
                 await wv2.EnsureCoreWebView2Async();
                 core = wv2.CoreWebView2;
-                if (core == null) return;
+                if (core == null)
+                {
+                    Services.NavDiagnostics.Write("WebViewLogin",
+                        "EnsureCoreWebView2Async 后 CoreWebView2 仍为 null → WebView2 环境创建失败（网页区必然空白）");
+                    return;
+                }
             }
             var cookies = await core.CookieManager.GetCookiesAsync($"https://{domain}/");
             if (cookies == null) return;
             foreach (var c in cookies)
                 core.CookieManager.DeleteCookie(c);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 【临时诊断】原来这里静默 catch：WebView2 环境创建失败（如用户数据目录不可写）
+            // 只在 31ms 内抛一次异常就消失，正是"页面框架正常、网页区全空"看不到原因的关键
+            Services.NavDiagnostics.Write("WebViewLogin", $"清 Cookie 失败（WebView2 很可能未初始化）: {ex}");
+        }
     }
 #endif
 
@@ -392,7 +434,11 @@ public partial class WebViewLoginPage : ContentPage
                 // 等待 CoreWebView2 初始化
                 await wv2.EnsureCoreWebView2Async();
                 core = wv2.CoreWebView2;
-                if (core == null) return "";
+                if (core == null)
+                {
+                    Services.NavDiagnostics.Write("WebViewLogin", "提取 Cookie：CoreWebView2 仍为 null（环境创建失败）");
+                    return "";
+                }
             }
 
             var cookieList = await core.CookieManager.GetCookiesAsync($"https://{domain}/");
@@ -405,7 +451,11 @@ public partial class WebViewLoginPage : ContentPage
             }
             return string.Join("; ", parts);
         }
-        catch { return ""; }
+        catch (Exception ex)
+        {
+            Services.NavDiagnostics.Write("WebViewLogin", $"提取 Cookie 失败: {ex}");
+            return "";
+        }
     }
 #endif
 }

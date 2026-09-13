@@ -190,7 +190,7 @@
                     <BoxView Grid.Row="0" HeightRequest="1"
                              Color="#21FFFFFF" VerticalOptions="Start" />
                     <!-- Windows 无 Vitrum handler 时的兜底底色（Android 被下方模糊层完全覆盖） -->
-                    <!-- 兜底底色：深色=近实心深藏青（去灰） -->
+                    <!-- 兜底底色：深色=近实心深藏青（去灰） -->
                     <BoxView Grid.Row="1" Color="{AppThemeBinding Light={DynamicResource CardBackgroundStrongColor}, Dark=#E6121521}" InputTransparent="True" />
                     <!-- 真毛玻璃背景：BlurConsumerView 实时模糊下层 BlurHostView 内容（透列表内容，非封面），并按 16dp 圆角裁剪 -->
                     <vitrum:BlurConsumerView Grid.Row="1" ClipCornerRadius="16">

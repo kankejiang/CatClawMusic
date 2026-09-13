@@ -3,8 +3,10 @@ using Microsoft.Maui.Controls;
 namespace CatClawMusic.Maui.Services;
 
 /// <summary>
-/// 插件安装/更新成功后的统一重启提示（插件管理页与插件市场两条安装链路共用）：
-/// 说明重启后插件才完全生效，并视平台（AppRestarter.CanRestart）提供「立即重启」按钮。
+/// 插件安装/更新成功后的统一重启提示（插件管理页与插件市场两条安装链路共用）。
+/// - Windows：提供「立即重启」（进程内可自动拉起，可靠）；
+/// - Android：系统（尤其 MIUI/HyperOS）会拦截后台自动拉起，故只提供「退出应用」，
+///   并明确告知需手动重新打开，避免用户以为会自动回来而干等。
 /// 使用系统对话框（DisplayAlert 双按钮）：当前进程即将退出，自绘弹层没有存续意义。
 /// </summary>
 public static class PluginRestartPrompt
@@ -12,10 +14,16 @@ public static class PluginRestartPrompt
     public static async Task ShowAsync(string successText)
     {
         const string restart = "立即重启";
+        const string exitApp = "退出应用";
         const string later = "稍后自行重启";
-        string message = AppRestarter.CanRestart
+        var autoRestart = AppRestarter.SupportsAutoRestart;
+        string message = autoRestart
             ? $"{successText}\n\n重启应用后插件将完全生效。"
-            : $"{successText}\n\n请手动重启应用以使插件完全生效。";
+            : AppRestarter.CanRestart
+                ? $"{successText}\n\n重启应用后插件将完全生效。\n" +
+                  "请点「退出应用」后，重新点击桌面/最近任务里的猫爪音乐图标打开" +
+                  "（Android 系统限制应用自动重启，无法代你拉起）。"
+                : $"{successText}\n\n请手动重启应用以使插件完全生效。";
 
         Page? page = null;
         try { page = Application.Current?.Windows.FirstOrDefault()?.Page; } catch { }
@@ -31,7 +39,8 @@ public static class PluginRestartPrompt
         string choice;
         try
         {
-            choice = await page.DisplayAlertAsync("安装成功", message, restart, later) ? restart : later;
+            choice = await page.DisplayAlertAsync("安装成功", message, autoRestart ? restart : exitApp, later)
+                ? (autoRestart ? restart : exitApp) : later;
         }
         catch
         {
@@ -46,6 +55,12 @@ public static class PluginRestartPrompt
             // 给 Toast 一帧时间显示，再退出进程
             await Task.Delay(400);
             AppRestarter.Restart();
+        }
+        else if (choice == exitApp)
+        {
+            ShowToast("已退出，请重新点击图标打开猫爪音乐");
+            await Task.Delay(600);
+            AppRestarter.ExitForManualRestart();
         }
     }
 

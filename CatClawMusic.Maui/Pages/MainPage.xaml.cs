@@ -245,17 +245,23 @@ public partial class MainPage : ContentPage
         // 竖屏 ViewPager 场景启用共享背景：两页据此隐藏各自的页内 FrostedBackground
         SharedPlayerBackground.Enabled = true;
 
+        // 注意：迷你播放条（MiniPlayer）**不**套深色方案 —— 它属于应用壳层，跟随深浅色主题；
+        // 固定深色的只有全屏播放页/歌词页（其背景层由下方 ApplySharedFrostedDarkPreset 控制）。
+        // 播放页/歌词页的深色兜底底（无封面时雾面层不绘制 → 否则会露出浅色页面底）：
+        // 直接赋深色具体色（深色调色板的 PageBackgroundBrush/WindowBackgroundColor 在 Android 是全透明，
+        // 深底原本靠系统 DayNight 窗口底色透出，不能用于此处）。
+        PlayerDarkBase.Background = new SolidColorBrush(
+            CatClawMusic.Maui.Services.ThemeService.GetPlayerDarkBaseColor());
+
         SharedFrostedBg.BindingContext = _nowPlayingVm;
         SharedFrostedBg.SetBinding(FrostedBackground.IsActiveProperty, nameof(NowPlayingViewModel.IsPlaying));
         SharedFrostedBg.SetBinding(FrostedBackground.IsScrollingProperty, nameof(NowPlayingViewModel.IsUserScrolling));
         SharedFrostedBg.SetBinding(FrostedBackground.TintColorProperty, nameof(NowPlayingViewModel.CoverTintColor));
         SharedFrostedBg.SetBinding(FrostedBackground.CoverSourceProperty, nameof(NowPlayingViewModel.CoverFlowSource));
 
-        // 雾面背景的洗色/底色/scrim 随深浅主题切换（Halcyon isDark），与两页页内背景同样显式同步
-        SharedFrostedBg.IsDark = Application.Current?.RequestedTheme
-            == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        // 播放页/歌词页（ViewPager index 0/1）固定深色预设；其余 tab 跟随深浅色主题
+        ApplySharedFrostedDarkPreset();
 
-        // 设置里开关雾面背景 / 主题变化后立即同步（静态事件与实例事件，各仅订阅一次）
         if (!_sharedFrostedSubscribed)
         {
             _sharedFrostedSubscribed = true;
@@ -263,14 +269,21 @@ public partial class MainPage : ContentPage
                 MainThread.BeginInvokeOnMainThread(UpdateSharedFrostedVisibility);
             if (Application.Current != null)
                 Application.Current.RequestedThemeChanged += (_, _) =>
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        SharedFrostedBg.IsDark = Application.Current?.RequestedTheme
-                            == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
-                    });
+                    MainThread.BeginInvokeOnMainThread(ApplySharedFrostedDarkPreset);
         }
 
         UpdateSharedFrostedVisibility();
+    }
+
+    /// <summary>共享背景的深浅预设：播放页/歌词页（index 0/1）恒为深色（与页内固定深色一致），
+    /// 其余 tab 跟随应用深浅色设置。</summary>
+    private void ApplySharedFrostedDarkPreset()
+    {
+        var themeDark = Application.Current?.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        var isPlayerTab = _currentIndex is 0 or 1;
+        SharedFrostedBg.IsDark = isPlayerTab || themeDark;
+        // 播放页/歌词页显示深色兜底底：雾面无封面时它提供深色页面底（否则浅色主题下白图标落浅底）
+        PlayerDarkBase.IsVisible = isPlayerTab;
     }
 
     private bool _sharedFrostedSubscribed;
@@ -299,6 +312,8 @@ public partial class MainPage : ContentPage
         UpdateMiniPlayerVisibility();
         // 共享雾面背景显隐（播放页/歌词页显示，其余 tab 隐藏）
         UpdateSharedFrostedVisibility();
+        // 播放页/歌词页固定深色预设，其余 tab 跟随主题
+        ApplySharedFrostedDarkPreset();
     }
 
     /// <summary>原生 ViewPager2 滑动状态变化：拖拽/归位期间暂停 FrostedBackground 动画与
@@ -865,6 +880,8 @@ public partial class MainPage : ContentPage
             UpdatePageVisibility();
             // 共享雾面背景显隐（播放页/歌词页显示，其余 tab 隐藏）
             UpdateSharedFrostedVisibility();
+            // 播放页/歌词页固定深色预设，其余 tab 跟随主题
+            ApplySharedFrostedDarkPreset();
         }
     }
 

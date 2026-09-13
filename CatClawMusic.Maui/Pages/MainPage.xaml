@@ -24,6 +24,15 @@
               RowDefinitions="*,Auto,Auto"
               SafeAreaEdges="None">
 
+        <!-- 播放页/歌词页固定深色兜底底：雾面层在「无封面」时不绘制任何内容（无歌曲/刚启动），
+             浅色主题下会直接露出浅色页面底 → 播放页变成浅底 + 白色图标（视觉坏掉）。
+             这一层铺在雾面层之下、仅在播放页/歌词页（pager 0/1）显示；
+             底色由 code-behind 赋深色（深色调色板的 PageBackgroundBrush 在 Android 是全透明的）。 -->
+        <BoxView x:Name="PlayerDarkBase"
+                 Grid.Row="0" Grid.RowSpan="3"
+                 IsVisible="False"
+                 InputTransparent="True" />
+
         <!-- 共享雾面动态背景层：播放页与全屏歌词页共用这一层，挂在 ViewPager 之外。
              切页（播放页↔歌词页）时只有内容层滑动，背景本身不随页面移动 —— 消除"背景跟着页面切"的跳变。
              绑定与显隐由 MainPage.xaml.cs 维护（绑 NowPlayingViewModel 单例）。

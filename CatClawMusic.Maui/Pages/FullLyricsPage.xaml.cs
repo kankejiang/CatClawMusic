@@ -114,6 +114,10 @@ public partial class FullLyricsPage : ContentPage
         _viewModel = viewModel;
         BindingContext = viewModel;
 
+        // 播放器全屏歌词页固定深色配色（与播放页一致：不区分深浅色，统一深色模式配色）——
+        // 该页与播放页共用同一层共享雾面背景（恒为深色预设），若文字仍取浅色主题色会出现深底深字。
+        CatClawMusic.Maui.Services.ThemeService.ApplyPlayerDarkScheme(Resources);
+
 #if ANDROID
         Android.Util.Log.Info("FLP", "[FullLyricsPage] 构造 #{0}", GetHashCode());
 #endif
@@ -576,8 +580,8 @@ public partial class FullLyricsPage : ContentPage
 #endif
         ApplySafeArea();
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
-        // 雾面背景封面流的洗色/底色/scrim 均随深浅主题切换（Halcyon isDark），必须显式同步
-        FrostedBg.IsDark = Application.Current.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        // 播放器全屏歌词页固定深色：背景预设恒为深色（与播放页共享背景一致）
+        FrostedBg.IsDark = true;
 
         if (_viewModel.AllLyricLines != null && _viewModel.AllLyricLines.Count > 0)
         {
@@ -607,10 +611,10 @@ public partial class FullLyricsPage : ContentPage
         Application.Current!.RequestedThemeChanged -= OnThemeChanged;
     }
 
-    /// <summary>主题变更时重建歌词视图</summary>
+    /// <summary>主题变更时重建歌词视图（本页固定深色，背景预设不受系统深浅色影响）</summary>
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e)
     {
-        FrostedBg.IsDark = e.RequestedTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+        FrostedBg.IsDark = true;
         MainThread.BeginInvokeOnMainThread(BuildLyricViews);
     }
 

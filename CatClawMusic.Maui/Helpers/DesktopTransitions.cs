@@ -26,7 +26,15 @@ public static class DesktopTransitions
     public static void PushSwap(Grid container, View incoming, View outgoing, bool fromLeft)
     {
         double w = container.Width;
-        if (w <= 10) return;
+        // 【临时诊断】转场是「新页不可见」的头号嫌疑：下面会把 incoming 置为 opacity=0 + 位移屏宽，
+        // 全靠动画拉回；动画不跑就永久停在不可见。记录宽度与是否走了 early-return。
+        Services.NavDiagnostics.Write("PushSwap",
+            $"enter w={w:F1} fromLeft={fromLeft} incoming={incoming.GetType().Name} outgoing={outgoing.GetType().Name}");
+        if (w <= 10)
+        {
+            Services.NavDiagnostics.Write("PushSwap", "early-return：container.Width<=10 → 不做动画（内容保持可见）");
+            return;
+        }
         int sign = fromLeft ? -1 : 1;
 
         incoming.CancelAnimations();
@@ -39,7 +47,26 @@ public static class DesktopTransitions
         _ = outgoing.TranslateTo(-sign * 0.3 * w, 0, PushMs, Easing.CubicOut);
         _ = outgoing.FadeTo(0, PushMs, Easing.CubicOut);
 
+        Services.NavDiagnostics.Write("PushSwap",
+            $"已设初值 incoming.opacity={incoming.Opacity:F2} incoming.tx={incoming.TranslationX:F0}，动画已发起（{PushMs}ms）");
+
         RemoveAfterAsync(container, outgoing, PushMs);
+        // 【临时诊断】转场结束后拍快照：incoming 若仍 opacity=0 / tx≈屏宽，即为「内容区空白」的真凶
+        _ = SnapshotAfterAsync(container, incoming, "PushSwap+700ms", PushMs + 400);
+        _ = SnapshotAfterAsync(container, incoming, "PushSwap+1800ms", PushMs + 1500);
+    }
+
+    /// <summary>【临时诊断】延迟拍容器快照，记录 incoming 动画后的最终状态</summary>
+    private static async Task SnapshotAfterAsync(Grid container, View incoming, string what, int delayMs)
+    {
+        try
+        {
+            await Task.Delay(delayMs);
+            Services.NavDiagnostics.Write("PushSwap",
+                $"{what}: incoming.opacity={incoming.Opacity:F2} incoming.tx={incoming.TranslationX:F0} attached={incoming.Parent != null}");
+            Services.NavDiagnostics.DumpContainer("PushSwap", $"{what} 容器状态", container);
+        }
+        catch (Exception ex) { Services.NavDiagnostics.Write("PushSwap", $"快照失败: {ex.Message}"); }
     }
 
     /// <summary>推入页退场（关闭揭幕）：outgoing 滑回进入侧 + 淡出，露出容器底层已就位的内容；
