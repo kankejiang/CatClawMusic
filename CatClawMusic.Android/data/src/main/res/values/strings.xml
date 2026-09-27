@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="playback_channel_name">播放控制</string>
+    <string name="playback_channel_description">猫爪音乐播放控制</string>
+</resources>

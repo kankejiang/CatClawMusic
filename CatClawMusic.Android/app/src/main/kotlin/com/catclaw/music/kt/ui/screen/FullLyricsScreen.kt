@@ -1,0 +1,263 @@
+package com.catclaw.music.kt.ui.screen
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.lyrics.LyricsSettings
+import com.catclaw.music.kt.ui.lyrics.LyricLineText
+import com.catclaw.music.kt.ui.lyrics.LyricsViewModel
+import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.catClawBackground
+
+@Composable
+fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewModel()) {
+    val palette = LocalCatClawPalette.current
+    val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
+    val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val lineMode by viewModel.lineMode.collectAsStateWithLifecycle()
+    val positionMs by viewModel.positionMs.collectAsStateWithLifecycle()
+    val fontSize by viewModel.fontSizeSp.collectAsStateWithLifecycle()
+    val alignment by viewModel.alignment.collectAsStateWithLifecycle()
+    val showTranslation by viewModel.showTranslation.collectAsStateWithLifecycle()
+    val showRoma by viewModel.showRoma.collectAsStateWithLifecycle()
+    var panelOpen by remember { mutableStateOf(false) }
+
+    val shown = viewModel.visibleLyrics()
+    val lines = shown?.lines.orEmpty()
+    val presentation = com.catclaw.music.kt.core.lyrics.LyricsState.present(
+        lyrics = shown,
+        positionMs = positionMs,
+        lineMode = lineMode,
+    )
+    val currentIndex = presentation?.index ?: -1
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0 && lines.isNotEmpty()) {
+            listState.animateScrollToItem(currentIndex.coerceAtMost(lines.lastIndex))
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = viewModel.currentSongTitle().ifEmpty { stringResource(R.string.m1_nothing) },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(palette.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = viewModel.currentSongArtist(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(palette.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                TextButton(onClick = { viewModel.toggleLineMode() }) {
+                    Text(
+                        text = stringResource(if (lineMode) R.string.lyric_mode_line else R.string.lyric_mode_word),
+                        color = Color(palette.textSecondary),
+                    )
+                }
+                TextButton(onClick = { panelOpen = !panelOpen }) {
+                    Text(stringResource(R.string.Settings), color = Color(palette.textSecondary))
+                }
+                TextButton(onClick = onClose) {
+                    Text(stringResource(R.string.lyric_close), color = Color(palette.textPrimary))
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            if (lines.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(if (loading) R.string.lyric_loading else R.string.lyric_none),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color(palette.textSecondary),
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 120.dp),
+                ) {
+                    items(count = lines.size) { index ->
+                        LyricLineText(
+                            line = lines[index],
+                            isCurrent = index == currentIndex,
+                            progress = if (index == currentIndex) presentation?.fillProgress ?: 0.0 else 0.0,
+                            showExtras = index == currentIndex,
+                            onClick = { viewModel.seekTo(lines[index].startMs) },
+                            fontSizeSp = fontSize,
+                            alignmentOverride = alignment,
+                            showTranslation = showTranslation,
+                            showRoma = showRoma,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (panelOpen) {
+            LyricsSettingsPanel(
+                sourceMode = viewModel.sourceMode.collectAsStateWithLifecycle().value,
+                alignment = alignment,
+                fontSizeSp = fontSize,
+                removeEmpty = viewModel.removeEmptyLines.collectAsStateWithLifecycle().value,
+                translation = showTranslation,
+                roma = showRoma,
+                onSource = viewModel::setSourceMode,
+                onAlignment = viewModel::setAlignment,
+                onFontSize = viewModel::setFontSize,
+                onRemoveEmpty = viewModel::setRemoveEmptyLines,
+                onTranslation = viewModel::setShowTranslation,
+                onRoma = viewModel::setShowRoma,
+                onClose = { panelOpen = false },
+            )
+        }
+    }
+}
+
+/** 全屏歌词页的设置面板：档位与默认值对齐 MAUI `LyricsSettingsService` */
+@Composable
+private fun LyricsSettingsPanel(
+    sourceMode: com.catclaw.music.kt.data.lyrics.LyricsSourceMode,
+    alignment: Int,
+    fontSizeSp: Float,
+    removeEmpty: Boolean,
+    translation: Boolean,
+    roma: Boolean,
+    onSource: (com.catclaw.music.kt.data.lyrics.LyricsSourceMode) -> Unit,
+    onAlignment: (Int) -> Unit,
+    onFontSize: (Float) -> Unit,
+    onRemoveEmpty: (Boolean) -> Unit,
+    onTranslation: (Boolean) -> Unit,
+    onRoma: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val surface = Color(palette.backgroundStops.last().argb)
+    val primary = Color(palette.textPrimary)
+
+    Box(modifier = Modifier.fillMaxSize().clickable(onClick = onClose)) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(surface)
+                .clickable(enabled = false) {}
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
+            Text(stringResource(R.string.lyric_panel), style = MaterialTheme.typography.titleMedium, color = primary)
+            Spacer(Modifier.height(10.dp))
+            Text(stringResource(R.string.lyric_source), style = MaterialTheme.typography.labelMedium, color = Color(palette.textSecondary))
+            ChipRow(
+                labels = listOf(
+                    stringResource(R.string.lyric_source_auto) to 0,
+                    stringResource(R.string.lyric_source_embedded) to 1,
+                    stringResource(R.string.lyric_source_external) to 2,
+                ),
+                selected = sourceMode.ordinal,
+                onPick = { onSource(com.catclaw.music.kt.data.lyrics.LyricsSourceMode.entries[it]) },
+            )
+            Text(stringResource(R.string.lyric_align), style = MaterialTheme.typography.labelMedium, color = Color(palette.textSecondary))
+            ChipRow(
+                labels = listOf(
+                    stringResource(R.string.lyric_align_left) to 0,
+                    stringResource(R.string.lyric_align_center) to 1,
+                    stringResource(R.string.lyric_align_right) to 2,
+                ),
+                selected = alignment,
+                onPick = onAlignment,
+            )
+            Text(
+                text = stringResource(R.string.lyric_font) + "  " + fontSizeSp.toInt().toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(palette.textSecondary),
+            )
+            androidx.compose.material3.Slider(
+                value = fontSizeSp.coerceIn(LyricsSettings.MIN_FONT, LyricsSettings.MAX_FONT),
+                onValueChange = onFontSize,
+                valueRange = LyricsSettings.MIN_FONT..LyricsSettings.MAX_FONT,
+                steps = (LyricsSettings.MAX_FONT - LyricsSettings.MIN_FONT).toInt() - 1,
+            )
+            ToggleRow(stringResource(R.string.lyric_remove_empty), removeEmpty, onRemoveEmpty)
+            ToggleRow(stringResource(R.string.lyric_show_translation), translation, onTranslation)
+            ToggleRow(stringResource(R.string.lyric_show_roma), roma, onRoma)
+        }
+    }
+}
+
+@Composable
+private fun ChipRow(labels: List<Pair<String, Int>>, selected: Int, onPick: (Int) -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
+        labels.forEach { (label, value) ->
+            val on = value == selected
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (on) Color(palette.primary) else Color(palette.textSecondary),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) Color(palette.primary).copy(alpha = 0.16f) else Color.Transparent)
+                    .clickable { onPick(value) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(palette.textPrimary),
+            modifier = Modifier.weight(1f),
+        )
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChecked)
+    }
+}

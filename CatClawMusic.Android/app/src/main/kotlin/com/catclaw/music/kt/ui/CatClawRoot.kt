@@ -1,0 +1,304 @@
+package com.catclaw.music.kt.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.catclaw.music.kt.ui.theme.BackdropGlass
+import com.catclaw.music.kt.ui.theme.backdropSource
+import com.catclaw.music.kt.ui.theme.rememberBackdropState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.catclaw.music.kt.R
+import com.catclaw.music.kt.core.lyrics.LyricsState
+import com.catclaw.music.kt.core.theme.CatClawTheme
+import com.catclaw.music.kt.ui.lyrics.LyricsViewModel
+import com.catclaw.music.kt.ui.screen.FullLyricsScreen
+import com.catclaw.music.kt.ui.screen.LibraryScreen
+import com.catclaw.music.kt.ui.screen.PlayingScreen
+import com.catclaw.music.kt.ui.screen.PlaylistScreen
+import com.catclaw.music.kt.ui.screen.RemoteSourcesScreen
+import com.catclaw.music.kt.ui.playback.PlayingViewModel
+import com.catclaw.music.kt.ui.player.MiniPlayer
+import com.catclaw.music.kt.ui.screen.QueueScreen
+import com.catclaw.music.kt.ui.screen.SearchScreen
+import com.catclaw.music.kt.ui.screen.SettingsScreen
+import com.catclaw.music.kt.data.settings.AppearanceSettings
+import com.catclaw.music.kt.ui.theme.AppearancePalette
+import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.LocalCustomBackground
+import com.catclaw.music.kt.ui.theme.ThemeViewModel
+import com.catclaw.music.kt.ui.theme.catClawBackground
+import kotlinx.coroutines.launch
+
+/**
+ * 顶层结构照搬 MAUI 的 MainPage：五页横滑容器 + 底部四个 tab，设置与远程音乐是全屏子路由。
+ *
+ * ViewPager 布局：[全屏歌词(0), 正在播放(1), 发现=搜索(2), 歌单(3), 音乐库(4)] ——
+ * 底部栏四个 tab 映射到 1..4，第 0 页只能从播放页右滑或点歌词行进入；
+ * 歌词页与播放页固定深色预设（MAUI 同规则），其余页跟随深浅色主题。
+ */
+private const val PAGE_FULL_LYRICS = 0
+private const val PAGE_NOW_PLAYING = 1
+private const val PAGE_COUNT = 5
+
+/** 图标与 MAUI `MainPage.xaml` 的 TabBar 一致：24×24 的 ic_play / ic_home / ic_playlist / ic_library */
+private enum class TopTab(val pageIndex: Int, val labelRes: Int, val iconRes: Int) {
+    Playing(PAGE_NOW_PLAYING, R.string.TabPlaying, R.drawable.ic_play),
+    Discover(2, R.string.TabDiscover, R.drawable.ic_home),
+    Playlist(3, R.string.TabPlaylists, R.drawable.ic_playlist),
+    Library(4, R.string.TabLibrary, R.drawable.ic_library),
+}
+
+private const val ROUTE_TABS = "tabs"
+private val NavigationBarHeight = 80.dp
+private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_REMOTE = "remote"
+
+@Composable
+fun CatClawRoot() {
+    val rootNavController = rememberNavController()
+    NavHost(
+        navController = rootNavController,
+        startDestination = ROUTE_TABS,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        composable(ROUTE_TABS) {
+            TabsHost(onOpenSettings = { rootNavController.navigate(ROUTE_SETTINGS) })
+        }
+        composable(ROUTE_SETTINGS) {
+            ThemedSurface {
+                SettingsScreen(
+                    onBack = { rootNavController.popBackStack() },
+                    onOpenRemote = { rootNavController.navigate(ROUTE_REMOTE) },
+                )
+            }
+        }
+        composable(ROUTE_REMOTE) {
+            ThemedSurface {
+                RemoteSourcesScreen(onBack = { rootNavController.popBackStack() })
+            }
+        }
+    }
+}
+
+/** 全屏子页：按当前外观模式取调色板，背景自己画 */
+@Composable
+private fun ThemedSurface(content: @Composable () -> Unit) {
+    val themeViewModel: ThemeViewModel = hiltViewModel()
+    val mode by themeViewModel.mode.collectAsStateWithLifecycle()
+    val appearance = themeViewModel.appearance
+    val systemDark = isSystemInDarkTheme()
+    val palette = remember(mode, systemDark) { AppearancePalette.resolve(mode, systemDark, appearance) }
+    val customBg by themeViewModel.customBackground.collectAsStateWithLifecycle()
+    CompositionLocalProvider(
+        LocalCatClawPalette provides palette,
+        LocalCustomBackground provides customBg,
+    ) {
+        Box(modifier = Modifier.fillMaxSize().catClawBackground().statusBarsPadding(), content = { content() })
+    }
+}
+
+@Composable
+private fun TabsHost(onOpenSettings: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val themeViewModel: ThemeViewModel = hiltViewModel()
+    val mode by themeViewModel.mode.collectAsStateWithLifecycle()
+    val systemDark = isSystemInDarkTheme()
+    val monetTick by themeViewModel.monetTick.collectAsStateWithLifecycle()
+    val themedPalette = remember(mode, systemDark, monetTick) {
+        AppearancePalette.resolve(mode, systemDark, themeViewModel.appearance)
+    }
+    val customBg by themeViewModel.customBackground.collectAsStateWithLifecycle()
+    // 启动页只在进入时读一次：中途改设置不该把用户从当前页弹走
+    val pagerState = rememberPagerState(
+        initialPage = AppearanceSettings.startupToPagerPage(themeViewModel.startupIndex.value),
+    ) { PAGE_COUNT }
+    // 按「已停稳」的页决定调色板，避免滑动中途整屏配色乱跳
+    val fixedDarkPages = setOf(PAGE_FULL_LYRICS, PAGE_NOW_PLAYING)
+    val palette = if (pagerState.settledPage in fixedDarkPages) CatClawTheme.dark else themedPalette
+    val backdrop = rememberBackdropState()
+    // 队列页要读同一条队列，所以 VM 在这里取一次往下传（hiltViewModel 按路由作用域，两边共享同一实例）
+    val playingViewModel: PlayingViewModel = hiltViewModel()
+    val queueSongs by playingViewModel.queueSongs.collectAsStateWithLifecycle()
+    val playState by playingViewModel.state.collectAsStateWithLifecycle()
+    val positionMs by playingViewModel.positionMs.collectAsStateWithLifecycle()
+    var showQueue by remember { mutableStateOf(false) }
+    // MAUI 的显隐规则：`_currentIndex <= 1`（播放页 / 全屏歌词页）收起 TabBar 与 MiniPlayer；
+    // 其余页且队列非空时才显示 MiniPlayer
+    val immersivePage = pagerState.settledPage <= PAGE_NOW_PLAYING
+    val showMiniPlayer = !immersivePage && queueSongs.isNotEmpty()
+
+    CompositionLocalProvider(
+        LocalCatClawPalette provides palette,
+        LocalCustomBackground provides customBg,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 宿主层：被玻璃透出的内容**必须是它的子节点**。
+            // `layerBackdrop` 只录 `drawContent()`，所以写在 backdropSource 之前的 background/padding 不进录制层
+            // —— 之前「有玻璃面、内容不糊」就是这个原因（真机：绿块作子节点时底栏立刻读到 (18,187,21)）
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .backdropSource(backdrop),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .catClawBackground()
+                        .statusBarsPadding(),
+                ) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { page ->
+                        when (page) {
+                            PAGE_FULL_LYRICS -> FullLyricsScreen(
+                                onClose = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
+                            )
+                            PAGE_NOW_PLAYING -> PlayingScreen(
+                                onOpenLyrics = { scope.launch { pagerState.animateScrollToPage(PAGE_FULL_LYRICS) } },
+                                onOpenSettings = onOpenSettings,
+                                onOpenQueue = { showQueue = true },
+                                viewModel = playingViewModel,
+                            )
+                            2 -> SearchScreen(
+                                active = pagerState.currentPage == 2,
+                                onOpenSettings = onOpenSettings,
+                            )
+                            3 -> PlaylistScreen()
+                            else -> LibraryScreen()
+                        }
+                    }
+                }
+            }
+            if (!immersivePage) {
+                // MiniPlayer 在 TabBar **上方**（MAUI 是 Row1/Row2，不是叠在一起）
+                playState.currentSong?.let { song ->
+                    if (showMiniPlayer) {
+                        MiniPlayer(
+                            song = song,
+                            isPlaying = playState.isPlaying,
+                            progress = if (playState.durationMs > 0) {
+                                positionMs.toFloat() / playState.durationMs
+                            } else {
+                                0f
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(start = 18.dp, end = 18.dp, bottom = 98.dp),
+                            onOpen = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
+                            onToggle = { playingViewModel.toggle() },
+                            onPrevious = { playingViewModel.previous() },
+                            onNext = { playingViewModel.next() },
+                        )
+                    }
+                }
+                BackdropGlass(
+                    state = backdrop,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+                ) {
+                    NavigationBar(containerColor = Color.Transparent) {
+                        TopTab.entries.forEach { tab ->
+                            NavigationBarItem(
+                                selected = pagerState.settledPage == tab.pageIndex,
+                                onClick = { scope.launch { pagerState.animateScrollToPage(tab.pageIndex) } },
+                                label = {
+                                    Text(
+                                        text = stringResource(tab.labelRes),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(tab.iconRes),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            // 队列页：MAUI 是 push 出来的独立页，这里同样盖满整屏并带自己的返回
+            if (showQueue) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .catClawBackground()
+                        .statusBarsPadding(),
+                ) {
+                    QueueScreen(viewModel = playingViewModel, onBack = { showQueue = false })
+                }
+            }
+        }
+    }
+}
+
+/** 播放页上的当前歌词行：点击横滑到全屏歌词页 */
+@Composable
+fun CurrentLyricLine(onOpenLyrics: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalCatClawPalette.current
+    val lyricsViewModel: LyricsViewModel = hiltViewModel()
+    val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
+    val positionMs by lyricsViewModel.positionMs.collectAsStateWithLifecycle()
+    val lineMode by lyricsViewModel.lineMode.collectAsStateWithLifecycle()
+
+    val presentation = LyricsState.present(
+        lyrics = lyrics,
+        positionMs = positionMs,
+        lineMode = lineMode,
+    )
+
+    Text(
+        text = presentation?.line?.text?.takeIf { it.isNotBlank() } ?: stringResource(R.string.lyric_none),
+        style = MaterialTheme.typography.titleMedium,
+        color = Color(palette.textPrimary),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 6.dp)
+            .clickable(onClick = onOpenLyrics),
+    )
+}

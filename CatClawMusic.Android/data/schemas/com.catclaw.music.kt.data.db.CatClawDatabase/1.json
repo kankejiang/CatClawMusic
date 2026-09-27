@@ -1,0 +1,1032 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "1f97e761e38731b40a7d24c5604a1dcb",
+    "entities": [
+      {
+        "tableName": "Songs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Title` TEXT NOT NULL, `ArtistId` INTEGER NOT NULL, `AlbumId` INTEGER NOT NULL, `Duration` INTEGER NOT NULL, `FilePath` TEXT NOT NULL, `FileSize` INTEGER NOT NULL, `Bitrate` INTEGER NOT NULL, `TrackNumber` INTEGER NOT NULL, `Year` INTEGER NOT NULL, `Genre` TEXT, `DateAdded` INTEGER NOT NULL, `DateModified` INTEGER NOT NULL, `CoverArtPath` TEXT, `LyricsPath` TEXT, `Source` INTEGER NOT NULL, `Protocol` INTEGER NOT NULL, `RemoteId` TEXT, `MediaStoreId` INTEGER NOT NULL, `RemoteCoverPath` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "Title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artistId",
+            "columnName": "ArtistId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumId",
+            "columnName": "AlbumId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationSeconds",
+            "columnName": "Duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filePath",
+            "columnName": "FilePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSize",
+            "columnName": "FileSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bitrate",
+            "columnName": "Bitrate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackNumber",
+            "columnName": "TrackNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "Year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genre",
+            "columnName": "Genre",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dateAdded",
+            "columnName": "DateAdded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateModified",
+            "columnName": "DateModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverArtPath",
+            "columnName": "CoverArtPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lyricsPath",
+            "columnName": "LyricsPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "Source",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "protocol",
+            "columnName": "Protocol",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "RemoteId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mediaStoreId",
+            "columnName": "MediaStoreId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteCoverPath",
+            "columnName": "RemoteCoverPath",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Songs_FilePath",
+            "unique": true,
+            "columnNames": [
+              "FilePath"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_Songs_FilePath` ON `${TABLE_NAME}` (`FilePath`)"
+          },
+          {
+            "name": "index_Songs_ArtistId",
+            "unique": false,
+            "columnNames": [
+              "ArtistId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_ArtistId` ON `${TABLE_NAME}` (`ArtistId`)"
+          },
+          {
+            "name": "index_Songs_AlbumId",
+            "unique": false,
+            "columnNames": [
+              "AlbumId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_AlbumId` ON `${TABLE_NAME}` (`AlbumId`)"
+          },
+          {
+            "name": "index_Songs_Title",
+            "unique": false,
+            "columnNames": [
+              "Title"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_Title` ON `${TABLE_NAME}` (`Title`)"
+          },
+          {
+            "name": "index_Songs_Source",
+            "unique": false,
+            "columnNames": [
+              "Source"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_Source` ON `${TABLE_NAME}` (`Source`)"
+          },
+          {
+            "name": "index_Songs_Protocol",
+            "unique": false,
+            "columnNames": [
+              "Protocol"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_Protocol` ON `${TABLE_NAME}` (`Protocol`)"
+          },
+          {
+            "name": "index_Songs_RemoteId",
+            "unique": false,
+            "columnNames": [
+              "RemoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_RemoteId` ON `${TABLE_NAME}` (`RemoteId`)"
+          },
+          {
+            "name": "index_Songs_Source_Protocol",
+            "unique": false,
+            "columnNames": [
+              "Source",
+              "Protocol"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Songs_Source_Protocol` ON `${TABLE_NAME}` (`Source`, `Protocol`)"
+          }
+        ]
+      },
+      {
+        "tableName": "Artists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Name` TEXT NOT NULL, `Cover` TEXT, `Gender` TEXT, `Birthday` TEXT, `Region` TEXT, `Description` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "Name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cover",
+            "columnName": "Cover",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "Gender",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "birthday",
+            "columnName": "Birthday",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "Region",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "Description",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        }
+      },
+      {
+        "tableName": "Albums",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Title` TEXT NOT NULL, `Name` TEXT NOT NULL, `Artist` TEXT NOT NULL, `CoverArtPath` TEXT, `SongCount` INTEGER NOT NULL, `Year` INTEGER NOT NULL, `ArtistId` INTEGER NOT NULL, `Cover` TEXT, `ReleaseYear` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "Title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "Name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artist",
+            "columnName": "Artist",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverArtPath",
+            "columnName": "CoverArtPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "songCount",
+            "columnName": "SongCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "Year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artistId",
+            "columnName": "ArtistId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cover",
+            "columnName": "Cover",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "releaseYear",
+            "columnName": "ReleaseYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Albums_ArtistId",
+            "unique": false,
+            "columnNames": [
+              "ArtistId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Albums_ArtistId` ON `${TABLE_NAME}` (`ArtistId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "SongArtists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `SongId` INTEGER NOT NULL, `ArtistId` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artistId",
+            "columnName": "ArtistId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_SongArtists_SongId",
+            "unique": false,
+            "columnNames": [
+              "SongId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SongArtists_SongId` ON `${TABLE_NAME}` (`SongId`)"
+          },
+          {
+            "name": "index_SongArtists_ArtistId",
+            "unique": false,
+            "columnNames": [
+              "ArtistId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SongArtists_ArtistId` ON `${TABLE_NAME}` (`ArtistId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "Playlists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Name` TEXT NOT NULL, `CreatedAt` INTEGER NOT NULL, `UpdatedAt` INTEGER NOT NULL, `SongCount` INTEGER NOT NULL, `IsSystem` INTEGER NOT NULL, `SortOrder` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "Name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "CreatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "UpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songCount",
+            "columnName": "SongCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSystem",
+            "columnName": "IsSystem",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "SortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        }
+      },
+      {
+        "tableName": "PlaylistSongs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `PlaylistId` INTEGER NOT NULL, `SongId` INTEGER NOT NULL, `Position` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playlistId",
+            "columnName": "PlaylistId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "Position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PlaylistSongs_PlaylistId_SongId",
+            "unique": true,
+            "columnNames": [
+              "PlaylistId",
+              "SongId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_PlaylistSongs_PlaylistId_SongId` ON `${TABLE_NAME}` (`PlaylistId`, `SongId`)"
+          },
+          {
+            "name": "index_PlaylistSongs_PlaylistId_Position",
+            "unique": false,
+            "columnNames": [
+              "PlaylistId",
+              "Position"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistSongs_PlaylistId_Position` ON `${TABLE_NAME}` (`PlaylistId`, `Position`)"
+          },
+          {
+            "name": "index_PlaylistSongs_SongId",
+            "unique": false,
+            "columnNames": [
+              "SongId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaylistSongs_SongId` ON `${TABLE_NAME}` (`SongId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "Favorites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`SongId` INTEGER NOT NULL, `AddedAt` INTEGER NOT NULL, PRIMARY KEY(`SongId`))",
+        "fields": [
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "AddedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "SongId"
+          ]
+        }
+      },
+      {
+        "tableName": "Lyrics",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`SongId` INTEGER NOT NULL, `LrcPath` TEXT, `Content` TEXT, PRIMARY KEY(`SongId`))",
+        "fields": [
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lrcPath",
+            "columnName": "LrcPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "Content",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "SongId"
+          ]
+        }
+      },
+      {
+        "tableName": "PlayHistory",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `SongId` INTEGER NOT NULL, `PlayedAt` INTEGER NOT NULL, `PlayCount` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playedAt",
+            "columnName": "PlayedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playCount",
+            "columnName": "PlayCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PlayHistory_SongId",
+            "unique": false,
+            "columnNames": [
+              "SongId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlayHistory_SongId` ON `${TABLE_NAME}` (`SongId`)"
+          },
+          {
+            "name": "index_PlayHistory_PlayedAt",
+            "unique": false,
+            "columnNames": [
+              "PlayedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlayHistory_PlayedAt` ON `${TABLE_NAME}` (`PlayedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "PlaySession",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `SongId` INTEGER NOT NULL, `PlayedAt` INTEGER NOT NULL, `DurationMs` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playedAt",
+            "columnName": "PlayedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "DurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_PlaySession_SongId",
+            "unique": false,
+            "columnNames": [
+              "SongId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaySession_SongId` ON `${TABLE_NAME}` (`SongId`)"
+          },
+          {
+            "name": "index_PlaySession_PlayedAt",
+            "unique": false,
+            "columnNames": [
+              "PlayedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_PlaySession_PlayedAt` ON `${TABLE_NAME}` (`PlayedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "DailyPlayStat",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Date` TEXT NOT NULL, `PlayCount` INTEGER NOT NULL, `TotalDurationMs` INTEGER NOT NULL, `NightPlayCount` INTEGER NOT NULL, PRIMARY KEY(`Date`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "Date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playCount",
+            "columnName": "PlayCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationMs",
+            "columnName": "TotalDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nightPlayCount",
+            "columnName": "NightPlayCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "Date"
+          ]
+        }
+      },
+      {
+        "tableName": "DailySongStat",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`DateSong` TEXT NOT NULL, `Date` TEXT NOT NULL, `SongId` INTEGER NOT NULL, `PlayCount` INTEGER NOT NULL, `TotalDurationMs` INTEGER NOT NULL, PRIMARY KEY(`DateSong`))",
+        "fields": [
+          {
+            "fieldPath": "dateSong",
+            "columnName": "DateSong",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "Date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playCount",
+            "columnName": "PlayCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationMs",
+            "columnName": "TotalDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "DateSong"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_DailySongStat_Date",
+            "unique": false,
+            "columnNames": [
+              "Date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_DailySongStat_Date` ON `${TABLE_NAME}` (`Date`)"
+          }
+        ]
+      },
+      {
+        "tableName": "HourlyPlayStat",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`DateHour` TEXT NOT NULL, `Date` TEXT NOT NULL, `Hour` INTEGER NOT NULL, `PlayCount` INTEGER NOT NULL, `TotalDurationMs` INTEGER NOT NULL, PRIMARY KEY(`DateHour`))",
+        "fields": [
+          {
+            "fieldPath": "dateHour",
+            "columnName": "DateHour",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "Date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hour",
+            "columnName": "Hour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playCount",
+            "columnName": "PlayCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDurationMs",
+            "columnName": "TotalDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "DateHour"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_HourlyPlayStat_Date",
+            "unique": false,
+            "columnNames": [
+              "Date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_HourlyPlayStat_Date` ON `${TABLE_NAME}` (`Date`)"
+          }
+        ]
+      },
+      {
+        "tableName": "ConnectionProfiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Name` TEXT NOT NULL, `Protocol` INTEGER NOT NULL, `Host` TEXT NOT NULL, `Port` INTEGER NOT NULL, `UserName` TEXT NOT NULL, `Password` TEXT NOT NULL, `BasePath` TEXT NOT NULL, `IsEnabled` INTEGER NOT NULL, `ApiVersion` TEXT, `ClientName` TEXT, `UseHttps` INTEGER NOT NULL, `DomainName` TEXT, `ShareName` TEXT, `ServerType` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "Name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "protocol",
+            "columnName": "Protocol",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "host",
+            "columnName": "Host",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "port",
+            "columnName": "Port",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userName",
+            "columnName": "UserName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "password",
+            "columnName": "Password",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "basePath",
+            "columnName": "BasePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isEnabled",
+            "columnName": "IsEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "apiVersion",
+            "columnName": "ApiVersion",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "clientName",
+            "columnName": "ClientName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "useHttps",
+            "columnName": "UseHttps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domainName",
+            "columnName": "DomainName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shareName",
+            "columnName": "ShareName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serverType",
+            "columnName": "ServerType",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        }
+      },
+      {
+        "tableName": "CachedSongs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `SongId` INTEGER NOT NULL, `LocalPath` TEXT NOT NULL, `CachedAt` INTEGER NOT NULL, `FileSize` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "SongId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localPath",
+            "columnName": "LocalPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAt",
+            "columnName": "CachedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSize",
+            "columnName": "FileSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        }
+      },
+      {
+        "tableName": "ChatMessageRecord",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `Role` TEXT NOT NULL, `Content` TEXT NOT NULL, `Timestamp` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "Id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "Role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "Content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "Timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "Id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ChatMessageRecord_Timestamp",
+            "unique": false,
+            "columnNames": [
+              "Timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ChatMessageRecord_Timestamp` ON `${TABLE_NAME}` (`Timestamp`)"
+          }
+        ]
+      },
+      {
+        "tableName": "MigrationFlag",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`Name` TEXT NOT NULL, `Value` TEXT, PRIMARY KEY(`Name`))",
+        "fields": [
+          {
+            "fieldPath": "name",
+            "columnName": "Name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "Value",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "Name"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1f97e761e38731b40a7d24c5604a1dcb')"
+    ]
+  }
+}
