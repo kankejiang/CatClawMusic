@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>猫爪音乐 · 液态玻璃原型 v2（照 MAUI 结构重做）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   令牌全部取自 MAUI 真值：Resources/Styles/Colors.xaml（深色默认）
+   结构全部取自 Pages/*.xaml —— 不发明产品面
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  /* Colors.xaml */
+  --primary:#FF8FB8; --primary-light:#FFD9E7; --primary-dark:#F56FA0;
+  --accent:#7ED8C3; --like:#FF7AAE;
+  --window:#12151F; --surface:#14FFFFFF; --card:#1AFFFFFF; --card-strong:#2DFFFFFF;
+  --input:#15FFFFFF; --input-border:#2BFFFFFF;
+  --divider:#1FFFFFFF; --stroke:#28FFFFFF; --stroke-strong:#4AFFFFFF;
+  --overlay:#0AFFFFFF; --btn-ov:#12FFFFFF; --glass-btn:#33FFFFFF;
+  --chip-off:#15FFFFFF; --chip-on:#55D6FF; --badge-bg:#14FFFFFF; --badge-stroke:#28FFFFFF;
+  --track:#20FFFFFF;
+  --t1:#F5F7FF; --t2:#C2C8E0; --t3:#8D93B7;
+  --err:#FF6E87; --ok:#63D39E; --warn:#FFBF67;
+
+  /* 玻璃：MAUI 用 BlurHostView BlurRadius=90 + BlurConsumerView TintColor=#8C1C1C25 */
+  --g-blur:24px;        /* 90 设备px ÷ 3.7 缩放 ≈ 24 CSS px */
+  --g-sat:2.6;          /* BlurEngine.cs:23 Saturation=2.6（增艳） */
+  --g-tint:rgba(28,28,37,.55);   /* #8C1C1C25 */
+  --g-stroke:1.5px;
+  --g-r:16px;
+  --g-spec:.5;
+
+  --font:'Open Sans','PingFang SC','HarmonyOS Sans SC','MiSans',system-ui,sans-serif;
+  --mono:'DM Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--font);background:#0A0D14;color:var(--t1);letter-spacing:.005em;overflow-x:hidden}
+
+/* 环境层：让玻璃有东西可透 */
+.amb{position:fixed;inset:-12%;z-index:0;pointer-events:none}
+.amb i{position:absolute;border-radius:50%;mix-blend-mode:screen;filter:blur(10px);animation:dr 30s ease-in-out infinite alternate}
+.amb i:nth-child(1){width:52vw;height:52vw;left:-6vw;top:-8vw;background:radial-gradient(circle,rgba(255,143,184,.55),transparent 62%)}
+.amb i:nth-child(2){width:44vw;height:44vw;right:-4vw;top:10vh;background:radial-gradient(circle,rgba(85,214,255,.34),transparent 64%);animation-delay:-8s}
+.amb i:nth-child(3){width:38vw;height:38vw;left:22vw;bottom:-12vw;background:radial-gradient(circle,rgba(126,216,195,.30),transparent 66%);animation-delay:-16s}
+@keyframes dr{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(3vw,-2vh,0) scale(1.1)}100%{transform:translate3d(-2vw,3vh,0) scale(.95)}}
+.grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.13;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* ══ 玻璃基元：对应 BlurConsumerView（透内容 + 深色着色 + 1.5 描边）══ */
+.g{position:relative;isolation:isolate;border-radius:var(--g-r);
+  background:var(--g-tint);
+  backdrop-filter:blur(var(--g-blur)) saturate(calc(var(--g-sat)*100%));
+  -webkit-backdrop-filter:blur(var(--g-blur)) saturate(calc(var(--g-sat)*100%));
+  border:var(--g-stroke) solid var(--stroke-strong);
+  box-shadow:0 18px 44px -20px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,calc(var(--g-spec)*.4))}
+.g::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.10),transparent 46%)}
+.g-plain{background:var(--card);border:1px solid var(--stroke);backdrop-filter:none;-webkit-backdrop-filter:none}
+
+/* ══ 顶部参数台（定档工具）══ */
+.desk{position:sticky;top:0;z-index:90;margin:16px 20px 0;padding:14px 18px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;--g-r:22px}
+.desk h1{font-size:15px;font-weight:700;margin-right:auto;display:flex;flex-direction:column;gap:3px}
+.desk h1 em{font-style:normal;color:var(--primary)}
+.desk h1 small{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.14em;font-weight:400}
+.kb{display:flex;gap:14px;flex-wrap:wrap}
+.kb label{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--t3);text-transform:uppercase}
+.kb label b{color:var(--accent);font-weight:400}
+input[type=range]{-webkit-appearance:none;width:108px;height:16px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:9px;background:var(--track)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;margin-top:-4.5px;border-radius:50%;background:var(--primary-light);box-shadow:0 2px 6px rgba(0,0,0,.6)}
+.ps{display:flex;gap:6px}
+.p{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:99px;color:var(--t2);cursor:pointer;border:1px solid var(--stroke);background:var(--chip-off)}
+.p.on{color:#0C1220;background:var(--chip-on);border-color:transparent}
+.cpy{font-family:var(--mono);font-size:11px;color:var(--accent);padding:7px 11px;border-radius:99px;cursor:pointer;border:1px solid rgba(126,216,195,.3);background:rgba(126,216,195,.08)}
+
+/* ══ 展台 ══ */
+.stage{position:relative;z-index:2;display:flex;gap:30px;padding:28px 20px 56px;overflow-x:auto;scroll-snap-type:x proximity;align-items:flex-start}
+.stage::-webkit-scrollbar{height:8px}.stage::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:8px}
+.u{scroll-snap-align:center;flex:0 0 auto;display:flex;flex-direction:column;gap:10px}
+.u>span{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--t3);padding-left:4px}
+.u>span b{color:var(--primary);font-weight:500}
+
+/* ══ 手机壳 ══ */
+.ph{width:376px;height:800px;border-radius:46px;padding:10px;position:relative;
+  background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.02) 42%,rgba(255,255,255,.10));
+  box-shadow:0 46px 90px -34px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.3)}
+.sc{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;isolation:isolate;
+  background:linear-gradient(180deg,#232838,#1C2230 30%,#171B27 70%,#252B3D)}
+.sc>.fog{position:absolute;inset:-18%;z-index:0;opacity:.5}
+.sc>.fog i{position:absolute;border-radius:50%;mix-blend-mode:screen;filter:blur(6px)}
+.sc>.fog i:nth-child(1){width:78%;height:44%;left:-16%;top:-4%;background:radial-gradient(circle,rgba(255,143,184,.5),transparent 62%)}
+.sc>.fog i:nth-child(2){width:70%;height:40%;right:-18%;bottom:2%;background:radial-gradient(circle,rgba(85,214,255,.34),transparent 64%)}
+.st{position:absolute;top:0;left:0;right:0;height:40px;z-index:60;display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px;font-family:var(--mono);font-size:11px;color:var(--t2);pointer-events:none}
+.pg{position:absolute;inset:0;z-index:10;display:flex;transition:transform .5s cubic-bezier(.22,.9,.18,1)}
+.pw{position:relative;flex:0 0 100%;width:100%;min-width:0;height:100%;overflow:hidden;display:flex;flex-direction:column}
+.scroll{position:relative;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:44px 0 0}
+.scroll::-webkit-scrollbar{display:none}
+
+/* ══ 底部 TabBar + MiniPlayer（MAUI：悬浮胶囊，播放/歌词页隐藏）══ */
+.bar{position:absolute;left:18px;right:18px;z-index:70;display:flex;flex-direction:column;gap:2px}
+.bar.tab{bottom:4px}
+.bar.mini{bottom:2px}
+.tab{padding:6px 4px;--g-r:16px;display:grid;grid-template-columns:repeat(4,1fr)}
+.tab .t{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0 6px;border-radius:12px;margin:0 4px;cursor:pointer;
+  color:var(--t3);transition:.24s}
+.tab .t svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab .t i{font-style:normal;font-size:10px;font-weight:600;letter-spacing:.02em}
+.tab .t:hover{color:var(--t2)}
+.tab .t.on{color:var(--primary);background:rgba(255,143,184,.13)}
+.mini{padding:0;--g-r:12px;height:52px;overflow:hidden;display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:12px;
+  padding:0 12px;cursor:pointer}
+.mini .cv{width:36px;height:36px;border-radius:9px;background:linear-gradient(150deg,var(--primary-light),var(--primary-dark));display:grid;place-items:center;
+  font-weight:700;color:#fff;font-size:14px}
+.mini .tx{min-width:0}
+.mini .tx b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .tx span{display:block;font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini svg{width:20px;height:20px;stroke:var(--t1);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;cursor:pointer}
+.mini .pp svg{width:26px;height:26px;stroke-width:1.6}
+.mini .pr{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--track)}
+.mini .pr i{position:absolute;inset:0 auto 0 0;width:34%;background:var(--primary)}
+
+/* ══ 通用小组件 ══ */
+.hd{display:flex;align-items:flex-start;gap:12px;padding:6px 18px 10px}
+.hd h2{font-size:30px;font-weight:700;line-height:1.1;letter-spacing:-.02em}
+.hd .sub{font-size:13px;color:var(--t2);margin-top:4px;line-height:1.4}
+.hd .acts{margin-left:auto;display:flex;gap:10px;padding-top:6px}
+.gi{width:44px;height:44px;border-radius:16px;display:grid;place-items:center;cursor:pointer;position:relative;
+  background:var(--glass-btn);border:1px solid var(--stroke);box-shadow:0 6px 14px -6px rgba(0,0,0,.5)}
+.gi svg{width:22px;height:22px;stroke:var(--t1);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sec{display:flex;align-items:baseline;justify-content:space-between;padding:16px 18px 8px}
+.sec h3{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.sec .more{font-size:12px;color:var(--t3);cursor:pointer}
+.sec .badge{font-family:var(--mono);font-size:10px;color:var(--accent);padding:2px 8px;border-radius:999px;background:var(--badge-bg);border:1px solid var(--badge-stroke)}
+.row{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-radius:14px}
+.row+.row{box-shadow:inset 0 1px 0 var(--divider)}
+.row .th{width:46px;height:46px;border-radius:10px;background:var(--input);display:grid;place-items:center;font-weight:700;color:#fff;flex:0 0 auto;overflow:hidden}
+.row .tx{min-width:0;flex:1}
+.row .tx b{display:block;font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tx span{display:block;font-size:12px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .dur{font-family:var(--mono);font-size:11.5px;color:var(--t3)}
+.row .dot{color:var(--t3);font-size:17px;padding:0 4px}
+.chips{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:0 18px 12px}
+.ch{padding:10px 0;border-radius:26px;text-align:center;font-size:14px;font-weight:700;color:var(--t2);cursor:pointer;
+  background:var(--card);border:1px solid var(--stroke)}
+.ch.on{color:#08131A;background:var(--chip-on);border-color:transparent}
+.hcard{display:flex;flex-direction:column;justify-content:space-between;padding:11px;border-radius:16px;height:130px;width:130px;flex:0 0 auto;
+  border:1px solid rgba(255,255,255,.10);box-shadow:0 10px 24px -12px rgba(0,0,0,.7)}
+.hcard .tag{align-self:flex-start;font-size:8px;font-weight:700;letter-spacing:.14em;color:#fff;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.19)}
+.hcard b{font-size:14px;font-weight:600;color:#fff;line-height:1.25}
+.hcard span{font-size:9px;color:rgba(255,255,255,.8);line-height:1.3}
+.hcard .pl{width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,.31);display:grid;place-items:center;align-self:flex-end}
+.hcard .pl svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2}
+.hrow{display:flex;gap:10px;overflow-x:auto;padding:0 14px 4px;scrollbar-width:none}
+.hrow::-webkit-scrollbar{display:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.acard{border-radius:18px;overflow:hidden;background:var(--overlay);border:1px solid var(--stroke)}
+.acard .im{height:96px;border-radius:18px 18px 0 0}
+.acard .tx{padding:8px 10px 10px}
+.acard b{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acard span{display:block;font-size:10px;color:var(--t3);margin-top:2px}
+
+/* ══ 播放页（NowPlayingPage：Auto,*,Auto）══ */
+.np{padding:38px 24px 14px;display:flex;flex-direction:column;height:100%}
+.np .top{display:flex;align-items:center;gap:12px;height:40px}
+.np .top .tx{min-width:0}
+.np .top b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np .top span{display:block;font-size:11px;color:var(--t2);opacity:.9}
+.np .top .cl{margin-left:auto;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;cursor:pointer}
+.np .top .cl svg{width:22px;height:22px;stroke:var(--t1);fill:none;stroke-width:1.8;stroke-linecap:round}
+.np .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:0}
+.cov{position:relative;width:236px;height:236px;flex:0 0 auto}
+.cov .glow{position:absolute;inset:-14px;border-radius:32px;opacity:.35;transform:scale(1.08) translateY(8px);filter:blur(26px);
+  background:linear-gradient(135deg,var(--primary),var(--accent))}
+.cov .im{position:absolute;inset:0;border-radius:28px;border:1px solid rgba(255,255,255,.19);overflow:hidden;
+  background:linear-gradient(150deg,var(--primary-light),var(--primary) 55%,var(--primary-dark));display:grid;place-items:center;
+  box-shadow:0 26px 60px -24px rgba(0,0,0,.8)}
+.cov .im b{font-size:74px;color:#fff;font-weight:700;opacity:.94;text-shadow:0 8px 26px rgba(150,50,95,.5)}
+.np .ly{width:100%;max-width:270px;text-align:center;display:flex;flex-direction:column;gap:8px;padding:8px 0}
+.np .ly p{font-size:13px;color:var(--t3);line-height:1.45}
+.np .ly p.on{font-size:15px;font-weight:700;color:#fff}
+.np .ly p.on b{color:var(--primary);font-weight:700}
+.np .bot{display:flex;flex-direction:column;gap:6px}
+.np .fm{display:flex;align-items:center;gap:8px}
+.np .fm .chip{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#fff;padding:6px 12px;border-radius:14px;background:rgba(255,255,255,.19)}
+.np .fm .lk{margin-left:auto;width:36px;height:36px;border-radius:18px;display:grid;place-items:center;cursor:pointer;background:var(--btn-ov)}
+.np .fm .lk svg{width:18px;height:18px;stroke:var(--like);fill:none;stroke-width:1.9}
+.sld{position:relative;height:24px;display:flex;align-items:center}
+.sld .tk{position:absolute;left:0;right:0;height:5px;border-radius:99px;background:var(--track)}
+.sld .fl{position:absolute;left:0;height:5px;border-radius:99px;background:var(--primary);width:34%}
+.sld .tb{position:absolute;left:34%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.55)}
+.tms{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.7)}
+.ctrl{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;height:80px}
+.ctrl .b{justify-self:center;display:grid;place-items:center;cursor:pointer;border-radius:50%;background:transparent}
+.ctrl .b svg{stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ctrl .s40{width:40px;height:40px}.ctrl .s40 svg{width:20px;height:20px}
+.ctrl .s52{width:52px;height:52px}.ctrl .s52 svg{width:26px;height:26px}
+.ctrl .big{width:73px;height:73px;background:radial-gradient(circle at 50% 34%,rgba(255,255,255,.22),rgba(255,255,255,.05));
+  border:1px solid var(--stroke-strong);box-shadow:0 14px 34px -14px rgba(255,143,184,.85),inset 0 1px 0 rgba(255,255,255,.4)}
+.ctrl .big svg{width:30px;height:30px;fill:#fff;stroke:none}
+.tools{display:grid;grid-template-columns:repeat(6,1fr);margin:2px 8px 0}
+.tools .b{justify-self:center;width:33px;height:33px;border-radius:16px;display:grid;place-items:center;cursor:pointer}
+.tools .b svg{width:17px;height:17px;stroke:var(--t2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tools .b:hover{background:var(--btn-ov)}
+.tools .b.on svg{stroke:var(--primary)}
+
+/* ══ 全屏歌词（HeroCard + 当前行钉在 1/3）══ */
+.hero{margin:8px 16px 6px;padding:8px 12px;border-radius:28px;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:12px;
+  background:linear-gradient(135deg,rgba(122,85,214,.55),rgba(77,126,216,.45) 40%,rgba(126,216,195,.5));border:1px solid var(--stroke-strong)}
+.hero .cv{width:40px;height:40px;border-radius:10px;background:linear-gradient(150deg,var(--primary-light),var(--primary-dark));
+  display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff;cursor:pointer}
+.hero .tx{min-width:0}
+.hero .tx b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .tx span{display:block;font-size:12px;color:#F3F5FF;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .bdg{font-size:10px;color:#fff;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.14)}
+.hero .cf{width:36px;height:36px;border-radius:18px;display:grid;place-items:center;background:rgba(255,255,255,.14);cursor:pointer;font-size:16px}
+.lyx{flex:1;overflow-y:auto;padding:10px 30px;scrollbar-width:none;position:relative;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 12%,#000 86%,transparent)}
+.lyx::-webkit-scrollbar{display:none}
+.lyx p{font-size:19px;font-weight:700;line-height:1.4;color:rgba(245,247,255,.22);padding:7px 0;letter-spacing:-.01em}
+.lyx p.on{color:#fff;text-shadow:0 0 30px rgba(255,143,184,.35)}
+.lyx p.on em{font-style:normal;color:var(--primary)}
+.lyx p.tr{font-size:12px;font-weight:400;color:rgba(194,200,224,.3);padding:0 0 8px;letter-spacing:0}
+.gbadge{margin:0 20px 14px;padding:6px 12px;border-radius:999px;text-align:center;font-size:14px;color:var(--t2);
+  background:var(--badge-bg);border:1px solid var(--badge-stroke)}
+
+/* ══ 队列页 ══ */
+.qtop{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px;padding:8px 8px 8px 12px;margin-top:36px}
+.qtop .bk{width:40px;height:40px;display:grid;place-items:center;cursor:pointer;border-radius:12px}
+.qtop .bk svg{width:20px;height:20px;stroke:var(--t1);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.qtop .tx b{display:block;font-size:17px;font-weight:600}
+.qtop .tx span{display:block;font-size:12px;color:var(--t3)}
+.qrow{display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:10px;height:56px;padding:0 14px;cursor:pointer;border-radius:14px}
+.qrow+.qrow{box-shadow:inset 0 1px 0 var(--divider)}
+.qrow .ind{width:16px;display:grid;place-items:center}
+.qrow .ind svg{width:14px;height:14px;fill:var(--primary);stroke:none}
+.qrow .tx{min-width:0}
+.qrow .tx b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .tx span{display:block;font-size:12px;color:var(--t2);margin-top:1px;white-space:nowrap;overflow:hidden;text-text:ellipsis;text-overflow:ellipsis}
+.qrow.cur .tx b{color:var(--primary);font-weight:700}
+.qrow .rm{width:32px;height:32px;border-radius:16px;display:grid;place-items:center;cursor:pointer}
+.qrow .rm svg{width:14px;height:14px;stroke:var(--t3);fill:none;stroke-width:2;stroke-linecap:round}
+.qrow:hover{background:var(--overlay)}
+
+/* ══ 音乐库 ══ */
+.lhero{margin:6px 18px 0;padding:20px 22px;border-radius:24px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,143,184,.4),rgba(255,217,168,.26));border:1px solid var(--stroke)}
+.lhero h3{font-size:22px;font-weight:700}
+.lhero p{font-size:12.5px;color:var(--t2);margin-top:4px}
+.lhero .st4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.lhero .st{padding:10px 8px;border-radius:16px;background:var(--glass-btn);border:1px solid var(--stroke);cursor:pointer}
+.lhero .st b{display:block;font-size:18px;font-weight:700}
+.lhero .st span{display:block;font-size:11px;color:var(--t3);margin-top:2px}
+.card{margin:14px 18px 0;padding:14px 16px;border-radius:22px;background:var(--card);border:1px solid var(--stroke)}
+.card .ch{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.card .ch b{font-size:16px;font-weight:700}
+.lrow{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;padding:12px 0}
+.lrow+.lrow{box-shadow:inset 0 1px 0 var(--divider)}
+.lrow .ic{width:50px;height:50px;border-radius:15px;display:grid;place-items:center}
+.lrow .ic svg{width:25px;height:25px;stroke:#fff;fill:none;stroke-width:1.8}
+.lrow .tx{min-width:0}
+.lrow .tx .l1{display:flex;align-items:center;gap:8px}
+.lrow .tx .l1 b{font-size:15px;font-weight:700}
+.pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px}
+.lrow .tx span{display:block;font-size:12px;color:var(--t3);margin-top:3px}
+.lrow .ar{width:34px;height:34px;border-radius:11px;background:var(--btn-ov);display:grid;place-items:center}
+.lrow .ar svg{width:16px;height:16px;stroke:var(--t2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.donut{width:132px;height:132px;border-radius:50%;margin:4px auto;position:relative;
+  background:conic-gradient(var(--primary) 0 46%,var(--accent) 46% 71%,var(--chip-on) 71% 89%,var(--t3) 89% 100%)}
+.donut::after{content:'';position:absolute;inset:26px;border-radius:50%;background:#1B2030}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--t2)}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-1px}
+.bars{display:flex;flex-direction:column;gap:11px;margin-top:4px}
+.bars .b{display:grid;grid-template-columns:1fr 70px;gap:10px;align-items:center;font-size:12.5px;color:var(--t2)}
+.bars .b .tk{height:8px;border-radius:99px;background:var(--track);overflow:hidden}
+.bars .b .tk i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),var(--accent))}
+.bars .b .vv{font-family:var(--mono);font-size:11px;color:var(--t3);text-align:right}
+.big26{font-size:26px;font-weight:700;letter-spacing:-.02em}
+
+/* ══ 设置 ══ */
+.shero{margin:8px 16px 4px;padding:14px 14px 14px 58px;border-radius:28px;position:relative;
+  background:linear-gradient(135deg,rgba(122,85,214,.5),rgba(77,126,216,.4) 45%,rgba(126,216,195,.45));border:1px solid var(--stroke-strong)}
+.shero .bk{position:absolute;left:10px;top:10px;width:40px;height:40px;border-radius:14px;display:grid;place-items:center;cursor:pointer;background:rgba(0,0,0,.16)}
+.shero .bk svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.shero h3{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.shero p{font-size:14px;color:rgba(243,245,255,.86);margin-top:4px;line-height:1.45}
+.shero .dm{position:absolute;right:12px;top:12px;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;cursor:pointer;
+  background:rgba(255,255,255,.13);border:1px solid var(--stroke)}
+.shero .dm svg{width:28px;height:28px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round}
+.sh{display:flex;align-items:center;gap:8px;padding:14px 4px 6px}
+.sh .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:12px}
+.sh b{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--t3)}
+.si{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:12px 14px;margin-bottom:10px;border-radius:26px;cursor:pointer;
+  background:var(--card);border:1px solid var(--stroke)}
+.si .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center}
+.si .ic svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.si .tx b{display:block;font-size:15px;font-weight:600}
+.si .tx span{display:block;font-size:12px;color:var(--t3);margin-top:2px}
+.si .ar{display:flex;align-items:center;gap:8px}
+.si .ar svg{width:16px;height:16px;stroke:var(--t3);opacity:.4;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rd{width:8px;height:8px;border-radius:4px;background:var(--err)}
+.sw{width:42px;height:25px;border-radius:99px;background:rgba(255,255,255,.16);position:relative;display:inline-block;vertical-align:middle;flex:0 0 auto;transition:.28s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:.28s cubic-bezier(.2,.9,.2,1);box-shadow:0 2px 5px rgba(0,0,0,.45)}
+.sw.on{background:linear-gradient(90deg,var(--accent),#4FB79E)}
+.sw.on::after{left:20px}
+
+.note{position:relative;z-index:2;margin:0 20px 56px;padding:20px 22px;--g-r:22px;display:flex;flex-wrap:wrap;gap:20px 44px}
+.note h6{font-size:13px;font-weight:700;margin-bottom:8px}
+.note p{font-size:12.5px;color:var(--t2);line-height:1.8;max-width:52ch}
+.note code{font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(126,216,195,.1);padding:1px 5px;border-radius:5px}
+.note .fix{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="amb"><i></i><i></i><i></i></div><div class="grain"></div>
+
+<header class="desk g">
+  <h1>猫爪音乐 <em>液态玻璃</em> v2<small>MAUI-FAITHFUL · 7 SCREENS</small></h1>
+  <div class="kb">
+    <label>模糊 <b id="o-b">24px</b><input type="range" id="i-b" min="4" max="60" value="24"></label>
+    <label>增艳 <b id="o-s">2.6</b><input type="range" id="i-s" min="100" max="400" value="260"></label>
+    <label>着色 α <b id="o-t">.55</b><input type="range" id="i-t" min="0" max="90" value="55"></label>
+    <label>描边亮 <b id="o-p">.50</b><input type="range" id="i-p" min="0" max="100" value="50"></label>
+    <label>圆角 <b id="o-r">16px</b><input type="range" id="i-r" min="8" max="30" value="16"></label>
+  </div>
+  <div class="ps">
+    <button class="p" data-p="0">MAUI 原值</button>
+    <button class="p on" data-p="1">推荐</button>
+    <button class="p" data-p="2">更透</button>
+    <button class="cpy" id="cpy">复制参数</button>
+  </div>
+</header>
+
+<main class="stage" id="stage"></main>
+
+<section class="note g">
+  <div>
+    <h6>v1 → v2 改的是「照不照你的程序」</h6>
+    <p>· <span class="fix">播放队列移出播放页</span>，改回独立页 <code>NowPlayingQueuePage</code>（Title=播放列表），入口是控制行最右那个图标；行内容 = 播放指示 + 歌名 + 歌手 + 移除，<b>没有序号也没有时长</b>（v1 那些是我编的）。<br>
+    · <span class="fix">播放/暂停改成图标</span>，尺寸按 XAML：模式 40 / 上一首 52 / <b>播放 73</b> / 下一首 52 / 队列 40，下面再一排 6 个 33×33 次要图标。<br>
+    · <span class="fix">TabBar 在播放页与全屏歌词页隐藏</span>（MAUI：<code>_currentIndex &lt;= 1</code> 时收起），其余页显示悬浮胶囊 + MiniPlayer。<br>
+    · <span class="fix">玻璃着色改成 <code>#8C1C1C25</code></span>（BlurConsumerView.TintColor），v1 我用了粉色着色 —— 那是错的。<br>
+    · 播放页不再有「桌面歌词：关」这种文字开关：Android 端它在 <b>设置 → 桌面歌词设置</b> 里。</p>
+  </div>
+  <div>
+    <h6>颜色/圆角全部取自 Colors.xaml 与 Styles.xaml</h6>
+    <p>页底渐变 <code>#232838→#1C2230→#171B27→#252B3D</code>；卡片 <code>#1AFFFFFF</code>；描边 <code>#28FFFFFF</code> / 强 <code>#4AFFFFFF</code>；主色 <code>#FF8FB8</code>；强调 <code>#7ED8C3</code>；选中 Chip <code>#55D6FF</code>；文字三级 <code>#F5F7FF / #C2C8E0 / #8D93B7</code>。<br>
+    GlassCard 圆角 26 / Padding 16；GlassInput 圆角 22 高 52；GlassIcon 44×44 圆角 16；标题字体 Open Sans Semibold —— 与 MAUI 一致。</p>
+  </div>
+  <div>
+    <h6>定档要拍的三件事</h6>
+    <p>① 玻璃强度：MAUI 原值是 <code>blur 90 设备px + tint #8C1C1C25</code>，滑杆拖到「MAUI 原值」可对照；② 折射/边缘高光要不要（Compose 侧要自绘，成本最高）；③ 哪些面用玻璃：TabBar/MiniPlayer 必用，列表卡要不要用（MAUI 是半透明实色 <code>#1AFFFFFF</code>，不是真模糊）。</p>
+  </div>
+</section>
+
+<script>
+/* ── 图标：MAUI 用的是 ic_* 资源，这里画等价 SVG ───────────────── */
+const I={
+ play:'<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="#fff" stroke="none"/></svg>',
+ pause:'<svg viewBox="0 0 24 24"><rect x="7" y="5" width="3.4" height="14" rx="1.7" fill="#fff" stroke="none"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.7" fill="#fff" stroke="none"/></svg>',
+ prev:'<svg viewBox="0 0 24 24"><path d="M18 6v12M15 12l-8 6V6z"/></svg>',
+ next:'<svg viewBox="0 0 24 24"><path d="M6 6v12M9 12l8-6v12z"/></svg>',
+ mode:'<svg viewBox="0 0 24 24"><path d="M4 8h11a3 3 0 0 1 3 3M20 8l-2-2M20 8l-2 2M20 16H9a3 3 0 0 1-3-3M4 16l2 2M4 16l2-2"/></svg>',
+ list:'<svg viewBox="0 0 24 24"><path d="M4 7h11M4 12h11M4 17h7M17 17.5V11l4 1.2"/></svg>',
+ lyric:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 11h12M4 16h9"/><circle cx="18" cy="16" r="2.4"/></svg>',
+ timer:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13M9.5 3.5h5"/></svg>',
+ info:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.4"/></svg>',
+ eq:'<svg viewBox="0 0 24 24"><path d="M6 5v14M12 5v14M18 5v14M4 9h4M10 15h4M16 8h4"/></svg>',
+ rot:'<svg viewBox="0 0 24 24"><path d="M4 9V6a2 2 0 0 1 2-2h3M20 15v3a2 2 0 0 1-2 2h-3M8 20H6a2 2 0 0 1-2-2v-3M16 4h2a2 2 0 0 1 2 2v3"/></svg>',
+ more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" fill="#fff"/><circle cx="12" cy="12" r="1.5" fill="#fff"/><circle cx="19" cy="12" r="1.5" fill="#fff"/></svg>',
+ down:'<svg viewBox="0 0 24 24"><path d="M6 10l6 6 6-6"/></svg>',
+ back:'<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+ fwd:'<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+ close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+ search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
+ refresh:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2M20 4v4h-4"/></svg>',
+ gear:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6L6 18"/></svg>',
+ add:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+ home:'<svg viewBox="0 0 24 24"><path d="M4 11l8-6.5 8 6.5v8a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 19z"/></svg>',
+ pl:'<svg viewBox="0 0 24 24"><path d="M4 6h9M4 11h9M4 16h6M16 8v9M19 14.5c-2 0-3-1-3-2.5s1-2.5 3-2.5 3 1 3 2.5V17a3 3 0 0 1-3 3"/></svg>',
+ lib:'<svg viewBox="0 0 24 24"><path d="M4 20V7a2 2 0 0 1 2-2h3M9 20V5M14 20l3.5-14 3 .8L17 20"/></svg>',
+ moon:'<svg viewBox="0 0 24 24"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.4 6.4 0 0 0 9.5 9.5z"/></svg>',
+ heart:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-9.3A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.7C19 15.6 12 20 12 20z"/></svg>',
+ folder:'<svg viewBox="0 0 24 24"><path d="M4 8V6h5l2 2h9v11H4z"/></svg>',
+ plug:'<svg viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg>',
+ lock:'<svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>',
+ check:'<svg viewBox="0 0 24 24"><path d="M5 13l4 4 10-10"/></svg>',
+ edit:'<svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z"/></svg>',
+ send:'<svg viewBox="0 0 24 24"><path d="M4 12l16-7-6 16-2.5-6z"/></svg>',
+};
+/* ── 数据：文案与统计值取自真机（616 曲 / 359 艺术家 / 537 专辑）── */
+const SONGS=[['星河万里','Rom邢锐',212],['离人赋','楚林',222],['腐草为萤','银临',280],['杏花弦外雨','iRia · 流月',237],['花香','许绍洋',268],['最后一页','杨丞琳',245],['平生不晚','难却',186],['半生雪','是七叔呢',213]];
+const QUEUE=[['星河万里','Rom邢锐'],['离人赋','楚林'],['腐草为萤','银临'],['杏花弦外雨','iRia · 流月'],['花香','许绍洋'],['最后一页','杨丞琳'],['平生不晚','难却'],['半生雪','是七叔呢'],['踏山河','是七叔呢'],['归去来兮'],['牵丝戏'],['赤伶']];
+const LYR=[['我听见星河在流动',0],['落进你走过的夜风',0],['把还没有说完的话',0],['留给后来的钟声',1],['若有一天你先老去',0],['请把我的名字念一遍',0],['星河万里 不如你回头一眼',0],['我就站在这里 不远的地方',0]];
+const HERO=[['AI 助手','🐾 和 Yuki 聊聊','找歌、推荐、聊天都可以','#667eea','#764ba2'],['每日推荐','星河万里','Rom邢锐 · 星河万里','#FF8FB8','#F56FA0'],['最多播放','离人赋','楚林 · 国风收藏','#7ED8C3','#2E7C93'],['我的最爱','腐草为萤','银临 · 短歌行','#55D6FF','#4A6CF0'],['随机播放','杏花弦外雨','iRia · 流月','#FFBF67','#FF5C8A']];
+const CATS=['推荐','排行','歌手','专辑','统计'];
+const PLAYLISTS=[['我喜欢的','42 首歌曲','#FF5C8A','#FF7AAE'],['深夜自习室','18 首歌曲','#7A6CF0','#A78BFA'],['国风收藏','31 首歌曲','#1E9FE0','#55D6FF'],['跑步歌单','56 首歌曲','#6250F6','#8C7BFF'],['猫爪电台','7 首歌曲','#5A6280','#8D93B7']];
+const SET1=[['外观与个性化','主题颜色、启动页设置','#C4B5FD',I.edit],['桌面歌词设置','悬浮显示歌词、逐字高亮、拖动定位','#42A5F5',I.lyric],['本地音乐','616 首 · 359 艺术家','#26A69A',I.folder],['远程音乐服务','2 个服务器已连接','#42A5F5',I.search],['插件管理','3 个已安装','#FF7043',I.plug],['AI 设置','deepseek-chat 就绪','#E84393',I.play]];
+const SET2=[['权限管理','全部已授予','#F44336',I.lock],['通用设置','通用行为、播放偏好与系统选项','#8D93B7',I.gear],['备份与恢复','备份、恢复、管理备份文件','#26A69A',I.folder,1],['诊断日志','开启后实时记录运行日志','#8D93B7',I.info,0,1],['关于','版本信息、开源协议、交流群','#C4B5FD',I.check,1]];
+const LIBS=[['本地曲库','616 首 · 已扫描','#6250F6','#8C7BFF','ok','已连接'],
+           ['Navidrome（家里）','Subsonic · 1 284 首','#1E9FE0','#55D6FF','on','在线'],
+           ['OpenList 网盘','WebDAV · 892 首','#FF5C8A','#FF7AAE','sync','同步中'],
+           ['SMB 共享','NTLM · 未连接','#5A6280','#8D93B7','off','离线']];
+const PILL={ok:['#1E7AF0C8','#7AF0C8'],on:['#1E55D6FF','#55D6FF'],sync:['#1EFFB36B','#FFB36B'],off:['#1E8D93B7','#8D93B7']};
+const mm=t=>Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+
+function tabbar(active){return `<div class="bar tab g"><div class="grid" style="display:contents">
+  ${[['play','播放',1],['home','发现',2],['pl','歌单',3],['lib','音乐库',4]].map(([i,l,idx])=>
+  `<div class="t${active===idx?' on':''}" data-go="${idx}">${I[i]}<i>${l}</i></div>`).join('')}</div></div>`}
+function mini(){return `<div class="bar mini g" data-go="1"><span class="cv">星</span>
+  <span class="tx"><b>星河万里</b><span>Rom邢锐</span></span>
+  <span>${I.prev}</span><span class="pp">${I.pause}</span><span>${I.next}</span><span class="pr"><i></i></span></div>`}
+
+/* ── 七个页面（顺序 = ViewPager：歌词0 播放1 发现2 歌单3 库4；队列与设置为推入页）── */
+function body(i){
+ if(i===0) return `<div class="pw" data-p="0" style="padding-top:36px">
+   <div class="hero"><span class="cv">星</span><span class="tx"><b>星河万里</b><span>Rom邢锐</span></span><span class="bdg">LRC</span><span class="cf">⚙</span></div>
+   <div class="lyx">${LYR.map(([t,on])=>`<p class="${on?'on':''}">${on?t.replace('后来','<em>后来</em>'):t}</p>`).join('')}</div>
+   <div class="gbadge">点任意处回到播放页</div></div>`;
+
+ if(i===1) return `<div class="pw" data-p="1"><div class="np">
+   <div class="top"><span class="tx"><b>星河万里</b><span>Rom邢锐</span></span><span class="cl">${I.down}</span></div>
+   <div class="mid">
+     <div class="cov"><span class="glow"></span><span class="im"><b>星</b></span></div>
+     <div class="ly"><p>把还没有说完的话</p><p class="on">留给<b>后来</b>的钟声</p><p>若有一天你先老去</p></div>
+   </div>
+   <div class="bot">
+     <div class="fm"><span class="chip">FM ${I.play}</span><span style="font-size:11px;color:var(--t3)">随机电台</span><span class="lk">${I.heart}</span></div>
+     <div class="sld"><span class="tk"></span><span class="fl"></span><span class="tb"></span></div>
+     <div class="tms"><span>01:12</span><span>03:32</span></div>
+     <div class="ctrl">
+       <span class="b s40">${I.mode}</span><span class="b s52">${I.prev}</span>
+       <span class="b big">${I.play}</span>
+       <span class="b s52">${I.next}</span><span class="b s40" data-go="q">${I.list}</span></div>
+     <div class="tools">${[I.lyric,I.timer,I.info,I.eq,I.rot,I.more].map((s,k)=>`<span class="b${k===0?' on':''}">${s}</span>`).join('')}</div>
+   </div></div></div>`;
+
+ if(i===2) return `<div class="pw" data-p="2"><div class="scroll">
+   <div class="hd"><div><h2>发现</h2><p class="sub">晚上好，为你精选今日好歌</p></div>
+     <div class="acts"><span class="gi">${I.search}</span><span class="gi">${I.refresh}</span><span class="gi" data-go="s">${I.gear}</span></div></div>
+   <div class="chips">${CATS.map((c,k)=>`<div class="ch${k===0?' on':''}">${c}</div>`).join('')}</div>
+   <div class="hrow">${HERO.map(h=>`<div class="hcard" style="background:linear-gradient(150deg,${h[3]},${h[4]})">
+     <span class="tag">${h[0]}</span><div><b>${h[1]}</b><span>${h[2]}</span></div><span class="pl">${I.play}</span></div>`).join('')}</div>
+   <div class="sec"><h3>推荐专辑</h3><span class="more">查看全部 ›</span></div>
+   <div class="grid2">${[['国风·短歌行','银临'],['星河万里','Rom邢锐'],['花间集','iRia'],['听雪','楚林']].map(a=>
+     `<div class="acard"><div class="im" style="background:linear-gradient(140deg,var(--primary),var(--primary-dark))"></div>
+      <div class="tx"><b>${a[0]}</b><span>${a[1]}</span></div></div>`).join('')}</div>
+   <div class="sec"><h3>每日推荐</h3><span class="more">换一批 ↻</span></div>
+   <div class="hrow">${SONGS.slice(0,6).map(s=>`<div class="hcard" style="width:104px;height:150px;background:var(--card-strong)">
+     <div style="height:88px;border-radius:14px 14px 0 0;background:linear-gradient(150deg,var(--accent),#2E7C93)"></div>
+     <b style="font-size:11px;color:var(--t1)">${s[0]}</b><span style="color:var(--t3)">${s[1]}</span></div>`).join('')}</div>
+   <div class="sec"><h3>推荐艺人</h3><span class="more">查看全部 ›</span></div>
+   <div class="hrow">${['银临','楚林','Rom邢锐','iRia','许绍洋','杨丞琳'].map(n=>
+     `<div style="flex:0 0 auto;width:74px;text-align:center"><div style="width:66px;height:66px;border-radius:33px;margin:0 auto;background:linear-gradient(150deg,var(--primary-light),var(--primary-dark))"></div>
+      <div style="font-size:11.5px;margin-top:6px">${n}</div><div style="font-size:9.5px;color:var(--t3)">华语</div></div>`).join('')}</div>
+   <div style="height:120px"></div></div>${mini()}${tabbar(2)}`;
+
+ if(i===3) return `<div class="pw" data-p="3"><div class="scroll">
+   <div class="hero" style="grid-template-columns:1fr auto;padding:14px">
+     <div><h3 style="font-size:30px;font-weight:700;letter-spacing:-.02em">歌单</h3>
+       <p style="font-size:13px;color:rgba(243,245,255,.8);margin-top:4px;line-height:1.4">收藏、最近播放与自建歌单，一处管理你的音乐集合。</p></div>
+     <span class="gi" style="background:rgba(255,255,255,.15)">${I.add}</span></div>
+   <div class="grid2" style="padding:10px 16px">
+     ${[['我喜欢的',`${SONGS.length} 首 · 收藏歌单`,'#FF5C8A','#FF7AAE',I.heart],['最近播放','24 首 · 播放记录','#7A6CF0','#A78BFA',I.timer]].map(c=>
+     `<div class="g g-plain" style="border-radius:18px;padding:14px;display:flex;gap:12px;align-items:center;--g-r:18px">
+       <span style="width:46px;height:46px;border-radius:14px;background:linear-gradient(140deg,${c[2]},${c[3]});display:grid;place-items:center">
+         <span style="width:22px;height:22px;display:block;stroke:#fff">${c[4].replace('<svg','<svg style="stroke:#fff;fill:none;stroke-width:1.8;width:22px;height:22px"')}</span></span>
+       <span style="min-width:0"><b style="display:block;font-size:14.5px;font-weight:700">${c[0]}</b>
+       <span style="display:block;font-size:11.5px;color:var(--t3);margin-top:2px">${c[1]}</span></span></div>`).join('')}</div>
+   <div class="sec"><h3>自建歌单</h3><span class="badge">${PLAYLISTS.length}</span></div>
+   <div class="card" style="margin:0 16px;padding:4px 12px">
+     ${PLAYLISTS.map(p=>`<div class="qrow" style="grid-template-columns:auto 1fr auto;height:62px">
+       <span style="width:46px;height:46px;border-radius:10px;background:linear-gradient(140deg,${p[2]},${p[3]});display:grid;place-items:center;font-weight:700;color:#fff;font-size:16px">${p[0][0]}</span>
+       <span class="tx"><b style="font-size:14.5px">${p[0]}</b><span>${p[1]}</span></span><span class="dot">⋮</span></div>`).join('')}</div>
+   <div style="height:120px"></div></div>${mini()}${tabbar(3)}`;
+
+ if(i===4) return `<div class="pw" data-p="4"><div class="scroll">
+   <div class="lhero"><span class="gi" style="position:absolute;right:14px;top:14px;width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2)">${I.gear.replace('width:22px;height:22px','')}</span>
+     <h3>我的音乐库</h3><p>本地 + 网络 · 共 4 个资料库</p>
+     <div class="st4">${[['616','歌曲'],['359','艺术家'],['537','专辑'],['41.2','小时']].map(s=>
+       `<div class="st"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('')}</div></div>
+   <div class="card"><div class="ch"><b>资料库</b><span class="pill" style="background:var(--badge-bg);color:var(--accent);border:1px solid var(--badge-stroke)">4</span></div>
+     ${LIBS.map(l=>{const c=PILL[l[4]];return `<div class="lrow">
+       <span class="ic" style="background:linear-gradient(140deg,${l[2]},${l[3]})">${I.folder}</span>
+       <span class="tx"><span class="l1"><b>${l[0]}</b><span class="pill" style="background:${c[0]};color:${c[1]}">${l[5]}</span></span>
+       <span>${l[1]}</span></span><span class="ar">${I.fwd}</span></div>`}).join('')}</div>
+   <div class="card"><div class="ch"><b>数据洞察</b><span class="pill" style="color:var(--accent);background:rgba(126,216,195,.12)">音频格式</span>
+     <span style="margin-left:auto;font-size:11px;color:var(--t3);font-family:var(--mono)">1 / 3</span></div>
+     <div style="display:grid;grid-template-columns:132px 1fr;gap:14px;align-items:center">
+       <div class="donut"></div>
+       <div class="legend">${[['MP3 46%','var(--primary)'],['FLAC 25%','var(--accent)'],['M4A 18%','var(--chip-on)'],['其他 11%','var(--t3)']].map(x=>
+         `<span><i style="background:${x[1]}"></i>${x[0]}</span>`).join('')}</div></div>
+     <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;color:var(--t3);font-size:15px">
+       <span style="width:26px;height:26px;border-radius:999px;background:var(--glass-btn);display:grid;place-items:center">‹</span>
+       <span style="display:flex;gap:5px"><i style="width:6px;height:6px;border-radius:3px;background:var(--primary);display:block"></i><i style="width:6px;height:6px;border-radius:3px;background:var(--track);display:block"></i><i style="width:6px;height:6px;border-radius:3px;background:var(--track);display:block"></i></span>
+       <span style="width:26px;height:26px;border-radius:999px;background:var(--glass-btn);display:grid;place-items:center">›</span></div></div>
+   <div class="card"><div class="ch"><b>存储占用</b><span class="pill" style="background:var(--badge-bg);color:var(--t2);border:1px solid var(--badge-stroke)">本机</span></div>
+     <div class="big26">4.82 GB</div><div style="font-size:12px;color:var(--t3)">音乐文件总大小</div>
+     <div class="bars">${[['MP3',72],['FLAC',48],['M4A',22]].map(b=>`<div class="b"><span class="tk"><i style="width:${b[1]}%"></i></span><span class="vv">${b[0]} ${(b[1]*0.048).toFixed(1)}G</span></div>`).join('')}</div>
+     <div style="height:1px;background:var(--divider);margin:12px 0"></div>
+     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t3)"><span>设备剩余空间</span><b style="color:var(--t2);font-family:var(--mono)">128.4 GB</b></div></div>
+   <div class="card"><div class="ch"><b>最近添加</b><span class="pill" style="background:var(--badge-bg);color:var(--t2);border:1px solid var(--badge-stroke)">本周</span></div>
+     <div class="hrow" style="padding:0">${SONGS.slice(0,5).map(s=>`<div style="flex:0 0 auto;width:92px">
+       <div style="width:92px;height:92px;border-radius:14px;background:linear-gradient(150deg,var(--primary),var(--primary-dark))"></div>
+       <div style="font-size:11px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s[0]}</div>
+       <div style="font-size:9px;color:var(--t3)">${s[1]}</div></div>`).join('')}</div></div>
+   <div style="height:120px"></div></div>${mini()}${tabbar(4)}`;
+
+ if(i===5) return `<div class="pw" data-p="s"><div class="scroll" style="background:linear-gradient(180deg,#232838,#171B27 60%,#252B3D)">
+   <div class="shero"><span class="bk" data-go="2">${I.back}</span><h3>设置</h3>
+     <p>切换主题、管理音乐来源与插件，<br>把猫爪音乐打磨成你喜欢的样子。</p><span class="dm">${I.moon}</span></div>
+   <div style="padding:0 16px">
+     <div class="sh"><span class="ic" style="background:#20B7AEFF;color:var(--primary)">✦</span><b>内容与服务</b></div>
+     ${SET1.map(r=>`<div class="si"><span class="ic" style="background:${r[2]}33">${r[3]}</span>
+       <span class="tx"><b>${r[0]}</b><span>${r[1]}</span></span>
+       <span class="ar">${r[0]==='桌面歌词设置'?'<span style="font-size:10px;color:var(--t3)">Android</span>':''}${I.fwd}</span></div>`).join('')}
+     <div class="sh"><span class="ic" style="background:#2063D39E;color:var(--ok)">⚙</span><b>系统与维护</b></div>
+     ${SET2.map(r=>`<div class="si"><span class="ic" style="background:${r[2]}33">${r[3]}</span>
+       <span class="tx"><b>${r[0]}</b><span>${r[1]}</span></span>
+       <span class="ar">${r[4]?`<span class="sw"></span>`:''}${r[5]?`<span class="rd"></span>`:''}${I.fwd}</span></div>`).join('')}
+   </div><div style="height:26px"></div></div></div>`;
+
+ return `<div class="pw" data-p="q"><div class="scroll" style="padding-top:0">
+   <div class="qtop"><span class="bk" data-go="1">${I.back}</span>
+     <span class="tx"><b>播放列表</b><span>${QUEUE.length} 首歌曲</span></span><span style="width:40px"></span></div>
+   <div style="padding:4px 4px 0">${QUEUE.map((s,k)=>`<div class="qrow${k===0?' cur':''}">
+     <span class="ind">${k===0?I.play:''}</span>
+     <span class="tx"><b>${s[0]}</b><span>${s[1]||''}</span></span>
+     <span class="rm">${I.close}</span></div>`).join('')}</div></div></div>`;
+}
+
+/* ── 生成：0 歌词 / 1 播放 / 2 发现 / 3 歌单 / 4 音乐库 / s 设置 / q 队列 ── */
+const stage=document.getElementById('stage');
+const TITLES=[['02','全屏歌词页'],['01','正在播放页'],['03','发现页'],['04','歌单页'],['05','音乐库页'],['06','设置页'],['07','播放列表页（独立）']];
+const ORDER=['0','1','2','3','4','s','q'];
+ORDER.forEach((key,idx)=>{
+  const u=document.createElement('div');u.className='u';
+  u.innerHTML=`<span><b>${TITLES[idx][0]}</b>${TITLES[idx][1]}</span>`;
+  const ph=document.createElement('div');ph.className='ph';
+  const i = key==='s'?5 : key==='q'?6 : +key;
+  ph.innerHTML=`<div class="sc"><div class="fog"><i></i><i></i></div>
+    <div class="st"><span>17:23</span><span style="font-family:var(--mono)">5G&nbsp;&nbsp;41%</span></div>
+    <div class="pg" style="transform:translateX(0)">${body(i)}</div></div>`;
+  u.appendChild(ph);stage.appendChild(u);
+  const pw=ph.querySelector('.pw');
+  pw.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',ev=>{
+    ev.stopPropagation();const t=el.dataset.go;
+    const target=pw.querySelector(`[data-go="${t}"]`)?.dataset.go||t;
+    // 页内跳转：TabBar 切页 / 队列与设置推入
+    if(['1','2','3','4'].includes(t)) pw.dispatchEvent(new CustomEvent('nav',{detail:t}));
+  }));
+  pw.addEventListener('nav',e=>{
+    const map={'1':1,'2':2,'3':3,'4':4};
+    const n=map[e.detail];if(n===undefined)return;
+    pw.querySelectorAll('.tab .t').forEach(t=>t.classList.toggle('on',t.dataset.go===e.detail));
+  });
+});
+
+/* ── 参数台 ── */
+const R=document.documentElement.style;
+const V={b:24,s:2.6,t:.55,p:.5,r:16};
+function ap(){R.setProperty('--g-blur',V.b+'px');R.setProperty('--g-sat',V.s);
+  R.setProperty('--g-tint',`rgba(28,28,37,${V.t})`);R.setProperty('--g-spec',V.p);R.setProperty('--g-r',V.r+'px');
+  o('o-b',V.b+'px');o('o-s',V.s.toFixed(1));o('o-t','.'+String(Math.round(V.t*100)).padStart(2,'0'));o('o-p',V.p.toFixed(2));o('o-r',V.r+'px');}
+function o(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+[['i-b','b',1],['i-s','s',.01],['i-t','t',.01],['i-p','p',.01],['i-r','r',1]].forEach(([id,k,st])=>{
+  const e=document.getElementById(id);if(e)e.addEventListener('input',ev=>{V[k]=+ev.target.value*st;ap()})});
+const PR=[[24,2.6,.55,.50,16],[20,2.8,.42,.70,18],[13,2.4,.26,.82,20]];
+document.querySelectorAll('.p').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.p').forEach(x=>x.classList.remove('on'));c.classList.add('on');
+  const p=PR[+c.dataset.p];V.b=Math.round(p[0]);V.s=p[1];V.t=p[2];V.p=p[3];V.r=p[4];
+  document.getElementById('i-b').value=V.b;document.getElementById('i-s').value=V.s*100;
+  document.getElementById('i-t').value=V.t*100;document.getElementById('i-p').value=V.p*100;
+  document.getElementById('i-r').value=V.r;ap()}));
+document.getElementById('cpy').addEventListener('click',async e=>{
+  const t=`// 定档值 → Compose\nBLUR_PX   = ${Math.round(V.b*3.7)}f        // CSS ${V.b}px × 3.7\nSATURATION= ${V.s}f\nTINT      = 0x${(Math.round(V.t*255)).toString(16).padStart(2,'0').toUpperCase()}1C1C25\nSTROKE    = #4AFFFFFF 1.5dp\nRADIUS    = ${V.r}.dp`;
+  try{await navigator.clipboard.writeText(t);e.target.textContent='已复制 ✓';setTimeout(()=>e.target.textContent='复制参数',1500)}catch{prompt('复制：',t)}});
+document.addEventListener('pointerdown',e=>{const g=e.target.closest('.g');if(g)g.style.transform='scale(.985)'});
+document.addEventListener('pointerup',e=>document.querySelectorAll('.g').forEach(g=>g.style.transform=''));
+document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>s.classList.toggle('on')));
+document.querySelectorAll('.ch').forEach(c=>c.addEventListener('click',()=>{
+  c.parentElement.querySelectorAll('.ch').forEach(x=>x.classList.remove('on'));c.classList.add('on')}));
+document.querySelectorAll('.tab .t').forEach(t=>t.addEventListener('click',()=>{
+  const w=t.closest('.pw');w.querySelectorAll('.tab .t').forEach(x=>x.classList.remove('on'));t.classList.add('on')}));
+ap();
+</script>
+</body>
+</html>

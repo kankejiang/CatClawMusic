@@ -412,6 +412,10 @@ FodyWeavers.xsd
 # WorkBuddy 本地缓存（截图/脚本，非项目文件）
 .workbuddy/cache/
 
+# 本地验证产物（UI 对拍截图，约 86MB）与 IDE 配置
+/.verify/
+/.idea/
+
 # 上游 VitrumMAUI 参考源码（已集成到项目内，此目录仅作对照）
 vitrum-src/
 
