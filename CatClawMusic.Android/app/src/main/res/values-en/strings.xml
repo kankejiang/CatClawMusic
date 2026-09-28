@@ -170,4 +170,18 @@
     <string name="perm_overlay_desc">Needed to show the desktop lyrics overlay</string>
     <string name="perm_notification_title">Notifications</string>
     <string name="perm_notification_desc">Needed for the playback control notification (Android 13+)</string>
+    <string name="about_tagline">A cat paw that plays music — local, private and online, all sorted for you.</string>
+    <string name="about_edition">Kotlin native edition</string>
+    <string name="about_license">Licenses</string>
+    <string name="about_group">Community</string>
+    <string name="about_check_update">Check for updates</string>
+    <string name="about_checking">Checking for updates…</string>
+    <string name="about_up_to_date">Up to date (%1$s)</string>
+    <string name="about_unreachable">Update server unreachable right now</string>
+    <string name="about_new_version">New version %1$s</string>
+    <string name="about_new_version_title">New version</string>
+    <string name="about_new_version_body">Version %1$s is out.
+
+Download it from GitHub.</string>
+    <string name="about_go_repo">Download</string>
 </resources>

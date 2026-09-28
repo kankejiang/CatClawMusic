@@ -170,4 +170,18 @@
     <string name="perm_overlay_desc">显示桌面歌词悬浮窗所需</string>
     <string name="perm_notification_title">通知权限</string>
     <string name="perm_notification_desc">显示播放控制通知所需（Android 13+）</string>
+    <string name="about_tagline">一只会放音乐的猫爪喵——本地、私域、在线，都给你安排好啦</string>
+    <string name="about_edition">Kotlin 原生版</string>
+    <string name="about_license">开源协议</string>
+    <string name="about_group">交流群</string>
+    <string name="about_check_update">检查更新</string>
+    <string name="about_checking">正在检查更新…</string>
+    <string name="about_up_to_date">已是最新版本 %1$s</string>
+    <string name="about_unreachable">暂时连不上更新服务器</string>
+    <string name="about_new_version">发现新版本 %1$s</string>
+    <string name="about_new_version_title">发现新版本</string>
+    <string name="about_new_version_body">新版本 %1$s 已发布！
+
+请前往 GitHub 下载最新版本。</string>
+    <string name="about_go_repo">去下载</string>
 </resources>
