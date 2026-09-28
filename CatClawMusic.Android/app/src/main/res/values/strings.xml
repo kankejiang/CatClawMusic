@@ -4,11 +4,6 @@
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">未在播放</string>
     <string name="m1_scan_play">扫描并播放</string>
-    <string name="m1_play">▶</string>
-    <string name="m1_pause">❚❚</string>
-    <string name="m1_prev">⏮</string>
-    <string name="m1_next">⏭</string>
-    <string name="m1_queue_count">队列 %1$d 首</string>
     <string name="queue_title">播放列表</string>
     <string name="queue_songs">%1$d 首歌曲</string>
     <string name="queue_empty">队列为空</string>
@@ -49,8 +44,6 @@
     <string name="disc_albums_rec">推荐专辑</string>
     <string name="disc_artists_rec">推荐艺人</string>
     <string name="disc_recent_played">最近播放</string>
-    <string name="disc_view_all">查看全部 ›</string>
-    <string name="disc_shuffle_batch">换一批 ↻</string>
     <string name="disc_search_hint">搜索歌曲、歌手、专辑，或在线音乐…</string>
     <string name="disc_empty">曲库为空，先在音乐库里扫描本地音乐</string>
     <string name="mode_sequential">顺序</string>
@@ -58,9 +51,8 @@
     <string name="mode_single">单曲循环</string>
     <string name="mode_list">列表循环</string>
     <string name="library_scanning">扫描中…</string>
-    <string name="library_tab_favorites">收藏</string>
-    <string name="library_tab_playlists">歌单</string>
     <string name="library_empty">曲库为空，点「扫描曲库」导入本地音乐</string>
+    <string name="search_none">没找到与「%1$s」相关的歌</string>
     <string name="library_none">暂无内容</string>
     <string name="lyric_close">收起</string>
     <string name="lyric_none">暂无歌词</string>
@@ -73,7 +65,6 @@
     <string name="appearance_system">跟随系统</string>
     <string name="appearance_light">浅色</string>
     <string name="appearance_dark">深色</string>
-    <string name="settings_scan_section">曲库</string>
     <string name="scan_result">扫描 %1$d 条，入库 %2$d，移除 %3$d</string>
     <string name="language_dialog_title">选择语言</string>
     <string name="language_system">跟随系统</string>
@@ -116,12 +107,9 @@
     <string name="custom_bg_change">更换</string>
     <string name="custom_bg_clear">清除</string>
     <string name="custom_bg_none">未设置</string>
-    <string name="frosted_bg">雾面动态背景</string>
     <string name="monet_bg">莫奈取色背景</string>
-    <string name="cover_bg">动态封面背景</string>
     <string name="chat_title">Yuki</string>
     <string name="chat_yuki_desc">和你一起找歌、控播放、建歌单</string>
-    <string name="chat_ask_yuki">没找到想要的？问问 Yuki 吧</string>
     <string name="chat_placeholder">问问 Yuki：播放谁、找什么、建什么歌单…</string>
     <string name="chat_send">发送</string>
     <string name="chat_stop">停止</string>
@@ -153,4 +141,18 @@
     <string name="ai_rounds">执行轮数上限</string>
     <string name="ai_rounds_unlimited">不限</string>
     <string name="ai_effort">推理力度</string>
+    <string name="plugin_dir_title">插件目录</string>
+    <string name="plugin_rescan">重新扫描</string>
+    <string name="plugin_empty">没有发现插件。把带 plugin.json 的插件目录放进下面的位置，再点「重新扫描」。</string>
+    <string name="plugin_dir_path">目录：%1$s</string>
+    <string name="plugin_status_ok">可用</string>
+    <string name="plugin_caps">能力：%1$s</string>
+    <string name="plugin_no_caps">未声明能力</string>
+    <string name="plugin_problem_malformed">plugin.json 不是合法 JSON</string>
+    <string name="plugin_problem_missing_id">缺少 id</string>
+    <string name="plugin_problem_malformed_id">id 只能用小写字母、数字和连字符</string>
+    <string name="plugin_problem_protocol">协议版本 %1$d 不支持，本宿主只认 %2$d</string>
+    <string name="plugin_problem_platform">该插件不提供 %1$s 版本</string>
+    <string name="plugin_problem_host_old">需要宿主 %1$s 及以上</string>
+    <string name="plugin_summary">%1$d 个可用，共 %2$d 个</string>
 </resources>

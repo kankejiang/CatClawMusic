@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,8 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +52,13 @@ import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.ui.chat.ChatScreen
 import com.catclaw.music.kt.ui.search.SearchViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.EmptyState
+import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.inkOnGradient
+import com.catclaw.music.kt.ui.theme.HeroScrimBandArgb
+import com.catclaw.music.kt.ui.theme.HeroScrimDeepArgb
+import com.catclaw.music.kt.ui.theme.HeroTagScrimArgb
 import java.util.Calendar
 
 /**
@@ -66,6 +75,7 @@ private enum class DiscCat { Rec, Rank, Artist, Album, Stats }
 fun SearchScreen(
     active: Boolean,
     onOpenSettings: () -> Unit = {},
+    onChatOpen: (Boolean) -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
@@ -77,6 +87,10 @@ fun SearchScreen(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     var chatMode by rememberSaveable { mutableStateOf(false) }
+    // 聊天是整屏覆盖层，外壳的悬浮两栏必须让位，否则输入行会被 TabBar 盖住。
+    // 还要看 active：Pager 不会销毁别的页，横滑走开时 chatMode 仍是 true，
+    // 只按 chatMode 上报会让别的 tab 也永久没有底栏
+    LaunchedEffect(chatMode, active) { onChatOpen(chatMode && active) }
     var cat by rememberSaveable { mutableIntStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -106,17 +120,36 @@ fun SearchScreen(
             }
 
             if (searchOpen || query.isNotBlank()) {
-                OutlinedTextField(
+                TextField(
                     value = query,
                     onValueChange = viewModel::setQuery,
-                    placeholder = { Text(stringResource(R.string.disc_search_hint), color = secondary) },
+                    placeholder = { Text(stringResource(R.string.disc_search_hint), color = secondary, fontSize = 14.sp) },
                     singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = primary.copy(alpha = 0.10f),
+                        unfocusedContainerColor = primary.copy(alpha = 0.08f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = primary,
+                        unfocusedTextColor = primary,
+                        cursorColor = Color(palette.primary),
+                    ),
+                    shape = RoundedCornerShape(22.dp),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
                 )
             }
 
             if (query.isNotBlank()) {
-                SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { viewModel.play(results, it) }
+                if (results.isEmpty()) {
+                    // 搜不到东西不能是白屏：SongRows 空列表会直接 return，所以这里单独给状态
+                    EmptyState(
+                        hint = stringResource(R.string.search_none, query.trim()),
+                        iconRes = R.drawable.ic_search,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    )
+                } else {
+                    SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { viewModel.play(results, it) }
+                }
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
@@ -202,6 +235,15 @@ private fun RecommendPanel(
         }
     }
 
+    // AI 卡片始终可用；但曲库为空时其余板块全空，得把「先去扫描」这句显式说出来
+    if (heroes.isEmpty() && albums.isEmpty() && artists.isEmpty() && sections.daily.isEmpty()) {
+        EmptyState(
+            hint = stringResource(R.string.disc_empty),
+            iconRes = R.drawable.ic_library,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+        )
+    }
+
     if (albums.isNotEmpty()) {
         SectionHead(stringResource(R.string.disc_albums_rec))
         LazyRow(
@@ -242,6 +284,19 @@ private fun HeroCard(tag: String, title: String, desc: String, brush: Brush, onC
             .clickable(onClick = onClick)
             .padding(11.dp),
     ) {
+        // 垫层压在渐变之上、文字之下：0.5 处之前保持透明（不糊掉板块身份），
+        // 文字带起 α.40、底边 α.72 —— 白字在最亮的粉停靠点上从 2.13 回到 5.37:1
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.5f to Color(HeroScrimBandArgb),
+                        1f to Color(HeroScrimDeepArgb),
+                    ),
+                ),
+        )
         Text(
             text = tag,
             fontSize = 8.sp,
@@ -250,7 +305,7 @@ private fun HeroCard(tag: String, title: String, desc: String, brush: Brush, onC
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .clip(RoundedCornerShape(999.dp))
-                .background(Color.White.copy(alpha = 0.19f))
+                .background(Color(HeroTagScrimArgb))
                 .padding(horizontal = 7.dp, vertical = 2.dp),
         )
         Column(modifier = Modifier.align(Alignment.BottomStart).padding(end = 34.dp)) {
@@ -262,16 +317,32 @@ private fun HeroCard(tag: String, title: String, desc: String, brush: Brush, onC
 
 @Composable
 private fun AlbumCard(title: String, artist: String) {
+    val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.width(124.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFFFF8FB8), Color(0xFF7ED8C3)))),
+                .background(Brush.linearGradient(listOf(Color(0xFFFF8FB8), Color(0xFF7ED8C3))))
+                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(18.dp)),
         )
-        Text(title, fontSize = 12.sp, color = Color(0xFFF5F7FF), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-        Text(artist, fontSize = 10.sp, color = Color(0xFF8D93B7), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Text(
+            text = artist,
+            fontSize = 10.sp,
+            color = Color(palette.textSecondary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -286,7 +357,12 @@ private fun ArtistBubble(name: String) {
                 .background(Brush.linearGradient(listOf(Color(palette.primaryLight), Color(palette.primary)))),
             contentAlignment = Alignment.Center,
         ) {
-            Text(name.take(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                name.take(1),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(inkOnGradient(listOf(palette.primaryLight, palette.primary))),
+            )
         }
         Text(name, fontSize = 11.5.sp, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
     }
@@ -308,7 +384,12 @@ private fun ArtistGrid(rows: List<Pair<String, Int>>) {
                                     .background(Brush.linearGradient(listOf(Color(palette.primary), Color(palette.primaryDark)))),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text(name.take(1), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(
+                                    name.take(1),
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(inkOnGradient(listOf(palette.primary, palette.primaryDark))),
+                                )
                             }
                             Text(name, fontSize = 13.sp, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(stringResource(R.string.playlist_count, count), fontSize = 11.sp, color = Color(palette.textSecondary))
@@ -342,14 +423,14 @@ private fun StatsPanel(cells: List<Pair<String, String>>) {
         cells.chunked(2).forEach { line ->
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 line.forEach { (value, label) ->
+                    val primary = Color(palette.textPrimary)
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(palette.textPrimary).copy(alpha = 0.08f))
+                            .glassCard(palette = palette, corner = 20)
                             .padding(14.dp),
                     ) {
-                        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
+                        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = primary)
                         Text(label, fontSize = 11.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 2.dp))
                     }
                 }
@@ -380,16 +461,36 @@ private fun SongRows(
 ) {
     if (rows.isEmpty()) return
     SectionHead(title)
-    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 14.dp)
+            .glassCard(palette = LocalCatClawPalette.current, corner = 26)
+            .padding(6.dp),
+    ) {
         rows.forEachIndexed { index, song ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .clickable { onClick(index) }
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                    .padding(horizontal = 8.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(primary.copy(alpha = 0.08f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = (index + 1).toString(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = secondary,
+                    )
+                }
+                Spacer(Modifier.width(11.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
@@ -410,6 +511,7 @@ private fun SongRows(
                     text = "%d:%02d".format(song.durationSeconds / 60, song.durationSeconds % 60),
                     style = MaterialTheme.typography.labelSmall,
                     color = secondary,
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
         }
@@ -418,21 +520,9 @@ private fun SongRows(
 
 @Composable
 private fun CatChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(26.dp))
-            .background(if (selected) Color(0xFF55D6FF) else Color(palette.textPrimary).copy(alpha = 0.08f))
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (selected) Color(0xFF08131A) else Color(palette.textSecondary),
-        )
+    // 视觉定义在 GlassChip；这里只负责在等分槽位里居中
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        GlassChip(label = label, selected = selected, onClick = onClick)
     }
 }
 
@@ -442,8 +532,7 @@ private fun GlassIcon(iconRes: Int, description: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(44.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(palette.textPrimary).copy(alpha = 0.20f))
+            .glassCard(palette = palette, corner = 16)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

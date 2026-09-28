@@ -4,11 +4,6 @@
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">Not playing</string>
     <string name="m1_scan_play">Scan &amp; play</string>
-    <string name="m1_play">▶</string>
-    <string name="m1_pause">❚❚</string>
-    <string name="m1_prev">⏮</string>
-    <string name="m1_next">⏭</string>
-    <string name="m1_queue_count">%1$d in queue</string>
     <string name="queue_title">Play Queue</string>
     <string name="queue_songs">%1$d songs</string>
     <string name="queue_empty">Queue is empty</string>
@@ -49,8 +44,6 @@
     <string name="disc_albums_rec">Albums for you</string>
     <string name="disc_artists_rec">Artists for you</string>
     <string name="disc_recent_played">Recently played</string>
-    <string name="disc_view_all">See all ›</string>
-    <string name="disc_shuffle_batch">Shuffle ↻</string>
     <string name="disc_search_hint">Search songs, artists, albums, or online…</string>
     <string name="disc_empty">Library is empty — scan local music first</string>
     <string name="mode_sequential">Sequential</string>
@@ -58,9 +51,8 @@
     <string name="mode_single">Repeat one</string>
     <string name="mode_list">Repeat all</string>
     <string name="library_scanning">Scanning…</string>
-    <string name="library_tab_favorites">Favorites</string>
-    <string name="library_tab_playlists">Playlists</string>
     <string name="library_empty">Library is empty. Tap Scan to import local music.</string>
+    <string name="search_none">No songs match \"%1$s\"</string>
     <string name="library_none">Nothing here yet</string>
     <string name="lyric_close">Close</string>
     <string name="lyric_none">No lyrics</string>
@@ -73,7 +65,6 @@
     <string name="appearance_system">Follow system</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
-    <string name="settings_scan_section">Library</string>
     <string name="scan_result">Scanned %1$d, added %2$d, removed %3$d</string>
     <string name="language_dialog_title">Choose language</string>
     <string name="language_system">Follow system</string>
@@ -116,12 +107,9 @@
     <string name="custom_bg_change">Change</string>
     <string name="custom_bg_clear">Clear</string>
     <string name="custom_bg_none">Not set</string>
-    <string name="frosted_bg">Frosted background</string>
     <string name="monet_bg">Wallpaper palette</string>
-    <string name="cover_bg">Cover palette</string>
     <string name="chat_title">Yuki</string>
     <string name="chat_yuki_desc">Find songs, control playback, build playlists with you</string>
-    <string name="chat_ask_yuki">Can\'t find it? Ask Yuki</string>
     <string name="chat_placeholder">Ask Yuki: play something, find something, make a playlist…</string>
     <string name="chat_send">Send</string>
     <string name="chat_stop">Stop</string>
@@ -153,4 +141,18 @@
     <string name="ai_rounds">Max tool rounds</string>
     <string name="ai_rounds_unlimited">Unlimited</string>
     <string name="ai_effort">Reasoning effort</string>
+    <string name="plugin_dir_title">Plugin folder</string>
+    <string name="plugin_rescan">Rescan</string>
+    <string name="plugin_empty">No plugins found. Put a plugin folder containing plugin.json into the location below, then tap Rescan.</string>
+    <string name="plugin_dir_path">Folder: %1$s</string>
+    <string name="plugin_status_ok">Usable</string>
+    <string name="plugin_caps">Capabilities: %1$s</string>
+    <string name="plugin_no_caps">No capabilities declared</string>
+    <string name="plugin_problem_malformed">plugin.json is not valid JSON</string>
+    <string name="plugin_problem_missing_id">Missing id</string>
+    <string name="plugin_problem_malformed_id">id may only contain lowercase letters, digits and hyphens</string>
+    <string name="plugin_problem_protocol">Protocol %1$d is not supported; this host accepts %2$d only</string>
+    <string name="plugin_problem_platform">This plugin has no %1$s build</string>
+    <string name="plugin_problem_host_old">Requires host %1$s or newer</string>
+    <string name="plugin_summary">%1$d usable, %2$d found</string>
 </resources>

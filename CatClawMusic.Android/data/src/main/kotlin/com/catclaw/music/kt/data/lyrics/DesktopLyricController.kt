@@ -84,6 +84,20 @@ class DesktopLyricController @Inject constructor(
         addView(textFill, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
     }
 
+    /**
+     * 锁定按钮，照 MAUI `DesktopLyricService`：14sp、歌词下方居中、锁定后隐藏。
+     * MAUI 没给它设色（跟着系统默认走，深底上会看不见），这里跟歌词同色同阴影。
+     */
+    private val lockButton = TextView(context).apply {
+        text = LOCK_GLYPH
+        setTextColor(Color.WHITE)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        setPadding(0, 0, 0, 0)
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        visibility = View.INVISIBLE
+    }
+
     private var params: WindowManager.LayoutParams? = null
     private var attached = false
 
@@ -116,6 +130,17 @@ class DesktopLyricController @Inject constructor(
 
         container.removeAllViews()
         container.addView(textFrame)
+        container.addView(
+            lockButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                topMargin = dp(4)
+                gravity = Gravity.CENTER_HORIZONTAL
+            },
+        )
+        lockButton.setOnClickListener { settings.setLocked(!settings.locked.value) }
         applyTextStyle()
         applyBackground()
         container.setOnTouchListener(dragListener)
@@ -212,6 +237,8 @@ class DesktopLyricController @Inject constructor(
     }
 
     private fun applyLock(locked: Boolean) {
+        // 锁定时窗口不吃触摸，按钮留着也点不动 —— 与 MAUI 一样直接藏掉
+        lockButton.visibility = if (locked) View.GONE else View.VISIBLE
         val p = params ?: return
         p.flags = if (locked) {
             p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -222,11 +249,18 @@ class DesktopLyricController @Inject constructor(
     }
 
     private fun applyTextStyle() {
+        val shadowRadius = 3f * density
+        val shadowDy = 1f * density
+        listOf(textBase, textFill, lockButton).forEach {
+            it.setShadowLayer(shadowRadius, 0f, shadowDy, Color.BLACK)
+        }
         listOf(textBase, textFill).forEach {
             it.setTextSize(TypedValue.COMPLEX_UNIT_SP, settings.fontSizeSp.value)
         }
         textBase.setTextColor(settings.textColor.value)
         textFill.setTextColor(settings.highlightColor.value)
+        // 按钮跟着正文色走：写死的白色在浅色壁纸上等于隐形（MAUI 就是没设色才发虚）
+        lockButton.setTextColor(settings.textColor.value)
     }
 
     private fun applyBackground() {
@@ -242,6 +276,11 @@ class DesktopLyricController @Inject constructor(
     }
 
     private fun dp(value: Int): Int = (value * density).roundToInt()
+
+    private companion object {
+        /** 锁定按钮的字形，与 MAUI 桌面歌词同款 */
+        const val LOCK_GLYPH = "🔒"
+    }
 }
 
 /**

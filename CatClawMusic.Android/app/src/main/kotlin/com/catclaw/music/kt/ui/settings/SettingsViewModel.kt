@@ -72,8 +72,6 @@ class SettingsViewModel @Inject constructor(
 
     val startupIndex: StateFlow<Int> = appearance.startupIndex
     val monetEnabled: StateFlow<Boolean> = appearance.monetEnabled
-    val frostedEnabled: StateFlow<Boolean> = appearance.frostedEnabled
-    val coverEnabled: StateFlow<Boolean> = appearance.coverEnabled
     val hasCustomBackground: StateFlow<Boolean> = appearance.customBgPath
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.Eagerly, appearance.customBgPath.value != null)
@@ -81,10 +79,6 @@ class SettingsViewModel @Inject constructor(
     fun setStartupIndex(value: Int) = appearance.setStartupIndex(value)
 
     fun setMonetEnabled(value: Boolean) = appearance.setMonetEnabled(value)
-
-    fun setFrostedEnabled(value: Boolean) = appearance.setFrostedEnabled(value)
-
-    fun setCoverEnabled(value: Boolean): Boolean = appearance.setCoverEnabled(value)
 
     /**
      * 把选中的图复制进应用私有的 backgrounds 目录，文件名固定 `custom_bg.<ext>` 覆盖上一张 ——

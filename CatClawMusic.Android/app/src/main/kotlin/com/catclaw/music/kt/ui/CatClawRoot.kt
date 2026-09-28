@@ -5,22 +5,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import com.catclaw.music.kt.ui.theme.BackdropGlass
+import com.catclaw.music.kt.ui.theme.BarGlass
 import com.catclaw.music.kt.ui.theme.backdropSource
 import com.catclaw.music.kt.ui.theme.rememberBackdropState
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -31,12 +32,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -84,9 +88,57 @@ private enum class TopTab(val pageIndex: Int, val labelRes: Int, val iconRes: In
 }
 
 private const val ROUTE_TABS = "tabs"
-private val NavigationBarHeight = 80.dp
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_REMOTE = "remote"
+
+/**
+ * TabBar 的一格 —— 对应 MAUI 的 `TabItem{i}`：选中态是 accent 色 α .28 的圆角 12 胶囊（`TabBg{i}` margin 4/3），
+ * 图标 24、标签 10sp，选中时图标 1.15 / 标签 1.1 缩放，未选中降到 .6 亮度（MAUI 用 *_gray.svg）。
+ */
+@Composable
+private fun TabCell(
+    tab: TopTab,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val active = Color(palette.textPrimary)
+    val content = if (selected) active else active.copy(alpha = 0.6f)
+    Box(modifier = modifier.clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        if (selected) {
+            Spacer(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(horizontal = 4.dp, vertical = 3.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(active.copy(alpha = 0.28f)),
+            )
+        }
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                painter = painterResource(tab.iconRes),
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier
+                    .size(24.dp)
+                    .scale(if (selected) 1.15f else 1f),
+            )
+            Text(
+                text = stringResource(tab.labelRes),
+                fontSize = 10.sp,
+                color = content,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.scale(if (selected) 1.1f else 1f),
+            )
+        }
+    }
+}
 
 @Composable
 fun CatClawRoot() {
@@ -157,6 +209,8 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
     val playState by playingViewModel.state.collectAsStateWithLifecycle()
     val positionMs by playingViewModel.positionMs.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
+    // 聊天覆盖层打开时悬浮两栏要让位（否则输入行被 TabBar 盖住）
+    var chatOpen by remember { mutableStateOf(false) }
     // MAUI 的显隐规则：`_currentIndex <= 1`（播放页 / 全屏歌词页）收起 TabBar 与 MiniPlayer；
     // 其余页且队列非空时才显示 MiniPlayer
     val immersivePage = pagerState.settledPage <= PAGE_NOW_PLAYING
@@ -198,6 +252,7 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                             2 -> SearchScreen(
                                 active = pagerState.currentPage == 2,
                                 onOpenSettings = onOpenSettings,
+                                onChatOpen = { chatOpen = it },
                             )
                             3 -> PlaylistScreen()
                             else -> LibraryScreen()
@@ -205,56 +260,47 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                     }
                 }
             }
-            if (!immersivePage) {
-                // MiniPlayer 在 TabBar **上方**（MAUI 是 Row1/Row2，不是叠在一起）
-                playState.currentSong?.let { song ->
-                    if (showMiniPlayer) {
-                        MiniPlayer(
-                            song = song,
-                            isPlaying = playState.isPlaying,
-                            progress = if (playState.durationMs > 0) {
-                                positionMs.toFloat() / playState.durationMs
-                            } else {
-                                0f
-                            },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                                .padding(start = 18.dp, end = 18.dp, bottom = 98.dp),
-                            onOpen = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
-                            onToggle = { playingViewModel.toggle() },
-                            onPrevious = { playingViewModel.previous() },
-                            onNext = { playingViewModel.next() },
-                        )
-                    }
-                }
-                BackdropGlass(
-                    state = backdrop,
+            if (!immersivePage && !chatOpen) {
+                // MAUI 的 MobileStage 是 RowDefinitions="*,Auto,Auto"：MiniPlayer（Row1）在 TabBar（Row2）**上方**，
+                // 两栏都是左右留白 18 的悬浮胶囊（MiniPlayer margin 下 2、TabBar margin 下 4），不是贴边的整宽条
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .navigationBarsPadding(),
+                        .navigationBarsPadding()
+                        .padding(start = 18.dp, end = 18.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    NavigationBar(containerColor = Color.Transparent) {
-                        TopTab.entries.forEach { tab ->
-                            NavigationBarItem(
-                                selected = pagerState.settledPage == tab.pageIndex,
-                                onClick = { scope.launch { pagerState.animateScrollToPage(tab.pageIndex) } },
-                                label = {
-                                    Text(
-                                        text = stringResource(tab.labelRes),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                    playState.currentSong?.let { song ->
+                        if (showMiniPlayer) {
+                            MiniPlayer(
+                                song = song,
+                                isPlaying = playState.isPlaying,
+                                backdrop = backdrop,
+                                progress = if (playState.durationMs > 0) {
+                                    positionMs.toFloat() / playState.durationMs
+                                } else {
+                                    0f
                                 },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(tab.iconRes),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                onOpen = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
+                                onToggle = { playingViewModel.toggle() },
+                                onPrevious = { playingViewModel.previous() },
+                                onNext = { playingViewModel.next() },
                             )
+                        }
+                    }
+                    BarGlass(state = backdrop, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                            TopTab.entries.forEach { tab ->
+                                TabCell(
+                                    tab = tab,
+                                    selected = pagerState.settledPage == tab.pageIndex,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
+                                    },
+                                )
+                            }
                         }
                     }
                 }

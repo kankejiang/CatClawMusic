@@ -95,11 +95,22 @@ class PlayingViewModel @Inject constructor(
         controller.playSongAt(index)
     }
 
-    fun toggle() = controller.togglePlayPause()
+    /** 冷启动后队列会恢复，此时按「播放」只是就地 resume，不走 playSongs/playAt —— 少了这一步，通知栏、媒体会话、桌面歌词宿主都不会起来 */
+    fun toggle() {
+        ensureSessionService()
+        controller.togglePlayPause()
+    }
 
-    fun next() = controller.next()
+    /** 上一曲/下一曲同样能直接把声音放出去（`moveToCurrent` 里有 `player.play()`），所以和 toggle 一样要先拉会话 */
+    fun next() {
+        ensureSessionService()
+        controller.next()
+    }
 
-    fun previous() = controller.previous()
+    fun previous() {
+        ensureSessionService()
+        controller.previous()
+    }
 
     fun cycleMode() = controller.cycleMode()
 

@@ -181,6 +181,43 @@ else
 fi
 
 # ---------------------------------------------------------------- 6 卫生
+section "5b. 会话服务在位（真机修过的缺陷：冷启动恢复队列后只按 ▶ 不会拉起 MediaPlaybackService）"
+if [[ $DRY -eq 1 ]]; then
+  echo "  (dry-run) 会查：确认在播之后，dumpsys media_session 有本包会话；服务在起时桌面歌词要有窗口"
+else
+  # 只在"确实在播"的时候才判失败：Media3 在停止后会合法地释放会话，
+  # 空闲时没有会话不是缺陷 —— 拿空闲态去断言只会得到一个天天报错的假闸门。
+  # 取"最后一次"状态而不是"出现过 true"：logcat -d 是整个缓冲区，早先的 true 会一直躺在里面。
+  LASTPLAY=$("$ADB" -s "$SERIAL" logcat -d -s CatClawPlayback:V 2>&1 | grep -oE 'playing=(true|false)' | tail -1)
+  if [[ $LASTPLAY != playing=true ]]; then
+    manual "先在 App 里点一次 ▶（走 toggle() 这条路径，脚本不猜坐标），让最后一条播放状态是 playing=true 再跑这条；当前是「${LASTPLAY:-无记录}」"
+  else
+    SESS=$("$ADB" -s "$SERIAL" shell dumpsys media_session 2>&1 | grep -c "package=$PKG" || true)
+    if [[ "${SESS:-0}" -ge 1 ]]; then
+      ok "在播且媒体会话在位（本包 $SESS 条）"
+    else
+      bad "日志说在播、但 $PKG 没有媒体会话 —— 播放服务没被拉起，通知栏与桌面歌词都会跟着消失"
+    fi
+    NOTIF=$("$ADB" -s "$SERIAL" shell "dumpsys notification --noredact" 2>&1 | grep -c "$PKG" || true)
+    if [[ "${NOTIF:-0}" -ge 1 ]]; then ok "通知栏有本包条目（$NOTIF 处）"; else bad "播放中却没有常驻通知"; fi
+
+    # 悬浮窗只在"服务确实起着"时才要求：服务不在时 prefs 的"开"只是用户意图，标签不会撒谎
+    if [[ $VARIANT == debug && "${SESS:-0}" -ge 1 ]]; then
+      DL=$("$ADB" -s "$SERIAL" shell "run-as $PKG cat shared_prefs/desktop_lyric.xml" 2>/dev/null | grep -c 'name="enabled" value="true"' || true)
+      if [[ "${DL:-0}" -ge 1 ]]; then
+        OVL=$("$ADB" -s "$SERIAL" shell dumpsys window windows 2>&1 | grep -c "Window #.*$PKG" || true)
+        if [[ "${OVL:-0}" -ge 2 ]]; then
+          ok "桌面歌词意图为开且窗口在场（本包 ${OVL:-0} 个窗口）"
+        else
+          bad "服务在起、桌面歌词意图为开，却没有悬浮窗 —— 悬浮窗授权过期（MIUI 是限时的）或 show() 被静默拒绝"
+        fi
+      else
+        echo "  [跳过]   桌面歌词意图为关，不要求悬浮窗"
+      fi
+    fi
+  fi
+fi
+
 section "6. 收尾卫生"
 if [[ $DRY -eq 0 ]]; then
   if [[ $VARIANT == release ]]; then

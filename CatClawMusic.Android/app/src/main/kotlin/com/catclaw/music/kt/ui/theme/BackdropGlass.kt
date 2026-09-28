@@ -1,7 +1,9 @@
 package com.catclaw.music.kt.ui.theme
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -32,8 +34,34 @@ object GlassTokens {
     val BlurRadius: Dp = 20.dp
     val CornerRadius: Dp = 18.dp
     /** α≈.30：着色只用来压一档亮度，糊与增艳交给 blur+vibrancy —— α .55 实测会把底栏压成黑条 */
-    val Tint: Color = Color(0x4D1C1C25)
+    val TintArgb: Long = 0x4D1C1C25L
+    val Tint: Color = Color(TintArgb)
     const val HighlightAlpha: Float = 0.7f
+
+    /**
+     * 悬浮栏（MiniPlayer 与 TabBar）共用同一档玻璃：着色走 [Tint]、圆角走 [BarCornerRadius]。
+     * MAUI 原值是 `BlurConsumerView.TintColor Dark=#8C1C1C25`（α .55），2026-09-28 用户要求两栏观感一致，
+     * 所以播放条不再单独压深 —— 保留 token 位置，想回到 MAUI 那档只改这一处。
+     */
+    val BarCornerRadius: Dp = 16.dp
+
+    /** 两栏共用同一档尺寸：迷你播放条不再比底栏高（2026-09-28 用户要求大小完全一致） */
+    val BarHeight: Dp = 64.dp
+
+    /** MAUI `BottomBarStrokeColor` + `Border StrokeThickness="1.5"`：描边是「有面的胶囊」和「透明」的分界 */
+    val BarStroke: Color = Color(0x40FFFFFF)
+    val BarStrokeWidth: Dp = 1.5.dp
+
+    /**
+     * 浅色主题的着色层：压白雾而不是墨蓝。
+     * 依据是 MAUI `BlurConsumerView` 自己的注释（"For a lighter glass on light themes, try #B2FFFFFF"）；
+     * 实测墨蓝 α.30 落在浅底上，次要文字只剩 2.35:1，白雾下能回到 4.5 以上（PaletteContrastTest）。
+     */
+    val TintLightArgb: Long = 0xB2FFFFFFL
+    val TintLight: Color = Color(TintLightArgb)
+
+    /** 白雾上要换深色描边，否则 α.25 的白边等于没有 */
+    val BarStrokeLight: Color = Color(0x330B0E14L)
 }
 
 @Stable
@@ -55,13 +83,19 @@ fun BackdropGlass(
     state: BackdropState,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = GlassTokens.CornerRadius,
+    tint: Color? = null,
+    stroke: Color? = null,
+    strokeWidth: Dp = GlassTokens.BarStrokeWidth,
     content: @Composable () -> Unit,
 ) {
     val blurPx = with(LocalDensity.current) { GlassTokens.BlurRadius.toPx() }
+    val shape = RoundedCornerShape(cornerRadius)
+    // 默认着色跟着页面底色走：浅底压白雾、深底压墨蓝（GlassTokens 里两套值）
+    val effectiveTint = tint ?: if (isLightPalette(LocalCatClawPalette.current)) GlassTokens.TintLight else GlassTokens.Tint
     Box(
         modifier = modifier.drawBackdrop(
             backdrop = state.backdrop,
-            shape = { RoundedCornerShape(cornerRadius) },
+            shape = { shape },
             effects = {
                 vibrancy()
                 blur(blurPx)
@@ -71,7 +105,34 @@ fun BackdropGlass(
             highlight = { Highlight(alpha = GlassTokens.HighlightAlpha) },
         ),
     ) {
-        Spacer(modifier = Modifier.matchParentSize().background(GlassTokens.Tint))
+        Spacer(modifier = Modifier.matchParentSize().background(effectiveTint))
+        // 描边画在内容**之下**：它是面的一圈边，内容（如迷你播放条底部那条进度线）要能盖住它
+        if (stroke != null) {
+            Spacer(
+                modifier = Modifier
+                    .matchParentSize()
+                    .border(strokeWidth, stroke, shape),
+            )
+        }
         content()
     }
+}
+
+/**
+ * 悬浮栏专用表面 —— MiniPlayer 与 TabBar 都走这一个，尺寸/圆角/描边/模糊全部锁死在同一组 token 上，
+ * 免得两边各自传参又漂开（2026-09-28 用户要求两栏效果完全一致）。
+ */
+@Composable
+fun BarGlass(
+    state: BackdropState,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BackdropGlass(
+        state = state,
+        modifier = modifier.height(GlassTokens.BarHeight),
+        cornerRadius = GlassTokens.BarCornerRadius,
+        stroke = if (isLightPalette(LocalCatClawPalette.current)) GlassTokens.BarStrokeLight else GlassTokens.BarStroke,
+        content = content,
+    )
 }

@@ -1,5 +1,7 @@
 package com.catclaw.music.kt.ui.screen
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,12 +17,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,9 +37,12 @@ import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcons
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.highlightOnSelectedCard
+import com.catclaw.music.kt.ui.theme.EmptyState
 
 /**
- * 播放队列页 —— 对应 MAUI `NowPlayingQueuePage.xaml`。
+ * 播放队列页 —— 对应 MAUI `NowPlayingQueuePage.xaml`，外观对齐本 App 的玻璃卡语言。
  *
  * 两条是查证过的行为，不是简化：
  * 1. 行内容只有**播放指示 + 歌名 + 歌手 + 移除**，没有序号也没有时长（XAML 的 `BuildRow` 就这三列）；
@@ -51,70 +58,82 @@ fun QueueScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val songs by viewModel.queueSongs.collectAsStateWithLifecycle()
     val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                imageVector = PlayerIcons.ArrowBack,
-                contentDescription = stringResource(R.string.queue_back),
-                tint = Color(palette.textPrimary),
-                modifier = Modifier
-                    .size(40.dp)
-                    .padding(10.dp)
-                    .clickable(onClick = onBack),
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = stringResource(R.string.queue_title),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(palette.textPrimary),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = if (songs.isEmpty()) {
-                    stringResource(R.string.queue_empty)
-                } else {
-                    stringResource(R.string.queue_songs, songs.size)
-                },
-                fontSize = 12.sp,
-                color = Color(palette.textSecondary),
-            )
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = stringResource(R.string.queue_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
+                Text(
+                    text = stringResource(R.string.queue_songs, songs.size),
+                    fontSize = 12.sp,
+                    color = secondary,
+                )
+            }
         }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 110.dp),
         ) {
+            if (songs.isEmpty()) {
+                // 空队列原来只有一行副标题提示，页面本体是空白——给一张同款空状态卡
+                item(key = "queue_empty") {
+                    EmptyState(hint = stringResource(R.string.queue_empty), iconRes = R.drawable.ic_playlist)
+                }
+            }
             itemsIndexed(songs, key = { _, s -> s.id }) { index, song ->
                 val isCurrent = song.id == state.currentSong?.id
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
+                        .padding(vertical = 4.dp)
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            if (isCurrent) Color(palette.primary).copy(alpha = 0.16f)
+                            else primary.copy(alpha = 0.08f),
+                        )
+                        .then(
+                            if (isCurrent) Modifier.border(1.dp, Color(palette.primary).copy(alpha = 0.45f), RoundedCornerShape(18.dp))
+                            else Modifier,
+                        )
                         .clickable {
                             viewModel.playAt(index)
                             onBack()
                         }
-                        .padding(horizontal = 2.dp),
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(primary.copy(alpha = if (isCurrent) 0.18f else 0.10f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         if (isCurrent) {
                             Icon(
                                 imageVector = PlayerIcons.Play,
                                 contentDescription = null,
-                                tint = Color(palette.primary),
-                                modifier = Modifier.size(14.dp),
+                                // 「正在播放」这块 α.18 的粉底上，浅色主题的 primary 只有约 2:1，
+                                // 它是这一行唯一的当前项线索，所以退回判据而不是留粉
+                                tint = Color(highlightOnSelectedCard(palette)),
+                                modifier = Modifier.size(16.dp),
                             )
+                        } else {
+                            Text(text = (index + 1).toString(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = secondary)
                         }
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -123,27 +142,32 @@ fun QueueScreen(
                             text = song.title,
                             fontSize = 14.sp,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (isCurrent) Color(palette.primary) else Color(palette.textPrimary),
+                            color = if (isCurrent) Color(highlightOnSelectedCard(palette)) else primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             text = song.artist,
                             fontSize = 12.sp,
-                            color = Color(palette.textSecondary),
+                            color = secondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Icon(
-                        imageVector = PlayerIcons.Close,
-                        contentDescription = stringResource(R.string.queue_remove),
-                        tint = Color(palette.textSecondary),
+                    Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .padding(6.dp)
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable { viewModel.removeAt(song.id) },
-                    )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = PlayerIcons.Close,
+                            contentDescription = stringResource(R.string.queue_remove),
+                            tint = secondary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }

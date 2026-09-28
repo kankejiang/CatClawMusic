@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui.chat
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,20 +18,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,14 +41,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.ai.Bubble
 import com.catclaw.music.kt.core.model.Song
+import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.catClawBackground
+import com.catclaw.music.kt.ui.theme.inkOn
 
 /**
  * Yuki 聊天页，对应 MAUI `SearchPage.xaml` 的 ChatOverlay 那一层。
@@ -74,7 +81,8 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(palette.backgroundStops.first().argb))
+            // 原来铺的是底色纯色：既吞掉了主题渐变与两层光晕，也让用户自定义背景图在这页失效
+            .catClawBackground()
             .imePadding(),
     ) {
         ChatHeader(title = title, onBack = onBack)
@@ -124,26 +132,19 @@ private fun ChatHeader(title: String, onBack: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(onClickLabel = stringResource(R.string.chat_back)) { onBack() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("←", color = Color(palette.textPrimary), style = MaterialTheme.typography.titleLarge)
-        }
-        Column(modifier = Modifier.weight(1f)) {
+        BackTile(onBack = onBack, description = stringResource(R.string.chat_back))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = title.ifBlank { stringResource(R.string.chat_title) },
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
                 color = Color(palette.textPrimary),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = stringResource(R.string.chat_yuki_desc),
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 12.sp,
                 color = Color(palette.textSecondary),
             )
         }
@@ -169,7 +170,6 @@ private fun MessageRow(bubble: Bubble, primary: Color, onPlay: (Song, List<Song>
                 bubble = bubble,
                 isUser = isUser,
                 primary = primary,
-                surface = Color(palette.backgroundStops.last().argb),
                 onPlay = onPlay,
             )
         }
@@ -181,7 +181,6 @@ private fun MessageBubble(
     bubble: Bubble,
     isUser: Boolean,
     primary: Color,
-    surface: Color,
     onPlay: (Song, List<Song>) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -190,29 +189,36 @@ private fun MessageBubble(
             .widthIn(max = 300.dp)
             .clip(
                 RoundedCornerShape(
-                    topStart = if (isUser) 16.dp else 4.dp,
-                    topEnd = if (isUser) 4.dp else 16.dp,
-                    bottomStart = 16.dp,
-                    bottomEnd = 16.dp,
+                    topStart = if (isUser) 18.dp else 6.dp,
+                    topEnd = if (isUser) 6.dp else 18.dp,
+                    bottomStart = 18.dp,
+                    bottomEnd = 18.dp,
                 ),
             )
-            .background(if (isUser) primary else surface)
+            .background(
+                if (isUser) Color(palette.primary)
+                else Color(palette.textPrimary).copy(alpha = 0.10f),
+            )
+            .then(
+                if (isUser) Modifier
+                else Modifier.border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(18.dp)),
+            )
             .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
         if (bubble.steps.isNotEmpty()) {
             bubble.steps.forEach { step ->
                 Text(
                     text = step,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(palette.textSecondary),
+                    fontSize = 11.sp,
+                    color = if (isUser) Color(inkOn(palette.primary)) else Color(palette.textSecondary),
                 )
             }
         }
         if (bubble.reasoning.isNotEmpty()) {
             Text(
                 text = bubble.reasoning,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(palette.textSecondary),
+                fontSize = 12.sp,
+                color = if (isUser) Color(inkOn(palette.primary)) else Color(palette.textSecondary),
                 maxLines = 6,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -220,8 +226,8 @@ private fun MessageBubble(
         if (bubble.content.isNotEmpty() || (bubble.thinking && bubble.steps.isEmpty())) {
             Text(
                 text = bubble.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isUser) Color(0xFFFFFFFF) else Color(palette.textPrimary),
+                fontSize = 14.sp,
+                color = if (isUser) Color(inkOn(palette.primary)) else Color(palette.textPrimary),
             )
         }
         if (bubble.songs.isNotEmpty()) {
@@ -236,26 +242,48 @@ private fun MessageBubble(
 @Composable
 private fun SongCardRow(song: Song, onPlay: () -> Unit) {
     val palette = LocalCatClawPalette.current
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.12f))
             .clickable(onClick = onPlay)
-            .padding(vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = song.title,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(palette.textPrimary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = song.artist,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color(palette.textSecondary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(palette.primary)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = song.title.take(1), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(inkOn(palette.primary)))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = song.title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(palette.textPrimary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = song.artist,
+                fontSize = 11.sp,
+                color = Color(palette.textSecondary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_play),
+            contentDescription = null,
+            tint = Color(palette.primary),
+            modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -293,28 +321,51 @@ private fun InputRow(
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        OutlinedTextField(
+        TextField(
             value = text,
             onValueChange = onTextChange,
-            placeholder = { Text(stringResource(R.string.chat_placeholder), color = Color(palette.textSecondary)) },
+            placeholder = { Text(stringResource(R.string.chat_placeholder), color = Color(palette.textSecondary), fontSize = 14.sp) },
             singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color(palette.textPrimary).copy(alpha = 0.10f),
+                unfocusedContainerColor = Color(palette.textPrimary).copy(alpha = 0.08f),
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = Color(palette.textPrimary),
+                unfocusedTextColor = Color(palette.textPrimary),
+                cursorColor = Color(palette.primary),
+            ),
             shape = RoundedCornerShape(22.dp),
             modifier = Modifier
                 .weight(1f)
                 .heightIn(max = 120.dp),
         )
+        Spacer(Modifier.width(8.dp))
         if (thinking) {
-            TextButton(onClick = onStop, modifier = Modifier.padding(bottom = 6.dp)) {
-                Text(stringResource(R.string.chat_stop), color = Color(palette.textPrimary))
-            }
+            Text(
+                text = stringResource(R.string.chat_stop),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(palette.textSecondary),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(22.dp))
+                    .clickable(onClick = onStop)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
         } else {
-            TextButton(
-                onClick = onSend,
-                enabled = text.isNotBlank(),
-                modifier = Modifier.padding(bottom = 6.dp),
-            ) {
-                Text(stringResource(R.string.chat_send), color = Color(palette.primary))
-            }
+            val canSend = text.isNotBlank()
+            Text(
+                text = stringResource(R.string.chat_send),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(inkOn(palette.primary)).copy(alpha = if (canSend) 1f else 0.4f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(palette.primary).copy(alpha = if (canSend) 1f else 0.4f))
+                    .clickable(enabled = canSend, onClick = onSend)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
         }
     }
 }

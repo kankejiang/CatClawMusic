@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,13 +22,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,11 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
@@ -50,6 +52,8 @@ import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
 import com.catclaw.music.kt.ui.player.PlayerIcons
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.inkOn
 
 @Composable
 fun PlayingScreen(
@@ -93,32 +97,30 @@ fun PlayingScreen(
     ) {
         Spacer(Modifier.height(16.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Text(
                 text = stringResource(R.string.PageTitleNowPlaying),
-                style = MaterialTheme.typography.titleLarge,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
                 color = Color(palette.textPrimary),
                 modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            PillLabel(
                 text = stringResource(R.string.SettingsEntry),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(palette.textSecondary),
-                modifier = Modifier
-                    .clickable(onClick = onOpenSettings)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                onClick = onOpenSettings,
+                filled = false,
             )
-            Button(onClick = { viewModel.scanAndPlayAll() }, enabled = !scanning) {
-                if (scanning) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = Color(palette.textPrimary),
-                    )
-                } else {
-                    Text(stringResource(R.string.ScanMusic))
-                }
-            }
+            PillLabel(
+                text = stringResource(if (scanning) R.string.library_scanning else R.string.m1_scan_play),
+                onClick = { viewModel.scanAndPlayAll() },
+                enabled = !scanning,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -136,20 +138,24 @@ fun PlayingScreen(
                     modifier = Modifier
                         .fillMaxWidth(0.62f)
                         .aspectRatio(1f)
-                        .background(Color(palette.primaryLight), RoundedCornerShape(16.dp)),
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Color(palette.primaryLight))
+                        .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(26.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = state.currentSong?.title?.take(1) ?: "♪",
-                        style = MaterialTheme.typography.displayLarge,
-                        color = Color(palette.textPrimary),
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(inkOn(palette.primaryLight)),
                     )
                 }
 
                 Spacer(Modifier.height(20.dp))
                 Text(
                     text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
-                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color(palette.textPrimary),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -162,10 +168,11 @@ fun PlayingScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 state.error?.let {
+                    // 这行落在页面渐变底上，不在封面那块 primaryLight 面里，取墨色才会翻成人眼看得见的
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(palette.primaryDark),
+                        color = Color(palette.textPrimary),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -187,7 +194,7 @@ fun PlayingScreen(
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 IconButton40(
                     icon = modeIcon(state.mode),
-                    description = stringResource(R.string.mode_change),
+                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(state.mode)),
                     tint = Color(palette.textSecondary),
                     onClick = { viewModel.cycleMode() },
                 )
@@ -211,7 +218,7 @@ fun PlayingScreen(
                     Icon(
                         imageVector = if (state.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
                         contentDescription = stringResource(R.string.play_or_pause),
-                        tint = Color(palette.primaryDark),
+                        tint = Color(inkOn(palette.primaryLight)),
                         modifier = Modifier.size(30.dp),
                     )
                 }
@@ -249,9 +256,9 @@ fun PlayingScreen(
                 contentDescription = stringResource(R.string.open_lyrics),
                 tint = Color(palette.primary),
                 modifier = Modifier
-                    .size(33.dp)
-                    .padding(8.dp)
-                    .clickable(onClick = onOpenLyrics),
+                    .size(49.dp)
+                    .clickable(onClick = onOpenLyrics)
+                    .padding(8.dp),
             )
             Icon(
                 imageVector = PlayerIcons.DesktopLyrics,
@@ -261,8 +268,7 @@ fun PlayingScreen(
                 ),
                 tint = if (desktopOn) Color(palette.primary) else Color(palette.textSecondary),
                 modifier = Modifier
-                    .size(33.dp)
-                    .padding(8.dp)
+                    .size(49.dp)
                     .clickable {
                         if (!viewModel.toggleDesktopLyric()) {
                             context.startActivity(viewModel.overlayPermissionIntent())
@@ -324,6 +330,14 @@ private fun modeIcon(mode: PlayMode): PlayerIcon = when (mode) {
     PlayMode.ListRepeat -> PlayerIcons.Repeat
 }
 
+/** 播报当前档位而不是只说「切换播放模式」，否则读屏听到的永远是同一句 */
+private fun modeLabelRes(mode: PlayMode): Int = when (mode) {
+    PlayMode.Sequential -> R.string.mode_sequential
+    PlayMode.Shuffle -> R.string.mode_shuffle
+    PlayMode.SingleRepeat -> R.string.mode_single
+    PlayMode.ListRepeat -> R.string.mode_list
+}
+
 /**
  * 进度条：拖动期间只显示本地值，松手才 seek——
  * 与 MAUI 侧「Slider 拖动 OneWay、DragCompleted 后 seek 再恢复双向」同一条规则，
@@ -334,12 +348,19 @@ private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Un
     var dragFraction by remember { mutableFloatStateOf(-1f) }
     val shownMs = if (dragFraction >= 0) dragFraction * durationMs else positionMs.toFloat()
     val fraction = if (durationMs > 0) (shownMs / durationMs).coerceIn(0f, 1f) else 0f
+    // 播放页在浅色主题下也被钉成深色（fixedDarkPages），所以这里不能沿用环境色 ——
+    // 沿用会让时间文字拿到浅色方案的黑色，落在深底上直接看不见
+    val palette = LocalCatClawPalette.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(formatTime(shownMs.toLong()), style = MaterialTheme.typography.labelSmall)
+        Text(
+            text = formatTime(shownMs.toLong()),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(palette.textSecondary),
+        )
         Slider(
             value = fraction,
             onValueChange = { dragFraction = it },
@@ -348,8 +369,17 @@ private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Un
                 dragFraction = -1f
             },
             modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = Color(palette.primary),
+                activeTrackColor = Color(palette.primary),
+                inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+            ),
         )
-        Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall)
+        Text(
+            text = formatTime(durationMs),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(palette.textSecondary),
+        )
     }
 }
 

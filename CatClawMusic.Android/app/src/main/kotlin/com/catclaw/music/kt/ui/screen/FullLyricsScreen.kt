@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
@@ -16,27 +17,35 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.lyrics.LyricsSettings
 import com.catclaw.music.kt.ui.lyrics.LyricLineText
 import com.catclaw.music.kt.ui.lyrics.LyricsViewModel
+import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.EmptyState
+import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.catClawBackground
 
 @Composable
@@ -71,48 +80,60 @@ fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewM
     Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = viewModel.currentSongTitle().ifEmpty { stringResource(R.string.m1_nothing) },
-                        style = MaterialTheme.typography.titleMedium,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color(palette.textPrimary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = viewModel.currentSongArtist(),
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp,
                         color = Color(palette.textSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                TextButton(onClick = { viewModel.toggleLineMode() }) {
-                    Text(
-                        text = stringResource(if (lineMode) R.string.lyric_mode_line else R.string.lyric_mode_word),
-                        color = Color(palette.textSecondary),
+                PillLabel(
+                    text = stringResource(if (lineMode) R.string.lyric_mode_line else R.string.lyric_mode_word),
+                    onClick = { viewModel.toggleLineMode() },
+                    filled = false,
+                )
+                PillLabel(
+                    text = stringResource(R.string.Settings),
+                    onClick = { panelOpen = !panelOpen },
+                    filled = false,
+                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .glassCard(palette = palette, corner = 14)
+                        .clickable(onClickLabel = stringResource(R.string.lyric_close)) { onClose() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_close),
+                        contentDescription = stringResource(R.string.lyric_close),
+                        tint = Color(palette.textPrimary),
+                        modifier = Modifier.size(19.dp),
                     )
-                }
-                TextButton(onClick = { panelOpen = !panelOpen }) {
-                    Text(stringResource(R.string.Settings), color = Color(palette.textSecondary))
-                }
-                TextButton(onClick = onClose) {
-                    Text(stringResource(R.string.lyric_close), color = Color(palette.textPrimary))
                 }
             }
 
             Spacer(Modifier.height(4.dp))
 
             if (lines.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = stringResource(if (loading) R.string.lyric_loading else R.string.lyric_none),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color(palette.textSecondary),
+                Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
+                    EmptyState(
+                        hint = stringResource(if (loading) R.string.lyric_loading else R.string.lyric_none),
+                        iconRes = R.drawable.ic_lyrics,
                     )
                 }
             } else {
@@ -179,15 +200,29 @@ private fun LyricsSettingsPanel(
     val surface = Color(palette.backgroundStops.last().argb)
     val primary = Color(palette.textPrimary)
 
+    val sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
     Box(modifier = Modifier.fillMaxSize().clickable(onClick = onClose)) {
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .clip(sheetShape)
                 .background(surface)
+                .border(1.dp, primary.copy(alpha = 0.16f), sheetShape)
                 .clickable(enabled = false) {}
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 38.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(primary.copy(alpha = 0.22f)),
+                )
+            }
             Text(stringResource(R.string.lyric_panel), style = MaterialTheme.typography.titleMedium, color = primary)
             Spacer(Modifier.height(10.dp))
             Text(stringResource(R.string.lyric_source), style = MaterialTheme.typography.labelMedium, color = Color(palette.textSecondary))
@@ -220,6 +255,12 @@ private fun LyricsSettingsPanel(
                 onValueChange = onFontSize,
                 valueRange = LyricsSettings.MIN_FONT..LyricsSettings.MAX_FONT,
                 steps = (LyricsSettings.MAX_FONT - LyricsSettings.MIN_FONT).toInt() - 1,
+                // 这一页在浅色主题下也钉成深色，所以滑杆不能沿用环境色
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = Color(palette.primary),
+                    activeTrackColor = Color(palette.primary),
+                    inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+                ),
             )
             ToggleRow(stringResource(R.string.lyric_remove_empty), removeEmpty, onRemoveEmpty)
             ToggleRow(stringResource(R.string.lyric_show_translation), translation, onTranslation)
@@ -230,20 +271,9 @@ private fun LyricsSettingsPanel(
 
 @Composable
 private fun ChipRow(labels: List<Pair<String, Int>>, selected: Int, onPick: (Int) -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 6.dp)) {
         labels.forEach { (label, value) ->
-            val on = value == selected
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (on) Color(palette.primary) else Color(palette.textSecondary),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (on) Color(palette.primary).copy(alpha = 0.16f) else Color.Transparent)
-                    .clickable { onPick(value) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+            GlassChip(label = label, selected = value == selected, onClick = { onPick(value) })
         }
     }
 }
@@ -258,6 +288,16 @@ private fun ToggleRow(label: String, checked: Boolean, onChecked: (Boolean) -> U
             color = Color(palette.textPrimary),
             modifier = Modifier.weight(1f),
         )
-        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChecked)
+        androidx.compose.material3.Switch(
+            checked = checked,
+            onCheckedChange = onChecked,
+            // 这一页在浅色主题下也钉成深色，沿用环境色会让开关拿浅色方案的底色，落在深底上像别人的组件
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Color(palette.primary),
+                checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
+                uncheckedThumbColor = Color(palette.textSecondary),
+                uncheckedTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+            ),
+        )
     }
 }

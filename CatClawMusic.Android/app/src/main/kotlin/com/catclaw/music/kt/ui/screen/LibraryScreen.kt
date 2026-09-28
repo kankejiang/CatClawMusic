@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,7 +44,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.isLightPalette
+import com.catclaw.music.kt.ui.theme.badgeTintOn
+import com.catclaw.music.kt.ui.theme.glassCard
 
 /**
  * 音乐库 —— 照 MAUI `LibraryPage.xaml` 做成**枢纽页**：Hero 卡 + 4 个统计格 + 资料库列表。
@@ -90,9 +96,11 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 style = MaterialTheme.typography.titleLarge,
                 color = Color(palette.textPrimary),
             )
-            Button(onClick = { viewModel.scan() }, enabled = !scanning) {
-                Text(stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic))
-            }
+            PillLabel(
+                text = stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
+                onClick = { viewModel.scan() },
+                enabled = !scanning,
+            )
         }
 
         // Hero 卡：渐变底 + 4 个可点统计格（MAUI 的 HeroCard + st4）
@@ -100,12 +108,13 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(26.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(Color(palette.primary).copy(alpha = 0.40f), Color(0x40FFD9A8)),
                     ),
                 )
+                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(26.dp))
                 .padding(22.dp),
         ) {
             Column {
@@ -118,7 +127,8 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 Text(
                     text = stringResource(R.string.lib_sources_count, 1),
                     fontSize = 12.5.sp,
-                    color = Color(palette.textSecondary),
+                    // 半透明 Hero 上不用次要色（浅色主题实测 3.15:1），层级交给字号
+                    color = Color(palette.textPrimary),
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 Row(
@@ -141,13 +151,21 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             }
         }
 
-        // 资料库卡：本端真实存在的两个来源（本地曲库 / 我喜欢的）
+        // 资料库卡：本端真实存在的两个来源（本地曲库 / 我喜欢的）。
+        // 计数徽标读的是这张表的长度，加一行来源就不用再记得改那个数字。
+        val sources = listOf(
+            LibrarySourceRow(R.drawable.ic_library, stringResource(R.string.lib_local_name), songs.size) {
+                onOpenKind(LibraryKind.Songs)
+            },
+            LibrarySourceRow(R.drawable.ic_favorite, stringResource(R.string.lib_favorites_name), favorites.size) {
+                onOpenKind(LibraryKind.Favorites)
+            },
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp, vertical = 12.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(palette.textPrimary).copy(alpha = 0.10f))
+                .glassCard(palette = palette, corner = 26)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -158,9 +176,9 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                     color = Color(palette.textPrimary),
                 )
                 Text(
-                    text = "2",
+                    text = sources.size.toString(),
                     fontSize = 10.sp,
-                    color = Color(palette.accent),
+                    color = Color(badgeTintOn(palette, palette.accent)),
                     modifier = Modifier
                         .padding(start = 8.dp)
                         .clip(RoundedCornerShape(999.dp))
@@ -169,12 +187,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                 )
             }
             Spacer(Modifier.height(6.dp))
-            SourceRow(R.drawable.ic_library, stringResource(R.string.lib_local_name), songs.size, palette) {
-                onOpenKind(LibraryKind.Songs)
-            }
-            SourceRow(R.drawable.ic_favorite, stringResource(R.string.lib_favorites_name), favorites.size, palette) {
-                onOpenKind(LibraryKind.Favorites)
-            }
+            sources.forEach { SourceRow(it.iconRes, it.name, it.count, palette, it.onClick) }
         }
     }
 }
@@ -189,17 +202,36 @@ private fun RowScope.StatTile(
     Box(
         modifier = Modifier
             .weight(1f)
+            // 统计格坐在半透明 Hero 上，面板必须往墨色的反方向走：
+            // 同色 α.10 时深色主题白字只剩 3.83:1，压黑 α.30（深色）/压白 α.42（浅色）后回到 6 以上
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(palette.textPrimary).copy(alpha = 0.20f))
+            .background(
+                if (isLightPalette(palette)) Color.White.copy(alpha = 0.42f) else Color.Black.copy(alpha = 0.30f),
+            )
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
     ) {
         Column {
             Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
-            Text(label, fontSize = 11.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 2.dp))
+            Text(
+                label,
+                fontSize = 11.sp,
+                // 层级交给字号而不是颜色：这层底上次要色只有 2.7:1
+                color = Color(palette.textPrimary),
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }
+
+/** 资料库卡的一行；徽标上那个数字就是这种行的条数 */
+private data class LibrarySourceRow(
+    val iconRes: Int,
+    val name: String,
+    val count: Int,
+    val onClick: () -> Unit,
+)
 
 @Composable
 private fun SourceRow(
@@ -265,33 +297,43 @@ fun LibraryListScreen(
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
 
+    val title = stringResource(
+        when (kind) {
+            LibraryKind.Songs -> R.string.lib_stat_songs
+            LibraryKind.Artists -> R.string.lib_stat_artists
+            LibraryKind.Albums -> R.string.lib_stat_albums
+            LibraryKind.Favorites -> R.string.lib_favorites_name
+        },
+    )
+    val count = when (kind) {
+        LibraryKind.Songs -> songs.size
+        LibraryKind.Favorites -> favorites.size
+        LibraryKind.Artists -> artists.size
+        LibraryKind.Albums -> albums.size
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_back),
-                contentDescription = stringResource(R.string.queue_back),
-                tint = Color(palette.textPrimary),
-                modifier = Modifier
-                    .size(40.dp)
-                    .padding(10.dp)
-                    .clickable(onClick = onBack),
-            )
-            Text(
-                text = stringResource(
-                    when (kind) {
-                        LibraryKind.Songs -> R.string.lib_stat_songs
-                        LibraryKind.Artists -> R.string.lib_stat_artists
-                        LibraryKind.Albums -> R.string.lib_stat_albums
-                        LibraryKind.Favorites -> R.string.lib_favorites_name
-                    },
-                ),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(palette.textPrimary),
-            )
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(palette.textPrimary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.playlist_count, count),
+                    fontSize = 12.sp,
+                    color = Color(palette.textSecondary),
+                )
+            }
         }
 
         when (kind) {
@@ -312,30 +354,50 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(rows.size) { index ->
             val (title, subtitle) = rows[index]
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .glassCard(palette = palette, corner = 22)
                     .clickable { onClick(index) }
-                    .padding(horizontal = 20.dp, vertical = 9.dp),
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color(palette.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(palette.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color(palette.primary).copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = (index + 1).toString(),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(palette.textPrimary),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(palette.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(palette.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -350,17 +412,35 @@ private fun InfoList(rows: List<Pair<String, String>>) {
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(rows) { (name, detail) ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassCard(palette = palette, corner = 22)
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color(palette.primary).copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = name.take(1),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(palette.textPrimary),
+                    )
+                }
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = Color(palette.textPrimary),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -378,8 +458,7 @@ private fun InfoList(rows: List<Pair<String, String>>) {
 
 @Composable
 private fun EmptyHint(text: String) {
-    val palette = LocalCatClawPalette.current
-    Box(modifier = Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = Color(palette.textSecondary))
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
+        EmptyState(hint = text, iconRes = R.drawable.ic_library)
     }
 }

@@ -1,8 +1,10 @@
 package com.catclaw.music.kt.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,17 +12,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,14 +33,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.ai.LlmConfig
 import com.catclaw.music.kt.core.ai.LlmProviderInfo
+import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.inkOn
+import com.catclaw.music.kt.ui.theme.highlightOnSelectedCard
+import com.catclaw.music.kt.ui.theme.glassCard
 
 /** 设置页里的 AI 分节：模型配置列表 + 编辑表单 + Agent 运行参数 */
 @Composable
@@ -58,54 +68,70 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
 
     AiSection(stringResource(R.string.ai_configs)) {
         if (configs.isEmpty()) {
-            Text(stringResource(R.string.ai_no_config), style = MaterialTheme.typography.bodySmall, color = secondary)
+            Text(stringResource(R.string.ai_no_config), fontSize = 13.sp, color = secondary)
         }
         configs.forEach { config ->
+            val isCurrent = config.name == currentName
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(vertical = 5.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        if (isCurrent) Color(palette.primary).copy(alpha = 0.16f)
+                        else Color(palette.textPrimary).copy(alpha = 0.08f),
+                    )
+                    .then(
+                        if (isCurrent) Modifier.border(1.dp, Color(palette.primary).copy(alpha = 0.45f), RoundedCornerShape(18.dp))
+                        else Modifier,
+                    )
                     .clickable { viewModel.useConfig(config.name) }
-                    .padding(vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = config.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (config.name == currentName) Color(palette.primary) else primary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = listOfNotNull(
-                        config.provider.takeIf { it.isNotBlank() },
-                        config.model.takeIf { it.isNotBlank() },
-                        if (config.enabled) stringResource(R.string.ai_on) else stringResource(R.string.ai_off),
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondary,
-                )
-                Text(
-                    text = stringResource(R.string.ai_edit),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(palette.primary),
+                Box(
                     modifier = Modifier
-                        .padding(start = 12.dp)
-                        .clickable { draft = config },
-                )
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = config.name.take(1), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = primary)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = config.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isCurrent) Color(highlightOnSelectedCard(palette)) else primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = listOfNotNull(
+                            config.provider.takeIf { it.isNotBlank() },
+                            config.model.takeIf { it.isNotBlank() },
+                            if (config.enabled) stringResource(R.string.ai_on) else stringResource(R.string.ai_off),
+                        ).joinToString(" · "),
+                        fontSize = 12.sp,
+                        color = secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                AiPill(label = stringResource(R.string.ai_edit), filled = false) { draft = config }
             }
         }
-        OutlinedButton(
-            onClick = { draft = LlmConfig(name = newConfigName) },
-            modifier = Modifier.padding(top = 6.dp),
-        ) {
-            Text(stringResource(R.string.ai_new))
-        }
+        Spacer(Modifier.height(8.dp))
+        AiPill(label = stringResource(R.string.ai_new), filled = true) { draft = LlmConfig(name = newConfigName) }
     }
 
     draft?.let { editing ->
         AiSection(stringResource(R.string.ai_editing)) {
             AiField(stringResource(R.string.ai_name), editing.name) { draft = editing.copy(name = it) }
-            Text(stringResource(R.string.ai_provider), style = MaterialTheme.typography.labelMedium, color = secondary)
-            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.ai_provider), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = secondary)
+            Spacer(Modifier.height(6.dp))
             FlowChips(
                 LlmProviderInfo.ALL.map { it.name to it },
                 selected = LlmProviderInfo.ALL.firstOrNull { it.id == editing.provider }?.name,
@@ -116,6 +142,7 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
                     model = provider.defaultModel.ifBlank { editing.model },
                 )
             }
+            Spacer(Modifier.height(8.dp))
             AiField("API URL", editing.apiUrl) { draft = editing.copy(apiUrl = it) }
             AiField(stringResource(R.string.ai_api_key), editing.apiKey, password = true) {
                 draft = editing.copy(apiKey = it)
@@ -127,58 +154,54 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
                 ?.let { presets ->
                     Text(
                         stringResource(R.string.ai_preset_models),
-                        style = MaterialTheme.typography.labelMedium,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
                         color = secondary,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     FlowChips(presets.map { it to it }, selected = editing.model) { draft = editing.copy(model = it) }
+                    Spacer(Modifier.height(8.dp))
                 }
 
-            Text(
-                stringResource(R.string.ai_temperature, editing.temperature),
-                style = MaterialTheme.typography.labelMedium,
-                color = secondary,
-            )
+            Text(stringResource(R.string.ai_temperature, editing.temperature), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = secondary)
             Slider(
                 value = editing.temperature.toFloat(),
                 onValueChange = { draft = editing.copy(temperature = it.toDouble()) },
                 valueRange = 0f..2f,
                 steps = 19,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(palette.primary),
+                    activeTrackColor = Color(palette.primary),
+                    inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+                ),
             )
             AiSwitch(stringResource(R.string.ai_enabled), editing.enabled) { draft = editing.copy(enabled = it) }
             AiSwitch(stringResource(R.string.ai_fallback), editing.fallbackEnabled) {
                 draft = editing.copy(fallbackEnabled = it)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 8.dp)) {
-                Button(onClick = { viewModel.saveConfig(editing) }) { Text(stringResource(R.string.ai_save)) }
-                OutlinedButton(
-                    onClick = {
-                        viewModel.deleteConfig(editing.name)
-                        draft = null
-                    },
-                ) {
-                    Text(stringResource(R.string.ai_delete), color = primary)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
+                AiPill(label = stringResource(R.string.ai_save), filled = true) { viewModel.saveConfig(editing) }
+                AiPill(label = stringResource(R.string.ai_delete), filled = false) {
+                    viewModel.deleteConfig(editing.name)
+                    draft = null
                 }
-                OutlinedButton(onClick = { draft = null }) {
-                    Text(stringResource(R.string.ai_cancel), color = secondary)
-                }
+                AiPill(label = stringResource(R.string.ai_cancel), filled = false) { draft = null }
             }
             notice?.let {
-                Text(it, style = MaterialTheme.typography.labelSmall, color = secondary, modifier = Modifier.padding(top = 6.dp))
+                Text(it, fontSize = 12.sp, color = secondary, modifier = Modifier.padding(top = 8.dp))
             }
-            OutlinedButton(
-                onClick = { viewModel.testConnection { ok -> notice = if (ok) "OK" else testFailed } },
-                modifier = Modifier.padding(top = 6.dp),
-            ) {
-                Text(stringResource(R.string.ai_test), color = primary)
+            Spacer(Modifier.height(8.dp))
+            AiPill(label = stringResource(R.string.ai_test), filled = false) {
+                viewModel.testConnection { ok -> notice = if (ok) "OK" else testFailed }
             }
         }
     }
 
     AiSection(stringResource(R.string.ai_run)) {
-        Text(stringResource(R.string.ai_rounds), style = MaterialTheme.typography.labelMedium, color = secondary)
-        Spacer(Modifier.height(4.dp))
+        Text(stringResource(R.string.ai_rounds), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = secondary)
+        Spacer(Modifier.height(6.dp))
         FlowChips(
             listOf(
                 stringResource(R.string.ai_rounds_unlimited) to 0,
@@ -197,11 +220,13 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
 
         Text(
             stringResource(R.string.ai_effort),
-            style = MaterialTheme.typography.labelMedium,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
             color = secondary,
             modifier = Modifier.padding(top = 12.dp),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         FlowChips(
             REASONING_EFFORTS.map { it to it },
             selected = REASONING_EFFORTS.firstOrNull { it == viewModel.reasoningEffort },
@@ -211,6 +236,7 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
 
 private val REASONING_EFFORTS = listOf("auto", "disabled", "low", "high", "max")
 
+/** 玻璃分区卡：与设置页 Section 同一套面（圆角 26 / textPrimary α.10 / 描边 α.16 / 12sp 字距标题） */
 @Composable
 private fun AiSection(title: String, content: @Composable () -> Unit) {
     val palette = LocalCatClawPalette.current
@@ -218,30 +244,43 @@ private fun AiSection(title: String, content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 14.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(palette.backgroundStops.last().argb))
-            .padding(14.dp),
+            .glassCard(palette = palette, corner = 26)
+            .padding(16.dp),
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = Color(palette.textPrimary),
-            modifier = Modifier.padding(bottom = 8.dp),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+            color = Color(palette.textSecondary),
+            modifier = Modifier.padding(bottom = 10.dp),
         )
         content()
     }
 }
 
+/** 玻璃输入框：透明容器、无下划线，标签与光标走调色板 */
 @Composable
 private fun AiField(label: String, value: String, password: Boolean = false, onChange: (String) -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.padding(bottom = 8.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color(palette.textSecondary))
-        OutlinedTextField(
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Color(palette.textSecondary))
+        Spacer(Modifier.height(4.dp))
+        TextField(
             value = value,
             onValueChange = onChange,
             singleLine = true,
             visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color(palette.textPrimary).copy(alpha = 0.08f),
+                unfocusedContainerColor = Color(palette.textPrimary).copy(alpha = 0.06f),
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = Color(palette.textPrimary),
+                unfocusedTextColor = Color(palette.textPrimary),
+                cursorColor = Color(palette.primary),
+            ),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -251,16 +290,25 @@ private fun AiField(label: String, value: String, password: Boolean = false, onC
 private fun AiSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     val palette = LocalCatClawPalette.current
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Text(label, fontSize = 14.sp, color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(palette.primary),
+                checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
+                uncheckedThumbColor = Color(palette.textSecondary),
+                uncheckedTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+            ),
+        )
     }
 }
 
 @Composable
 private fun <T> FlowChips(options: List<Pair<String, T>>, selected: String?, onSelect: (T) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (label, value) ->
                     AiChip(label = label, selected = label == selected, onClick = { onSelect(value) })
                 }
@@ -269,18 +317,29 @@ private fun <T> FlowChips(options: List<Pair<String, T>>, selected: String?, onS
     }
 }
 
+/** 胶囊 chip：选中 = 主色实底深字，未选中 = 玻璃底次级字 */
 @Composable
 private fun AiChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    GlassChip(label = label, selected = selected, onClick = onClick)
+}
+
+/** 胶囊按钮：filled = 主色实底深字，否则描边玻璃底 */
+@Composable
+private fun AiPill(label: String, filled: Boolean, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Text(
         text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = if (selected) Color(palette.primary) else Color(palette.textSecondary),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (filled) Color(inkOn(palette.primary)) else Color(palette.textSecondary),
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) Color(palette.primaryLight) else Color(palette.backgroundStops.last().argb))
+            .background(if (filled) Color(palette.primary) else Color.Transparent)
+            .then(
+                if (filled) Modifier else Modifier.border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(14.dp)),
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
     )
 }
 
@@ -291,28 +350,20 @@ fun AiSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltView
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(palette.backgroundStops.first().argb))
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.GoBack),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(palette.textSecondary),
-                modifier = Modifier
-                    .clickable(onClick = onBack)
-                    .padding(vertical = 8.dp, horizontal = 2.dp),
-            )
-            Spacer(Modifier.width(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
             Text(
                 text = stringResource(R.string.ai_settings),
-                style = MaterialTheme.typography.titleLarge,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
                 color = Color(palette.textPrimary),
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         AiSettingsPanel(viewModel)
         Spacer(Modifier.height(24.dp))
     }
