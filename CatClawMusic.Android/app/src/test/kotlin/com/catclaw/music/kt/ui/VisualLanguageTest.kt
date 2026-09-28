@@ -197,7 +197,7 @@ class VisualLanguageTest {
             "CatClawRoot.kt", "chat/ChatScreen.kt", "player/MiniPlayer.kt",
             "screen/FullLyricsScreen.kt", "screen/LibraryScreen.kt", "screen/PlayingScreen.kt",
             "screen/PlaylistScreen.kt", "screen/QueueScreen.kt", "screen/RemoteSourcesScreen.kt",
-            "screen/SearchScreen.kt", "screen/SettingsScreen.kt", "settings/AiSettingsScreen.kt",
+            "screen/SearchScreen.kt", "screen/SettingsScreen.kt", "settings/AiSettingsScreen.kt", "settings/BackupRestoreScreen.kt",
         )
         val primitives = listOf(
             "glassCard(", "PillLabel(", "GlassChip(", "EmptyState(", "BackTile(",
