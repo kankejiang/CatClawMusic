@@ -60,6 +60,8 @@ abstract class CatClawDatabase : RoomDatabase() {
 
     abstract fun chatDao(): ChatDao
 
+    abstract fun backupDao(): BackupDao
+
     companion object {
         const val NAME = "catclaw.db"
 

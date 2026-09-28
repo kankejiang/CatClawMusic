@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.data.di
 
 import android.content.Context
+import com.catclaw.music.kt.data.db.BackupDao
 import com.catclaw.music.kt.data.db.CatClawDatabase
 import com.catclaw.music.kt.data.db.ChatDao
 import com.catclaw.music.kt.data.db.ConnectionDao
@@ -36,4 +37,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun chatDao(db: CatClawDatabase): ChatDao = db.chatDao()
+
+    @Provides
+    fun backupDao(db: CatClawDatabase): BackupDao = db.backupDao()
 }
