@@ -127,7 +127,7 @@ fun BackupRestoreScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(file.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "%d · %s".format(file.length() / 1024, "KB"),
+                                readableSize(file.length()),
                                 fontSize = 11.sp,
                                 color = Color(palette.textSecondary),
                             )
@@ -167,3 +167,9 @@ fun BackupRestoreScreen(
     }
 }
 
+/** 备份列表里的大小：不足 1 KB 也要说得出数，别写成 "0 KB" */
+private fun readableSize(bytes: Long): String = when {
+    bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
+    bytes >= 1024 -> "%.1f KB".format(bytes / 1024.0)
+    else -> "$bytes B"
+}
