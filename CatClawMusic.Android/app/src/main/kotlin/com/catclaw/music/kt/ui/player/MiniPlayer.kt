@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,12 +87,22 @@ fun MiniPlayer(
                         .background(Color(palette.primary)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = song.title.take(1),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(inkOn(palette.primary)),
-                    )
+                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 128)
+                    if (cover != null) {
+                        Image(
+                            bitmap = cover.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    } else {
+                        Text(
+                            text = song.title.take(1),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(inkOn(palette.primary)),
+                        )
+                    }
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
