@@ -87,62 +87,64 @@ class LlmConfigStore @Inject constructor(
             ?: emptyList()
     }.getOrDefault(emptyList())
 
-    private fun decode(obj: JsonObject): LlmConfig {
-        fun s(key: String, fallback: String) = (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: fallback
-        fun i(key: String, fallback: Int) = (obj[key] as? JsonPrimitive)?.intOrNull ?: fallback
-        fun d(key: String, fallback: Double) = (obj[key] as? JsonPrimitive)?.doubleOrNull ?: fallback
-        fun b(key: String, fallback: Boolean) = (obj[key] as? JsonPrimitive)?.booleanOrNull ?: fallback
-        return LlmConfig(
-            name = s("name", DEFAULT_NAME),
-            provider = s("provider", "deepseek"),
-            apiUrl = s("apiUrl", "https://api.deepseek.com/v1"),
-            apiKey = s("apiKey", ""),
-            model = s("model", "deepseek-v4-flash"),
-            temperature = d("temperature", 0.7),
-            maxTokens = i("maxTokens", 2048),
-            enabled = b("enabled", false),
-            fallbackEnabled = b("fallbackEnabled", false),
-            reasoningEffort = s("reasoningEffort", "disabled"),
-            topP = d("topP", 1.0),
-            frequencyPenalty = d("frequencyPenalty", 0.0),
-            presencePenalty = d("presencePenalty", 0.0),
-            responseFormat = s("responseFormat", "text"),
-            maxCompletionTokens = i("maxCompletionTokens", 0),
-            contextCaching = b("contextCaching", true),
-        )
-    }
+    private fun decode(obj: JsonObject): LlmConfig = readConfigJson(obj)
 
     private fun encode(list: List<LlmConfig>): String {
-        val array: JsonElement = buildJsonArray {
-            list.forEach { c ->
-                add(
-                    JsonObject(
-                        buildMap<String, JsonElement> {
-                            put("name", JsonPrimitive(c.name))
-                            put("provider", JsonPrimitive(c.provider))
-                            put("apiUrl", JsonPrimitive(c.apiUrl))
-                            put("apiKey", JsonPrimitive(c.apiKey))
-                            put("model", JsonPrimitive(c.model))
-                            put("temperature", JsonPrimitive(c.temperature))
-                            put("maxTokens", JsonPrimitive(c.maxTokens))
-                            put("enabled", JsonPrimitive(c.enabled))
-                            put("fallbackEnabled", JsonPrimitive(c.fallbackEnabled))
-                            put("reasoningEffort", JsonPrimitive(c.reasoningEffort))
-                            put("topP", JsonPrimitive(c.topP))
-                            put("frequencyPenalty", JsonPrimitive(c.frequencyPenalty))
-                            put("presencePenalty", JsonPrimitive(c.presencePenalty))
-                            put("responseFormat", JsonPrimitive(c.responseFormat))
-                            put("maxCompletionTokens", JsonPrimitive(c.maxCompletionTokens))
-                            put("contextCaching", JsonPrimitive(c.contextCaching))
-                        },
-                    ),
-                )
-            }
-        }
+        val array: JsonElement = buildJsonArray { list.forEach { c -> add(encodeConfigJson(c)) } }
         return JSON.encodeToString(JsonElement.serializer(), array)
     }
 
-    private companion object {
+    companion object {
+        /**
+         * 单份配置的 JSON 形状只有一个定义处：设置页存盘、备份文件打包都走这两个函数，
+         * 否则「备份里能读回来的配置」和「App 自己存的配置」会各自漂移。
+         */
+        fun encodeConfigJson(c: LlmConfig): JsonObject = JsonObject(
+            buildMap<String, JsonElement> {
+                put("name", JsonPrimitive(c.name))
+                put("provider", JsonPrimitive(c.provider))
+                put("apiUrl", JsonPrimitive(c.apiUrl))
+                put("apiKey", JsonPrimitive(c.apiKey))
+                put("model", JsonPrimitive(c.model))
+                put("temperature", JsonPrimitive(c.temperature))
+                put("maxTokens", JsonPrimitive(c.maxTokens))
+                put("enabled", JsonPrimitive(c.enabled))
+                put("fallbackEnabled", JsonPrimitive(c.fallbackEnabled))
+                put("reasoningEffort", JsonPrimitive(c.reasoningEffort))
+                put("topP", JsonPrimitive(c.topP))
+                put("frequencyPenalty", JsonPrimitive(c.frequencyPenalty))
+                put("presencePenalty", JsonPrimitive(c.presencePenalty))
+                put("responseFormat", JsonPrimitive(c.responseFormat))
+                put("maxCompletionTokens", JsonPrimitive(c.maxCompletionTokens))
+                put("contextCaching", JsonPrimitive(c.contextCaching))
+            },
+        )
+
+        fun readConfigJson(obj: JsonObject): LlmConfig {
+            fun s(key: String, fallback: String) = (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: fallback
+            fun i(key: String, fallback: Int) = (obj[key] as? JsonPrimitive)?.intOrNull ?: fallback
+            fun d(key: String, fallback: Double) = (obj[key] as? JsonPrimitive)?.doubleOrNull ?: fallback
+            fun b(key: String, fallback: Boolean) = (obj[key] as? JsonPrimitive)?.booleanOrNull ?: fallback
+            return LlmConfig(
+                name = s("name", DEFAULT_NAME),
+                provider = s("provider", "deepseek"),
+                apiUrl = s("apiUrl", "https://api.deepseek.com/v1"),
+                apiKey = s("apiKey", ""),
+                model = s("model", "deepseek-v4-flash"),
+                temperature = d("temperature", 0.7),
+                maxTokens = i("maxTokens", 2048),
+                enabled = b("enabled", false),
+                fallbackEnabled = b("fallbackEnabled", false),
+                reasoningEffort = s("reasoningEffort", "disabled"),
+                topP = d("topP", 1.0),
+                frequencyPenalty = d("frequencyPenalty", 0.0),
+                presencePenalty = d("presencePenalty", 0.0),
+                responseFormat = s("responseFormat", "text"),
+                maxCompletionTokens = i("maxCompletionTokens", 0),
+                contextCaching = b("contextCaching", true),
+            )
+        }
+
         val JSON = Json { ignoreUnknownKeys = true }
         const val PREFS = "catclaw_state"
         const val KEY_ALL = "all_configs"
