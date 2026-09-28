@@ -157,4 +157,17 @@
     <string name="plugin_summary">%1$d usable, %2$d found</string>
     <string name="backup_created">Backup created: %1$s</string>
     <string name="backup_restored">Restored from %1$s</string>
+    <string name="perm_refresh">Refresh</string>
+    <string name="perm_granted">Granted</string>
+    <string name="perm_denied">Not granted</string>
+    <string name="perm_go_grant">Grant</string>
+    <string name="perm_view">View</string>
+    <string name="perm_audio_title">Storage / media read</string>
+    <string name="perm_audio_desc">Needed to read local music files</string>
+    <string name="perm_all_files_title">Manage all files</string>
+    <string name="perm_all_files_desc">Android 11+ full-library access; not required for scanning</string>
+    <string name="perm_overlay_title">Display over other apps</string>
+    <string name="perm_overlay_desc">Needed to show the desktop lyrics overlay</string>
+    <string name="perm_notification_title">Notifications</string>
+    <string name="perm_notification_desc">Needed for the playback control notification (Android 13+)</string>
 </resources>

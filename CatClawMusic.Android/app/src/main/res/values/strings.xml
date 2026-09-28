@@ -157,4 +157,17 @@
     <string name="plugin_summary">%1$d 个可用，共 %2$d 个</string>
     <string name="backup_created">已创建备份 %1$s</string>
     <string name="backup_restored">已从 %1$s 恢复数据</string>
+    <string name="perm_refresh">刷新</string>
+    <string name="perm_granted">已授予</string>
+    <string name="perm_denied">未授权</string>
+    <string name="perm_go_grant">去授权</string>
+    <string name="perm_view">查看</string>
+    <string name="perm_audio_title">存储 / 媒体读取</string>
+    <string name="perm_audio_desc">读取本地音乐文件所需的基础权限</string>
+    <string name="perm_all_files_title">管理所有文件</string>
+    <string name="perm_all_files_desc">Android 11+ 用于访问完整曲库，扫描并非必须</string>
+    <string name="perm_overlay_title">悬浮窗权限</string>
+    <string name="perm_overlay_desc">显示桌面歌词悬浮窗所需</string>
+    <string name="perm_notification_title">通知权限</string>
+    <string name="perm_notification_desc">显示播放控制通知所需（Android 13+）</string>
 </resources>

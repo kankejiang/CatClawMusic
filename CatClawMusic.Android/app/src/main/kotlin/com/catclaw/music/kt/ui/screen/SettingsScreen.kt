@@ -53,6 +53,7 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.theme.AppearanceMode
 import com.catclaw.music.kt.ui.settings.AppLocale
 import com.catclaw.music.kt.ui.settings.BackupRestoreScreen
+import com.catclaw.music.kt.ui.settings.PermissionManagementScreen
 import com.catclaw.music.kt.ui.settings.AiSettingsScreen
 import com.catclaw.music.kt.ui.plugin.PluginRow
 import com.catclaw.music.kt.ui.plugin.PluginSettingsViewModel
@@ -69,7 +70,7 @@ import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 
 /** MAUI `SettingsPage` 是枢纽 + push 子页；这里用同一份状态在整屏之间切换 */
-private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup }
+private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission }
 
 /** M4 壳层：设置枢纽页。语言切换以自己的 SharedPreferences 为事实来源（那台 MIUI 没有 locale_manager 服务），51 个语言全在包里。 */
 @Composable
@@ -88,6 +89,7 @@ fun SettingsScreen(
         SettingsDest.General -> GeneralSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
         SettingsDest.Ai -> AiSettingsScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Backup -> BackupRestoreScreen(onBack = { dest = SettingsDest.Hub })
+        SettingsDest.Permission -> PermissionManagementScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Hub -> Unit
     }
     if (dest != SettingsDest.Hub) return
@@ -223,6 +225,13 @@ fun SettingsScreen(
             title = stringResource(R.string.BackupRestore),
             desc = stringResource(R.string.BackupRestoreDesc),
             onClick = { dest = SettingsDest.Backup },
+        )
+        HubRow(
+            iconRes = R.drawable.ic_info,
+            tileArgb = 0x20FFB74DL,
+            title = stringResource(R.string.Permissions),
+            desc = stringResource(R.string.PermissionsSubtitle),
+            onClick = { dest = SettingsDest.Permission },
         )
     }
 }
