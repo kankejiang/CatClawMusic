@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.ui.song.SongActionMenu
+import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -315,6 +318,7 @@ fun LibraryListScreen(
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val menu = rememberSongMenu(viewModel)
 
     val title = stringResource(
         when (kind) {
@@ -356,8 +360,16 @@ fun LibraryListScreen(
         }
 
         when (kind) {
-            LibraryKind.Songs -> SongList(songs.map { it.title to it.artist }, songs.size) { viewModel.playAt(it) }
-            LibraryKind.Favorites -> SongList(favorites.map { it.title to it.artist }, favorites.size) { viewModel.playFavoriteAt(it) }
+            LibraryKind.Songs -> SongList(
+                songs, subtitleOf = { it.artist }, menu = menu,
+                emptyHint = stringResource(R.string.library_empty, songs.size),
+            ) { viewModel.playAt(it) }
+            LibraryKind.Favorites -> SongList(
+                favorites, subtitleOf = { it.artist }, menu = menu,
+                // 这句以前是「曲库为空，点扫描曲库」—— 收藏为空和曲库为空是两件事，
+                // 而且这里正是该教用户「长按」的地方（真机截图时发现的）
+                emptyHint = stringResource(R.string.favorite_empty_hint),
+            ) { viewModel.playFavoriteAt(it) }
             LibraryKind.Artists -> InfoList(
                 rows = artists.map { it.name to stringResource(R.string.playlist_count, it.songCount) },
                 onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Artists, artists[index].id, artists[index].name)) },
@@ -413,17 +425,47 @@ private fun LibraryDetailScreen(
             }
         }
         SongList(
-            rows = loaded.map { it.title to if (byArtist) it.album else it.artist },
-            total = loaded.size,
-        ) { viewModel.playRows(loaded, it) }
+            rows = loaded,
+            subtitleOf = { if (byArtist) it.album else it.artist },
+            menu = rememberSongMenu(viewModel),
+            emptyHint = stringResource(R.string.song_list_empty_hint),
+            onPlay = { viewModel.playRows(loaded, it) },
+        )
     }
 }
 
+/** 长按菜单的能力由页面注入：SongList 只负责弹菜单，不知道收藏怎么存、歌单从哪来 */
+private class SongMenuActions(
+    val playlists: List<Pair<Int, String>>,
+    val favoriteIds: Set<Int>,
+    val onToggleFavorite: (Int) -> Unit,
+    val onAddToPlaylist: (Int, Int) -> Unit,
+)
+
 @Composable
-private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int) -> Unit) {
+private fun rememberSongMenu(viewModel: LibraryViewModel): SongMenuActions {
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    return SongMenuActions(
+        playlists = playlists.map { it.id to it.name },
+        favoriteIds = remember(favorites) { favorites.map { it.id }.toSet() },
+        onToggleFavorite = viewModel::toggleFavorite,
+        onAddToPlaylist = viewModel::addToPlaylist,
+    )
+}
+
+@Composable
+private fun SongList(
+    rows: List<SongListItem>,
+    subtitleOf: (SongListItem) -> String,
+    menu: SongMenuActions,
+    emptyHint: String,
+    onPlay: (Int) -> Unit,
+) {
     val palette = LocalCatClawPalette.current
+    var target by remember { mutableStateOf<SongMenuTarget?>(null) }
     if (rows.isEmpty()) {
-        EmptyHint(stringResource(R.string.library_empty, total))
+        EmptyHint(emptyHint)
         return
     }
     LazyColumn(
@@ -431,13 +473,16 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(rows.size) { index ->
-            val (title, subtitle) = rows[index]
+        itemsIndexed(rows) { index, row ->
+            val subtitle = subtitleOf(row)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .glassCard(palette = palette, corner = 22)
-                    .clickable { onClick(index) }
+                    .combinedClickable(
+                        onClick = { onPlay(index) },
+                        onLongClick = { target = SongMenuTarget(row.id, row.title, subtitle) },
+                    )
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -446,7 +491,10 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(Color(palette.primary).copy(alpha = 0.22f)),
+                        .background(
+                            if (row.id in menu.favoriteIds) Color(palette.primary).copy(alpha = 0.55f)
+                            else Color(palette.primary).copy(alpha = 0.22f),
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -458,7 +506,7 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = title,
+                        text = row.title,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(palette.textPrimary),
                         maxLines = 1,
@@ -474,6 +522,16 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
                 }
             }
         }
+    }
+    target?.let { song ->
+        SongActionMenu(
+            target = song,
+            isFavorite = song.id in menu.favoriteIds,
+            playlists = menu.playlists,
+            onToggleFavorite = { menu.onToggleFavorite(song.id) },
+            onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
+            onDismiss = { target = null },
+        )
     }
 }
 

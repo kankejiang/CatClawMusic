@@ -184,4 +184,11 @@
 
 Download it from GitHub.</string>
     <string name="about_go_repo">Download</string>
+    <string name="favorite_add">Favorite</string>
+    <string name="favorite_remove">Unfavorite</string>
+    <string name="song_menu_add_to_playlist">Add to playlist</string>
+    <string name="song_menu_no_playlist">No playlists yet — create one on the Playlists page</string>
+    <string name="song_menu_close">Close</string>
+    <string name="favorite_empty_hint">Nothing favorited yet. Long-press a song and tap Favorite.</string>
+    <string name="song_list_empty_hint">No songs here yet.</string>
 </resources>

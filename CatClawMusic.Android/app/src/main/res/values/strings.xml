@@ -184,4 +184,11 @@
 
 请前往 GitHub 下载最新版本。</string>
     <string name="about_go_repo">去下载</string>
+    <string name="favorite_add">收藏</string>
+    <string name="favorite_remove">取消收藏</string>
+    <string name="song_menu_add_to_playlist">添加到歌单</string>
+    <string name="song_menu_no_playlist">还没有歌单，先去「歌单」页建一个</string>
+    <string name="song_menu_close">关闭</string>
+    <string name="favorite_empty_hint">还没有收藏。长按一首歌，菜单里点「收藏」。</string>
+    <string name="song_list_empty_hint">这里还没有歌。</string>
 </resources>

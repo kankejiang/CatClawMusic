@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.data.db.entity.FavoriteEntity
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.library.LibraryScanner
@@ -26,7 +27,7 @@ class LibraryViewModel @Inject constructor(
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
     private val libraryDao: LibraryDao,
-    playlistDao: PlaylistDao,
+    private val playlistDao: PlaylistDao,
 ) : ViewModel() {
 
     /** 下钻页要按艺人/专辑现读一次歌单 */
@@ -35,6 +36,25 @@ class LibraryViewModel @Inject constructor(
     suspend fun songsOfAlbum(albumId: Int) = libraryDao.songsOfAlbum(albumId)
 
     fun playRows(rows: List<SongListItem>, index: Int) = playFrom(rows.map { it.toSong() }, index)
+
+    /**
+     * 收藏的唯一写入口。MAUI 侧这个入口是歌曲长按菜单（`SongContextMenu` 的 ♥ 那一行），
+     * 本端此前只有读没有写 —— "我喜欢的"这张表于是永远为空，点了统计格只会看到空页。
+     */
+    fun toggleFavorite(songId: Int) {
+        viewModelScope.launch {
+            if (libraryDao.isFavorite(songId)) libraryDao.removeFavorite(songId)
+            else libraryDao.upsertFavorite(FavoriteEntity(songId = songId, addedAt = System.currentTimeMillis()))
+        }
+    }
+
+    /** 加进已有歌单：位置接在末尾，重复由 `INSERT OR IGNORE` 吃掉（PlaylistSongs 上有唯一索引） */
+    fun addToPlaylist(playlistId: Int, songId: Int) {
+        viewModelScope.launch {
+            val position = (playlistDao.maxPosition(playlistId) ?: 0) + 1
+            playlistDao.insertItem(playlistId, songId, position)
+        }
+    }
 
     val songs = libraryDao.observeLocalSongs().stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
