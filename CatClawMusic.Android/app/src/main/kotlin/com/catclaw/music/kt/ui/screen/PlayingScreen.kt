@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +54,7 @@ import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
 import com.catclaw.music.kt.ui.player.PlayerIcons
+import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -134,6 +138,8 @@ fun PlayingScreen(
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val song = state.currentSong
+                val cover = rememberCover(song?.coverArtPath, song?.filePath)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.62f)
@@ -143,12 +149,21 @@ fun PlayingScreen(
                         .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(26.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = state.currentSong?.title?.take(1) ?: "♪",
-                        fontSize = 64.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(inkOn(palette.primaryLight)),
-                    )
+                    if (cover != null) {
+                        Image(
+                            bitmap = cover.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    } else {
+                        Text(
+                            text = song?.title?.take(1) ?: "♪",
+                            fontSize = 64.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(inkOn(palette.primaryLight)),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))
