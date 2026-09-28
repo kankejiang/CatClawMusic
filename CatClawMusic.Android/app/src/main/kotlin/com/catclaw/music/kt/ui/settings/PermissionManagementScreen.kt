@@ -51,6 +51,7 @@ import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.TouchMin
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
+import dagger.hilt.android.lifecycle.HiltViewModel
 
 /**
  * 权限管理子页 —— MAUI `PermissionManagementPage` 的对应物。
@@ -201,4 +202,5 @@ private fun iconOf(row: PermissionRow) = when (row.kind) {
 }
 
 /** 页面只要一个能拿到 probe 的入口，状态本身留在 Compose 里（每次进页/刷新现读） */
+@HiltViewModel
 class PermissionViewModel @Inject constructor(val probe: AndroidPermissionProbe) : ViewModel()

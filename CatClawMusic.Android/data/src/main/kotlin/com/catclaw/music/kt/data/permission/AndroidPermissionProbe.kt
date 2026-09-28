@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.catclaw.music.kt.data.lyrics.OverlayPermission
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,7 +23,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AndroidPermissionProbe @Inject constructor(
-    private val appContext: Context,
+    @ApplicationContext private val appContext: Context,
 ) {
 
     fun snapshot(): PermissionSnapshot = PermissionSnapshot(
