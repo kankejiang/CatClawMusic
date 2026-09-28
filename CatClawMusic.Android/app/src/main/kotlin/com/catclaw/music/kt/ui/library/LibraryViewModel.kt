@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.library.LibraryScanner
@@ -24,9 +25,16 @@ class LibraryViewModel @Inject constructor(
     private val scanner: LibraryScanner,
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
-    libraryDao: LibraryDao,
+    private val libraryDao: LibraryDao,
     playlistDao: PlaylistDao,
 ) : ViewModel() {
+
+    /** 下钻页要按艺人/专辑现读一次歌单 */
+    suspend fun songsOfArtist(artistId: Int) = libraryDao.songsOfArtist(artistId)
+
+    suspend fun songsOfAlbum(albumId: Int) = libraryDao.songsOfAlbum(albumId)
+
+    fun playRows(rows: List<SongListItem>, index: Int) = playFrom(rows.map { it.toSong() }, index)
 
     val songs = libraryDao.observeLocalSongs().stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),

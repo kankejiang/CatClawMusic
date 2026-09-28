@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -62,13 +64,29 @@ import com.catclaw.music.kt.ui.theme.glassCard
  */
 enum class LibraryKind { Songs, Artists, Albums, Favorites }
 
+/**
+ * 艺人 / 专辑的二级页目标 —— 对应 MAUI push 的 `ArtistDetailPage` / `AlbumDetailPage`。
+ * 带 id 而不是名字：同名艺人在曲库里是两回事（见 `SQL_SONGS_OF_ARTIST` 的注释）。
+ */
+data class LibraryDetail(val kind: LibraryKind, val id: Int, val name: String)
+
 @Composable
 fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     // 统计格 / 资料库行的下钻。MAUI 是 push 独立页（AllSongsPage 等），这里在页内切换：
     // 少一条路由与一次 VM 作用域切换，返回行为一致
     var opened by remember { mutableStateOf<LibraryKind?>(null) }
+    var detail by remember { mutableStateOf<LibraryDetail?>(null) }
+    detail?.let {
+        LibraryDetailScreen(detail = it, onBack = { detail = null }, viewModel = viewModel)
+        return
+    }
     opened?.let { kind ->
-        LibraryListScreen(kind = kind, onBack = { opened = null }, viewModel = viewModel)
+        LibraryListScreen(
+            kind = kind,
+            onBack = { opened = null },
+            onOpen = { detail = it },
+            viewModel = viewModel,
+        )
         return
     }
     val onOpenKind: (LibraryKind) -> Unit = { opened = it }
@@ -289,6 +307,7 @@ private fun SourceRow(
 fun LibraryListScreen(
     kind: LibraryKind,
     onBack: () -> Unit,
+    onOpen: (LibraryDetail) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
@@ -339,9 +358,64 @@ fun LibraryListScreen(
         when (kind) {
             LibraryKind.Songs -> SongList(songs.map { it.title to it.artist }, songs.size) { viewModel.playAt(it) }
             LibraryKind.Favorites -> SongList(favorites.map { it.title to it.artist }, favorites.size) { viewModel.playFavoriteAt(it) }
-            LibraryKind.Artists -> InfoList(artists.map { it.name to stringResource(R.string.playlist_count, it.songCount) })
-            LibraryKind.Albums -> InfoList(albums.map { it.title to it.artist })
+            LibraryKind.Artists -> InfoList(
+                rows = artists.map { it.name to stringResource(R.string.playlist_count, it.songCount) },
+                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Artists, artists[index].id, artists[index].name)) },
+            )
+            LibraryKind.Albums -> InfoList(
+                rows = albums.map { it.title to it.artist },
+                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Albums, albums[index].id, albums[index].title)) },
+            )
         }
+    }
+}
+
+/**
+ * 艺人 / 专辑二级页：进页现读一次歌单（刚扫完库要能看到新结果），点一行就是"从这个位置起播这张列表"。
+ *
+ * 副标题两种页故意不同：艺人页每首的歌手都一样，展示歌手等于没展示，所以给专辑名；
+ * 专辑页反过来给歌手名。
+ */
+@Composable
+private fun LibraryDetailScreen(
+    detail: LibraryDetail,
+    onBack: () -> Unit,
+    viewModel: LibraryViewModel,
+) {
+    val palette = LocalCatClawPalette.current
+    val byArtist = detail.kind == LibraryKind.Artists
+    val rows by produceState<List<SongListItem>?>(initialValue = null, detail) {
+        value = if (byArtist) viewModel.songsOfArtist(detail.id) else viewModel.songsOfAlbum(detail.id)
+    }
+    val loaded = rows.orEmpty()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = detail.name,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(palette.textPrimary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.playlist_count, loaded.size),
+                    fontSize = 12.sp,
+                    color = Color(palette.textSecondary),
+                )
+            }
+        }
+        SongList(
+            rows = loaded.map { it.title to if (byArtist) it.album else it.artist },
+            total = loaded.size,
+        ) { viewModel.playRows(loaded, it) }
     }
 }
 
@@ -403,8 +477,9 @@ private fun SongList(rows: List<Pair<String, String>>, total: Int, onClick: (Int
     }
 }
 
+/** 艺人 / 专辑列表：每一行都能点开进二级页，所以行尾要给出可点的暗示 */
 @Composable
-private fun InfoList(rows: List<Pair<String, String>>) {
+private fun InfoList(rows: List<Pair<String, String>>, onOpen: (Int) -> Unit) {
     val palette = LocalCatClawPalette.current
     if (rows.isEmpty()) {
         EmptyHint(stringResource(R.string.library_none))
@@ -415,11 +490,12 @@ private fun InfoList(rows: List<Pair<String, String>>) {
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(rows) { (name, detail) ->
+        itemsIndexed(rows) { index, (name, detail) ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .glassCard(palette = palette, corner = 22)
+                    .clickable { onOpen(index) }
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -451,6 +527,20 @@ private fun InfoList(rows: List<Pair<String, String>>) {
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(palette.textSecondary),
                 )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(palette.textPrimary).copy(alpha = 0.07f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        tint = Color(palette.textSecondary),
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
             }
         }
     }

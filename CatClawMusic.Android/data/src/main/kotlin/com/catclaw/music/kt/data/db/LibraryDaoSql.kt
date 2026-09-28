@@ -82,3 +82,45 @@ internal const val SQL_TRIM_SESSIONS = """
         SELECT Id FROM PlaySession ORDER BY PlayedAt DESC, Id DESC LIMIT :keep
     )
 """
+
+/**
+ * 某个艺人的全部歌曲 —— 对应 C# `MusicDatabase.GetSongsByArtistAsync`。
+ *
+ * 两处与 C# 有意不同，都是往"更准"的方向偏：
+ * 1. **按 Id 匹配而不是按 Name**：C# 那句 `WHERE a.Name = ? OR a2.Name = ?` 会把两个同名
+ *    不同人的歌手合并成一个人（曲库里 "Jay" 这种艺名并不罕见）。
+ * 2. 合作歌手用 `IN (子查询)` 而不是 `LEFT JOIN SongArtists` + DISTINCT：
+ *    JOIN 会让一首挂 N 个歌手的歌先膨胀成 N 行再去重，子查询不会。
+ *    两者结果集相同，这一点由 `LibraryDaoSqlTest` 钉住。
+ */
+internal const val SQL_SONGS_OF_ARTIST = """
+    SELECT DISTINCT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
+           COALESCE(al.Title, '') AS album, s.Duration AS durationSeconds,
+           s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
+           s.Source AS source, s.Protocol AS protocol
+    FROM Songs s
+    LEFT JOIN Artists a ON a.Id = s.ArtistId
+    LEFT JOIN Albums al ON al.Id = s.AlbumId
+    WHERE s.ArtistId = :artistId
+       OR s.Id IN (SELECT sa.SongId FROM SongArtists sa WHERE sa.ArtistId = :artistId)
+    ORDER BY s.Source ASC, s.Title COLLATE NOCASE ASC
+"""
+
+/**
+ * 某张专辑的全部歌曲 —— 对应 C# `GetSongsByAlbumAsync`（它没有 ORDER BY，等于按 rowid 出）。
+ *
+ * 这里显式按曲目号排：专辑的常识顺序是 1 轨、2 轨……，而扫描入库的顺序是文件遍历顺序，
+ * 两者不一致时"看着像乱序"。TrackNumber 为 0（没标签）的歌排在有号的后面，再按标题。
+ */
+internal const val SQL_SONGS_OF_ALBUM = """
+    SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
+           COALESCE(al.Title, '') AS album, s.Duration AS durationSeconds,
+           s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
+           s.Source AS source, s.Protocol AS protocol
+    FROM Songs s
+    LEFT JOIN Artists a ON a.Id = s.ArtistId
+    JOIN Albums al ON al.Id = s.AlbumId
+    WHERE s.AlbumId = :albumId
+    ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC,
+             s.Title COLLATE NOCASE ASC
+"""

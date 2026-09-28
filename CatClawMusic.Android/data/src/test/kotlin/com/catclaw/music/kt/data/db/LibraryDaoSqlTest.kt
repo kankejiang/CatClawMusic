@@ -175,4 +175,86 @@ class LibraryDaoSqlTest {
         // 钉住现状而不是假装它不存在：要收紧就得转义 LIKE 的 % 与 _。
         assertEquals(listOf(1, 2), search("%"))
     }
+
+    // ── songsOfArtist / songsOfAlbum ────────────────────────────
+
+    /** `:artistId` 在 SQL 里出现两次：Room 按名字绑定会喂两处，JDBC 的 `?` 按位置，所以要逐个槽位绑 */
+    private fun idsOf(sql: String, value: Int): List<Int> {
+        val prepared = sql.replace(Regex(":(\\w+)"), "?")
+        val slots = Regex("\\?").findAll(prepared).count()
+        return db.prepareStatement(prepared).apply {
+            (1..slots).forEach { setInt(it, value) }
+        }.executeQuery().let { rs -> generateSequence { if (rs.next()) rs.getInt("id") else null }.toList() }
+    }
+
+    private fun link(songId: Int, artistId: Int) {
+        db.prepareStatement("INSERT INTO SongArtists (SongId, ArtistId) VALUES (?,?)").apply {
+            setInt(1, songId); setInt(2, artistId)
+        }.executeUpdate()
+    }
+
+    private fun track(songId: Int, number: Int) {
+        db.prepareStatement("UPDATE Songs SET TrackNumber = ? WHERE Id = ?").apply {
+            setInt(1, number); setInt(2, songId)
+        }.executeUpdate()
+    }
+
+    @Test
+    fun artistSongsIncludeFeaturedLinksExactlyOnce() {
+        addArtist(11, "主唱"); addArtist(12, "嘉宾"); addArtist(13, "别人")
+        addSong(1, "Alpha", artistId = 11)
+        addSong(2, "Beta", artistId = 13) // 主歌手是 13，但合作名单里有 11
+        addSong(3, "Gamma", artistId = 12)
+        link(2, 11); link(2, 13) // 同一首歌挂两个歌手：查 11 时不能因为 JOIN 出两行
+
+        assertEquals("挂名合作要能查到，且一行只出一次", listOf(1, 2), idsOf(SQL_SONGS_OF_ARTIST, 11))
+        assertEquals(listOf(3), idsOf(SQL_SONGS_OF_ARTIST, 12))
+    }
+
+    @Test
+    fun artistSongsMatchByIdSoSameNameArtistsStayApart() {
+        // C# 那句是 `WHERE a.Name = ? OR a2.Name = ?` —— 两个都叫 Jay 的人会并成一个人。
+        // 这里按 Id 匹配，所以各查各的。
+        addArtist(11, "Jay"); addArtist(12, "Jay")
+        addSong(1, "Alpha", artistId = 11)
+        addSong(2, "Beta", artistId = 12)
+
+        assertEquals(listOf(1), idsOf(SQL_SONGS_OF_ARTIST, 11))
+        assertEquals(listOf(2), idsOf(SQL_SONGS_OF_ARTIST, 12))
+    }
+
+    @Test
+    fun artistSongsOfUnknownArtistAreEmptyRatherThanEverything() {
+        addArtist(11, "主唱")
+        addSong(1, "Alpha", artistId = 11)
+        addSong(2, "无主歌手") // ArtistId 为 NULL：没有歌手归属，不该出现在任何人名下
+        assertEquals(emptyList<Int>(), idsOf(SQL_SONGS_OF_ARTIST, 999))
+        assertEquals(listOf(1), idsOf(SQL_SONGS_OF_ARTIST, 11))
+    }
+
+    @Test
+    fun albumSongsOrderTaggedTracksFirstThenUntaggedByTitle() {
+        addAlbum(21, "某张专辑"); addAlbum(22, "另一张")
+        addSong(1, "Z-无轨号", albumId = 21)
+        addSong(2, "第三轨", albumId = 21)
+        addSong(3, "第一轨", albumId = 21)
+        addSong(4, "A-无轨号", albumId = 21)
+        addSong(5, "别的专辑", albumId = 22)
+        track(2, 3); track(3, 1)
+
+        assertEquals(
+            "有轨号的按轨号排（1 轨、3 轨），没标签的落到后面按标题排 —— 入库顺序不等于曲目顺序",
+            listOf(3, 2, 4, 1), idsOf(SQL_SONGS_OF_ALBUM, 21),
+        )
+        assertEquals(listOf(5), idsOf(SQL_SONGS_OF_ALBUM, 22))
+    }
+
+    @Test
+    fun albumSongsNeedTheAlbumRowToExist() {
+        addSong(1, "孤儿曲", albumId = 21) // AlbumId 指向一张已被清理掉的专辑
+        assertEquals(
+            "JOIN Albums 是内连接：专辑行没了就不出歌。宁可显示空专辑，也不要一排查不到归属的歌",
+            emptyList<Int>(), idsOf(SQL_SONGS_OF_ALBUM, 21),
+        )
+    }
 }

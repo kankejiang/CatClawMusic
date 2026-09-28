@@ -340,6 +340,14 @@ interface LibraryDao {
     )
     fun observeAlbums(): Flow<List<AlbumListItem>>
 
+    /** 艺人下钻页的歌（主歌手 + 合作歌手） */
+    @Query(SQL_SONGS_OF_ARTIST)
+    suspend fun songsOfArtist(artistId: Int): List<SongListItem>
+
+    /** 专辑下钻页的歌，按曲目号排 */
+    @Query(SQL_SONGS_OF_ALBUM)
+    suspend fun songsOfAlbum(albumId: Int): List<SongListItem>
+
     @Transaction
     suspend fun upsertSongArtistPair(songId: Int, artistId: Int) {
         upsertSongArtist(SongArtistEntity(songId = songId, artistId = artistId))
