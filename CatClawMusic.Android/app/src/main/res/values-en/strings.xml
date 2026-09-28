@@ -155,4 +155,6 @@
     <string name="plugin_problem_platform">This plugin has no %1$s build</string>
     <string name="plugin_problem_host_old">Requires host %1$s or newer</string>
     <string name="plugin_summary">%1$d usable, %2$d found</string>
+    <string name="backup_created">Backup created: %1$s</string>
+    <string name="backup_restored">Restored from %1$s</string>
 </resources>

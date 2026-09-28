@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.backup.BackupService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -39,9 +40,15 @@ class BackupViewModel @Inject constructor(
 
     fun backups(): List<File> = BackupService.list(backupRoot())
 
-    fun createBackup() = runJob { root -> service.backup(root, onProgress = ::publish).name }
+    fun createBackup() = runJob {
+        val name = service.backup(it, onProgress = ::publish).name
+        context.getString(R.string.backup_created, name)
+    }
 
-    fun restore(file: File) = runJob { root -> service.restore(file, onProgress = ::publish).let { file.name } }
+    fun restore(file: File) = runJob {
+        service.restore(file, onProgress = ::publish)
+        context.getString(R.string.backup_restored, file.name)
+    }
 
     fun dismissMessage() {
         _state.value = _state.value.copy(busy = false, percent = 0, message = null)

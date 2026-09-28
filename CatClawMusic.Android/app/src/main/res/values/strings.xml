@@ -155,4 +155,6 @@
     <string name="plugin_problem_platform">该插件不提供 %1$s 版本</string>
     <string name="plugin_problem_host_old">需要宿主 %1$s 及以上</string>
     <string name="plugin_summary">%1$d 个可用，共 %2$d 个</string>
+    <string name="backup_created">已创建备份 %1$s</string>
+    <string name="backup_restored">已从 %1$s 恢复数据</string>
 </resources>
