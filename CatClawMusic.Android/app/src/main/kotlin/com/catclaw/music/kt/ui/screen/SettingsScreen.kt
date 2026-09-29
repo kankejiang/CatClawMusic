@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import androidx.activity.compose.BackHandler
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -101,6 +102,9 @@ fun SettingsScreen(
         SettingsDest.Downloads -> DownloadsScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Hub -> Unit
     }
+    // 这些子页是**同一个路由里的状态切换**，系统返回键不会自己退它们：
+    // 不接住就是"在设置子页按返回 → 整个设置页被路由弹掉"（真机上从下载管理按返回就是这么掉的）
+    BackHandler(enabled = dest != SettingsDest.Hub) { dest = SettingsDest.Hub }
     if (dest != SettingsDest.Hub) return
 
     val mode by viewModel.mode.collectAsStateWithLifecycle()

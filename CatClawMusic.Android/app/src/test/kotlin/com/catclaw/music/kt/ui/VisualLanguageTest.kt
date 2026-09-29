@@ -236,6 +236,14 @@ class VisualLanguageTest {
         }
         assertTrue("页内整屏层画了返回方块却不接系统返回键: $unhandled", unhandled.isEmpty())
 
+        // 设置页的子页是**同一路由里的状态切换**（`dest` 枚举，不是 `!= null` 那两种形状），
+        // 上面的点名表管不到，就单独钉这一条：不接住就是按返回把整个设置弹掉
+        assertTrue(
+            "设置子页要接住系统返回键（退回设置枢纽，而不是弹掉整个设置路由）",
+            Regex("""BackHandler\(enabled = dest != SettingsDest\.Hub""")
+                .containsMatchIn(File(uiRoot, "screen/SettingsScreen.kt").readText()),
+        )
+
         // 早退结构里**先命中的那块才是看得见的那一层**：歌曲信息必须排在歌手/专辑层之前判。
         // 歌单页此前正排反了——在歌手页点「歌曲信息」把 id 存好了却仍然画歌手页，纹丝不动
         val playlist = File(uiRoot, "screen/PlaylistScreen.kt").readText()
