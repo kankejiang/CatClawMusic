@@ -81,4 +81,17 @@ object MediaScanRules {
 
     /** 比特率：MediaStore 给 bps，入库契约是 kbps */
     fun bitrateKbps(bps: Int): Int = if (bps <= 0) 0 else bps / 1000
+
+    /**
+     * SAF 音乐文件夹清单的编解码（一个字符串存多棵树 URI）。
+     *
+     * 分隔符跟 C# 侧 `FolderPicker` 一样用 `|`：SAF 的 tree URI 里不会出现它，
+     * 而 URI 里常见的 `,`、`:`、`/` 都不能拿来当分隔符。
+     * 去空白 + 去重 + 保序，是因为这份清单会既作为存储值、又作为列表页的显示顺序。
+     */
+    fun encodeFolders(uris: Collection<String>): String =
+        uris.map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString("|")
+
+    fun decodeFolders(stored: String): List<String> =
+        stored.split('|').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 }

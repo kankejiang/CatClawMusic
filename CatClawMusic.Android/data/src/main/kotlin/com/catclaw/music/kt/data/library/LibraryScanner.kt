@@ -11,6 +11,7 @@ import com.catclaw.music.kt.data.db.entity.AlbumEntity
 import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongEntity
+import com.catclaw.music.kt.data.settings.LocalScanSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +28,8 @@ data class ScanResult(
 )
 
 /**
- * 曲库扫描：MediaStore → Songs / Artists / Albums / SongArtists，按 UQ(FilePath) 去重，
- * 并清掉已消失的本地曲目（等价 C# 的 MusicScanner + RemoveStaleSongs）。
+ * 曲库扫描：两条来源（MediaStore / SAF 手挑文件夹，各按设置开关）→ Songs / Artists / Albums / SongArtists，
+ * 按 UQ(FilePath) 去重，并清掉已消失的本地曲目（等价 C# 的 MusicScanner + RemoveStaleSongs）。
  *
  * 全程一次事务 + 批量写入：首扫 616 曲若逐条提交实测要 17 秒，
  * 这里把往返压到常数次。
@@ -37,11 +38,18 @@ class LibraryScanner @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: CatClawDatabase,
     private val dao: LibraryDao,
+    private val settings: LocalScanSettings,
+    private val saf: SafMusicScanner,
 ) {
 
     suspend fun scanFull(): ScanResult = withContext(Dispatchers.IO) {
         val startedAt = System.currentTimeMillis()
-        val tracks = queryMediaStore()
+        // 两条来源合起来才是"这次扫描看到的全部"。裁剪必须拿这个并集当 seen ——
+        // 只按 MediaStore 的结果裁剪，会把 SAF 文件夹里那几首判成"文件已消失"而删掉
+        val tracks = buildList {
+            if (settings.useMediaStore) addAll(queryMediaStore())
+            if (settings.useSafScan) addAll(saf.scan(settings.folders()))
+        }
 
         val result = db.withTransaction {
             val existingSongs = dao.allLocalSongs().associateBy { it.filePath }
@@ -89,7 +97,7 @@ class LibraryScanner @Inject constructor(
             val links = mutableListOf<SongArtistEntity>()
 
             for (track in tracks) {
-                val path = MediaScanRules.contentUri(track.mediaStoreId)
+                val path = track.path
                 val artistName = MediaScanRules.normalizeArtist(track.artistRaw)
                 val artistId = artistIds[artistName] ?: continue
                 val albumTitle = track.album.ifBlank { UNKNOWN_ALBUM }
@@ -104,7 +112,7 @@ class LibraryScanner @Inject constructor(
                     durationSeconds = MediaScanRules.durationSeconds(track.durationMs),
                     filePath = path,
                     fileSize = track.size,
-                    bitrate = MediaScanRules.bitrateKbps(track.bitrateBps),
+                    bitrate = track.bitrateKbps,
                     trackNumber = track.trackNumber,
                     year = track.year,
                     genre = track.genre,
@@ -128,7 +136,7 @@ class LibraryScanner @Inject constructor(
             if (links.isNotEmpty()) dao.upsertSongArtists(links)
             if (changedSongs.isNotEmpty()) dao.upsertSongs(changedSongs)
 
-            val seen = tracks.mapTo(HashSet()) { MediaScanRules.contentUri(it.mediaStoreId) }
+            val seen = tracks.mapTo(HashSet()) { it.path }
             // 扫描一条都没返回时绝不裁剪 —— 否则 seen 是空集，整库都会被判成"文件已消失"而删光。
             // 权限被撤 / MediaProvider 短暂不可用 / 查询异常被吞成空列表，都会走到这条路上。
             val stale = MediaScanRules.stalePaths(
@@ -161,21 +169,7 @@ class LibraryScanner @Inject constructor(
         result.copy(elapsedMs = elapsed)
     }
 
-    private data class Track(
-        val mediaStoreId: Long,
-        val title: String,
-        val artistRaw: String?,
-        val album: String,
-        val durationMs: Long,
-        val size: Long,
-        val bitrateBps: Int,
-        val trackNumber: Int,
-        val year: Int,
-        val genre: String?,
-        val dateModified: Long,
-    )
-
-    private fun queryMediaStore(): List<Track> {
+    private fun queryMediaStore(): List<ScanTrack> {
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -212,14 +206,15 @@ class LibraryScanner @Inject constructor(
                 while (c.moveToNext()) {
                     if (c.isNull(iDuration)) continue
                     add(
-                        Track(
+                        ScanTrack(
+                            path = MediaScanRules.contentUri(c.getLong(iId)),
                             mediaStoreId = c.getLong(iId),
                             title = c.getString(iTitle).orEmpty(),
                             artistRaw = if (c.isNull(iArtist)) null else c.getString(iArtist),
                             album = c.getString(iAlbum).orEmpty(),
                             durationMs = c.getLong(iDuration),
                             size = c.getLong(iSize),
-                            bitrateBps = c.getInt(iBitrate),
+                            bitrateKbps = MediaScanRules.bitrateKbps(c.getInt(iBitrate)),
                             trackNumber = c.getInt(iTrack),
                             year = c.getInt(iYear),
                             genre = if (c.isNull(iGenre)) null else c.getString(iGenre),

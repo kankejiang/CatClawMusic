@@ -58,6 +58,7 @@ import com.catclaw.music.kt.ui.settings.DiagnosticLogScreen
 import com.catclaw.music.kt.ui.settings.AboutScreen
 import com.catclaw.music.kt.ui.settings.PermissionManagementScreen
 import com.catclaw.music.kt.ui.settings.AiSettingsScreen
+import com.catclaw.music.kt.ui.settings.LocalMusicSettingsScreen
 import com.catclaw.music.kt.ui.plugin.PluginRow
 import com.catclaw.music.kt.ui.plugin.PluginSettingsViewModel
 import com.catclaw.music.kt.ui.settings.SettingsViewModel
@@ -73,7 +74,7 @@ import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 
 /** MAUI `SettingsPage` 是枢纽 + push 子页；这里用同一份状态在整屏之间切换 */
-private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About }
+private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About, LocalMusic }
 
 /** M4 壳层：设置枢纽页。语言切换以自己的 SharedPreferences 为事实来源（那台 MIUI 没有 locale_manager 服务），51 个语言全在包里。 */
 @Composable
@@ -95,6 +96,7 @@ fun SettingsScreen(
         SettingsDest.Permission -> PermissionManagementScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.About -> AboutScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.DiagnosticLog -> DiagnosticLogScreen(onBack = { dest = SettingsDest.Hub })
+        SettingsDest.LocalMusic -> LocalMusicSettingsScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Hub -> Unit
     }
     if (dest != SettingsDest.Hub) return
@@ -200,6 +202,13 @@ fun SettingsScreen(
             title = stringResource(R.string.RemoteMusic),
             desc = stringResource(R.string.RemoteMusicSubtitle),
             onClick = onOpenRemote,
+        )
+        HubRow(
+            iconRes = R.drawable.ic_library,
+            tileArgb = 0x207ED8C3L,
+            title = stringResource(R.string.local_music_settings),
+            desc = stringResource(R.string.local_music_subtitle),
+            onClick = { dest = SettingsDest.LocalMusic },
         )
         HubRow(
             iconRes = R.drawable.ic_equalizer,
