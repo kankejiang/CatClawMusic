@@ -198,4 +198,15 @@ class SettingsViewModel @Inject constructor(
             withContext(Dispatchers.Main) { onResult(ok) }
         }
     }
+
+    /**
+     * 「获取模型列表」。同一条阻塞约束，另外**拿的是页面上这份草稿**：
+     * 用户通常是先填好 URL/Key 再点它，读当前生效配置会拉回另一个账号的模型。
+     */
+    fun fetchModels(config: LlmConfig, onResult: (List<String>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val models = runCatching { llmClient.listModels(config) }.getOrDefault(emptyList())
+            withContext(Dispatchers.Main) { onResult(models) }
+        }
+    }
 }

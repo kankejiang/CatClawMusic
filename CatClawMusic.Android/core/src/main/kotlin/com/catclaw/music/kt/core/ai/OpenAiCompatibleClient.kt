@@ -143,18 +143,27 @@ class OpenAiCompatibleClient(
         transport.post(url, mapOf("Authorization" to "Bearer ${config.apiKey}", "Content-Type" to "application/json"), body) {}.status in 200..299
     }.getOrDefault(false)
 
-    /** 拉取该账号可用的模型 id 列表（NVIDIA 等目录会随账号变化，设置页用它做「获取模型列表」） */
-    fun listModels(): List<String> = runCatching {
-        val config = configProvider()
-        val base = config.apiUrl.trimEnd('/')
-        val url = if (base.endsWith("/v1", true) || VERSION_TAIL.matches(base)) "$base/models" else "$base/v1/models"
-        val res = transport.get(url, mapOf("Authorization" to "Bearer ${config.apiKey}"))
+    /** 拉取「当前生效配置」那个账号的模型列表 */
+    fun listModels(): List<String> = listModels(configProvider())
+
+    /**
+     * 用**给定**的配置去拉。设置页正在编辑的草稿通常还没保存，
+     * 只读当前生效的那份会让按钮显示成另一个账号的模型 —— 用户点了就填错模型名。
+     */
+    fun listModels(config: LlmConfig): List<String> = runCatching {
+        if (config.apiUrl.isBlank()) return emptyList()
+        val res = transport.get(modelsUrl(config.apiUrl), mapOf("Authorization" to "Bearer ${config.apiKey}"))
         if (res.status !in 200..299) return emptyList()
-        val root = LlmJson.parseToJsonElement(res.body).jsonObject
-        (root["data"] as? JsonArray)?.mapNotNull { item ->
+        parseModels(res.body)
+    }.getOrDefault(emptyList())
+
+    /** 目录响应只认 `data[].id`；错误页 / HTML / 缺字段一律给空列表而不是抛出去 */
+    fun parseModels(body: String): List<String> {
+        val root = runCatching { LlmJson.parseToJsonElement(body).jsonObject }.getOrNull() ?: return emptyList()
+        return (root["data"] as? JsonArray)?.mapNotNull { item ->
             (item as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNullSafe()
         } ?: emptyList()
-    }.getOrDefault(emptyList())
+    }
 
     companion object {
         private val VERSION_TAIL = Regex("/v\\d+$")
@@ -173,6 +182,22 @@ class OpenAiCompatibleClient(
                 url.endsWith("/v1/", true) -> "${url}chat/completions"
                 VERSION_TAIL.containsMatchIn(url) -> "$url/chat/completions"
                 else -> "$url/v1/chat/completions"
+            }
+        }
+
+        /**
+         * 模型目录端点：与 [buildChatUrl] 同一套形状判断。
+         * `/v4` 这类版本段后面直接接 `/models`，补成 `/v4/v1/models` 会 404。
+         *
+         * 这里原来写的是 `VERSION_TAIL.matches(base)` —— `matches` 要**整串**匹配，
+         * 于是只有 URL 恰好等于 "/v1" 时才认，智谱那种带路径前缀的账号一律被拼成 `.../v4/v1/models`。
+         */
+        fun modelsUrl(apiUrl: String): String {
+            val base = apiUrl.trimEnd('/')
+            return when {
+                base.endsWith("/models", true) -> base
+                base.endsWith("/v1", true) || VERSION_TAIL.containsMatchIn(base) -> "$base/models"
+                else -> "$base/v1/models"
             }
         }
 

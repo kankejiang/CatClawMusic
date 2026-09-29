@@ -65,9 +65,16 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
     // 编辑的是副本：点「保存」才写回存储，中途改错不至于污染当前生效配置
     var draft by remember { mutableStateOf<LlmConfig?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    /**
+     * 「获取模型列表」的结果，连同**它来自哪个 apiUrl** 一起存。
+     * 只存列表的话，用户拉完再改 URL，下面那排 chip 还是上一家的模型，点了就填错。
+     */
+    var fetched by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
+    var fetching by remember { mutableStateOf(false) }
     // onClick / 回调 lambda 不是 composable 上下文，字符串要先取出来
     val newConfigName = stringResource(R.string.ai_new_config_name)
     val testFailed = stringResource(R.string.ai_test_failed)
+    val modelsEmpty = stringResource(R.string.ai_models_empty)
 
     AiSection(stringResource(R.string.ai_configs)) {
         if (configs.isEmpty()) {
@@ -167,6 +174,21 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
                     Spacer(Modifier.height(8.dp))
                 }
 
+            // 账号实际返回的那一份：点一下就填进上面「模型」那格。
+            // 只在 URL 没被改过的时候画——改过 URL 之后这批 id 已经属于另一家了
+            fetched?.takeIf { it.first == editing.apiUrl && it.second.isNotEmpty() }?.let { (_, models) ->
+                Text(
+                    stringResource(R.string.ai_models_from_account, models.size),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = secondary,
+                )
+                Spacer(Modifier.height(6.dp))
+                FlowChips(models.map { it to it }, selected = editing.model) { draft = editing.copy(model = it) }
+                Spacer(Modifier.height(8.dp))
+            }
+
             Text(stringResource(R.string.ai_temperature, editing.temperature), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = secondary)
             Slider(
                 value = editing.temperature.toFloat(),
@@ -198,6 +220,21 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
             Spacer(Modifier.height(8.dp))
             AiPill(label = stringResource(R.string.ai_test), filled = false) {
                 viewModel.testConnection { ok -> notice = if (ok) "OK" else testFailed }
+            }
+            Spacer(Modifier.height(6.dp))
+            // 拉列表是网络调用：拉取中把按钮置灰，不然连点会并发发好几份请求
+            AiPill(
+                label = stringResource(if (fetching) R.string.ai_models_fetching else R.string.ai_fetch_models),
+                filled = false,
+                enabled = !fetching,
+            ) {
+                fetching = true
+                notice = null
+                viewModel.fetchModels(editing) { models ->
+                    fetching = false
+                    fetched = editing.apiUrl to models
+                    if (models.isEmpty()) notice = modelsEmpty
+                }
             }
         }
     }
@@ -375,20 +412,24 @@ private fun AiChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 /** 胶囊按钮：filled = 主色实底深字，否则描边玻璃底 */
 @Composable
-private fun AiPill(label: String, filled: Boolean, onClick: () -> Unit) {
+private fun AiPill(label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Text(
         text = label,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
-        color = if (filled) Color(inkOn(palette.primary)) else Color(palette.textSecondary),
+        color = when {
+            !enabled -> Color(palette.textSecondary).copy(alpha = 0.5f)
+            filled -> Color(inkOn(palette.primary))
+            else -> Color(palette.textSecondary)
+        },
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
             .background(if (filled) Color(palette.primary) else Color.Transparent)
             .then(
                 if (filled) Modifier else Modifier.border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(14.dp)),
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
     )
 }

@@ -201,6 +201,42 @@ class OpenAiCompatibleClientTest {
         assertEquals(listOf("title"), (params["required"]!!.jsonArray()).map { it.jsonText() })
     }
 
+    // ---- 模型目录：URL 拼接 + 用哪份配置去拉（设置页「获取模型列表」的两条腿）----
+
+    @Test
+    fun modelsUrlFollowsTheSameVersionShapeAsChatUrl() {
+        assertEquals("https://x/v1/models", OpenAiCompatibleClient.modelsUrl("https://x/v1"))
+        assertEquals("https://x/v1/models", OpenAiCompatibleClient.modelsUrl("https://x/v1///"))
+        // 带路径前缀的 /v4：早先写成 VERSION_TAIL.matches(base) 时，这里被拼成 .../v4/v1/models（必然 404）
+        assertEquals(
+            "https://open.bigmodel.cn/api/paas/v4/models",
+            OpenAiCompatibleClient.modelsUrl("https://open.bigmodel.cn/api/paas/v4"),
+        )
+        assertEquals("https://x/v1/models", OpenAiCompatibleClient.modelsUrl("https://x"))
+        assertEquals("已经拼过的不再拼", "https://x/v1/models", OpenAiCompatibleClient.modelsUrl("https://x/v1/models"))
+    }
+
+    @Test
+    fun modelsListUsesTheGivenConfigAndDegradesToEmpty() {
+        val url = "http://127.0.0.1:4599/v1/models"
+        val transport = RecordingTransport(
+            responses = mapOf(
+                url to LlmHttpResult(200, """{"data":[{"id":"mock-a"},{"id":"mock-b"},{"id":null},{"nope":1}]}"""),
+            ),
+        )
+        // 当前生效配置故意指向另一个账号：拉列表必须用传进去的那份草稿，否则按钮给的是别家的模型
+        val client = OpenAiCompatibleClient(
+            transport,
+            configProvider = { LlmConfig(apiUrl = "https://elsewhere.example/v1", apiKey = "k") },
+        )
+        val draft = LlmConfig(apiUrl = "http://127.0.0.1:4599/v1", apiKey = "mock")
+        assertEquals(listOf("mock-a", "mock-b"), client.listModels(draft))
+        assertEquals("请求打到的就是草稿的目录端点", listOf(url), transport.got)
+        assertEquals("空 URL 不发请求", emptyList<String>(), client.listModels(LlmConfig(apiUrl = "", apiKey = "k")))
+        assertEquals("404 给空列表而不是抛", emptyList<String>(), client.parseModels("""{"error":"nope"}"""))
+        assertEquals("非 JSON 响应体同样给空", emptyList<String>(), client.parseModels("<html>502</html>"))
+    }
+
     // ---- 退回链 ----
 
     private class RecordingTransport(
@@ -208,6 +244,7 @@ class OpenAiCompatibleClientTest {
         var default: LlmHttpResult = LlmHttpResult(200, """{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}"""),
     ) : LlmTransport {
         val posted = mutableListOf<String>()
+        val got = mutableListOf<String>()
         var onLine: ((String) -> Unit)? = null
 
         override fun post(url: String, headers: Map<String, String>, body: String, forEachLine: (String) -> Unit): LlmHttpResult {
@@ -216,8 +253,10 @@ class OpenAiCompatibleClientTest {
             return responses[url] ?: default
         }
 
-        override fun get(url: String, headers: Map<String, String>): LlmHttpResult =
-            responses[url] ?: LlmHttpResult(404, "")
+        override fun get(url: String, headers: Map<String, String>): LlmHttpResult {
+            got += url
+            return responses[url] ?: LlmHttpResult(404, "")
+        }
     }
 
     @Test

@@ -146,6 +146,10 @@
     <string name="ai_delete">删除</string>
     <string name="ai_cancel">取消</string>
     <string name="ai_test">测试连接</string>
+    <string name="ai_fetch_models">获取模型列表</string>
+    <string name="ai_models_fetching">拉取中…</string>
+    <string name="ai_models_empty">没拿到模型列表，检查一下 API URL 与 Key 喵</string>
+    <string name="ai_models_from_account">账号里的模型（%1$d 个）</string>
     <string name="ai_test_failed">连接失败喵</string>
     <string name="ai_run">Agent 运行参数</string>
     <string name="ai_rounds">执行轮数上限</string>

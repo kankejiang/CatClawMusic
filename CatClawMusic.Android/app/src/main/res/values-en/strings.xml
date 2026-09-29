@@ -146,6 +146,10 @@
     <string name="ai_delete">Delete</string>
     <string name="ai_cancel">Cancel</string>
     <string name="ai_test">Test connection</string>
+    <string name="ai_fetch_models">Fetch models</string>
+    <string name="ai_models_fetching">Fetching…</string>
+    <string name="ai_models_empty">No models returned — check the API URL and key</string>
+    <string name="ai_models_from_account">Models from this account (%1$d)</string>
     <string name="ai_test_failed">Connection failed</string>
     <string name="ai_run">Agent run settings</string>
     <string name="ai_rounds">Max tool rounds</string>
