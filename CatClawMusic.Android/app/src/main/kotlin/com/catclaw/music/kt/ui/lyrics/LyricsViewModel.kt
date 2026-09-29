@@ -6,6 +6,7 @@ import com.catclaw.music.kt.core.lyrics.LyricPresentation
 import com.catclaw.music.kt.core.lyrics.Lyrics
 import com.catclaw.music.kt.core.lyrics.LyricsState
 import com.catclaw.music.kt.core.lyrics.withoutEmptyLines
+import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.lyrics.LyricsReader
 import com.catclaw.music.kt.data.lyrics.LyricsSettings
@@ -102,4 +103,7 @@ class LyricsViewModel @Inject constructor(
     fun currentSongTitle(): String = controller.state.value.currentSong?.title.orEmpty()
 
     fun currentSongArtist(): String = controller.state.value.currentSong?.artist.orEmpty()
+
+    /** 歌词页的底色要跟着封面染，所以整首歌得给出去；取值方式与上面两个同源 */
+    fun currentSong(): Song? = controller.state.value.currentSong
 }

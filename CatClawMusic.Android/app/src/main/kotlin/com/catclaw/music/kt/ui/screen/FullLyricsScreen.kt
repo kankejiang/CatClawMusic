@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,11 +42,12 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.lyrics.LyricsSettings
 import com.catclaw.music.kt.ui.lyrics.LyricLineText
 import com.catclaw.music.kt.ui.lyrics.LyricsViewModel
+import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.PillLabel
-import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.artworkWash
 import com.catclaw.music.kt.ui.theme.catClawBackground
 
 @Composable
@@ -77,25 +79,30 @@ fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewM
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
+    // 与播放页同一套语言：底色由当前这首歌的封面染出来（[artworkWash] 单点定义），
+    // 头部只留文字与纯图标——原来那颗玻璃卡返回方块是另一套语言，跟播放页的图标行摆在一起会分家
+    val song = viewModel.currentSong()
+    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256)
+
+    Box(modifier = Modifier.fillMaxSize().catClawBackground().artworkWash(cover)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = viewModel.currentSongTitle().ifEmpty { stringResource(R.string.m1_nothing) },
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = Color(palette.textPrimary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = viewModel.currentSongArtist(),
-                        fontSize = 12.sp,
+                        fontSize = 12.5.sp,
                         color = Color(palette.textSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -106,25 +113,26 @@ fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewM
                     onClick = { viewModel.toggleLineMode() },
                     filled = false,
                 )
-                PillLabel(
-                    text = stringResource(R.string.Settings),
-                    onClick = { panelOpen = !panelOpen },
-                    filled = false,
-                )
-                Box(
+                Icon(
+                    painter = painterResource(R.drawable.ic_settings),
+                    contentDescription = stringResource(R.string.Settings),
+                    tint = Color(palette.textSecondary),
                     modifier = Modifier
-                        .size(40.dp)
-                        .glassCard(palette = palette, corner = 14)
-                        .clickable(onClickLabel = stringResource(R.string.lyric_close)) { onClose() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.lyric_close),
-                        tint = Color(palette.textPrimary),
-                        modifier = Modifier.size(19.dp),
-                    )
-                }
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { panelOpen = !panelOpen }
+                        .padding(11.dp),
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_close),
+                    contentDescription = stringResource(R.string.lyric_close),
+                    tint = Color(palette.textPrimary),
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable(onClickLabel = stringResource(R.string.lyric_close)) { onClose() }
+                        .padding(11.dp),
+                )
             }
 
             Spacer(Modifier.height(4.dp))

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -69,10 +69,8 @@ import com.catclaw.music.kt.ui.song.SongMenuFor
 import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
-import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
-import com.catclaw.music.kt.ui.theme.PillLabel
-import com.catclaw.music.kt.ui.theme.inkOn
+import com.catclaw.music.kt.ui.theme.artworkWash
 
 @Composable
 fun PlayingScreen(
@@ -146,25 +144,16 @@ fun PlayingScreen(
         return
     }
 
-    // Apple Music 的 Now Playing 不是"页面套一张通用渐变"，而是**封面把环境染了**：
-    // 取封面的平均色当顶部色标，往下压回玻璃底，于是封面、歌名、控制区在同一个色温里。
+    // 页面底色由当前那张封面染出来（[artworkWash]：平均色三段渐变，盖在外壳的主题底之上），
+    // 于是封面、歌名、控制区落在同一个色温里。
     // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
     val song = state.currentSong
     val cover = rememberCover(song?.coverArtPath, song?.filePath)
-    val artworkTint = rememberArtworkTint(cover)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        artworkTint.copy(alpha = 0.46f),
-                        artworkTint.copy(alpha = 0.16f),
-                        GlassTokens.Tint.copy(alpha = 0.94f),
-                    ),
-                ),
-            )
+            .artworkWash(cover)
             .padding(horizontal = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -218,66 +207,74 @@ fun PlayingScreen(
                 .weight(1f),
             contentAlignment = Alignment.Center,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.76f)
-                        .aspectRatio(1f)
-                        // Apple 的封面是"小圆角 + 重投影"，不是描边；投影把封面从染色的环境里抬出来
-                        .shadow(26.dp, RoundedCornerShape(14.dp))
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (cover != null) {
-                        Image(
-                            bitmap = cover.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                    } else {
-                        Text(
-                            text = song?.title?.take(1) ?: "♪",
-                            fontSize = 64.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(palette.textSecondary),
-                        )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                // 封面边长取「页宽的 0.76」与「这一栏高度减去文字块」里的小者。
+                // 只按宽度算会出事：Column 是顺序分配高度的，封面先吃掉一大块之后若不够，
+                // 下面的歌词行就拿到 0 高——**0 高的 Text 一个像素都不画，可它的 clickable 仍然
+                // 撑出 48dp 触达框**，于是节点树里那行还在、屏幕上却是一条空白。
+                // 真机量出来的：同位置放一颗写死绿色的探针也不显示，改这一处之后两者都出来了。
+                val coverSide = minOf(maxWidth * 0.76f, maxHeight - 190.dp).coerceAtLeast(150.dp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(coverSide)
+                            // Apple 的封面是"小圆角 + 重投影"，不是描边；投影把封面从染色的环境里抬出来
+                            .shadow(26.dp, RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (cover != null) {
+                            Image(
+                                bitmap = cover.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize(),
+                            )
+                        } else {
+                            Text(
+                                text = song?.title?.take(1) ?: "♪",
+                                fontSize = 64.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(palette.textSecondary),
+                            )
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(26.dp))
-                // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textPrimary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = state.currentSong?.artist ?: "",
-                        fontSize = 17.sp,
-                        color = Color(palette.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                    state.error?.let {
+                    Spacer(Modifier.height(26.dp))
+                    // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color(palette.textPrimary),
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        Text(
+                            text = state.currentSong?.artist ?: "",
+                            fontSize = 17.sp,
+                            color = Color(palette.textSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                        state.error?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(palette.textPrimary),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(14.dp))
-                com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
+                    Spacer(Modifier.height(14.dp))
+                    // 歌词预览与标题/歌手共用一条左边距（Apple 那三行是同一列），点它横滑进全屏歌词页
+                    com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
+                }
             }
         }
 
@@ -584,51 +581,6 @@ private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Un
             color = Color(palette.textSecondary),
         )
     }
-}
-
-/**
- * 封面的平均色 —— Apple Music 那套"环境被封面染色"的数据源。
- *
- * 采样而不是取主色：主色要 k-means 或 MedianCut，一帧里跑不动；而播放页要的只是
- * "整页色温跟着封面走"，均色足够，且封面已经下采样到 512px 以内，跳着取样不到 900 个点。
- * 没有封面时回落到透明，让页面自己的渐变底接管。
- */
-@Composable
-private fun rememberArtworkTint(cover: android.graphics.Bitmap?): Color {
-    val palette = LocalCatClawPalette.current
-    return remember(cover) {
-        if (cover == null || cover.width == 0 || cover.height == 0) {
-            return@remember Color.Transparent
-        }
-        var r = 0L
-        var g = 0L
-        var b = 0L
-        var n = 0L
-        val stepX = (cover.width / 26).coerceAtLeast(1)
-        val stepY = (cover.height / 26).coerceAtLeast(1)
-        var y = 0
-        while (y < cover.height) {
-            var x = 0
-            while (x < cover.width) {
-                val pixel = cover.getPixel(x, y)
-                r += (pixel shr 16) and 0xFF
-                g += (pixel shr 8) and 0xFF
-                b += pixel and 0xFF
-                n++
-                x += stepX
-            }
-            y += stepY
-        }
-        if (n == 0L) {
-            Color.Transparent
-        } else {
-            Color(
-                (r / n).toFloat() / 255f,
-                (g / n).toFloat() / 255f,
-                (b / n).toFloat() / 255f,
-            )
-        }
-    }.takeIf { it != Color.Transparent } ?: Color(palette.primary).copy(alpha = 0.30f)
 }
 
 private fun formatTime(ms: Long): String {

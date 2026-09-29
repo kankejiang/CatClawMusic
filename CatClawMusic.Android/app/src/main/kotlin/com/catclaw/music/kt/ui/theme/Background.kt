@@ -2,8 +2,10 @@ package com.catclaw.music.kt.ui.theme
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -71,6 +73,64 @@ fun Modifier.catClawBackground(): Modifier {
             )
         }
     }
+}
+
+/**
+ * **封面把环境染了**——Apple Music 的 Now Playing 不是「页面套一张通用渐变」，而是让当前唱的那张封面
+ * 决定页面的色温：取封面平均色压成三段竖向渐变，盖在 [catClawBackground] 之上。
+ * 播放页与全屏歌词页共用这一处定义（2026-09-29 随播放页重排一起提上来）。
+ *
+ * 三个停靠点的 alpha 都不满 1 是有意的：外壳那层底（三层渐变 + 光晕 + 用户自定义背景图）必须继续透得出来。
+ * 早先版本底部压到 α.94，等于在播放页把自定义背景图盖掉——正是第 7 条背景闸门要防的那件事。
+ */
+@Composable
+fun Modifier.artworkWash(cover: Bitmap?): Modifier {
+    // 取色只算一次：连着调三次 rememberArtworkTint 会开出三个 remember 槽，各自重算一遍采样
+    val tint = rememberArtworkTint(cover)
+    return background(
+        Brush.verticalGradient(
+            listOf(
+                tint.copy(alpha = 0.42f),
+                tint.copy(alpha = 0.18f),
+                tint.copy(alpha = 0.05f),
+            ),
+        ),
+    )
+}
+
+/**
+ * 封面平均色：26×26 网格采样（≤676 个像素，一次算完，不逐帧扫图）。
+ * 取不到封面就退回主色——染色不该因为一张图都没解出来就变成透明。
+ */
+@Composable
+fun rememberArtworkTint(cover: Bitmap?): Color {
+    val palette = LocalCatClawPalette.current
+    val sampled = remember(cover) {
+        if (cover == null || cover.width == 0 || cover.height == 0) return@remember null
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0L
+        val stepX = (cover.width / 26).coerceAtLeast(1)
+        val stepY = (cover.height / 26).coerceAtLeast(1)
+        var y = 0
+        while (y < cover.height) {
+            var x = 0
+            while (x < cover.width) {
+                // 必须用 getPixel：`androidx.compose.ui.graphics.getColor` 那个同名扩展会把结果包成 Color，
+                // 后面按 Int 位移取通道就编译不过
+                val pixel = cover.getPixel(x, y)
+                r += (pixel shr 16) and 0xFF
+                g += (pixel shr 8) and 0xFF
+                b += pixel and 0xFF
+                n++
+                x += stepX
+            }
+            y += stepY
+        }
+        if (n == 0L) null else Color((r / n).toFloat() / 255f, (g / n).toFloat() / 255f, (b / n).toFloat() / 255f)
+    }
+    return sampled ?: Color(palette.primary)
 }
 
 /**

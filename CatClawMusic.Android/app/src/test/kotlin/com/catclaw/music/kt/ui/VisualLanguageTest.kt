@@ -202,6 +202,7 @@ class VisualLanguageTest {
         val primitives = listOf(
             "glassCard(", "PillLabel(", "GlassChip(", "EmptyState(", "BackTile(",
             "inkOn(", "highlightOn", "catClawBackground(", "BarGlass(", "GlassTokens.",
+            "artworkWash(",
         )
         val missing = pageFiles.filter { rel ->
             val f = File(uiRoot, rel)
@@ -242,6 +243,14 @@ class VisualLanguageTest {
             "设置子页要接住系统返回键（退回设置枢纽，而不是弹掉整个设置路由）",
             Regex("""BackHandler\(enabled = dest != SettingsDest\.Hub""")
                 .containsMatchIn(File(uiRoot, "screen/SettingsScreen.kt").readText()),
+        )
+
+        // 全屏歌词页既不是覆盖层也不是子路由，而是 **pager 的第 0 页**，上面几种形状都抓不到它。
+        // 真机按返回直接退到桌面（本轮量到的：back 之后截图是 MuMu 启动器），所以点名钉这一条
+        assertTrue(
+            "全屏歌词页要接住系统返回键（滑回播放页，而不是退出应用）",
+            Regex("""BackHandler\(enabled = pagerState\.currentPage == PAGE_FULL_LYRICS""")
+                .containsMatchIn(File(uiRoot, "CatClawRoot.kt").readText()),
         )
 
         // 早退结构里**先命中的那块才是看得见的那一层**：歌曲信息必须排在歌手/专辑层之前判。
@@ -405,6 +414,45 @@ class VisualLanguageTest {
             }
         }
         assertTrue("开关行请统一走 GlassSwitch（滑块与轨道只该有一处定义）: $offenders", offenders.isEmpty())
+    }
+
+    /**
+     * 封面染色只许有一份定义（`Modifier.artworkWash`，在 theme/Background.kt，不在本条扫描范围内）。
+     *
+     * 播放页按 Apple Music 重排时把「取封面平均色 + 三段竖向渐变」写在了页面里，歌词页要接同一套语言
+     * 就会各抄一份——而抄的那一版底部压到 α.94，等于把外壳的三层渐变、光晕、用户自定义背景图整张盖掉，
+     * 正是第 7 条背景闸门要防的那件事。所以取色与三档 alpha 一起收进 theme，页面只能调 `artworkWash(`。
+     */
+    @Test
+    fun `封面染色不在页面里各自实现`() {
+        val offenders = pages.flatMap { f ->
+            f.readText().lines().mapIndexedNotNull { i, line ->
+                val m = Regex("""fun (\w*[Aa]rtwork\w*)\(""").find(line.trim()) ?: return@mapIndexedNotNull null
+                "${f.name}:${i + 1} ${m.groupValues[1]}"
+            }
+        }
+        assertTrue("封面染色请统一走 Modifier.artworkWash（取色与三档 alpha 只该有一处定义）: $offenders", offenders.isEmpty())
+        // 该被染的两页必须真接上：少了这一句，上面那条零命中就只是空转
+        for (rel in listOf("screen/PlayingScreen.kt", "screen/FullLyricsScreen.kt")) {
+            assertTrue("$rel 没接封面染色 artworkWash", "artworkWash(" in File(uiRoot, rel).readText())
+        }
+    }
+
+    /**
+     * 播放页的封面边长必须同时受「页宽」和「这一栏剩给文字的高度」约束。
+     *
+     * 真机量到的坑：封面原来只按 `fillMaxWidth(0.76f).aspectRatio(1f)` 定尺寸，`Column` 是顺序
+     * 分配高度的，封面吃满之后下面的歌词行拿到 **0 高**——0 高的 `Text` 一个像素都不画，
+     * 可它的 `clickable` 仍然撑出 48dp 触达框，于是**节点树里那行还在、屏幕上是一条空白**，
+     * 光看 dump 会以为一切正常（同位置放一颗写死绿色的探针也不显示，才把责任定到高度分配上）。
+     */
+    @Test
+    fun `播放页封面不许把歌词行挤成零高`() {
+        val text = File(uiRoot, "screen/PlayingScreen.kt").readText()
+        assertTrue(
+            "封面边长要同时按宽度与剩余高度取小者（否则下面的文字块拿不到高度，直接不渲染）",
+            Regex("""minOf\(maxWidth \* 0\.76f, maxHeight - \d+\.dp""").containsMatchIn(text),
+        )
     }
 
     /**

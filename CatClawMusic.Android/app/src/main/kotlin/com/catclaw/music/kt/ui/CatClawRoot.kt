@@ -310,6 +310,12 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                     }
                 }
             }
+            // 全屏歌词页是 pager 的第 0 页而不是 NavHost 路由，没人接系统返回键就是**直接退掉整个应用**
+            // （真机：歌词页按返回掉回桌面）。它是从播放页滑出来的，返回就该滑回去。
+            // 排在下面两条之前：覆盖层压着歌词页时，返回要先退覆盖层（后组合者优先）。
+            BackHandler(enabled = pagerState.currentPage == PAGE_FULL_LYRICS) {
+                scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) }
+            }
             // 系统返回键先退掉最上层的覆盖层。这两层是压在发现页（聊天/统计）之上的整屏层，
             // 而 Compose 的 BackHandler 是**后组合者优先**，所以放在这里正好盖过发现页那两条
             BackHandler(enabled = showQueue) { showQueue = false }
@@ -360,10 +366,12 @@ fun CurrentLyricLine(onOpenLyrics: () -> Unit, modifier: Modifier = Modifier) {
         color = Color(palette.textPrimary),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
+        textAlign = TextAlign.Start,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 6.dp)
+            // 只留纵向内边距：横向那 18dp 会把这一行的左边距顶到标题右边 28dp 处，
+            // 左对齐就白做了（触达区靠 fillMaxWidth 的整宽 + clickable 的 48dp 撑，不需要横向垫）
+            .padding(vertical = 6.dp)
             .clickable(onClick = onOpenLyrics),
     )
 }
