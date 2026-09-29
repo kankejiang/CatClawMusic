@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -152,6 +153,9 @@ fun SongList(
         }
     }
     target?.let { song ->
+        val context = LocalContext.current
+        // 能不能分享在弹菜单这一刻判一次：判不出可分享地址就不画这一项
+        val shareUri = shareUriFor(context, song.song.filePath)
         SongActionMenu(
             target = song,
             isFavorite = song.id in menu.favoriteIds,
@@ -159,6 +163,11 @@ fun SongList(
             onToggleFavorite = { menu.onToggleFavorite(song.id) },
             onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
             onPlayNext = { menu.onPlayNext(song.song) },
+            onShare = if (shareUri == null) {
+                null
+            } else {
+                { openShareSheet(context, shareUri, song.title, song.song.artist) }
+            },
             onOpenDetail = { menu.onOpenDetail(song.id) },
             onDismiss = { target = null },
         )

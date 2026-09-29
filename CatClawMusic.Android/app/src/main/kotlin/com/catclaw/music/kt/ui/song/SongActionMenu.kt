@@ -35,6 +35,8 @@ fun SongActionMenu(
     onToggleFavorite: () -> Unit,
     onOpenDetail: () -> Unit,
     onPlayNext: () -> Unit,
+    /** 为 null 表示这首歌给不出一个对方真能读到的地址 —— 那就**不画这一项** */
+    onShare: (() -> Unit)?,
     onAddToPlaylist: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -74,6 +76,16 @@ fun SongActionMenu(
                     },
                     filled = false,
                 )
+                onShare?.let { share ->
+                    PillLabel(
+                        text = stringResource(R.string.song_menu_share),
+                        onClick = {
+                            share()
+                            onDismiss()
+                        },
+                        filled = false,
+                    )
+                }
                 Text(
                     text = stringResource(R.string.song_menu_add_to_playlist),
                     style = MaterialTheme.typography.labelMedium,
