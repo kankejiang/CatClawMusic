@@ -6,6 +6,7 @@ import java.sql.DriverManager
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -268,6 +269,24 @@ class LibraryDaoSqlTest {
             "/m/2.mp3", samples["一张专辑"],
         )
         assertNull("专辑里没有歌时就是 null，不能凭空指一条路径", samples["空专辑"])
+    }
+
+    @Test
+    fun playStatsCountsSongsOnceAndSumsThePlays() {
+        recordPlay(7, 100L); recordPlay(7, 200L); recordPlay(8, 300L)
+        val rs = db.createStatement().executeQuery(SQL_PLAY_STATS)
+        assertTrue(rs.next())
+        assertEquals("一首歌播两次只算一首播过的歌", 2, rs.getInt("songsPlayed"))
+        assertEquals("总次数是各行 PlayCount 之和", 3, rs.getInt("totalPlays"))
+    }
+
+    @Test
+    fun playStatsOnAnEmptyHistoryIsZeroNotNull() {
+        // 空表时 SUM 返回 NULL 而不是 0，少了 COALESCE 就是发现页一进来就抛
+        val rs = db.createStatement().executeQuery(SQL_PLAY_STATS)
+        assertTrue(rs.next())
+        assertEquals(0, rs.getInt("songsPlayed"))
+        assertEquals(0, rs.getInt("totalPlays"))
     }
 
     @Test

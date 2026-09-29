@@ -6,6 +6,7 @@ import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.AlbumListItem
 import com.catclaw.music.kt.data.db.ArtistListItem
 import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.data.db.PlayStats
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
@@ -49,6 +50,10 @@ class SearchViewModel @Inject constructor(
     private val _albums = MutableStateFlow<List<AlbumListItem>>(emptyList())
     val albums: StateFlow<List<AlbumListItem>> = _albums.asStateFlow()
 
+    /** 统计格要的是真实聚合，不是某个货架的长度 */
+    private val _stats = MutableStateFlow(PlayStats(0, 0))
+    val stats: StateFlow<PlayStats> = _stats.asStateFlow()
+
     private var activated = false
 
     init {
@@ -74,7 +79,10 @@ class SearchViewModel @Inject constructor(
     }
 
     fun reload() {
-        viewModelScope.launch { _sections.value = loadSections() }
+        viewModelScope.launch {
+            _sections.value = loadSections()
+            _stats.value = dao.playStats()
+        }
     }
 
     fun play(list: List<SongListItem>, index: Int) {

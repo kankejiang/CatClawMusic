@@ -155,3 +155,15 @@ internal const val SQL_ALBUMS = """
     FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
     ORDER BY al.Title COLLATE NOCASE ASC
 """
+
+/**
+ * 播放统计的两个真实聚合：播过的歌数与总播放次数。
+ *
+ * 空表时 `SUM` 返回 NULL 而不是 0（和缓存字节数那条同一个坑），所以 COALESCE 不能省；
+ * `COUNT(DISTINCT SongId)` 而不是行数：一行一歌是 recordPlay 维持的不变量，
+ * 但那是代码维持的，不是数据库约束，统计口径不该依赖它没被写坏。
+ */
+internal const val SQL_PLAY_STATS = """
+    SELECT COUNT(DISTINCT SongId) AS songsPlayed, COALESCE(SUM(PlayCount), 0) AS totalPlays
+    FROM PlayHistory
+"""

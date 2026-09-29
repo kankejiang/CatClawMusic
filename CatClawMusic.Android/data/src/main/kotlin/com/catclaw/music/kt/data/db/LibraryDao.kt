@@ -244,6 +244,10 @@ interface LibraryDao {
     @Query(SQL_TRIM_HISTORY)
     suspend fun trimHistory(keep: Int)
 
+    /** 发现页「统计」那一格要的真实聚合 */
+    @Query(SQL_PLAY_STATS)
+    suspend fun playStats(): PlayStats
+
     /**
      * 记一次聆听 —— 语义照 C# `RecordPlayAsync`：一首歌只留一行，
      * 有行就刷新 PlayedAt 并把 PlayCount +1，没行就建一条，然后把整表裁到最近 200 行。
@@ -377,6 +381,9 @@ interface LibraryDao {
         upsertSongArtist(SongArtistEntity(songId = songId, artistId = artistId))
     }
 }
+
+/** 播放统计：播过的歌数 + 总播放次数 */
+data class PlayStats(val songsPlayed: Int, val totalPlays: Int)
 
 data class SongPath(val id: Int, val filePath: String)
 

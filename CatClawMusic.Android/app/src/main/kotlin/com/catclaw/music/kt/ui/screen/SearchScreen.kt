@@ -85,6 +85,7 @@ fun SearchScreen(
     val sections by viewModel.sections.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
+    val stats by viewModel.stats.collectAsStateWithLifecycle()
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     var chatMode by rememberSaveable { mutableStateOf(false) }
@@ -172,7 +173,7 @@ fun SearchScreen(
                         SongRows(stringResource(R.string.disc_tag_top), sections.frequent, primary, secondary) {
                             viewModel.play(sections.frequent, it)
                         }
-                        SongRows(stringResource(R.string.disc_recent_played), sections.fresh, primary, secondary) {
+                        SongRows(stringResource(R.string.disc_shelf_recent_added), sections.fresh, primary, secondary) {
                             viewModel.play(sections.fresh, it)
                         }
                     }
@@ -182,8 +183,8 @@ fun SearchScreen(
                         listOf(
                             artists.size.toString() to stringResource(R.string.lib_stat_artists),
                             albums.size.toString() to stringResource(R.string.lib_stat_albums),
-                            sections.frequent.size.toString() to stringResource(R.string.disc_tag_top),
-                            sections.fresh.size.toString() to stringResource(R.string.disc_recent_played),
+                            stats.totalPlays.toString() to stringResource(R.string.disc_stat_total_plays),
+                            stats.songsPlayed.toString() to stringResource(R.string.disc_stat_songs_played),
                         ),
                     )
                 }
