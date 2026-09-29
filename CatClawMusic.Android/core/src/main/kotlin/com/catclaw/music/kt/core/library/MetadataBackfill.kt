@@ -20,6 +20,12 @@ object MetadataBackfill {
     /** 大头 2 MB：FLAC 内嵌封面动辄超过 256 KB，小头读空就换这个再来一次 */
     const val TAG_HEAD_LARGE_BYTES = 2 * 1024 * 1024
 
+    /**
+     * 文件尾窗口 8 MB（C# `TagTailSize`）：MP4/M4A 的 `moov` 装着全部标签与时长，
+     * 而非 faststart 的文件把它放在**文件末尾**，头部窗口再大也没用。
+     */
+    const val TAG_TAIL_BYTES = 8 * 1024 * 1024
+
     /** 有界并行的 worker 数，与 C# `MaxDegreeOfParallelism` 同值；再多远程会开始排队限流 */
     const val WORKERS = 4
 
@@ -54,11 +60,22 @@ object MetadataBackfill {
     /** C# `MayHaveLargeTagHeader` 的那批扩展名 */
     private val LARGE_TAG_EXTENSIONS = setOf("flac", "ape", "wav", "aiff", "aif", "dsf", "wv")
 
-    fun mayHaveLargeTagHeader(pathOrUrl: String): Boolean {
+    /** C# `IsM4aPath`：只有 MP4 这一族会把 `moov`（全部标签 + 时长）放到文件末尾 */
+    private val MOOV_AT_TAIL_EXTENSIONS = setOf("m4a", "mp4", "m4b")
+
+    fun mayHaveLargeTagHeader(pathOrUrl: String): Boolean = extensionOf(pathOrUrl) in LARGE_TAG_EXTENSIONS
+
+    /** 值不值得再 Range 一次文件尾 —— 头部没解出来、且这一族的标签根本不在头部 */
+    fun mayHaveMoovAtTail(pathOrUrl: String): Boolean = extensionOf(pathOrUrl) in MOOV_AT_TAIL_EXTENSIONS
+
+    /** 尾部窗口 = min(8 MB, 文件大小)。大小未知就回 0：不知道在哪结束，就不该去要 */
+    fun tailBytes(fileSize: Long): Long = if (fileSize <= 0) 0L else minOf(TAG_TAIL_BYTES.toLong(), fileSize)
+
+    private fun extensionOf(pathOrUrl: String): String {
         val name = stripQuery(pathOrUrl).trimEnd('/').substringAfterLast('/')
         val dot = name.lastIndexOf('.')
-        if (dot < 0 || dot == name.lastIndex) return false
-        return name.substring(dot + 1).lowercase() in LARGE_TAG_EXTENSIONS
+        if (dot < 0 || dot == name.lastIndex) return ""
+        return name.substring(dot + 1).lowercase()
     }
 
     /**

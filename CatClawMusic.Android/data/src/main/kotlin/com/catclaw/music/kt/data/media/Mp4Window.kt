@@ -3,21 +3,33 @@ package com.catclaw.music.kt.data.media
 import com.catclaw.music.kt.data.lyrics.TagBytes
 import java.nio.charset.StandardCharsets
 
+/** 一次扫描的同时拿到文本字段与时长 */
+internal data class Mp4Scan(val fields: Map<String, String>, val durationMs: Long) {
+    companion object {
+        val EMPTY = Mp4Scan(emptyMap(), 0L)
+    }
+}
+
 /**
  * 在一段**字节窗口**里走 MP4/M4A 的 atom 树。
  *
  * 与 `Mp4Tag` 的区别：那一个是对本地文件用 RandomAccessFile 按需读块，
- * 这一个吃的是远程取回来的头部窗口 —— 没有文件可 seek，偏移全部相对窗口。
+ * 这一个吃的是远程取回来的窗口 —— 没有文件可 seek，偏移全部相对窗口。
  *
- * 只认三样东西：`mvhd`（时长）、`ilst` 里的文本项（标题/歌手/专辑/类型/年份/曲目号）。
- * 任何一段读坏都只停止下钻，不抛 —— 这是一次批量回填，一首坏文件不该拖垮整轮。
+ * 两个入口对应 moov 的两种位置：
+ * - [scanWindow]：faststart（moov 在头部），整段窗口就当 atom 序列走；
+ * - [scanTail]：非 faststart 的 moov 在**文件末尾**，尾部窗口是从别的 atom 中间开始的，
+ *   所以先定位 `moov` 魔数、倒退 4 字节取原子头，再往里钻；它声明的长度常常超出窗口，
+ *   这时按窗口截断而不是放弃 —— C# 那边是 Range 8 MB 尾再手动解 moov。
+ *
+ * 只认三样：`mvhd`（时长）、`ilst` 里的文本项。任何一段读坏都只让那一块空着，不抛。
  */
 internal object Mp4Window {
 
     /** 只有这些容器值得往里钻；封面与音频数据块一律跳过 */
     private val CONTAINERS = setOf("moov", "udta", "meta", "ilst", "trak", "mdia", "minf", "stbl")
 
-    /** ilst 里的文本项：四项标签 + 两种年份/曲目写法（iTunes 历史上有过不带 © 的键） */
+    /** ilst 里的文本项：四项标签 + 年份与曲目号（iTunes 的曲目号是二进制不是文本） */
     private val TEXT_KEYS = mapOf(
         "©nam" to "title",
         "©ART" to "artist",
@@ -29,45 +41,103 @@ internal object Mp4Window {
 
     fun looksLikeMp4(head: ByteArray): Boolean = TagBytes.indexOfAscii(head, "ftyp", minOf(head.size, 64)) >= 0
 
-    /** @return 键是 [TEXT_KEYS] 的 value，已按规范解好文本；空的解不出来就不给 */
-    fun fields(head: ByteArray): Map<String, String> {
-        val out = LinkedHashMap<String, String>()
-        forEachAtom(head, 0, head.size, 0) { type, bodyFrom, bodyTo, isContainer, parentPath ->
-            if (isContainer) return@forEachAtom
-            if (!parentPath.endsWith("ilst")) return@forEachAtom
-            val key = TEXT_KEYS[type] ?: return@forEachAtom
-            if (type == "trkn") {
-                binaryTrack(head, bodyFrom, bodyTo)?.let { out.putIfAbsent(key, it) }
-            } else {
-                textItem(head, bodyFrom, bodyTo)?.let { out.putIfAbsent(key, it) }
+    fun scanWindow(bytes: ByteArray): Mp4Scan {
+        val acc = Accumulator()
+        walk(bytes, 0, bytes.size, 0, "", acc)
+        return acc.toResult()
+    }
+
+    fun scanTail(tail: ByteArray): Mp4Scan {
+        val at = TagBytes.indexOfAscii(tail, "moov")
+        if (at < 4) return Mp4Scan.EMPTY
+        val header = at - 4
+        val declared = TagBytes.be32(tail, header).toLong() and 0xFFFFFFFFL
+        val bodyStart = header + 8
+        // 声明长度超出窗口的部分是"被截掉的尾部 atom"，按窗口截断照样能读到已经拿到手的孩子原子
+        val bodyEnd = if (declared in 8 until Long.MAX_VALUE) {
+            minOf(header + declared, tail.size.toLong()).toInt()
+        } else {
+            tail.size
+        }
+        if (bodyStart >= bodyEnd) return Mp4Scan.EMPTY
+        val acc = Accumulator()
+        walk(tail, bodyStart, bodyEnd, 1, "moov", acc)
+        return acc.toResult()
+    }
+
+    private class Accumulator {
+        val fields = LinkedHashMap<String, String>()
+        var durationMs = 0L
+
+        fun toResult(): Mp4Scan = Mp4Scan(fields, durationMs)
+    }
+
+    private fun walk(
+        bytes: ByteArray,
+        from: Int,
+        until: Int,
+        depth: Int,
+        parentPath: String,
+        acc: Accumulator,
+    ) {
+        if (depth > 8) return
+        var cursor = from
+        while (cursor + 8 <= until) {
+            var size = TagBytes.be32(bytes, cursor).toLong() and 0xFFFFFFFFL
+            val type = String(bytes, cursor + 4, 4, StandardCharsets.ISO_8859_1)
+            var bodyAt = 8L
+            if (size == 1L) {
+                if (cursor + 16 > until) return
+                size = TagBytes.be64(bytes, cursor + 8)
+                bodyAt = 16L
             }
+            if (size < bodyAt || cursor + size > until) return
+            // 窗口本身不超过几 MB，过了上面那道边界检查就能安全收成 Int
+            val bodyStart = (cursor + bodyAt).toInt()
+            val bodyEnd = (cursor + size).toInt()
+            if (type in CONTAINERS) {
+                // meta 是「准容器」：头后面还跟着 4 字节 version/flags，少跳这 4 字节整棵树都会错开
+                val offset = if (type == "meta") 4 else 0
+                val path = if (parentPath.isEmpty()) type else "$parentPath/$type"
+                walk(bytes, bodyStart + offset, bodyEnd, depth + 1, path, acc)
+            } else {
+                consume(bytes, type, bodyStart, bodyEnd, parentPath, acc)
+            }
+            cursor = bodyEnd
         }
-        return out
     }
 
-    /** mvhd：v0 的 timescale/duration 在 body 的 12/16 处，v1 是 64 位 creation+modification 后的 20/28 处 */
-    fun durationMs(head: ByteArray): Long {
-        var result = 0L
-        forEachAtom(head, 0, head.size, 0) { type, bodyFrom, bodyTo, isContainer, _ ->
-            if (isContainer || type != "mvhd" || result != 0L) return@forEachAtom
-            result = readMvhd(head, bodyFrom, bodyTo)
+    private fun consume(
+        bytes: ByteArray,
+        type: String,
+        bodyFrom: Int,
+        bodyTo: Int,
+        parentPath: String,
+        acc: Accumulator,
+    ) {
+        if (type == "mvhd" && acc.durationMs == 0L && parentPath.endsWith("moov")) {
+            acc.durationMs = readMvhd(bytes, bodyFrom, bodyTo)
+            return
         }
-        return result
+        if (!parentPath.endsWith("ilst")) return
+        val key = TEXT_KEYS[type] ?: return
+        val value = if (type == "trkn") binaryTrack(bytes, bodyFrom, bodyTo) else textItem(bytes, bodyFrom, bodyTo)
+        if (!value.isNullOrEmpty()) acc.fields.putIfAbsent(key, value)
     }
 
+    /** mvhd：v0 的 timescale/duration 在 body 的 12/16，v1 是 64 位 creation+modification 之后的 20/24 */
     private fun readMvhd(head: ByteArray, from: Int, to: Int): Long {
         if (to - from < 20) return 0L
         val version = head[from].toInt() and 0xFF
         return if (version == 1) {
             // v1 要读到 body 的第 32 字节：timescale 在 20，64 位 duration 在 24
             if (to - from < 32) return 0L
-            val timescale = TagBytes.be32(head, from + 20).toDouble()
-            val duration = TagBytes.be64(head, from + 24).toDouble()
-            millisOf(duration, timescale)
+            millisOf(TagBytes.be64(head, from + 24).toDouble(), TagBytes.be32(head, from + 20).toDouble())
         } else {
-            val timescale = TagBytes.be32(head, from + 12).toDouble()
-            val duration = (TagBytes.be32(head, from + 16).toLong() and 0xFFFFFFFFL).toDouble()
-            millisOf(duration, timescale)
+            millisOf(
+                (TagBytes.be32(head, from + 16).toLong() and 0xFFFFFFFFL).toDouble(),
+                TagBytes.be32(head, from + 12).toDouble(),
+            )
         }
     }
 
@@ -84,7 +154,7 @@ internal object Mp4Window {
             if (type == "data") {
                 // version/flags 是 data 体自己的前 4 字节（原子头的 size/type 之后）
                 val flags = TagBytes.be32(head, cursor + 8) and 0x00FF_FFFF
-                // 标志低 16 位是内容类型：1=UTF-8，其余（MAC7/UTF-16）按拉丁字符兜底解
+                // 标志低字节是内容类型：1=UTF-8，其余（MAC7/UTF-16）按拉丁字符兜底解
                 val charset = if (flags and 0xFF == 1) StandardCharsets.UTF_8 else StandardCharsets.ISO_8859_1
                 val text = String(head, cursor + 16, size - 16, charset).trim { it == TagBytes.NUL || it.isWhitespace() }
                 if (text.isNotEmpty()) return text
@@ -94,7 +164,7 @@ internal object Mp4Window {
         return null
     }
 
-    /** trkn 的正文是二进制：8 字节里第 3、4 位是本张的序号 */
+    /** trkn 的正文是二进制：8 字节里第 3、4 位才是本张序号 */
     private fun binaryTrack(head: ByteArray, from: Int, to: Int): String? {
         var cursor = from
         while (cursor + 8 <= to) {
@@ -108,44 +178,5 @@ internal object Mp4Window {
             cursor += size
         }
         return null
-    }
-
-    /**
-     * 深度优先走 atom。`parentPath` 是形如 `moov/udta/meta/ilst` 的路径，
-     * 用来判断「这个叶子在不在 ilst 里」—— 因为同名键在别处没有意义。
-     */
-    private fun forEachAtom(
-        bytes: ByteArray,
-        from: Int,
-        until: Int,
-        depth: Int,
-        parentPath: String = "",
-        onAtom: (type: String, bodyFrom: Int, bodyTo: Int, isContainer: Boolean, parentPath: String) -> Unit,
-    ) {
-        if (depth > 8) return
-        var cursor = from
-        while (cursor + 8 <= until) {
-            var size = (TagBytes.be32(bytes, cursor).toLong() and 0xFFFFFFFFL)
-            val type = String(bytes, cursor + 4, 4, StandardCharsets.ISO_8859_1)
-            var bodyAt = 8L
-            if (size == 1L) {
-                if (cursor + 16 > until) return
-                size = TagBytes.be64(bytes, cursor + 8)
-                bodyAt = 16L
-            }
-            if (size < bodyAt || cursor + size > until) return
-            // 窗口本身不超过几 MB，过了上面那道边界检查就能安全收成 Int
-            val bodyStart = (cursor + bodyAt).toInt()
-            val bodyEnd = (cursor + size).toInt()
-            val isContainer = type in CONTAINERS
-            if (isContainer) {
-                // meta 是「准容器」：头后面还跟着 4 字节 version/flags，没有它整棵树都会错开
-                val offset = if (type == "meta") 4 else 0
-                val path = if (parentPath.isEmpty()) type else "$parentPath/$type"
-                forEachAtom(bytes, bodyStart + offset, bodyEnd, depth + 1, path, onAtom)
-            }
-            onAtom(type, bodyStart, bodyEnd, isContainer, parentPath)
-            cursor = bodyEnd
-        }
     }
 }

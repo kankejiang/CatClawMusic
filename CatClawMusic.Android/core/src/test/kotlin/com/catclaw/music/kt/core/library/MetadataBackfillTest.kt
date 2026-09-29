@@ -151,6 +151,21 @@ class MetadataBackfillTest {
     }
 
     @Test
+    fun onlyTheMp4FamilyIsWorthATailRead() {
+        assertTrue(MetadataBackfill.mayHaveMoovAtTail("/dav/a.m4a"))
+        assertTrue(MetadataBackfill.mayHaveMoovAtTail("/dav/a.MP4"))
+        assertTrue(MetadataBackfill.mayHaveMoovAtTail("/d/a.m4b?sign=xx"))
+        assertFalse(MetadataBackfill.mayHaveMoovAtTail("/dav/a.flac"))
+        assertFalse(MetadataBackfill.mayHaveMoovAtTail("/dav/no-extension"))
+
+        // 尾部窗口 = min(8 MB, 文件大小)；大小未知就是 0 —— 不知道在哪结束就不该去要
+        assertEquals(8L * 1024 * 1024, MetadataBackfill.tailBytes(20L * 1024 * 1024))
+        assertEquals(3_200_000L, MetadataBackfill.tailBytes(3_200_000L))
+        assertEquals(0L, MetadataBackfill.tailBytes(0L))
+        assertEquals(0L, MetadataBackfill.tailBytes(-1L))
+    }
+
+    @Test
     fun progressReportsEveryTenthAndAlwaysTheLast() {
         assertFalse(MetadataBackfill.reportsProgress(5, 50))
         assertTrue(MetadataBackfill.reportsProgress(10, 50))

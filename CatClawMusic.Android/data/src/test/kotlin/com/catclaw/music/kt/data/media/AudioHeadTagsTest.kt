@@ -340,6 +340,25 @@ class AudioHeadTagsTest {
         assertEquals(AudioTags(), AudioHeadTags.parse(head))
     }
 
+    @Test
+    fun tailWindowWithTruncatedMoovStillParses() {
+        // 尾部窗口是"最后 8 MB"，moov 声明的长度常常超出窗口（剩下的原子在窗口外）。
+        // 按声明长度判越界就会整棵树放弃 —— 必须按窗口截断，已到手的孩子原子照样读。
+        val ilstBody = TagFixtures.atom("©ART", utf8Item("尾部落"))
+        val moovBody = mvhdV0(44_100, 44_100L * 12L) +
+            TagFixtures.atom("udta", TagFixtures.atom("meta", ByteArray(4) + TagFixtures.atom("ilst", ilstBody)))
+        val declared = moovBody.size + 8 + 200_000
+        val tail = ByteArray(3) + TagFixtures.be32(declared) + "moov".toByteArray(StandardCharsets.ISO_8859_1) + moovBody
+        val tags = AudioHeadTags.parseTail(tail)
+        assertEquals("尾部落", tags.artist)
+        assertEquals(12_000L, tags.durationMs)
+    }
+
+    @Test
+    fun tailWithoutMoovYieldsNothing() {
+        assertEquals(AudioTags(), AudioHeadTags.parseTail(ByteArray(40)))
+    }
+
     /** 造一个 faststart 形状的 M4A：ftyp + moov(mvhd, 散落原子, udta/meta/ilst(键…)) */
     private fun mp4File(
         mvhd: ByteArray,

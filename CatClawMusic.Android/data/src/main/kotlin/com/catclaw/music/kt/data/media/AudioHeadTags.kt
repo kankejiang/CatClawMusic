@@ -18,9 +18,9 @@ import java.util.regex.Pattern
  *
  * 覆盖范围按「NAS 上远程库的常见格式」定：MP3（ID3v2 + Xing/CBR）、FLAC（Vorbis 注释 + STREAMINFO）、
  * OGG（Vorbis 注释；时长要读最后一包的 granule，头部窗口里没有 ⇒ 留 0）、
- * M4A（`moov` 落在头部窗口的 faststart 文件：ilst 文本项 + mvhd 时长）。
- * moov 在文件尾的 M4A 还得再 Range 一次尾部，这一支没接 ——
- * 这一支本端还没接，解不出就一切留空，那首歌会继续留在待补名单里，不会被写坏。
+ * M4A（`moov` 在头部的 faststart 走 [parse]，在文件尾的走 [parseTail] —— 后者要调用方多 Range 一次）。
+ * ID3v1 的数字流派 `(17)` 不查那张 148 项表。解不出就是一切留空，
+ * 那首歌会继续留在待补名单里，不会被写坏。
  *
  * 任何一段解坏都只让那个字段留空，不抛异常：这是一次批量回填，一首坏文件不该拖垮整轮。
  */
@@ -38,22 +38,26 @@ object AudioHeadTags {
     }
 
     /**
-     * M4A：标签与时长都在 `moov` 里。faststart（moov 在头部）一次就够；
-     * moov 在文件尾的还要再 Range 一次尾部，这一支没做 ⇒ 解不出就整行不动，
-     * 这首歌下次仍然会被选中。
+     * M4A 的尾部窗口：非 faststart 文件的 `moov` 就在最后，头部窗口里什么标签都没有。
+     * 与 [parse] 共用同一套字段映射，只是原子树的落点不同。
      */
-    private fun fromMp4(head: ByteArray): AudioTags {
-        val fields = Mp4Window.fields(head)
-        return AudioTags(
-            title = fields["title"].orEmpty(),
-            artist = fields["artist"],
-            album = fields["album"].orEmpty(),
-            genre = fields["genre"],
-            durationMs = Mp4Window.durationMs(head),
-            trackNumber = fields["track"]?.substringBefore('/')?.trim()?.toIntOrNull() ?: 0,
-            year = fourDigits(fields["date"]),
-        )
-    }
+    fun parseTail(tail: ByteArray): AudioTags = mp4Tags(Mp4Window.scanTail(tail))
+
+    /**
+     * M4A：标签与时长都在 `moov` 里。faststart（moov 落在头部窗口）一次就够；
+     * moov 在文件尾的要多 Range 一次尾部，走 [parseTail]。
+     */
+    private fun fromMp4(head: ByteArray): AudioTags = mp4Tags(Mp4Window.scanWindow(head))
+
+    private fun mp4Tags(scan: Mp4Scan): AudioTags = AudioTags(
+        title = scan.fields["title"].orEmpty(),
+        artist = scan.fields["artist"],
+        album = scan.fields["album"].orEmpty(),
+        genre = scan.fields["genre"],
+        durationMs = scan.durationMs,
+        trackNumber = scan.fields["track"]?.substringBefore('/')?.trim()?.toIntOrNull() ?: 0,
+        year = fourDigits(scan.fields["date"]),
+    )
 
     /** ID3v2 打在 MP3 上最常见，所以解完文本帧还要接着找第一帧音频拿时长与码率 */
     private fun fromId3(head: ByteArray, fileSize: Long): AudioTags {

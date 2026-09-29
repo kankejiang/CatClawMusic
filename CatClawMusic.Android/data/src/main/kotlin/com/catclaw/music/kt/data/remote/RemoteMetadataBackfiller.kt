@@ -14,7 +14,7 @@ import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongEntity
 import com.catclaw.music.kt.data.media.AudioHeadTags
-import com.catclaw.music.kt.data.media.HeadBytesReader
+import com.catclaw.music.kt.data.media.AudioBytesReader
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,7 +49,7 @@ data class BackfillResult(
 @Singleton
 class RemoteMetadataBackfiller @Inject constructor(
     private val dao: LibraryDao,
-    private val head: HeadBytesReader,
+    private val bytes: AudioBytesReader,
 ) {
 
     private data class Patch(val before: SongEntity, val tags: AudioTags)
@@ -123,7 +123,7 @@ class RemoteMetadataBackfiller @Inject constructor(
         )
     }
 
-    /** 取头部并解标签：拿不到、不是音频、或者解不出有用信息都回 null（这一行不动） */
+    /** 取头部（必要时再取尾部）并解标签：拿不到、不是音频、或解不出有用信息都回 null（这一行不动） */
     private suspend fun fetch(
         row: SongEntity,
         artistNamesById: Map<Int, String>,
@@ -135,18 +135,45 @@ class RemoteMetadataBackfiller @Inject constructor(
         // SQL 里已经写了同一条判据；这里再走一次纯规则，是为了让规则本身是承重的 ——
         // 哪天 WHERE 改了而规则没改，多进来的行会被安静地挡掉，而不是白下一轮头
         if (!MetadataBackfill.needsBackfill(row.durationSeconds, row.artistId)) return null
+
         var best: AudioTags? = null
         for (size in MetadataBackfill.headSizes(url)) {
-            val bytes = head.read(url, size) ?: continue
-            if (!MetadataBackfill.looksLikeAudio(bytes)) return null
-            val parsed = AudioHeadTags.parse(bytes, row.fileSize)
+            val head = bytes.head(url, size) ?: continue
+            if (!MetadataBackfill.looksLikeAudio(head)) return null
+            val parsed = AudioHeadTags.parse(head, row.fileSize)
             if (MetadataBackfill.hasUseful(parsed)) {
-                best = parsed
-                break
+                return patch(row, parsed, artistNamesById, albumTitlesById, decodeTitle)
             }
             if (best == null) best = parsed
         }
+
+        /**
+         * 头部两次都没解出有效信息：非 faststart 的 M4A 就是这个形状 —— `moov`（全部标签与时长）
+         * 在文件末尾，头部只有 ftyp + mdat。对齐 C# 的 `TagTailSize` 再 Range 一次尾部。
+         * 这是整条链上唯一会下第二**段**内容的情形，所以判据收紧：只有 MP4 家族且文件大小已知才试。
+         */
+        val tailSize = MetadataBackfill.tailBytes(row.fileSize)
+        if (tailSize > 0L && MetadataBackfill.mayHaveMoovAtTail(url)) {
+            val tail = bytes.tail(url, tailSize, row.fileSize)
+            if (tail != null) {
+                val fromTail = AudioHeadTags.parseTail(tail)
+                if (MetadataBackfill.hasUseful(fromTail)) {
+                    return patch(row, fromTail, artistNamesById, albumTitlesById, decodeTitle)
+                }
+            }
+        }
+
         val parsed = best?.takeIf { MetadataBackfill.hasUseful(it) } ?: return null
+        return patch(row, parsed, artistNamesById, albumTitlesById, decodeTitle)
+    }
+
+    private fun patch(
+        row: SongEntity,
+        fetched: AudioTags,
+        artistNamesById: Map<Int, String>,
+        albumTitlesById: Map<Int, String>,
+        decodeTitle: Boolean,
+    ): Patch {
         val current = AudioTags(
             title = row.title,
             artist = artistNamesById[row.artistId],
@@ -157,7 +184,7 @@ class RemoteMetadataBackfiller @Inject constructor(
             trackNumber = row.trackNumber,
             year = row.year,
         )
-        return Patch(row, MetadataBackfill.merge(current, parsed, decodeTitle))
+        return Patch(row, MetadataBackfill.merge(current, fetched, decodeTitle))
     }
 
     /** 单线程侧：解析成 id、必要时新建，最后一批写回歌曲行与歌手关联 */

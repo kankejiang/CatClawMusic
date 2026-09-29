@@ -1,7 +1,7 @@
 package com.catclaw.music.kt.data.di
 
-import com.catclaw.music.kt.data.media.HeadBytesReader
-import com.catclaw.music.kt.data.media.HttpHeadBytesReader
+import com.catclaw.music.kt.data.media.AudioBytesReader
+import com.catclaw.music.kt.data.media.HttpAudioBytesReader
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,5 +19,5 @@ object RemoteModule {
 
     @Provides
     @Singleton
-    fun headBytesReader(impl: HttpHeadBytesReader): HeadBytesReader = impl
+    fun audioBytesReader(impl: HttpAudioBytesReader): AudioBytesReader = impl
 }

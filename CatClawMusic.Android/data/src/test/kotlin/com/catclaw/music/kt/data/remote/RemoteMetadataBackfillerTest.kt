@@ -10,7 +10,7 @@ import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongArtistEntity
 import com.catclaw.music.kt.data.db.entity.SongEntity
 import com.catclaw.music.kt.data.lyrics.TagFixtures
-import com.catclaw.music.kt.data.media.HeadBytesReader
+import com.catclaw.music.kt.data.media.AudioBytesReader
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
@@ -73,14 +73,22 @@ class RemoteMetadataBackfillerTest {
         }
     }
 
-    private class FakeHead(responses: Map<String, ByteArray>) {
-        val requests: MutableList<Pair<String, Int>> = Collections.synchronizedList(mutableListOf())
-        private val table = responses.toMap()
+    private class FakeHead(
+        private val heads: Map<String, ByteArray> = emptyMap(),
+        private val tails: Map<String, ByteArray> = emptyMap(),
+    ) : AudioBytesReader {
+        val requests = mutableListOf<Pair<String, Int>>()
+        val tailRequests = mutableListOf<Triple<String, Long, Long>>()
 
-        fun reader(): HeadBytesReader = HeadBytesReader { url, size ->
+        override suspend fun head(url: String, size: Int): ByteArray? {
             requests += url to size
-            val key = table.keys.firstOrNull { url.contains(it) } ?: throw IllegalStateException("没配这个 url: $url")
-            table[key]
+            return heads.keys.firstOrNull { url.contains(it) }?.let { heads[it] }
+                ?: throw IllegalStateException("没配这个头部 url: $url")
+        }
+
+        override suspend fun tail(url: String, bytes: Long, fileSize: Long): ByteArray? {
+            tailRequests += Triple(url, bytes, fileSize)
+            return tails.keys.firstOrNull { url.contains(it) }?.let { tails[it] }
         }
     }
 
@@ -90,7 +98,7 @@ class RemoteMetadataBackfillerTest {
     fun smallHeadIsEnoughWhenItAlreadyHasTags() {
         val dao = FakeDao(listOf(row(id = 1, path = "/dav/a.mp3")))
         val head = FakeHead(mapOf("a.mp3" to id3Head(artist = "周杰伦", album = "十一月的萧邦")))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(listOf("/dav/a.mp3" to 256 * 1024), requestsOf(head))
         assertEquals(1, result.updated)
@@ -112,7 +120,7 @@ class RemoteMetadataBackfillerTest {
             knownAlbums = listOf(AlbumKey(8, "十一月的萧邦", 5)),
         )
         val head = FakeHead(mapOf("b.mp3" to id3Head(artist = "周杰伦", album = "十一月的萧邦")))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(0, result.updated) // 一行都没变 ⇒ 一次写都不做
         assertTrue(dao.writtenSongs.isEmpty())
@@ -126,7 +134,7 @@ class RemoteMetadataBackfillerTest {
         val uselessFlac = TagFixtures.flac(TagFixtures.vorbisComment(emptyList()))
         val dao = FakeDao(listOf(row(id = 3, path = "/dav/c.flac")))
         val head = FakeHead(mapOf("c.flac" to uselessFlac))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(listOf(256 * 1024, 2 * 1024 * 1024), head.requests.map { it.second })
         assertEquals(0, result.updated)
@@ -137,7 +145,7 @@ class RemoteMetadataBackfillerTest {
     fun nonAudioHeadStopsWithoutRetryingOrWriting() {
         val dao = FakeDao(listOf(row(id = 4, path = "/dav/d.mp3")))
         val head = FakeHead(mapOf("d.mp3" to "PKzipfilezip!!".toByteArray(StandardCharsets.ISO_8859_1)))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(1, head.requests.size) // 不是音频就别再花一次大头
         assertEquals(0, result.updated)
@@ -148,7 +156,7 @@ class RemoteMetadataBackfillerTest {
     fun oneFailingSongDoesNotStopTheOthers() {
         val dao = FakeDao(listOf(row(id = 5, path = "/dav/boom.mp3"), row(id = 6, path = "/dav/good.mp3")))
         val head = FakeHead(mapOf("good.mp3" to id3Head(artist = "歌手")))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(2, result.total)
         assertEquals(1, result.failed)
@@ -162,7 +170,7 @@ class RemoteMetadataBackfillerTest {
         val dao = FakeDao(rows)
         val head = FakeHead(mapOf(".mp3" to id3Head(artist = "歌手")))
         val seen = Collections.synchronizedList(mutableListOf<Pair<Int, Int>>())
-        RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav) { done, total -> seen += done to total }
+        RemoteMetadataBackfiller(dao.build(), head).runNow(webdav) { done, total -> seen += done to total }
 
         assertTrue("要按 10 的节奏报：$seen", seen.containsAll(listOf(10 to 25, 20 to 25, 25 to 25)))
         assertTrue(seen.all { it.second == 25 })
@@ -172,7 +180,7 @@ class RemoteMetadataBackfillerTest {
     fun subsonicProfilesAreLeftAlone() {
         val dao = FakeDao(listOf(row(id = 9, path = "http://host/rest/get")))
         val head = FakeHead(emptyMap())
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader())
+        val result = RemoteMetadataBackfiller(dao.build(), head)
             .runNow(ConnectionProfile(name = "Sub", protocol = ProtocolType.Navidrome))
 
         assertEquals(0, result.total)
@@ -185,12 +193,12 @@ class RemoteMetadataBackfillerTest {
     fun percentEncodedWebDavTitlesAreDecodedButSmbTitlesAreNot() {
         val dao = FakeDao(listOf(row(id = 11, path = "/dav/%E5%A4%9C.mp3")))
         val head = FakeHead(mapOf("%" to id3Head(artist = "歌手", title = "夜曲%20-%20周杰伦")))
-        RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
         assertEquals("夜曲 - 周杰伦", dao.writtenSongs.single().title)
 
         val smbDao = FakeDao(listOf(row(id = 12, path = "http://127.0.0.1:19876/smb/share/a.mp3")))
         val smbHead = FakeHead(mapOf("a.mp3" to id3Head(artist = "歌手", title = "夜曲%20-%20周杰伦")))
-        RemoteMetadataBackfiller(smbDao.build(), smbHead.reader())
+        RemoteMetadataBackfiller(smbDao.build(), smbHead)
             .runNow(ConnectionProfile(name = "SMB", protocol = ProtocolType.SMB))
         assertEquals("夜曲%20-%20周杰伦", smbDao.writtenSongs.single().title)
     }
@@ -207,12 +215,52 @@ class RemoteMetadataBackfillerTest {
     private fun requestsOf(head: FakeHead): List<Pair<String, Int>> = head.requests.toList()
 
     @Test
+    fun nonFaststartM4aFallsBackToTheTailWindow() {
+        // 头部只有 ftyp+mdat：解不出任何有效信息，于是按 C# 的 TagTailSize 再取一次文件尾
+        val headOnlySkeleton = TagFixtures.atom("ftyp", "M4A ".toByteArray(StandardCharsets.ISO_8859_1)) +
+            TagFixtures.atom("mdat", ByteArray(64))
+        val tail = ByteArray(5) + moovTail(artist = "尾部歌手", timescale = 44_100, duration = 44_100L * 60L)
+        val dao = FakeDao(listOf(row(id = 31, path = "/dav/tail.m4a")))
+        val reader = FakeHead(heads = mapOf("tail.m4a" to headOnlySkeleton), tails = mapOf("tail.m4a" to tail))
+        val result = RemoteMetadataBackfiller(dao.build(), reader).runNow(webdav)
+
+        assertEquals(1, result.updated)
+        val written = dao.writtenSongs.single()
+        assertEquals(901, written.artistId)
+        assertEquals(60, written.durationSeconds)
+        // 尾部窗口 = min(8 MB, 文件大小)，偏移 = 大小 - 窗口
+        assertEquals(listOf(Triple("/dav/tail.m4a", 3_200_000L, 3_200_000L)), reader.tailRequests)
+    }
+
+    @Test
+    fun nonMp4RowsNeverAskForATail() {
+        val uselessFlac = TagFixtures.flac(TagFixtures.vorbisComment(emptyList()))
+        val dao = FakeDao(listOf(row(id = 32, path = "/dav/nothing.flac")))
+        val reader = FakeHead(heads = mapOf("nothing.flac" to uselessFlac))
+        val result = RemoteMetadataBackfiller(dao.build(), reader).runNow(webdav)
+
+        assertEquals(0, result.updated)
+        // 正控制：FLAC 的两次大头都用上了，但绝不下尾部 —— 那一族没有「标签在文件尾」这回事
+        assertEquals(2, reader.requests.size)
+        assertTrue(reader.tailRequests.isEmpty())
+    }
+
+    /** 尾部窗口里的 moov：前面故意留 5 个字节，模拟"从别的原子中间开始" */
+    private fun moovTail(artist: String, timescale: Int, duration: Long): ByteArray {
+        val mvhd = TagFixtures.atom("mvhd", ByteArray(12) + TagFixtures.be32(timescale) + TagFixtures.be32(duration.toInt()))
+        val data = TagFixtures.atom("data", byteArrayOf(0, 0, 0, 1) + ByteArray(4) + artist.toByteArray(StandardCharsets.UTF_8))
+        val ilst = TagFixtures.atom("ilst", TagFixtures.atom("©ART", data))
+        val meta = TagFixtures.atom("meta", ByteArray(4) + ilst)
+        return TagFixtures.atom("moov", mvhd + TagFixtures.atom("udta", meta))
+    }
+
+    @Test
     fun rowsThatDoNotNeedBackfillAreSkippedWithoutAnyRequest() {
         // SQL 的 WHERE 与 :core 的判据是同一条；万一两边漂了，这里也不会白下头
         val complete = row(id = 21, path = "/dav/full.mp3").copy(durationSeconds = 180, artistId = 5)
         val dao = FakeDao(listOf(complete))
         val head = FakeHead(mapOf("full.mp3" to id3Head(artist = "周杰伦")))
-        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+        val result = RemoteMetadataBackfiller(dao.build(), head).runNow(webdav)
 
         assertEquals(1, result.total)
         assertEquals(0, result.updated)
