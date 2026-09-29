@@ -74,6 +74,10 @@
     <string name="playlist_play_all">Play all</string>
     <string name="playlist_add_current">Add current song</string>
     <string name="playlist_empty">This playlist is empty</string>
+    <string name="playlist_rename">Rename playlist</string>
+    <string name="playlist_rename_save">Save</string>
+    <string name="playlist_rename_cancel">Cancel</string>
+    <string name="playlist_name_taken">Another playlist already uses this name</string>
     <string name="remote_import">Import library</string>
     <string name="remote_add_server">Add server</string>
     <string name="download">Download</string>

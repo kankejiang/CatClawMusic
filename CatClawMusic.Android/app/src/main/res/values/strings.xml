@@ -74,6 +74,10 @@
     <string name="playlist_play_all">播放全部</string>
     <string name="playlist_add_current">加入当前歌曲</string>
     <string name="playlist_empty">这个歌单还没有歌</string>
+    <string name="playlist_rename">重命名歌单</string>
+    <string name="playlist_rename_save">保存</string>
+    <string name="playlist_rename_cancel">取消</string>
+    <string name="playlist_name_taken">已有同名歌单，换一个名字</string>
     <string name="remote_import">导入曲库</string>
     <string name="remote_add_server">新增服务器</string>
     <string name="download">下载</string>

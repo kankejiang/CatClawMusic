@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 
 /**
  * 歌单 tab —— 照 MAUI `PlaylistPage.xaml`：Hero 卡（标题/副标题 + 右上 44dp 玻璃加号）、
@@ -67,6 +69,10 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val openId by viewModel.openId.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
+    /** 正在改名的歌单 id；同一时刻只有一行在编辑 */
+    var editing by rememberSaveable { mutableStateOf<Int?>(null) }
+    var draftName by rememberSaveable { mutableStateOf("") }
+    var renameTaken by rememberSaveable { mutableStateOf(false) }
     // 收藏 / 最近播放这两个入口的数据与播放动作都在 LibraryViewModel 里，
     // 两个 VM 读的是同一批 Room 单例流，不会因为多拿一个 VM 而出现两份状态
     val libraryViewModel: LibraryViewModel = hiltViewModel()
@@ -213,7 +219,29 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             }
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                 items(playlists, key = { it.id }) { playlist ->
-                    PlaylistCard(playlist = playlist, onOpen = { viewModel.open(playlist.id) }, onDelete = { viewModel.delete(playlist.id) })
+                    if (editing == playlist.id) {
+                        RenameRow(
+                            draft = draftName,
+                            taken = renameTaken,
+                            onDraft = { draftName = it; renameTaken = false },
+                            onCancel = { editing = null },
+                            onSave = {
+                                // 改成才收框：同名/空名时留着编辑框并给原因，不然用户以为改好了
+                                if (viewModel.rename(playlist.id, draftName)) editing = null else renameTaken = true
+                            },
+                        )
+                    } else {
+                        PlaylistCard(
+                            playlist = playlist,
+                            onOpen = { viewModel.open(playlist.id) },
+                            onDelete = { viewModel.delete(playlist.id) },
+                            onRename = {
+                                draftName = playlist.name
+                                renameTaken = false
+                                editing = playlist.id
+                            },
+                        )
+                    }
                 }
             }
         } else {
@@ -294,9 +322,14 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     }
 }
 
-/** 一张歌单卡 —— MAUI 行：46dp 图标块（系统单用 ic_favorite/ic_history，自建单用首字）+ 名称 + 计数 + 44dp 删除 */
+/** 一张歌单卡 —— MAUI 行：46dp 图标块（系统单用 ic_favorite/ic_history，自建单用首字）+ 名称 + 计数 + 44dp 改名 / 删除 */
 @Composable
-private fun PlaylistCard(playlist: PlaylistEntity, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun PlaylistCard(
+    playlist: PlaylistEntity,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
@@ -339,20 +372,104 @@ private fun PlaylistCard(playlist: PlaylistEntity, onOpen: () -> Unit, onDelete:
             Text(text = stringResource(R.string.playlist_count, playlist.songCount), fontSize = 12.sp, color = secondary)
         }
         if (!playlist.isSystem) {
-            Box(
+            // MAUI 是 ⋮ 菜单里两项（重命名 / 删除）；这里摊成两个 44dp 按钮，
+            // 少一层弹窗、也不用在一行里再嵌一个弹层去管它的生命周期
+            CardAction(R.drawable.ic_edit, stringResource(R.string.playlist_rename), onRename)
+            CardAction(R.drawable.ic_close, stringResource(R.string.Delete), onDelete)
+        }
+    }
+}
+
+/** 行尾那个 44×44 的图标按钮。尺寸与触达面走全 app 同一档 */
+@Composable
+private fun CardAction(iconRes: Int, description: String, onClick: () -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClickLabel = description, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = description,
+            tint = Color(palette.textSecondary),
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/** 行内改名：与「新建歌单」同一套写法（输入框 + 实心确认胶囊 + 次要色取消） */
+@Composable
+private fun RenameRow(
+    draft: String,
+    taken: Boolean,
+    onDraft: (String) -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .glassCard(palette = palette, corner = 22)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextField(
+                value = draft,
+                onValueChange = onDraft,
+                placeholder = { Text(stringResource(R.string.playlist_name_hint), color = secondary) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = primary,
+                    unfocusedTextColor = primary,
+                    cursorColor = Color(palette.primary),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.playlist_rename_save),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(inkOn(palette.primary)),
                 modifier = Modifier
-                    .size(44.dp)
+                    .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .clickable(onClick = onDelete),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_close),
-                    contentDescription = stringResource(R.string.Delete),
-                    tint = secondary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+                    .background(Color(palette.primary))
+                    .clickable(onClick = onSave)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.playlist_rename_cancel),
+                fontSize = 14.sp,
+                color = secondary,
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onCancel)
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+            )
+        }
+        if (taken) {
+            // 提示语要落在"玻璃卡上可读的强调前景"上：直接拿 palette.accent 当字色会被
+            // 对比度闸门拦下（品牌粉压在粉底上量不到 3:1），这个 helper 就是那条判据的出口
+            Text(
+                text = stringResource(R.string.playlist_name_taken),
+                fontSize = 12.sp,
+                color = Color(highlightOnGlassCard(palette)),
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

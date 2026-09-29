@@ -32,6 +32,10 @@ interface PlaylistDao {
     @Query(SQL_DELETE_PLAYLIST)
     suspend fun delete(id: Int)
 
+    /** 重命名。返回被改的行数：0 表示那是内置单或 id 不存在，调用方据此决定要不要关编辑框 */
+    @Query(SQL_RENAME_PLAYLIST)
+    suspend fun rename(id: Int, name: String, now: Long): Int
+
     @Query("DELETE FROM PlaylistSongs WHERE PlaylistId = :id")
     suspend fun clearItems(id: Int)
 
@@ -95,6 +99,14 @@ interface PlaylistDao {
  * 改这里等于同时改 DAO 与测试的靶子，不会出现"测试验的是另一份拷贝"。
  */
 internal const val SQL_DELETE_PLAYLIST = "DELETE FROM Playlists WHERE Id = :id AND IsSystem = 0"
+
+/**
+ * 重命名。和删除同一条保护：**内置单不许改名**（"收藏"、"最近播放"是虚拟入口的名字，
+ * 改了它们和页面上那两个 EntryCard 就对不上了）。`IsSystem = 0` 放在 WHERE 里而不是靠调用方自觉，
+ * 因为调用方是 UI，UI 忘了判就是静默改坏数据。
+ */
+internal const val SQL_RENAME_PLAYLIST =
+    "UPDATE Playlists SET Name = :name, UpdatedAt = :now WHERE Id = :id AND IsSystem = 0"
 internal const val SQL_INSERT_ITEM =
     "INSERT OR IGNORE INTO PlaylistSongs (PlaylistId, SongId, Position) VALUES (:playlistId, :songId, :position)"
 internal const val SQL_SONG_IDS_IN_ORDER =

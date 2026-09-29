@@ -47,6 +47,14 @@ class PlaylistToolsTest {
             items.remove(id)
         }
 
+        /** 内置单改不动，和 SQL 里的 `IsSystem = 0` 同一语义 */
+        override suspend fun rename(id: Int, name: String, now: Long): Int {
+            val at = created.indexOfFirst { it.id == id && !it.isSystem }
+            if (at < 0) return 0
+            created[at] = created[at].copy(name = name, updatedAt = now)
+            return 1
+        }
+
         override suspend fun clearItems(id: Int) { items[id]?.clear() }
 
         override suspend fun insertItem(playlistId: Int, songId: Int, position: Int) {

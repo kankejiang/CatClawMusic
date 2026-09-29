@@ -90,6 +90,7 @@ class QueueStatsToolsTest {
         override suspend fun byName(name: String) = nope()
         override suspend fun upsert(playlist: PlaylistEntity) = nope()
         override suspend fun delete(id: Int) = nope()
+        override suspend fun rename(id: Int, name: String, now: Long) = nope()
         override suspend fun clearItems(id: Int) = nope()
         override suspend fun insertItem(playlistId: Int, songId: Int, position: Int) = nope()
         override suspend fun removeItem(playlistId: Int, songId: Int) = nope()

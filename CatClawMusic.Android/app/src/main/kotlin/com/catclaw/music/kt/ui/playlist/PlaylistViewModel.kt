@@ -58,6 +58,23 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 重命名。空名与"别的歌单已占用这个名字"直接拒，不发 SQL。
+     *
+     * 同名判据用内存里那份 [playlists] 而不是再查一次 `byName`：编辑框就在列表页上，
+     * 那一刻列表流必然被订阅着（值是当前屏幕看到的值），多一次磁盘读换不到更多正确性。
+     * 内置单的保护在 SQL 里（`IsSystem = 0`），不靠这一层自觉。
+     *
+     * @return false 表示没改，UI 应当保留编辑框并说明原因
+     */
+    fun rename(id: Int, name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return false
+        if (playlists.value.any { it.id != id && it.name == trimmed }) return false
+        viewModelScope.launch { playlistDao.rename(id, trimmed, System.currentTimeMillis()) }
+        return true
+    }
+
     /** 内置歌单（收藏 / 最近播放）删不掉：DAO 的 DELETE 带 IsSystem = 0 */
     fun delete(id: Int) {
         if (_openId.value == id) _openId.value = null

@@ -94,6 +94,37 @@ class PlaylistSqlTest {
         assertEquals("自建单要能删", false, playlistExists(2))
     }
 
+    @Test
+    fun renameTouchesOnlyUserPlaylistsAndRefreshesUpdatedAt() {
+        insertPlaylist(1, "我喜欢的", isSystem = 1)
+        insertPlaylist(2, "公路", isSystem = 0)
+
+        // 内置单改不动：页面上那两个入口的名字是写死的，表里改了名就和卡片对不上了
+        val affectedSystem = db.prepareStatement(jdbc(SQL_RENAME_PLAYLIST)).apply {
+            setString(1, "不该生效"); setLong(2, 999L); setInt(3, 1)
+        }.executeUpdate()
+        assertEquals(0, affectedSystem)
+        assertEquals("我喜欢的", nameOf(1))
+
+        assertEquals(1, db.prepareStatement(jdbc(SQL_RENAME_PLAYLIST)).apply {
+            setString(1, "夜间驾驶"); setLong(2, 5_000L); setInt(3, 2)
+        }.executeUpdate())
+        assertEquals("夜间驾驶", nameOf(2))
+        assertEquals("改名要顺带刷新 UpdatedAt，列表按它排序", 5_000L, updatedAtOf(2))
+
+        assertEquals("id 不存在时改 0 行，调用方据此判断没改成", 0, db.prepareStatement(jdbc(SQL_RENAME_PLAYLIST)).apply {
+            setString(1, "x"); setLong(2, 1L); setInt(3, 404)
+        }.executeUpdate())
+    }
+
+    private fun nameOf(id: Int): String =
+        db.prepareStatement("SELECT Name FROM Playlists WHERE Id = ?").apply { setInt(1, id) }
+            .executeQuery().let { it.next(); it.getString(1) }
+
+    private fun updatedAtOf(id: Int): Long =
+        db.prepareStatement("SELECT UpdatedAt FROM Playlists WHERE Id = ?").apply { setInt(1, id) }
+            .executeQuery().let { it.next(); (it.getObject(1) as Number).toLong() }
+
     private fun playlistExists(id: Int): Boolean =
         db.prepareStatement("SELECT 1 FROM Playlists WHERE Id = ?").apply { setInt(1, id) }.executeQuery()
             .let { it.next() }
