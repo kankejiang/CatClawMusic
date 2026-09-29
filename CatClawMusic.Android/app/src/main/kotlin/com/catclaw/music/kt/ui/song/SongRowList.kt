@@ -103,6 +103,10 @@ fun SongList(
 ) {
     val palette = LocalCatClawPalette.current
     var target by remember { mutableStateOf<SongMenuTarget?>(null) }
+    // 作用域挂在列表上而不是菜单上：菜单项点完会立刻 dismiss，
+    // 若在 `target?.let` 里 rememberCoroutineScope，那次查询会在菜单离开组合时被取消
+    // （真机上表现成"点了没反应"）
+    val scope = rememberCoroutineScope()
     if (rows.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
             EmptyState(hint = emptyHint, iconRes = R.drawable.ic_library)
@@ -166,7 +170,6 @@ fun SongList(
     }
     target?.let { song ->
         val context = LocalContext.current
-        val scope = rememberCoroutineScope()
         // 能不能分享在弹菜单这一刻判一次：判不出可分享地址就不画这一项
         val shareUri = shareUriFor(context, song.song.filePath)
         val belongs = menu.onOpenBelongs
