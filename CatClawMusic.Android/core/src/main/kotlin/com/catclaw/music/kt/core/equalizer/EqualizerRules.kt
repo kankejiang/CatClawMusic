@@ -42,11 +42,15 @@ object EqualizerRules {
         "car" to db(7, 6, 4, 2, 1, 1, 2, 3, 3, 3),
     )
 
-    /** 页面上的九宫格顺序，与 C# `PresetList` 一致（"custom" 是"当前曲线被手改过"的态，不是预设） */
-    val PRESET_CELLS = listOf(
-        "custom" to "自定义", "rock" to "摇滚", "jazz" to "爵士",
-        "pop" to "流行", "classical" to "古典", "hiphop" to "嘻哈",
-        "blues" to "布鲁斯", "electronic" to "电子音乐", "metal" to "金属",
+    /**
+     * 页面上的档位顺序，与 C# `PresetList` 一致。
+     *
+     * 只给 key 不给名字：名字是文案，要走 `strings.xml`（本端有应用内语言切换，
+     * C# 那页是硬编码中文，照搬就会在英文界面漏出中文）。"custom" 不是预设，
+     * 是"当前曲线被手改过"的态。
+     */
+    val PRESET_KEYS = listOf(
+        "custom", "rock", "jazz", "pop", "classical", "hiphop", "blues", "electronic", "metal",
     )
 
     /** 60 → "60Hz"，1000 → "1kHz"，12000 → "12kHz"（与 C# FormatHz 同形） */

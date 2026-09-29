@@ -76,7 +76,11 @@ class EqualizerRulesTest {
             assertEquals("$key 该是 10 段基准", 10, gains.size)
             gains.forEach { assertTrue("$key 超出 ±12dB", it in -12.0..12.0) }
         }
-        assertEquals(9, EqualizerRules.PRESET_CELLS.size)
-        assertEquals("custom", EqualizerRules.PRESET_CELLS.first().first)
+        assertEquals(9, EqualizerRules.PRESET_KEYS.size)
+        assertEquals("custom", EqualizerRules.PRESET_KEYS.first())
+        // 页面上的每个档位都得在预设表里，否则点上去拿到的是空曲线
+        EqualizerRules.PRESET_KEYS.forEach { key ->
+            if (key != "custom") assertTrue("$key 没有对应预设", EqualizerRules.PRESETS.containsKey(key))
+        }
     }
 }
