@@ -80,6 +80,7 @@
     <string name="playlist_play_all">Play all</string>
     <string name="playlist_add_current">Add current song</string>
     <string name="playlist_empty">This playlist is empty</string>
+    <string name="playlist_search_hint">Search titles, artists, albums in this playlist…</string>
     <string name="playlist_rename">Rename playlist</string>
     <string name="playlist_rename_save">Save</string>
     <string name="playlist_rename_cancel">Cancel</string>

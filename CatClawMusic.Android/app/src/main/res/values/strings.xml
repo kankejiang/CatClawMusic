@@ -80,6 +80,7 @@
     <string name="playlist_play_all">播放全部</string>
     <string name="playlist_add_current">加入当前歌曲</string>
     <string name="playlist_empty">这个歌单还没有歌</string>
+    <string name="playlist_search_hint">在这个歌单里搜索歌名、歌手、专辑…</string>
     <string name="playlist_rename">重命名歌单</string>
     <string name="playlist_rename_save">保存</string>
     <string name="playlist_rename_cancel">取消</string>

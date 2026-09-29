@@ -62,6 +62,9 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.EmptyState
+import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSearchField
+import com.catclaw.music.kt.core.library.SongSortKey
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 
@@ -73,7 +76,9 @@ import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val palette = LocalCatClawPalette.current
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
+    val shown by viewModel.displayItems.collectAsStateWithLifecycle()
+    val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
+    val itemQuery by viewModel.itemQuery.collectAsStateWithLifecycle()
     val openId by viewModel.openId.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
@@ -276,7 +281,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 BackTile(onBack = { viewModel.close() }, description = stringResource(R.string.GoBack))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = open.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(text = stringResource(R.string.playlist_count, open.songCount), fontSize = 12.sp, color = secondary)
+                    Text(text = stringResource(R.string.playlist_count, shown.size), fontSize = 12.sp, color = secondary)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -327,12 +332,45 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 )
             }
             Spacer(Modifier.height(10.dp))
-            if (items.isEmpty()) {
-                EmptyState(hint = stringResource(R.string.playlist_empty), iconRes = R.drawable.ic_add)
+            // 搜索与排序（MAUI PlaylistDetailPage 顶部那两条）。规则与全部歌曲页同一条，
+            // 所以这里也摆五档 —— 少摆一档会让两个页面对"同一份列表"给出不同顺序
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 与上面那三个动作同一条横滑轨道：英文 locale 下五颗 chip 会比屏幕宽，
+                    // 首尾那颗不该贴到屏幕边缘，所以内边距在滚动外面
+                    .padding(vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SongSortKey.entries.forEach { mode ->
+                    GlassChip(
+                        label = stringResource(sortLabelRes(mode)),
+                        selected = itemSort == mode,
+                        onClick = { viewModel.setItemSort(mode) },
+                    )
+                }
+            }
+            GlassSearchField(
+                query = itemQuery,
+                onChange = viewModel::setItemQuery,
+                placeholder = stringResource(R.string.playlist_search_hint),
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            if (shown.isEmpty()) {
+                EmptyState(
+                    hint = if (itemQuery.isBlank()) {
+                        stringResource(R.string.playlist_empty)
+                    } else {
+                        // 搜出来是空不能说"这个歌单还没有歌"——那是两件事
+                        stringResource(R.string.search_none, itemQuery.trim())
+                    },
+                    iconRes = R.drawable.ic_add,
+                )
             }
             LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                items(items, key = { it.id }) { song ->
-                    val index = items.indexOf(song)
+                items(shown, key = { it.id }) { song ->
+                    val index = shown.indexOf(song)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

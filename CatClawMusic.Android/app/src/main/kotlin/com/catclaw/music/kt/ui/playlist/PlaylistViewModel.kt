@@ -2,6 +2,9 @@ package com.catclaw.music.kt.ui.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.catclaw.music.kt.core.library.SongSortFields
+import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
@@ -12,6 +15,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -39,8 +44,31 @@ class PlaylistViewModel @Inject constructor(
         if (id == null) flowOf(emptyList()) else playlistDao.observeItems(id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _itemSort = MutableStateFlow(SongSortKey.Title)
+    val itemSort = _itemSort.asStateFlow()
+
+    private val _itemQuery = MutableStateFlow("")
+    val itemQuery = _itemQuery.asStateFlow()
+
+    /** 屏幕上那份歌单列表。规则与全部歌曲页同一条（core/library/SongListRules.kt），这里只接线 */
+    val displayItems = combine(items, _itemSort, _itemQuery) { list, sort, query ->
+        filterAndSortSongs(list, sort, query) {
+            SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun open(id: Int) {
+        // 换歌单要清掉搜索框：留着上一个的关键词，新打开的这个看着像是空的
+        _itemQuery.value = ""
         _openId.value = id
+    }
+
+    fun setItemSort(sort: SongSortKey) {
+        _itemSort.value = sort
+    }
+
+    fun setItemQuery(query: String) {
+        _itemQuery.value = query
     }
 
     fun close() {
@@ -104,7 +132,7 @@ class PlaylistViewModel @Inject constructor(
 
     /** 随机播放当前歌单（MAUI `PlaylistDetailViewModel.ShufflePlayAsync` 的对应物） */
     fun playAllShuffled() {
-        val songs = items.value.map { it.toSong() }
+        val songs = displayItems.value.map { it.toSong() }
         if (songs.isEmpty()) return
         session.ensure()
         controller.playShuffled(songs)
@@ -112,8 +140,12 @@ class PlaylistViewModel @Inject constructor(
 
     fun playAt(index: Int) = playFrom(index)
 
+    /**
+     * 从可见列表的某个位置起播。用 [displayItems] 而不是 [items]：
+     * 页面上排过序、搜过之后，"点第 3 行"必须是那三行里的第 3 行，而不是库里的第 3 行。
+     */
     private fun playFrom(index: Int) {
-        val songs = items.value.map { it.toSong() }
+        val songs = displayItems.value.map { it.toSong() }
         if (songs.isEmpty()) return
         session.ensure()
         controller.playSongs(songs, startIndex = index)
