@@ -32,9 +32,6 @@ class PlayQueue {
             }
         }
 
-    /** 私人漫游（FM）模式：激活时 UI 只允许「单曲循环 ↔ 无限」，其余模式禁用 */
-    var isFmMode: Boolean = false
-
     val currentSong: Song?
         get() {
             if (currentIndex < 0) return null
