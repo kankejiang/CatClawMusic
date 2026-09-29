@@ -177,8 +177,8 @@ fun ListeningStatsScreen(
                         stringResource(R.string.StatsPercentValue, slot.percent),
                     )
                 }
-                // 深夜 = 后两格（21–24 与 0–5）之和。判据与 PlayStatRules 的深夜时段同一处定义
-                val late = stats.slots.drop(4).sumOf { it.percent }
+                // 深夜占比由 :core 按"次数"算好，不在这里把两格的百分比相加（各自四舍五入过，相加会差 1）
+                val late = stats.lateNightPercent
                 Text(
                     text = when {
                         late >= 30 -> stringResource(R.string.StatsNightHeavy, late)

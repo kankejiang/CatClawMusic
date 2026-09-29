@@ -45,6 +45,10 @@ object ListeningStatsRules {
     /** 一格时段：次数、占比、以及"画多长"的相对高度 */
     data class Slot(val plays: Int, val percent: Int, val ratio: Float)
 
+    /** 深夜那两格在下标里的位置（夜晚 21–24 与凌晨 0–5），页面文案按这两格合起来说 */
+    const val NIGHT_SLOT_NIGHT = 4
+    const val NIGHT_SLOT_LATE = 5
+
     /**
      * 趋势图的一根柱子。[key] 在 7/30 范围下是那一天，在"全部"下是该月的第一天。
      *
@@ -73,6 +77,13 @@ object ListeningStatsRules {
         val bars: List<Bar>,
         val activeDaysInRange: Int,
         val slots: List<Slot>,
+        /**
+         * 深夜 + 凌晨共占的百分比。
+         *
+         * 单独存一个数而不是让页面把两格的 [Slot.percent] 相加：占比是各自四舍五入过的，
+         * 加起来会比真实值差 1（3 次里两格各 1 次：33+33=66，而 2/3 是 67）。
+         */
+        val lateNightPercent: Int,
         val streakCurrent: Int,
         val streakBest: Int,
         val compare: Compare?,
@@ -97,6 +108,8 @@ object ListeningStatsRules {
         val listeningDays = days.count { it.plays > 0 }
         val dates = days.filter { it.plays > 0 }.map { it.date }.toSet()
         val bars = barsFor(days, range, today)
+        val slots = slotsFor(hours)
+        val hourTotal = hours.sumOf { it.plays }
         return Result(
             totalPlays = totalPlays,
             songsHeard = songsHeard,
@@ -109,7 +122,11 @@ object ListeningStatsRules {
             nightPercent = percent(days.sumOf { it.nightPlays }, totalPlays),
             bars = bars,
             activeDaysInRange = bars.count { it.plays > 0 },
-            slots = slotsFor(hours),
+            slots = slots,
+            lateNightPercent = percent(
+                slots[NIGHT_SLOT_NIGHT].plays + slots[NIGHT_SLOT_LATE].plays,
+                hourTotal,
+            ),
             streakCurrent = currentStreak(dates, today),
             streakBest = bestStreak(dates),
             compare = compareFor(

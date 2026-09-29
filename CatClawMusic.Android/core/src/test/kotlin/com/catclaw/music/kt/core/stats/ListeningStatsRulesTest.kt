@@ -99,6 +99,21 @@ class ListeningStatsRulesTest {
     }
 
     @Test
+    fun lateNightPercentCountsPlaysNotRoundedSlots() {
+        // 三格里两格各 1 次：各自四舍五入是 33% + 33% = 66%，而真实占比是 2/3 = 67%。
+        // 页面文案要说的是后者，所以这个数必须由 :core 按次数算出来。
+        val hours = listOf(
+            ListeningStatsRules.HourBucket(22, 1, 0),
+            ListeningStatsRules.HourBucket(2, 1, 0),
+            ListeningStatsRules.HourBucket(10, 1, 0),
+        )
+        val r = ListeningStatsRules.summarize(emptyList(), hours, 0, ListeningStatsRules.Range.WEEK, today)
+        assertEquals(67, r.lateNightPercent)
+        assertEquals("两格各自的显示值仍是各自四舍五入的", listOf(33, 33), listOf(r.slots[4].percent, r.slots[5].percent))
+        assertEquals(0, ListeningStatsRules.summarize(emptyList(), emptyList(), 0, ListeningStatsRules.Range.WEEK, today).lateNightPercent)
+    }
+
+    @Test
     fun streakAnchorsOnYesterdayAndBestSpansHistory() {
         val dates = setOf(
             LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 2), LocalDate.of(2026, 2, 3),
