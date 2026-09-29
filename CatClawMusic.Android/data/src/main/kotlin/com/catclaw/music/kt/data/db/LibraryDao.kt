@@ -73,6 +73,13 @@ interface LibraryDao {
     @Query("SELECT COUNT(*) FROM Songs")
     suspend fun songCount(): Int
 
+    /**
+     * 本地曲库占用的字节数（`Source = 0` 才是本地文件；远程行的 FileSize 是远端大小，
+     * 算进来会让"存储占用"变成一个谁也对不上的数）。
+     */
+    @Query("SELECT IFNULL(SUM(FileSize), 0) FROM Songs WHERE Source = 0")
+    suspend fun localBytesTotal(): Long
+
     /** FilePath 上有唯一索引，重复入库走替换 */
     @Upsert
     suspend fun upsertSong(song: SongEntity): Long

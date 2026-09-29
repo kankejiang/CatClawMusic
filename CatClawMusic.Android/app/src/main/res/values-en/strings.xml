@@ -272,6 +272,9 @@ Download it from GitHub.</string>
     <string name="local_scan_remove_folder">Remove folder</string>
     <string name="local_scan_status">Scan status</string>
     <string name="local_scan_now">Scan now</string>
+    <string name="lib_stat_storage">Storage</string>
+    <string name="lib_cache_label">cache</string>
+    <string name="lib_open_stats">Listening stats</string>
     <string name="sleep_timer_entry">Sleep timer</string>
     <string name="sleep_timer_title">Stop playback after</string>
     <string name="sleep_timer_stop_time">Stop after</string>

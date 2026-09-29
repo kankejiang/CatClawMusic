@@ -226,11 +226,12 @@ class VisualLanguageTest {
         val inPageLayers = mapOf(
             "screen/PlayingScreen.kt" to listOf("songDetailId", "belongsDetail"),
             "screen/PlaylistScreen.kt" to listOf("openId", "entry", "belongsDetail", "songDetailId"),
-            "screen/LibraryScreen.kt" to listOf("opened", "detail", "songDetailId"),
+            "screen/LibraryScreen.kt" to listOf("opened", "detail", "songDetailId", "statsOpen"),
         )
         val unhandled = inPageLayers.flatMap { (rel, flags) ->
             val text = File(uiRoot, rel).readText()
-            flags.filterNot { Regex("""BackHandler\(enabled = $it != null""").containsMatchIn(text) }
+            // 有的层承载的是 id/对象（`x != null`），有的是布尔（`statsOpen`），两种写法都算接住
+            flags.filterNot { Regex("""BackHandler\(enabled = $it\b""").containsMatchIn(text) }
                 .map { "$rel:$it" }
         }
         assertTrue("页内整屏层画了返回方块却不接系统返回键: $unhandled", unhandled.isEmpty())

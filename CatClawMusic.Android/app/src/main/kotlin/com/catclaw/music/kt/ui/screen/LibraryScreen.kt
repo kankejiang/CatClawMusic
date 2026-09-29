@@ -30,6 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import com.catclaw.music.kt.core.model.SongDetailFormat
+import com.catclaw.music.kt.ui.stats.ListeningStatsScreen
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,11 +94,18 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     var detail by remember { mutableStateOf<LibraryDetail?>(null) }
     // 歌曲详情是整页，托管在页面这一层而不是列表里：否则它会叠在列表页头下面，出现两个返回键
     var songDetailId by remember { mutableStateOf<Int?>(null) }
+    // 听歌统计此前只藏在发现页的统计格里；音乐库这页是看曲库的地方，入口也该在这
+    var statsOpen by remember { mutableStateOf(false) }
     // 三层都是页内整屏层，各自画了返回方块：系统返回键要逐层退，不能一把退出应用。
     // 组合在后的优先，所以按「下层 → 上层」排（早退块也是这个顺序，先命中的才是看得见的那层）
     BackHandler(enabled = opened != null) { opened = null }
     BackHandler(enabled = detail != null) { detail = null }
     BackHandler(enabled = songDetailId != null) { songDetailId = null }
+    BackHandler(enabled = statsOpen) { statsOpen = false }
+    if (statsOpen) {
+        ListeningStatsScreen(onBack = { statsOpen = false })
+        return
+    }
     songDetailId?.let { id ->
         SongDetailScreen(songId = id, load = { viewModel.songDetail(it) }, onBack = { songDetailId = null })
         return
@@ -129,6 +138,10 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val scanning by viewModel.scanning.collectAsStateWithLifecycle()
     val hours = songs.sumOf { it.durationSeconds.toLong() } / 3600.0
+    // 占用现读一次：曲库行数变了就该跟着变（扫完库回来要能看到新数）
+    val storage by produceState(initialValue = 0L to 0L, songs.size) {
+        value = runCatching { viewModel.storage() }.getOrDefault(value)
+    }
 
     Column(
         modifier = Modifier
@@ -197,6 +210,34 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
                     StatTile(String.format("%.1f", hours), stringResource(R.string.lib_stat_hours), palette) {
                         onOpenKind(LibraryKind.Songs)
                     }
+                }
+                // MAUI 的 Hero 下面挂着「存储占用」与「数据洞察」。两个数分开报：
+                // 曲库是声明式文件大小、缓存是实际落盘字节，合成一个总数就变成谁也对不上的数
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        // `bytes(0)` 回空串（那语义是"没有这个信息"），所以缓存为 0 时整段不出现，
+                        // 而不是留一个后面什么都没有的「缓存」标签挂在行尾
+                        text = stringResource(R.string.lib_stat_storage) + " " + SongDetailFormat.bytes(storage.first) +
+                            if (storage.second > 0L) {
+                                " · " + stringResource(R.string.lib_cache_label) + " " + SongDetailFormat.bytes(storage.second)
+                            } else {
+                                ""
+                            },
+                        fontSize = 12.5.sp,
+                        color = Color(palette.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PillLabel(
+                        text = stringResource(R.string.lib_open_stats),
+                        onClick = { statsOpen = true },
+                        filled = false,
+                    )
                 }
             }
         }

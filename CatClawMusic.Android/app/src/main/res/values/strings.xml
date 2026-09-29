@@ -272,6 +272,9 @@
     <string name="local_scan_remove_folder">移除文件夹</string>
     <string name="local_scan_status">扫描状态</string>
     <string name="local_scan_now">立即扫描</string>
+    <string name="lib_stat_storage">存储占用</string>
+    <string name="lib_cache_label">缓存</string>
+    <string name="lib_open_stats">听歌统计</string>
     <string name="sleep_timer_entry">睡眠定时</string>
     <string name="sleep_timer_title">定时停止播放</string>
     <string name="sleep_timer_stop_time">停止时间</string>

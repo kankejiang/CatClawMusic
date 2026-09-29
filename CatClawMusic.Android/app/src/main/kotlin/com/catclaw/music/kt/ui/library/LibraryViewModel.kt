@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.library
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.catclaw.music.kt.core.audio.AudioCache
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.db.SongListItem
@@ -30,7 +31,14 @@ class LibraryViewModel @Inject constructor(
     private val libraryDao: LibraryDao,
     private val playlistDao: PlaylistDao,
     private val paths: MediaPathResolver,
+    private val audioCache: AudioCache,
 ) : ViewModel() {
+
+    /**
+     * 音乐库 Hero 上那行「存储占用」的两个数：曲库文件与音频缓存**分开报**。
+     * 合成一个总数就变成谁也对不上的数字（曲库是声明式大小，缓存是实际落盘字节）。
+     */
+    suspend fun storage(): Pair<Long, Long> = libraryDao.localBytesTotal() to audioCache.totalBytes()
 
     /** 下钻页要按艺人/专辑现读一次歌单 */
     suspend fun songsOfArtist(artistId: Int) = libraryDao.songsOfArtist(artistId)
