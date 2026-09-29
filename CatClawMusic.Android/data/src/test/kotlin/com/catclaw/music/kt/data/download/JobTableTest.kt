@@ -8,12 +8,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 任务收尾时「摘掉自己那一份」这件事，见 [DownloadJobTable] 的注释 */
-class DownloadJobTableTest {
+/** 任务收尾时「摘掉自己那一份」这件事，见 [JobTable] 的注释 */
+class JobTableTest {
 
     @Test
     fun `release 只摘自己那一份，换上去的新任务必须留着`() {
-        val table = DownloadJobTable()
+        val table = JobTable<Int>()
         val first = Job()
         val second = Job()
         table.put(1, first)
@@ -26,7 +26,7 @@ class DownloadJobTableTest {
 
     @Test
     fun `cancel 取走并取消，没有这一首时返回 null`() {
-        val table = DownloadJobTable()
+        val table = JobTable<Int>()
         val job = Job()
         table.put(7, job)
         assertEquals(job, table.cancel(7))
@@ -36,7 +36,7 @@ class DownloadJobTableTest {
 
     @Test
     fun `已经结束的 Job 不入表，isActive 只认真着的那一份`() {
-        val table = DownloadJobTable()
+        val table = JobTable<Int>()
         val dead = Job().apply { cancel() }
         table.put(3, dead)
         assertNull("死任务不该占格子", table.jobOf(3))
@@ -44,6 +44,25 @@ class DownloadJobTableTest {
         val live = Job()
         table.put(3, live)
         assertTrue(table.isActive(3))
+    }
+
+    /**
+     * 源直链下载用的是**清洗后的文件名**当键（`SourceDownloadManager`）。
+     * 那条去重原来查的是未清洗的名字、存的却是清洗后的，两边对不上 —— 键型换成 String 之后
+     * 这一条把"同一个键才拦得住"钉住。
+     */
+    @Test
+    fun `字符串键同样认货：同名任务在跑时 isActive 为真`() {
+        val table = JobTable<String>()
+        val running = Job()
+        table.put("专辑_歌.mp3", running)
+        assertTrue(table.isActive("专辑_歌.mp3"))
+        assertFalse("换了别的键就不该拦住同名任务", table.isActive("歌.mp3"))
+        assertEquals(listOf("专辑_歌.mp3"), table.activeKeys())
+        val next = Job()
+        table.put("专辑_歌.mp3", next)
+        assertFalse(table.release("专辑_歌.mp3", running))
+        assertEquals(next, table.jobOf("专辑_歌.mp3"))
     }
 
     /**

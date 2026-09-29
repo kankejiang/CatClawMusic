@@ -5,7 +5,6 @@ import com.catclaw.music.kt.core.ai.DownloadEnqueuer
 import com.catclaw.music.kt.core.download.RangeDownloader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +25,7 @@ class SourceDownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : DownloadEnqueuer {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val jobs = ConcurrentHashMap<String, Job>()
+    private val jobs = JobTable<String>()
 
     private val directory: File
         get() = File(context.getExternalFilesDir(null), "downloads").apply { if (!exists()) mkdirs() }
@@ -35,12 +34,17 @@ class SourceDownloadManager @Inject constructor(
 
     override fun enqueue(url: String, filename: String): String? {
         if (filename.isBlank() || url.isBlank()) return null
-        if (jobs[filename]?.isActive == true) return "该文件已在下载中：$filename"
+        // 去重必须拿**清洗后**的名字当键：原来这里查的是 `jobs[filename]`（未清洗），
+        // 而存的是 `sanitize(filename)` —— 名字里带 `/`、`\`、开头点号时两边对不上，
+        // 去重形同没有，同一个 `.part` 会被两个任务同时写。
         val target = sanitize(filename)
-        jobs[target] = scope.launch {
+        if (jobs.isActive(target)) return "该文件已在下载中：$target"
+        val job = scope.launch {
             runCatching { downloader.download(target, url) { _, _ -> } }
-            jobs.remove(target)
+            // 认货再摘：这一格可能已经被后一次排队换成新任务了
+            coroutineContext[Job]?.let { jobs.release(target, it) }
         }
+        jobs.put(target, job)
         return "已开始下载：$target（保存到 ${directory.absolutePath}）"
     }
 
@@ -49,5 +53,5 @@ class SourceDownloadManager @Inject constructor(
         raw.replace('\\', '_').replace('/', '_').removePrefix(".").ifBlank { "download.bin" }
 
     /** 供设置页/测试查看当前在下的文件名 */
-    fun active(): List<String> = jobs.filterValues { it.isActive }.keys.toList()
+    fun active(): List<String> = jobs.activeKeys()
 }

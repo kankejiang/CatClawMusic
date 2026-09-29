@@ -38,8 +38,8 @@ class MusicDownloader @Inject constructor(
     private val db: CatClawDatabase,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    /** 收尾只摘自己那一份，理由见 [DownloadJobTable] */
-    private val jobs = DownloadJobTable()
+    /** 收尾只摘自己那一份，理由见 [JobTable] */
+    private val jobs = JobTable<Int>()
 
     private val directory: File
         get() = File(context.getExternalFilesDir(null), "downloads").apply { if (!exists()) mkdirs() }
