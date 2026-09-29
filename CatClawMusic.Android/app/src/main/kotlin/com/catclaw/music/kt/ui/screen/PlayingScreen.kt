@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,10 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,6 +69,7 @@ import com.catclaw.music.kt.ui.song.SongMenuFor
 import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
+import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -141,41 +146,69 @@ fun PlayingScreen(
         return
     }
 
+    // Apple Music 的 Now Playing 不是"页面套一张通用渐变"，而是**封面把环境染了**：
+    // 取封面的平均色当顶部色标，往下压回玻璃底，于是封面、歌名、控制区在同一个色温里。
+    // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
+    val song = state.currentSong
+    val cover = rememberCover(song?.coverArtPath, song?.filePath)
+    val artworkTint = rememberArtworkTint(cover)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        artworkTint.copy(alpha = 0.46f),
+                        artworkTint.copy(alpha = 0.16f),
+                        GlassTokens.Tint.copy(alpha = 0.94f),
+                    ),
+                ),
+            )
+            .padding(horizontal = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // 顶栏收成"左右各一个图标 + 居中标题"：Apple 那一行只有下拉箭头和来源，
+            // 我们得留住设置与扫描两个真功能，所以降级成图标而不是两颗胶囊
+            Icon(
+                painter = painterResource(R.drawable.ic_settings),
+                contentDescription = stringResource(R.string.SettingsEntry),
+                tint = Color(palette.textSecondary),
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onOpenSettings)
+                    .padding(11.dp),
+            )
+            Spacer(Modifier.weight(1f))
             Text(
                 text = stringResource(R.string.PageTitleNowPlaying),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(palette.textPrimary),
-                modifier = Modifier.weight(1f),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.6.sp,
+                color = Color(palette.textSecondary),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
-            PillLabel(
-                text = stringResource(R.string.SettingsEntry),
-                onClick = onOpenSettings,
-                filled = false,
-            )
-            PillLabel(
-                text = stringResource(if (scanning) R.string.library_scanning else R.string.m1_scan_play),
-                onClick = { viewModel.scanAndPlayAll() },
-                enabled = !scanning,
+            Spacer(Modifier.weight(1f))
+            Icon(
+                painter = painterResource(R.drawable.ic_refresh),
+                contentDescription = stringResource(if (scanning) R.string.library_scanning else R.string.m1_scan_play),
+                tint = if (scanning) Color(palette.textSecondary) else Color(palette.textPrimary).copy(alpha = 0.72f),
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = !scanning) { viewModel.scanAndPlayAll() }
+                    .padding(11.dp),
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(10.dp))
 
         // MAUI 的 RootGrid 是 `Auto,*,Auto`：中间（封面+歌词）吃满剩余高度，控制区沉底。
         // 队列移出本页后如果不做这一步，播放页下方会空出一大片
@@ -186,15 +219,14 @@ fun PlayingScreen(
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val song = state.currentSong
-                val cover = rememberCover(song?.coverArtPath, song?.filePath)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.62f)
+                        .fillMaxWidth(0.76f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color(palette.primaryLight))
-                        .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(26.dp)),
+                        // Apple 的封面是"小圆角 + 重投影"，不是描边；投影把封面从染色的环境里抬出来
+                        .shadow(26.dp, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (cover != null) {
@@ -209,38 +241,42 @@ fun PlayingScreen(
                             text = song?.title?.take(1) ?: "♪",
                             fontSize = 64.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(inkOn(palette.primaryLight)),
+                            color = Color(palette.textSecondary),
                         )
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(palette.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = state.currentSong?.artist ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(palette.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                state.error?.let {
-                    // 这行落在页面渐变底上，不在封面那块 primaryLight 面里，取墨色才会翻成人眼看得见的
+                Spacer(Modifier.height(26.dp))
+                // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
+                        text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color(palette.textPrimary),
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Text(
+                        text = state.currentSong?.artist ?: "",
+                        fontSize = 17.sp,
+                        color = Color(palette.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                    state.error?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(palette.textPrimary),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
 
+                Spacer(Modifier.height(14.dp))
                 com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
             }
         }
@@ -251,9 +287,13 @@ fun PlayingScreen(
             onSeek = { viewModel.seekTo(it) },
         )
 
-        // 主控制行：照 MAUI `PhoneControls` 的 `*,*,*,*,*` 五等分与尺寸 40/52/73/52/40，
-        // 全部是图标按钮（不是 ▶/❚❚ 文字），最右是「播放列表」入口——队列不在本页内嵌
-        Row(modifier = Modifier.fillMaxWidth().height(80.dp)) {
+        // 主控制行改成 Apple 那一档：**纯图标、无底色**，中间那颗只比两侧大一号。
+        // 原来是「primaryLight 圆底 + 白图标」——那是全 app 最重的一块色块，
+        // 和刚铺上的封面染色打架，看上去像两套设计拼在一起
+        Row(
+            modifier = Modifier.fillMaxWidth().height(78.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 IconButton40(
                     icon = modeIcon(state.mode),
@@ -270,21 +310,19 @@ fun PlayingScreen(
                     onClick = { viewModel.previous() },
                 )
             }
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(73.dp)
-                        .background(Color(palette.primaryLight), CircleShape)
-                        .clickable { viewModel.toggle() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = if (state.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
-                        contentDescription = stringResource(R.string.play_or_pause),
-                        tint = Color(inkOn(palette.primaryLight)),
-                        modifier = Modifier.size(30.dp),
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .clickable { viewModel.toggle() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (state.isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
+                    contentDescription = stringResource(R.string.play_or_pause),
+                    tint = Color(palette.textPrimary),
+                    modifier = Modifier.size(46.dp),
+                )
             }
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 IconButton52(
@@ -304,24 +342,42 @@ fun PlayingScreen(
             }
         }
 
+        // Apple 的"上滑看更多"提示就是一根小灰棒。这里它不是装饰：点它就是进歌词页，
+        // 与下面那行歌词预览同一个动作，两者都真跳得过去
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .clickable(onClick = onOpenLyrics),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(Color(palette.textPrimary).copy(alpha = 0.26f)),
+            )
+        }
+
         // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
         // 这里放**已实现**的五个——横屏在安卓侧还没有功能，
         // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）；
         // 「详情」不单独占一格，它收在「更多」里（歌曲信息是歌曲的属性，不是播放页的属性）
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            // MAUI 是 6 等分槽位；图标不满，用 weight 会推到两端显得很空，改成居中定距
-            horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            // 五颗图标等距分布：原来是"居中定距 34dp"，第五颗（更多）会被推到屏幕边上贴住，
+            // 视觉上像被裁掉（真机 bounds 到 1432/1440）
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             val desktopOn by viewModel.desktopLyricEnabled.collectAsStateWithLifecycle()
             Icon(
                 imageVector = PlayerIcons.Lyrics,
                 contentDescription = stringResource(R.string.open_lyrics),
-                tint = Color(palette.primary),
+                tint = Color(palette.textSecondary),
                 modifier = Modifier
-                    .size(49.dp)
+                    .size(44.dp)
                     .clickable(onClick = onOpenLyrics)
-                    .padding(8.dp),
+                    .padding(10.dp),
             )
             Icon(
                 imageVector = PlayerIcons.DesktopLyrics,
@@ -329,23 +385,24 @@ fun PlayingScreen(
                     R.string.lyric_desktop,
                     stringResource(if (desktopOn) R.string.lyric_on else R.string.lyric_off),
                 ),
-                tint = if (desktopOn) Color(palette.primary) else Color(palette.textSecondary),
+                tint = if (desktopOn) Color(palette.textPrimary) else Color(palette.textSecondary),
                 modifier = Modifier
-                    .size(49.dp)
+                    .size(44.dp)
                     .clickable {
                         if (!viewModel.toggleDesktopLyric()) {
                             context.startActivity(viewModel.overlayPermissionIntent())
                         }
-                    },
+                    }
+                    .padding(10.dp),
             )
             Icon(
                 imageVector = PlayerIcons.SoundFx,
                 contentDescription = stringResource(R.string.soundfx_entry),
                 tint = Color(palette.textSecondary),
                 modifier = Modifier
-                    .size(49.dp)
+                    .size(44.dp)
                     .clickable(onClick = onOpenSoundFx)
-                    .padding(8.dp),
+                    .padding(10.dp),
             )
             Icon(
                 imageVector = PlayerIcons.Timer,
@@ -354,12 +411,12 @@ fun PlayingScreen(
                 } else {
                     stringResource(R.string.sleep_timer_entry)
                 },
-                // 定时开着要用主色点出来：图标是唯一能看见它的地方（弹窗得点开才有）
-                tint = if (sleepState.running) Color(palette.primary) else Color(palette.textSecondary),
+                // 定时开着要用最高对比点出来：图标是唯一能看见它的地方（弹窗得点开才有）
+                tint = if (sleepState.running) Color(palette.textPrimary) else Color(palette.textSecondary),
                 modifier = Modifier
-                    .size(49.dp)
+                    .size(44.dp)
                     .clickable { showSleepDialog = true }
-                    .padding(8.dp),
+                    .padding(10.dp),
             )
             // 「更多」只在真有一首歌可动的时候画：没有当前曲目时菜单里每一项都点不动
             state.currentSong?.takeIf { it.id > 0 }?.let {
@@ -368,9 +425,9 @@ fun PlayingScreen(
                     contentDescription = stringResource(R.string.playing_more),
                     tint = Color(palette.textSecondary),
                     modifier = Modifier
-                        .size(49.dp)
+                        .size(44.dp)
                         .clickable { songMenuOpen = true }
-                        .padding(8.dp),
+                        .padding(10.dp),
                 )
             }
         }
@@ -415,11 +472,11 @@ private fun IconButton40(
 ) {
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(44.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(imageVector = icon, contentDescription = description, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(imageVector = icon, contentDescription = description, tint = tint, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -432,11 +489,11 @@ private fun IconButton52(
 ) {
     Box(
         modifier = Modifier
-            .size(52.dp)
+            .size(56.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(imageVector = icon, contentDescription = description, tint = tint, modifier = Modifier.size(26.dp))
+        Icon(imageVector = icon, contentDescription = description, tint = tint, modifier = Modifier.size(32.dp))
     }
 }
 
@@ -461,6 +518,7 @@ private fun modeLabelRes(mode: PlayMode): Int = when (mode) {
  * 与 MAUI 侧「Slider 拖动 OneWay、DragCompleted 后 seek 再恢复双向」同一条规则，
  * 否则拖动会被播放器回写的位置抢回去。
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
     var dragFraction by remember { mutableFloatStateOf(-1f) }
@@ -476,9 +534,12 @@ private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Un
     ) {
         Text(
             text = formatTime(shownMs.toLong()),
-            style = MaterialTheme.typography.labelSmall,
+            fontSize = 11.5.sp,
             color = Color(palette.textSecondary),
         )
+        // Apple 的进度条是 3dp 细线 + 白色已播 + 小圆点，滑块只在拖动时才明显。
+        // 这里保留 Slider 的语义（拖动期间只显本地值、松手才 seek），只把视觉换成那一档：
+        // 换掉控件会丢回写规则，换 track/thumb 插槽不会
         Slider(
             value = fraction,
             onValueChange = { dragFraction = it },
@@ -486,19 +547,88 @@ private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Un
                 dragFraction.takeIf { it >= 0 }?.let { onSeek((it * durationMs).toLong()) }
                 dragFraction = -1f
             },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
             colors = SliderDefaults.colors(
-                thumbColor = Color(palette.primary),
-                activeTrackColor = Color(palette.primary),
-                inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+                thumbColor = Color(palette.textPrimary),
+                activeTrackColor = Color(palette.textPrimary),
+                inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.22f),
             ),
+            track = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(Color(palette.textPrimary).copy(alpha = 0.22f)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(Color(palette.textPrimary)),
+                    )
+                }
+            },
+            thumb = {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(Color(palette.textPrimary)),
+                )
+            },
         )
         Text(
             text = formatTime(durationMs),
-            style = MaterialTheme.typography.labelSmall,
+            fontSize = 11.5.sp,
             color = Color(palette.textSecondary),
         )
     }
+}
+
+/**
+ * 封面的平均色 —— Apple Music 那套"环境被封面染色"的数据源。
+ *
+ * 采样而不是取主色：主色要 k-means 或 MedianCut，一帧里跑不动；而播放页要的只是
+ * "整页色温跟着封面走"，均色足够，且封面已经下采样到 512px 以内，跳着取样不到 900 个点。
+ * 没有封面时回落到透明，让页面自己的渐变底接管。
+ */
+@Composable
+private fun rememberArtworkTint(cover: android.graphics.Bitmap?): Color {
+    val palette = LocalCatClawPalette.current
+    return remember(cover) {
+        if (cover == null || cover.width == 0 || cover.height == 0) {
+            return@remember Color.Transparent
+        }
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var n = 0L
+        val stepX = (cover.width / 26).coerceAtLeast(1)
+        val stepY = (cover.height / 26).coerceAtLeast(1)
+        var y = 0
+        while (y < cover.height) {
+            var x = 0
+            while (x < cover.width) {
+                val pixel = cover.getPixel(x, y)
+                r += (pixel shr 16) and 0xFF
+                g += (pixel shr 8) and 0xFF
+                b += pixel and 0xFF
+                n++
+                x += stepX
+            }
+            y += stepY
+        }
+        if (n == 0L) {
+            Color.Transparent
+        } else {
+            Color(
+                (r / n).toFloat() / 255f,
+                (g / n).toFloat() / 255f,
+                (b / n).toFloat() / 255f,
+            )
+        }
+    }.takeIf { it != Color.Transparent } ?: Color(palette.primary).copy(alpha = 0.30f)
 }
 
 private fun formatTime(ms: Long): String {
