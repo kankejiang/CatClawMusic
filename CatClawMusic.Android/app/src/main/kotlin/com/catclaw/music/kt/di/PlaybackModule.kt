@@ -68,6 +68,8 @@ object PlaybackModule {
         // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
         // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
         onListenStarted = { songId -> history.record(songId) }
+        // 收听时长统计走同一条链：:core 只报"现在听到哪儿了"，落库在这层
+        onListenSample = { id, pos, playing -> history.sample(id, pos, playing) }
         // 音效同理：会话就绪那一刻把效果挂上，并把存下来的设置应用一遍，
         // 否则"上次调过 EQ、这次没进 EQ 页"就等于没设过
         onAudioSessionReady = { sessionId ->

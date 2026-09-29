@@ -410,6 +410,9 @@ class PlayerController(
         // 淡入淡出是 100ms 一跳直接摸 player 的，release 之后不取消就会踩到已释放实例
         stopCrossfadeTicker()
         stopSleepTicker()
+        // 服务销毁不一定经过 onIsPlayingChanged，最后这一段收听位置只能在这里交出去
+        stopListenSampler()
+        emitListenSample()
         runCatching { appContext.unregisterReceiver(noisyReceiver) }
         player.removeListener(playerListener)
         player.release()
@@ -524,6 +527,42 @@ class PlayerController(
     private val listens = ListenCounter()
 
     /**
+     * 播放中的采样，给统计侧累计"这一次听到了哪儿"。
+     *
+     * 传 `player.isPlaying`（真的在出声）而不是状态里的 isPlaying —— 后者是**用户意图**
+     * `playWhenReady`，缓冲期间它为真但并没有在放，按意图累计会把等待时间算成收听时长。
+     */
+    var onListenSample: ((songId: Int, positionMs: Long, playing: Boolean) -> Unit)? = null
+
+    private var listenWatcher: kotlinx.coroutines.Job? = null
+
+    private fun emitListenSample() {
+        val sink = onListenSample ?: return
+        sink(queue.currentSong?.id ?: 0, player.currentPosition, player.isPlaying)
+    }
+
+    /**
+     * 采样节奏 1 秒：它只决定"暂停/退出时最后停在哪"的误差 —— 1 秒足够，再快就是白烧 CPU。
+     *
+     * 自动切歌时 `isPlaying` 一直为真，所以 [publish] 那一次采样报的已经是**下一首**；
+     * 上一首的尾巴由 :data 侧在下次 `record()` 时补交，不靠这里。
+     */
+    private fun startListenSampler() {
+        if (listenWatcher?.isActive == true) return
+        listenWatcher = scope.launch {
+            while (true) {
+                emitListenSample()
+                delay(LISTEN_SAMPLE_MS)
+            }
+        }
+    }
+
+    private fun stopListenSampler() {
+        listenWatcher?.cancel()
+        listenWatcher = null
+    }
+
+    /**
      * 音频会话就绪时回调（STATE_READY）。:core 不认识 android.media.audiofx，音效层由 :data 接。
      *
      * 为什么不在播放器建好时就给会话 id：ExoPlayer 在 AudioTrack 创建前 `audioSessionId` 是 0，
@@ -543,6 +582,8 @@ class PlayerController(
         )
         val s = _state.value
         AppLog.i(TAG, "state song=${current?.id} mode=${s.mode} playing=${s.isPlaying} size=${s.queueSize} err=$error")
+        // 暂停/停止也走这里：把最后的位置交出去，统计侧才知道这次听到了哪儿
+        emitListenSample()
         // 没接监听器时**不许**推进计数器：否则 restore() 那一次 publish 就把当前歌"用掉"了，
         // 之后同一首再怎么播都不会再记 —— 真机上就是这么漏的（队列里恢复出的歌与用户点的正是同一首）
         val listener = onListenStarted
@@ -586,6 +627,7 @@ class PlayerController(
             if (isPlaying) {
                 queue.currentSong?.let { save() }
                 startCrossfadeTicker()
+                startListenSampler()
                 if (prebufferWatcher?.isActive != true) {
                     prebufferWatcher = scope.launch {
                         while (true) {
@@ -598,6 +640,7 @@ class PlayerController(
                 prebufferWatcher?.cancel()
                 prebufferWatcher = null
                 stopCrossfadeTicker()
+                stopListenSampler()
             }
         }
 
@@ -674,6 +717,9 @@ class PlayerController(
 
         /** 睡眠定时按秒走：规则本身就是"每秒一格"，快了没有意义 */
         const val SLEEP_TICK_MS = 1_000L
+
+        /** 听歌时长的采样节奏，见 [onListenSample] */
+        const val LISTEN_SAMPLE_MS = 1_000L
         const val ERROR_BACKOFF_MS = 5_000L
     }
 }
