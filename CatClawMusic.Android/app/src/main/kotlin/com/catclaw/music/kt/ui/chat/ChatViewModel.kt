@@ -7,6 +7,7 @@ import com.catclaw.music.kt.core.ai.ChatSession
 import com.catclaw.music.kt.core.ai.StoredMessage
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.playback.PlayerController
+import com.catclaw.music.kt.data.ai.ChatMemoryStore
 import com.catclaw.music.kt.data.ai.LlmConfigStore
 import com.catclaw.music.kt.data.db.ChatDao
 import com.catclaw.music.kt.data.db.entity.ChatMessageEntity
@@ -28,6 +29,7 @@ class ChatViewModel @Inject constructor(
     private val player: PlayerController,
     private val session: PlaybackSessionStarter,
     private val words: com.catclaw.music.kt.core.ai.YukiWordLibrary,
+    private val memory: ChatMemoryStore,
 ) : ViewModel() {
 
     val chat = ChatSession(
@@ -43,6 +45,16 @@ class ChatViewModel @Inject constructor(
             chatDao.insert(ChatMessageEntity(role = role, content = content, timestamp = System.currentTimeMillis()))
             // 与 MAUI 同一取舍：每存一条顺手查一次总量，超 1000 才裁
             if (chatDao.count() > CHAT_TRIM_KEEP) chatDao.trimKeepingNewest(CHAT_TRIM_KEEP)
+            // 存消息的这条缝同时是"喂长期记忆"的唯一入口：用户和 Yuki 说的每句话都经过这里。
+            // 攒够一批就后台问一次模型"有什么值得记的"；没配置模型时不问，但把缓冲丢掉 ——
+            // 留着的话，用户哪天配好模型会突然被翻旧账。
+            if (memory.record(role, content)) {
+                if (configStore.isConfigured()) {
+                    viewModelScope.launch { memory.extractWith(agent::quickAsk) }
+                } else {
+                    memory.dropPending()
+                }
+            }
         },
         loadRecent = { limit -> chatDao.recent(limit).map { StoredMessage(it.id, it.role, it.content) } },
         loadOlder = { beforeId, limit ->

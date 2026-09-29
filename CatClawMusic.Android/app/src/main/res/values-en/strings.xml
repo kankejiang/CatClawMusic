@@ -288,6 +288,12 @@ Download it from GitHub.</string>
 
     <!-- Listening stats page -->
     <string name="StatsTitle">Listening stats</string>
+    <string name="ai_memory">Long-term memory</string>
+    <string name="ai_memory_empty">Nothing remembered yet. Chat a bit, or write one yourself.</string>
+    <string name="ai_memory_hint">e.g. likes Jay Chou on rainy days</string>
+    <string name="ai_memory_meta">%1$s · importance %2$d</string>
+    <string name="ai_memory_add">Remember</string>
+    <string name="ai_memory_clear">Forget all</string>
     <string name="StatsOpenFull">Full statistics</string>
     <string name="StatsRangeWeek">Last 7 days</string>
     <string name="StatsRangeMonth">Last 30 days</string>

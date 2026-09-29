@@ -112,6 +112,50 @@ class ChatMemoryStore @Inject constructor(
         return extracted.size
     }
 
+    /** 攒着待提炼的对话。`tool` 那种机器消息不进这里（它记的是工具输出，不是用户说过什么） */
+    private val buffer = ArrayList<Pair<String, String>>()
+
+    /**
+     * 记一条对话。返回 true 表示攒够了一批，调用方该去 [extractWith]。
+     *
+     * 阈值判断放这里而不是让调用方自己数：缓冲区归这个类管，
+     * 谁都能改阈值就会出现"两处各自攒到一半"。
+     */
+    fun record(role: String, content: String): Boolean = synchronized(buffer) {
+        if (role == "tool" || content.isBlank()) return false
+        buffer += role to content.trim()
+        ChatMemoryRules.shouldAnalyze(buffer.size)
+    }
+
+    /** 不打算提炼了（比如模型没配置）就把缓冲丢掉，别攒到下一次意外触发 */
+    fun dropPending() {
+        synchronized(buffer) { buffer.clear() }
+    }
+
+    /**
+     * 用模型提炼一次记忆。
+     *
+     * 先清缓冲再问模型：提炼要几秒，这期间用户还在继续说话，
+     * 若等模型回来再清，那几句会被算进这一批里、然后又被清掉 —— 等于静默丢失。
+     *
+     * @param ask (系统提示词, 用户提示词) → 模型原文。就是 `AgentService.quickAsk`
+     */
+    suspend fun extractWith(ask: suspend (String, String) -> String): Int {
+        val conversation = synchronized(buffer) {
+            if (!ChatMemoryRules.worthAnalyzing(buffer.size)) {
+                buffer.clear()
+                return 0
+            }
+            val text = ChatMemoryRules.renderConversation(buffer.toList())
+            buffer.clear()
+            text
+        }
+        val raw = runCatching {
+            ask(ChatMemoryRules.EXTRACTION_SYSTEM_PROMPT, ChatMemoryRules.extractionUserPrompt(promptText(), conversation))
+        }.onFailure { AppLog.w(TAG, "memory extraction failed", it) }.getOrNull() ?: return 0
+        return absorbExtraction(raw)
+    }
+
     private suspend fun persist(next: List<ChatMemoryRules.Item>) {
         writeMutex.withLock {
             written = true

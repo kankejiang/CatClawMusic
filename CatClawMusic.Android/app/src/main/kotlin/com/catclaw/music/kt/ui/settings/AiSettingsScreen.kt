@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.core.ai.ChatMemoryRules
 import com.catclaw.music.kt.core.ai.LlmConfig
 import com.catclaw.music.kt.core.ai.LlmProviderInfo
 import com.catclaw.music.kt.ui.theme.GlassChip
@@ -58,6 +59,8 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
     val currentName by viewModel.currentConfigName.collectAsStateWithLifecycle()
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+    val deleteLabel = stringResource(R.string.Delete)
+    var memoryDraft by remember { mutableStateOf("") }
 
     // 编辑的是副本：点「保存」才写回存储，中途改错不至于污染当前生效配置
     var draft by remember { mutableStateOf<LlmConfig?>(null) }
@@ -231,6 +234,53 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
             REASONING_EFFORTS.map { it to it },
             selected = REASONING_EFFORTS.firstOrNull { it == viewModel.reasoningEffort },
         ) { viewModel.reasoningEffort = it }
+    }
+
+    // 长期记忆：模型从对话里提炼出来的东西必须看得见、删得掉，也能手动补一条。
+    // MAUI 的 AiSettingsPage 就是「添加 / 清空记忆」两件事，本端此前整块没有 ——
+    // 而记忆文件已经会被写进 prompt，看不见就等于"它在背后记了你的东西而你没处查看"。
+    AiSection(stringResource(R.string.ai_memory)) {
+        val memories by viewModel.memories.collectAsStateWithLifecycle()
+        if (memories.isEmpty()) {
+            Text(stringResource(R.string.ai_memory_empty), fontSize = 12.sp, color = secondary)
+        }
+        memories.forEach { item ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.content, fontSize = 14.sp, color = primary, maxLines = 2)
+                    Text(
+                        text = stringResource(R.string.ai_memory_meta, ChatMemoryRules.categoryLabel(item.category), item.importance),
+                        fontSize = 11.sp,
+                        color = secondary,
+                    )
+                }
+                Text(
+                    text = "✕",
+                    fontSize = 15.sp,
+                    color = secondary,
+                    // padding 在 clickable 之前：先撑出 44dp 量级的触达面，再挂点击
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .clickable(onClickLabel = deleteLabel) { viewModel.removeMemory(item.id) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        AiField(stringResource(R.string.ai_memory_hint), memoryDraft) { memoryDraft = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            AiPill(stringResource(R.string.ai_memory_add), filled = true) {
+                if (memoryDraft.isNotBlank()) {
+                    viewModel.addMemory(memoryDraft)
+                    memoryDraft = ""
+                }
+            }
+            if (memories.isNotEmpty()) {
+                AiPill(stringResource(R.string.ai_memory_clear), filled = false) { viewModel.clearMemory() }
+            }
+        }
     }
 }
 

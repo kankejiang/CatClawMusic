@@ -11,6 +11,8 @@ import com.catclaw.music.kt.core.audio.AudioCache
 import com.catclaw.music.kt.core.ai.LlmConfig
 import com.catclaw.music.kt.core.ai.OpenAiCompatibleClient
 import com.catclaw.music.kt.core.theme.AppearanceMode
+import com.catclaw.music.kt.core.ai.ChatMemoryRules
+import com.catclaw.music.kt.data.ai.ChatMemoryStore
 import com.catclaw.music.kt.data.ai.LlmConfigStore
 import com.catclaw.music.kt.data.lyrics.DesktopLyricSettings
 import com.catclaw.music.kt.data.lyrics.DesktopLyricStatus
@@ -42,7 +44,26 @@ class SettingsViewModel @Inject constructor(
     private val appearance: AppearanceSettings,
     private val llmStore: LlmConfigStore,
     private val llmClient: OpenAiCompatibleClient,
+    private val memory: ChatMemoryStore,
 ) : ViewModel() {
+
+    /**
+     * Yuki 的长期记忆。模型自己提炼出来的东西必须看得见、删得掉 ——
+     * "它记住了我什么"这个问题不该只有模型知道答案。
+     */
+    val memories: StateFlow<List<ChatMemoryRules.Item>> = memory.items
+
+    fun addMemory(content: String) {
+        viewModelScope.launch { memory.add(content) }
+    }
+
+    fun removeMemory(id: String) {
+        viewModelScope.launch { memory.remove(id) }
+    }
+
+    fun clearMemory() {
+        viewModelScope.launch { memory.clear() }
+    }
 
     val cacheSizeMb: StateFlow<Int> = cacheSettings.sizeMb
 

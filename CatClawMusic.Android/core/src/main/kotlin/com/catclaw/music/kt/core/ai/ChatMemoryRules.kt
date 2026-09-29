@@ -182,4 +182,38 @@ object ChatMemoryRules {
         ?.takeIf { it.content != "null" }?.content
 
     private fun JsonObject.number(key: String): Int? = string(key)?.trim()?.toIntOrNull()
+
+    /**
+     * 提炼用的系统提示词 —— 逐字照 C# `ChatMemoryService.AnalyzeAndExtractMemoryAsync`。
+     *
+     * 中文是刻意的：这段是要发给模型的指令，不是界面文案，所以不走 strings.xml；
+     * 类别名（user_profile/preference/personal/habit）与 [categoryLabel] 是同一套，
+     * 指令里说的类别和解析时认的类别必须对得上，改一处必须同时改另一处。
+     */
+    const val EXTRACTION_SYSTEM_PROMPT = """
+你是一个用户画像分析助手。请从用户与AI助手的对话中提取值得长期记住的重要信息。
+
+需要提取的信息类别：
+1. user_profile - 用户基本信息（年龄、性别、职业、所在地等）
+2. preference - 用户偏好（喜欢的音乐风格、歌手、歌曲类型等）
+3. personal - 个人情况（心情、状态、生活事件等）
+4. habit - 使用习惯（常用功能、操作偏好等）
+
+规则：
+- 只提取明确提到或强烈暗示的信息，不要猜测
+- 如果没有值得记住的重要信息，返回空JSON数组
+- 信息要简洁具体，每条10-30字
+- importance: 1-10分，非常重要的给8-10分，一般偏好给5-7分，次要信息给1-4分
+- 如果新信息与已有记忆重复或更新已有记忆，返回的条目id使用已有的id
+
+返回严格的JSON数组格式，不要任何其他文字：
+[{"id":"新生成8位id或已有id","category":"类别","content":"记忆内容","importance":数字}]
+"""
+
+    /**
+     * 提炼的用户消息。带上"已有记忆"是为了让模型能复用 id 做更新而不是重复新增 ——
+     * 少了这一段，同一句"我喜欢周杰伦"会被记成几十条。
+     */
+    fun extractionUserPrompt(memoryText: String, conversationText: String): String =
+        "【已有记忆】\n$memoryText\n\n【最近对话】\n$conversationText\n\n请从以上对话中提取重要信息："
 }

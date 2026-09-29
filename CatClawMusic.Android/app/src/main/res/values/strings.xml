@@ -288,6 +288,12 @@
 
     <!-- 听歌统计页 -->
     <string name="StatsTitle">听歌统计</string>
+    <string name="ai_memory">长期记忆</string>
+    <string name="ai_memory_empty">还没记住什么。聊几句，或者自己写一条。</string>
+    <string name="ai_memory_hint">例：喜欢下雨天听周杰伦</string>
+    <string name="ai_memory_meta">%1$s · 重要性 %2$d</string>
+    <string name="ai_memory_add">记下来</string>
+    <string name="ai_memory_clear">全部忘掉</string>
     <string name="StatsOpenFull">查看完整统计</string>
     <string name="StatsRangeWeek">近 7 天</string>
     <string name="StatsRangeMonth">近 30 天</string>
