@@ -43,6 +43,7 @@ object PlayerIcons {
     val QueueMusic = PlayerIcon(R.drawable.ic_playlist)
     val Lyrics = PlayerIcon(R.drawable.ic_lyrics)
     val DesktopLyrics = PlayerIcon(R.drawable.ic_notif_lyric_on)
+    val SoundFx = PlayerIcon(R.drawable.ic_equalizer)
     val ArrowBack = PlayerIcon(R.drawable.ic_arrow_back)
     val Close = PlayerIcon(R.drawable.ic_close)
 }

@@ -64,6 +64,7 @@ fun PlayingScreen(
     onOpenLyrics: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
+    onOpenSoundFx: () -> Unit = {},
     viewModel: PlayingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -257,12 +258,12 @@ fun PlayingScreen(
         }
 
         // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
-        // 这里只放**已实现**的两个——定时、音效、详情、横屏在安卓侧还没有功能，
-        // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）
+        // 这里放**已实现**的三个——定时与横屏在安卓侧还没有功能，
+        // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）；
+        // 「详情」不在这排，它挂在歌曲长按菜单里（歌曲信息是歌曲的属性，不是播放页的属性）
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-            // MAUI 是 6 等分槽位；这里只有 2 个已实现的图标，用 weight 会把它们推到两端显得很空，
-            // 改成居中定距
+            // MAUI 是 6 等分槽位；图标不满，用 weight 会推到两端显得很空，改成居中定距
             horizontalArrangement = Arrangement.spacedBy(34.dp, Alignment.CenterHorizontally),
         ) {
             val desktopOn by viewModel.desktopLyricEnabled.collectAsStateWithLifecycle()
@@ -289,6 +290,15 @@ fun PlayingScreen(
                             context.startActivity(viewModel.overlayPermissionIntent())
                         }
                     },
+            )
+            Icon(
+                imageVector = PlayerIcons.SoundFx,
+                contentDescription = stringResource(R.string.soundfx_entry),
+                tint = Color(palette.textSecondary),
+                modifier = Modifier
+                    .size(49.dp)
+                    .clickable(onClick = onOpenSoundFx)
+                    .padding(8.dp),
             )
         }
 

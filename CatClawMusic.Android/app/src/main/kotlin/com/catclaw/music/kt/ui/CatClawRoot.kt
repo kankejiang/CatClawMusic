@@ -57,6 +57,7 @@ import com.catclaw.music.kt.ui.screen.PlaylistScreen
 import com.catclaw.music.kt.ui.screen.RemoteSourcesScreen
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.MiniPlayer
+import com.catclaw.music.kt.ui.equalizer.SoundEffectsScreen
 import com.catclaw.music.kt.ui.screen.QueueScreen
 import com.catclaw.music.kt.ui.screen.SearchScreen
 import com.catclaw.music.kt.ui.screen.SettingsScreen
@@ -209,6 +210,8 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
     val playState by playingViewModel.state.collectAsStateWithLifecycle()
     val positionMs by playingViewModel.positionMs.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
+    // 音效页和队列页一样是整页覆盖层：它是"播放的附属设置"，不该占一个 pager 槽位
+    var showSoundFx by remember { mutableStateOf(false) }
     // 聊天覆盖层打开时悬浮两栏要让位（否则输入行被 TabBar 盖住）
     var chatOpen by remember { mutableStateOf(false) }
     // MAUI 的显隐规则：`_currentIndex <= 1`（播放页 / 全屏歌词页）收起 TabBar 与 MiniPlayer；
@@ -247,6 +250,7 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                                 onOpenLyrics = { scope.launch { pagerState.animateScrollToPage(PAGE_FULL_LYRICS) } },
                                 onOpenSettings = onOpenSettings,
                                 onOpenQueue = { showQueue = true },
+                                onOpenSoundFx = { showSoundFx = true },
                                 viewModel = playingViewModel,
                             )
                             2 -> SearchScreen(
@@ -314,6 +318,17 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                         .statusBarsPadding(),
                 ) {
                     QueueScreen(viewModel = playingViewModel, onBack = { showQueue = false })
+                }
+            }
+            // 音效页：MAUI 从播放页 modal push 出去，这里同样盖满整屏（不占 pager 槽位）
+            if (showSoundFx) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .catClawBackground()
+                        .statusBarsPadding(),
+                ) {
+                    SoundEffectsScreen(onBack = { showSoundFx = false })
                 }
             }
         }
