@@ -439,7 +439,8 @@ private fun DesktopLyricSettingsScreen(onBack: () -> Unit, viewModel: SettingsVi
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
     val secondary = Color(palette.textSecondary)
-    val desktopOn by viewModel.desktopLyricEnabled.collectAsStateWithLifecycle()
+    val desktopWanted by viewModel.desktopLyricWanted.collectAsStateWithLifecycle()
+    val desktopAttached by viewModel.desktopLyricAttached.collectAsStateWithLifecycle()
     val locked by viewModel.desktopLyricLocked.collectAsStateWithLifecycle()
     val fontSp by viewModel.desktopLyricFontSize.collectAsStateWithLifecycle()
     val bgOpacity by viewModel.desktopLyricBgOpacity.collectAsStateWithLifecycle()
@@ -458,14 +459,34 @@ private fun DesktopLyricSettingsScreen(onBack: () -> Unit, viewModel: SettingsVi
             SwitchRow(
                 title = stringResource(R.string.DesktopLyricEnable),
                 subtitle = stringResource(R.string.DesktopLyricDesc),
-                checked = desktopOn,
+                // 这里读的是**意图**：窗口没起来时若也显示"关"，用户点一下写成开、界面却仍是关，
+                // 开关就成了一个怎么点都不动的控件，而下面那些样式行还被它挡住进不去
+                checked = desktopWanted,
                 onChecked = { want ->
                     if (!viewModel.setDesktopLyric(want)) {
                         context.startActivity(viewModel.overlayPermissionIntent())
                     }
                 },
             )
-            if (desktopOn) {
+            if (desktopWanted && !desktopAttached) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.desktop_lyric_not_attached),
+                        fontSize = 12.sp,
+                        color = secondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PillLabel(
+                        text = stringResource(R.string.perm_go_grant),
+                        onClick = { context.startActivity(viewModel.overlayPermissionIntent()) },
+                        filled = false,
+                    )
+                }
+            }
+            if (desktopWanted) {
                 SwitchRow(
                     title = stringResource(R.string.DesktopLyricLockPosition),
                     subtitle = stringResource(R.string.DesktopLyricLockPositionDesc),

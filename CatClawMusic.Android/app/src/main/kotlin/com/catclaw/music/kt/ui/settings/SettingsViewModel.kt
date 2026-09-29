@@ -103,10 +103,14 @@ class SettingsViewModel @Inject constructor(
     fun clearCustomBackground() = appearance.setCustomBackground(null)
 
     val mode: StateFlow<AppearanceMode> = themeStore.mode
-    /** 同上：反映窗口实况，不只是持久化的意图 */
-    val desktopLyricEnabled: StateFlow<Boolean> =
-        combine(desktopLyric.enabled, lyricStatus.attached) { wanted, attached -> wanted && attached }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    /**
+     * 设置页要的是**用户意图**，两个都得单独给：
+     * 窗口没起来时（权限被回收、服务被杀、刚装完还没附加）若这里也显示"关"，
+     * 用户点开关会写成开、界面却仍是关——开关看起来是坏的，
+     * 而字号/透明度/颜色这些行还被它挡住完全进不去（真机复现过）。
+     */
+    val desktopLyricWanted: StateFlow<Boolean> = desktopLyric.enabled
+    val desktopLyricAttached: StateFlow<Boolean> = lyricStatus.attached
     val desktopLyricLocked: StateFlow<Boolean> = desktopLyric.locked
     val desktopLyricFontSize: StateFlow<Float> = desktopLyric.fontSizeSp
     val desktopLyricBgOpacity: StateFlow<Float> = desktopLyric.bgOpacity

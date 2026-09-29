@@ -234,6 +234,7 @@
     <string name="song_menu_share">分享</string>
     <string name="song_menu_open_artist">查看歌手</string>
     <string name="song_menu_open_album">查看专辑</string>
+    <string name="desktop_lyric_not_attached">已开启，但悬浮窗还没起来（多半是缺少悬浮窗权限）</string>
     <string name="soundfx_title">音效</string>
     <string name="soundfx_entry">音效设置</string>
     <string name="soundfx_reset">重置</string>

@@ -234,6 +234,7 @@ Download it from GitHub.</string>
     <string name="song_menu_share">Share</string>
     <string name="song_menu_open_artist">View artist</string>
     <string name="song_menu_open_album">View album</string>
+    <string name="desktop_lyric_not_attached">Turned on, but the overlay window isn\'t up yet (usually the overlay permission is missing)</string>
     <string name="soundfx_title">Sound</string>
     <string name="soundfx_entry">Sound effects</string>
     <string name="soundfx_reset">Reset</string>
