@@ -71,7 +71,7 @@ class LibraryScanner @Inject constructor(
             for (track in tracks) {
                 val artistName = MediaScanRules.normalizeArtist(track.artistRaw)
                 val artistId = artistIds[artistName] ?: continue
-                val key = track.album.ifBlank { UNKNOWN_ALBUM } to artistId
+                val key = track.album.ifBlank { MediaScanRules.UNKNOWN_ALBUM } to artistId
                 if (key !in albumIds && key !in newAlbumKeys) {
                     newAlbumKeys[key] = AlbumEntity(
                         title = key.first,
@@ -100,7 +100,7 @@ class LibraryScanner @Inject constructor(
                 val path = track.path
                 val artistName = MediaScanRules.normalizeArtist(track.artistRaw)
                 val artistId = artistIds[artistName] ?: continue
-                val albumTitle = track.album.ifBlank { UNKNOWN_ALBUM }
+                val albumTitle = track.album.ifBlank { MediaScanRules.UNKNOWN_ALBUM }
                 val albumId = albumIds[albumTitle to artistId] ?: 0
                 val existing = existingSongs[path]
 
@@ -230,6 +230,5 @@ class LibraryScanner @Inject constructor(
         const val TAG = "CatClawLibrary"
         const val SOURCE_LOCAL = 0
         const val PROTOCOL_NONE = 0
-        const val UNKNOWN_ALBUM = "未知专辑"
     }
 }

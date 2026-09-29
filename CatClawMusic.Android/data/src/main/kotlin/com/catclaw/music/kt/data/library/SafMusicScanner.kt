@@ -6,6 +6,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.DocumentsContract
 import com.catclaw.music.kt.core.diagnostic.AppLog
+import com.catclaw.music.kt.core.library.AudioTags
 import com.catclaw.music.kt.core.library.MediaScanRules
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -54,18 +55,6 @@ class SafMusicScanner @Inject constructor(
         val size: Long,
         val lastModifiedSec: Long,
         val isDirectory: Boolean,
-    )
-
-    /** 标签：SAF 只保证有文件名，其余全靠现读，读不动就是空值 */
-    private data class Tags(
-        val title: String = "",
-        val artist: String? = null,
-        val album: String = "",
-        val durationMs: Long = 0L,
-        val bitrateKbps: Int = 0,
-        val trackNumber: Int = 0,
-        val year: Int = 0,
-        val genre: String? = null,
     )
 
     fun scan(treeUris: List<String>): List<ScanTrack> {
@@ -151,13 +140,13 @@ class SafMusicScanner @Inject constructor(
     }
 
     /** 现读一次标签。打开失败（授权没了、文件坏了）给空值而不是抛 */
-    private fun readTags(uri: Uri): Tags {
+    private fun readTags(uri: Uri): AudioTags {
         val retriever = MediaMetadataRetriever()
         return try {
             // 必须是 (Context, Uri) 这一支：`setDataSource(String)` 走的是文件路径解析，
             // 喂它 content URI 读不到任何东西 —— 真机上表现成 SAF 导入的歌时长一律 0
             retriever.setDataSource(context, uri)
-            Tags(
+            AudioTags(
                 title = retriever.tag(MediaMetadataRetriever.METADATA_KEY_TITLE).orEmpty(),
                 artist = retriever.tag(MediaMetadataRetriever.METADATA_KEY_ARTIST),
                 album = retriever.tag(MediaMetadataRetriever.METADATA_KEY_ALBUM).orEmpty(),
@@ -171,7 +160,7 @@ class SafMusicScanner @Inject constructor(
                 genre = retriever.tag(MediaMetadataRetriever.METADATA_KEY_GENRE),
             )
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            Tags()
+            AudioTags()
         } finally {
             runCatching { retriever.release() }
         }

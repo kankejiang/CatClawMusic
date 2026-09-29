@@ -7,6 +7,7 @@ package com.catclaw.music.kt.core.library
 object MediaScanRules {
 
     const val UNKNOWN_ARTIST = "未知艺术家"
+    const val UNKNOWN_ALBUM = "未知专辑"
 
     /** MediaStore 的 ARTIST 可能是 null、空串或 "<unknown>"，C# 侧统一显示「未知艺术家」 */
     fun normalizeArtist(raw: String?): String =
