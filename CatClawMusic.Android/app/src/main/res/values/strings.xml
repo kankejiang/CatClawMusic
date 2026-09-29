@@ -241,6 +241,10 @@
     <string name="soundfx_loudness">响度增益</string>
     <string name="soundfx_spatial">虚拟环绕声</string>
     <string name="soundfx_spatial_sub">3D 空间音频声场</string>
+    <string name="soundfx_crossfade">淡入淡出</string>
+    <string name="soundfx_crossfade_sub">换曲时尾段淡出、新曲淡入（不重叠播放）</string>
+    <string name="soundfx_crossfade_dur">淡入淡出时长</string>
+    <string name="soundfx_seconds">%1$d 秒</string>
     <string name="soundfx_eq_unsupported">本设备不提供均衡器效果，调节不会改变声音</string>
     <string name="soundfx_pending_probe">还没挂到播放会话：播一首歌后自动检测本机音效能力</string>
     <string name="soundfx_eq_bands">本机 %1$d 段：%2$s</string>

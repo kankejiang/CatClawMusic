@@ -241,6 +241,10 @@ Download it from GitHub.</string>
     <string name="soundfx_loudness">Loudness gain</string>
     <string name="soundfx_spatial">Virtual surround</string>
     <string name="soundfx_spatial_sub">Widens the soundstage</string>
+    <string name="soundfx_crossfade">Fade in / out</string>
+    <string name="soundfx_crossfade_sub">Fades the tail out and the next track in (no overlap)</string>
+    <string name="soundfx_crossfade_dur">Fade duration</string>
+    <string name="soundfx_seconds">%1$d s</string>
     <string name="soundfx_eq_unsupported">This device does not provide an equalizer, so changes will not affect the sound</string>
     <string name="soundfx_pending_probe">Not attached to the playback session yet: play a song to detect device effects</string>
     <string name="soundfx_eq_bands">Device bands: %1$d — %2$s</string>

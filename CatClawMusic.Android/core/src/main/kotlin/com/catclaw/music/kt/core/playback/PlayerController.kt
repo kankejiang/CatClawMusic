@@ -107,11 +107,102 @@ class PlayerController(
         runCatching { appContext.registerReceiver(noisyReceiver, IntentFilter(ACTION_AUDIO_BECOMING_NOISY)) }
     }
 
+    /**
+     * 用户音量。自己存一份，不能拿 `player.volume` 回读 ——
+     * 淡入淡出期间播放器上的那个值是"用户音量 × 系数"，回读会把音量越调越小。
+     */
+    private var userVolume = 1f
+
     override var volume: Float
-        get() = player.volume
+        get() = userVolume
         set(value) {
-            player.volume = value.coerceIn(0f, 1f)
+            userVolume = value.coerceIn(0f, 1f)
+            applyVolume()
         }
+
+    // ── 淡入淡出（尾段淡出 + 新曲淡入，规则在 [CrossfadeRules]）──
+
+    var crossfadeEnabled = false
+        private set
+    var crossfadeWindowSec = CrossfadeRules.DEFAULT_WINDOW_SEC
+        private set
+
+    private var xfadePhase = CrossfadePhase.Idle
+    private var xfadeFactor = 1.0
+    private var xfadeSongId = -1
+    private var xfadeElapsedSec = 0.0
+    private var xfadeLastTickAtMs = 0L
+    private var xfadeWatcher: kotlinx.coroutines.Job? = null
+
+    /** 由设置侧调用：改完立刻把音量交还用户（关掉时不该停在半路上） */
+    fun setCrossfade(enabled: Boolean, windowSec: Int) {
+        crossfadeEnabled = enabled
+        crossfadeWindowSec = windowSec.coerceIn(0, CrossfadeRules.MAX_WINDOW_SEC)
+        if (!enabled || crossfadeWindowSec <= 0) {
+            xfadePhase = CrossfadePhase.Idle
+            xfadeFactor = 1.0
+            applyVolume()
+        }
+    }
+
+    private fun applyVolume() {
+        // 设置一恢复就会调这里，播放器还没建时不该顺手把它建出来（start() 在主线程，构造有线程约束）
+        if (!started) return
+        player.volume = CrossfadeRules.volumeOf(userVolume, xfadeFactor)
+    }
+
+    /** 每个滴答推进一次系数；只在播放中跑，暂停时把计时基准对齐到恢复那一刻 */
+    private fun tickCrossfade() {
+        val songId = queue.currentSong?.id ?: 0
+        if (songId <= 0) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (songId != xfadeSongId) {
+            xfadeSongId = songId
+            val start = CrossfadeRules.onSongChanged(crossfadeEnabled, crossfadeWindowSec)
+            xfadePhase = start.phase
+            xfadeFactor = start.factor
+            xfadeElapsedSec = 0.0
+            xfadeLastTickAtMs = now
+            applyVolume()
+            return
+        }
+        if (xfadePhase == CrossfadePhase.Idle && !crossfadeEnabled) return
+        // 没在播就别推进：暂停期间时长与位置都不动，淡入会被墙钟一路推完，
+        // 恢复播放时等于跳过了开头几秒的淡入
+        if (!player.isPlaying) return
+        val dt = (now - xfadeLastTickAtMs) / 1000.0
+        xfadeLastTickAtMs = now
+        if (dt <= 0.0) return
+        xfadeElapsedSec += dt
+        val durSec = if (player.duration > 0) player.duration / 1000.0 else 0.0
+        val next = CrossfadeRules.tick(
+            phase = xfadePhase,
+            elapsedInPhaseSec = xfadeElapsedSec,
+            positionSec = player.currentPosition / 1000.0,
+            durationSec = durSec,
+            windowSec = crossfadeWindowSec,
+        )
+        if (next.phase == CrossfadePhase.Idle && xfadeFactor == 1.0) return
+        xfadePhase = next.phase
+        xfadeFactor = next.factor
+        applyVolume()
+    }
+
+    private fun startCrossfadeTicker() {
+        if (xfadeWatcher?.isActive == true) return
+        xfadeLastTickAtMs = android.os.SystemClock.elapsedRealtime()
+        xfadeWatcher = scope.launch {
+            while (true) {
+                tickCrossfade()
+                delay(CROSSFADE_TICK_MS)
+            }
+        }
+    }
+
+    private fun stopCrossfadeTicker() {
+        xfadeWatcher?.cancel()
+        xfadeWatcher = null
+    }
 
     /** 用一批歌替换队列并从 startIndex 播 */
     override fun playSongs(songs: List<Song>, startIndex: Int) {
@@ -225,6 +316,8 @@ class PlayerController(
 
     fun release() {
         if (!started) return
+        // 淡入淡出是 100ms 一跳直接摸 player 的，release 之后不取消就会踩到已释放实例
+        stopCrossfadeTicker()
         runCatching { appContext.unregisterReceiver(noisyReceiver) }
         player.removeListener(playerListener)
         player.release()
@@ -400,6 +493,7 @@ class PlayerController(
             publish()
             if (isPlaying) {
                 queue.currentSong?.let { save() }
+                startCrossfadeTicker()
                 if (prebufferWatcher?.isActive != true) {
                     prebufferWatcher = scope.launch {
                         while (true) {
@@ -411,6 +505,7 @@ class PlayerController(
             } else {
                 prebufferWatcher?.cancel()
                 prebufferWatcher = null
+                stopCrossfadeTicker()
             }
         }
 
@@ -478,6 +573,9 @@ class PlayerController(
         const val KEY = "play_queue_snapshot"
         const val ACTION_AUDIO_BECOMING_NOISY = "android.media.AUDIO_BECOMING_NOISY"
         const val PREBUFFER_POLL_MS = 500L
+
+        /** 淡入淡出的推进节奏：4 秒窗口按 500ms 走只有 8 级，听得出台阶 */
+        const val CROSSFADE_TICK_MS = 100L
         const val ERROR_BACKOFF_MS = 5_000L
     }
 }

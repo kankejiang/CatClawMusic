@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.equalizer.EqualizerRules
+import com.catclaw.music.kt.core.playback.CrossfadeRules
 import com.catclaw.music.kt.data.equalizer.AndroidAudioFx
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
@@ -154,43 +155,56 @@ fun SoundEffectsScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // 设备没给的能力就不画这一行；三项全缺时整张卡也不留
+        // 设备没给的能力就不画那一行；淡入淡出是纯音量曲线，任何设备都有，所以恒在
         val hasBass = !caps.probed || caps.bassSupported
         val hasLoudness = !caps.probed || caps.loudnessSupported
         val hasSpatial = !caps.probed || caps.spatialSupported
-        if (hasBass || hasLoudness || hasSpatial) {
-            SectionCard(title = stringResource(R.string.soundfx_section_other)) {
-                if (hasBass) {
-                    ValueSlider(
-                        title = stringResource(R.string.soundfx_bass),
-                        valueLabel = "${settings.bassBoost}",
-                        value = settings.bassBoost.toFloat(),
-                        valueRange = 0f..100f,
-                        steps = 9,
-                        onValue = { viewModel.setBassBoost(it.toInt()) },
-                    )
-                }
-                if (hasLoudness) {
-                    ValueSlider(
-                        title = stringResource(R.string.soundfx_loudness),
-                        valueLabel = "${settings.loudness}",
-                        value = settings.loudness.toFloat(),
-                        valueRange = 0f..100f,
-                        steps = 9,
-                        onValue = { viewModel.setLoudness(it.toInt()) },
-                    )
-                }
-                // 虚拟环绕独立于总开关：它是空间效果，与频段曲线是两件事（C# 同规则）
-                if (hasSpatial) {
-                    SwitchRow(
-                        title = stringResource(R.string.soundfx_spatial),
-                        subtitle = stringResource(R.string.soundfx_spatial_sub),
-                        checked = settings.spatial,
-                        onChecked = { viewModel.setSpatial(it) },
-                    )
-                }
+        SectionCard(title = stringResource(R.string.soundfx_section_other)) {
+            if (hasBass) {
+                ValueSlider(
+                    title = stringResource(R.string.soundfx_bass),
+                    valueLabel = "${settings.bassBoost}",
+                    value = settings.bassBoost.toFloat(),
+                    valueRange = 0f..100f,
+                    steps = 9,
+                    onValue = { viewModel.setBassBoost(it.toInt()) },
+                )
             }
+            if (hasLoudness) {
+                ValueSlider(
+                    title = stringResource(R.string.soundfx_loudness),
+                    valueLabel = "${settings.loudness}",
+                    value = settings.loudness.toFloat(),
+                    valueRange = 0f..100f,
+                    steps = 9,
+                    onValue = { viewModel.setLoudness(it.toInt()) },
+                )
+            }
+            // 虚拟环绕独立于总开关：它是空间效果，与频段曲线是两件事（C# 同规则）
+            if (hasSpatial) {
+                SwitchRow(
+                    title = stringResource(R.string.soundfx_spatial),
+                    subtitle = stringResource(R.string.soundfx_spatial_sub),
+                    checked = settings.spatial,
+                    onChecked = { viewModel.setSpatial(it) },
+                )
+            }
+            SwitchRow(
+                title = stringResource(R.string.soundfx_crossfade),
+                subtitle = stringResource(R.string.soundfx_crossfade_sub),
+                checked = settings.crossfade,
+                onChecked = { viewModel.setCrossfade(it) },
+            )
+            ValueSlider(
+                title = stringResource(R.string.soundfx_crossfade_dur),
+                valueLabel = stringResource(R.string.soundfx_seconds, settings.crossfadeSec),
+                value = settings.crossfadeSec.toFloat(),
+                valueRange = 0f..CrossfadeRules.MAX_WINDOW_SEC.toFloat(),
+                steps = CrossfadeRules.MAX_WINDOW_SEC - 1,
+                onValue = { viewModel.setCrossfadeSec(it.toInt()) },
+            )
         }
+        Spacer(Modifier.height(12.dp))
         // 迷你播放器与底栏浮在这页之上，不留白最后一段滑杆就永远滚不出来
         Spacer(Modifier.height(200.dp))
     }

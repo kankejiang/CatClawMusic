@@ -69,6 +69,18 @@ class SoundEffectsViewModel @Inject constructor(
         push()
     }
 
+    /**
+     * 淡入淡出不经过 audiofx（它是"跟着进度改音量"，归播放器管），
+     * 所以这里只写设置，由 PlaybackModule 那条收集流同步进控制器 —— 不 push。
+     */
+    fun setCrossfade(value: Boolean) {
+        prefs.setCrossfade(value)
+    }
+
+    fun setCrossfadeSec(value: Int) {
+        prefs.setCrossfadeSec(value)
+    }
+
     fun reset() {
         prefs.reset()
         push()

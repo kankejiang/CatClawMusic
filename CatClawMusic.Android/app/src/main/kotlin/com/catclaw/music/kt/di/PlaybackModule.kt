@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import com.catclaw.music.kt.data.playback.PlayHistoryRecorder
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -72,6 +73,11 @@ object PlaybackModule {
         onAudioSessionReady = { sessionId ->
             audioFx.attach(sessionId)
             audioFx.apply(fxPrefs.settings.value)
+        }
+        // 淡入淡出不走 audiofx：它是"跟着进度改音量"，归播放器自己管。
+        // 在这里收一条流，设置页改一次同步一次，冷启动时也把存下来的值喂进去一次
+        scope.launch {
+            fxPrefs.settings.collect { s -> setCrossfade(s.crossfade, s.crossfadeSec) }
         }
     }
 

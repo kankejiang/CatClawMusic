@@ -2,6 +2,7 @@ package com.catclaw.music.kt.data.equalizer
 
 import android.content.Context
 import com.catclaw.music.kt.core.equalizer.EqualizerRules
+import com.catclaw.music.kt.core.playback.CrossfadeRules
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,10 +21,16 @@ data class AudioFxSettings(
     val loudness: Int = 0,
     /** 虚拟环绕声（原生 Virtualizer），开关型 */
     val spatial: Boolean = false,
+    /** 淡入淡出：尾段淡出 + 新曲淡入，不是两首重叠 */
+    val crossfade: Boolean = false,
+    /** 0..12 秒，0 等于关掉 */
+    val crossfadeSec: Int = CrossfadeRules.DEFAULT_WINDOW_SEC,
 ) {
     override fun equals(other: Any?): Boolean = other is AudioFxSettings &&
         enabled == other.enabled && preset == other.preset && bassBoost == other.bassBoost &&
-        loudness == other.loudness && spatial == other.spatial && gains.contentEquals(other.gains)
+        loudness == other.loudness && spatial == other.spatial &&
+        crossfade == other.crossfade && crossfadeSec == other.crossfadeSec &&
+        gains.contentEquals(other.gains)
 
     override fun hashCode(): Int =
         ((enabled.hashCode() * 31 + preset.hashCode()) * 31 + bassBoost) * 31 + loudness
@@ -70,6 +77,12 @@ class AudioFxPreferences @Inject constructor(
 
     fun setSpatial(value: Boolean) = write(_settings.value.copy(spatial = value))
 
+    fun setCrossfade(value: Boolean) = write(_settings.value.copy(crossfade = value))
+
+    fun setCrossfadeSec(value: Int) = write(
+        _settings.value.copy(crossfadeSec = value.coerceIn(0, CrossfadeRules.MAX_WINDOW_SEC)),
+    )
+
     /** 对齐 C# 的「重置」：曲线回平、空间/低频/响度归零，但**不动总开关** —— 用户刚关掉的东西不该被"重置"重新打开 */
     fun reset() = write(
         AudioFxSettings(
@@ -86,6 +99,9 @@ class AudioFxPreferences @Inject constructor(
         bassBoost = prefs.getInt(KEY_BASS, 0).coerceIn(0, 100),
         loudness = prefs.getInt(KEY_LOUDNESS, 0).coerceIn(0, 100),
         spatial = prefs.getBoolean(KEY_SPATIAL, false),
+        crossfade = prefs.getBoolean(KEY_CROSSFADE, false),
+        crossfadeSec = prefs.getInt(KEY_CROSSFADE_DUR, CrossfadeRules.DEFAULT_WINDOW_SEC)
+            .coerceIn(0, CrossfadeRules.MAX_WINDOW_SEC),
     )
 
     private fun write(next: AudioFxSettings) {
@@ -97,6 +113,8 @@ class AudioFxPreferences @Inject constructor(
             .putInt(KEY_BASS, next.bassBoost)
             .putInt(KEY_LOUDNESS, next.loudness)
             .putBoolean(KEY_SPATIAL, next.spatial)
+            .putBoolean(KEY_CROSSFADE, next.crossfade)
+            .putInt(KEY_CROSSFADE_DUR, next.crossfadeSec)
             .apply()
     }
 
@@ -108,5 +126,7 @@ class AudioFxPreferences @Inject constructor(
         const val KEY_BASS = "eq_bass_boost"
         const val KEY_LOUDNESS = "eq_loudness"
         const val KEY_SPATIAL = "eq_spatial"
+        const val KEY_CROSSFADE = "eq_crossfade"
+        const val KEY_CROSSFADE_DUR = "eq_crossfade_dur"
     }
 }
