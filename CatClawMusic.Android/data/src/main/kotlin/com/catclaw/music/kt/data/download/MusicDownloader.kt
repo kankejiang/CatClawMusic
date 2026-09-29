@@ -14,8 +14,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -57,8 +55,9 @@ class MusicDownloader @Inject constructor(
         directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }.getOrDefault(0L)
 
-    private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
-    val tasks = _tasks.asStateFlow()
+    /** 任务表只经这一处写；为什么不让它散着写见 [DownloadTaskRegistry] */
+    private val registry = DownloadTaskRegistry { songIdIn(cancelled, it) }
+    val tasks = registry.tasks
 
     val cachedSongIds = db.libraryDao().observeCachedSongIds()
 
@@ -103,7 +102,7 @@ class MusicDownloader @Inject constructor(
     }
 
     private fun isPaused(songId: Int): Boolean =
-        _tasks.value.firstOrNull { it.songId == songId }?.state == DownloadState.Paused
+        registry.find(songId)?.state == DownloadState.Paused
 
     /** 「继续」/「重试」：任务还留在列表里，靠排队时记下的 Song 重新入队；`.part` 在就是断点续传 */
     fun resume(songId: Int) {
@@ -117,7 +116,7 @@ class MusicDownloader @Inject constructor(
      */
     fun pause(songId: Int) {
         jobs.remove(songId)?.cancel()
-        val task = _tasks.value.firstOrNull { it.songId == songId } ?: return
+        val task = registry.find(songId) ?: return
         replace(task.copy(state = DownloadState.Paused))
     }
 
@@ -129,7 +128,7 @@ class MusicDownloader @Inject constructor(
 
     /** 删掉已下载的文件并撤掉 CachedSongs 记账；任务一并从列表去掉 */
     fun deleteFile(songId: Int) {
-        val fileName = _tasks.value.firstOrNull { it.songId == songId }?.fileName
+        val fileName = registry.find(songId)?.fileName
         cancel(songId)
         songsById.remove(songId)
         scope.launch {
@@ -142,7 +141,7 @@ class MusicDownloader @Inject constructor(
     fun cancel(songId: Int) {
         jobs.remove(songId)?.cancel()
         markCancelled(songId)
-        _tasks.value = _tasks.value.filterNot { it.songId == songId }
+        registry.remove(songId)
     }
 
     suspend fun clearCache() {
@@ -151,7 +150,7 @@ class MusicDownloader @Inject constructor(
             if (file.canonicalPath.startsWith(directory.canonicalPath)) runCatching { file.delete() }
         }
         db.libraryDao().clearCached()
-        _tasks.value = emptyList()
+        registry.clear()
     }
 
     private fun urlOf(song: Song): String? =
@@ -166,8 +165,7 @@ class MusicDownloader @Inject constructor(
 
     private fun replace(task: DownloadTask) {
         // 取消之后 socket 上可能还有最后几次回调没走完，它们会把这一行重新"复活"成下载中
-        if (songIdIn(cancelled, task.songId)) return
-        _tasks.value = _tasks.value.filterNot { it.songId == task.songId } + task
+        registry.replace(task)
     }
 
     private fun songIdIn(set: MutableSet<Int>, songId: Int): Boolean = synchronized(set) { songId in set }
