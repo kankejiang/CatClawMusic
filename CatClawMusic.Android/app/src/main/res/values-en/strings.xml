@@ -52,6 +52,11 @@
     <string name="library_scanning">Scanning…</string>
     <string name="library_empty">Library is empty. Tap Scan to import local music.</string>
     <string name="library_search_hint">Search titles, artists, albums in this library…</string>
+    <string name="library_search_artist_hint">Search artist names…</string>
+    <string name="library_search_album_hint">Search albums or artists…</string>
+    <string name="library_search_none">Nothing matches \"%1$s\"</string>
+    <string name="lib_count_artists">%1$d artists</string>
+    <string name="lib_count_albums">%1$d albums</string>
     <string name="sort_title">Title</string>
     <string name="sort_artist">Artist</string>
     <string name="sort_album">Album</string>

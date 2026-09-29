@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -391,12 +392,16 @@ fun LibraryListScreen(
 ) {
     val palette = LocalCatClawPalette.current
     val songs by viewModel.songs.collectAsStateWithLifecycle()
-    val artists by viewModel.artists.collectAsStateWithLifecycle()
-    val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val displaySongs by viewModel.displaySongs.collectAsStateWithLifecycle()
+    val shownArtists by viewModel.displayArtists.collectAsStateWithLifecycle()
+    val shownAlbums by viewModel.displayAlbums.collectAsStateWithLifecycle()
+    val infoQuery by viewModel.infoQuery.collectAsStateWithLifecycle()
     val sort by viewModel.songSort.collectAsStateWithLifecycle()
     val query by viewModel.songQuery.collectAsStateWithLifecycle()
+    // 艺人页与专辑页共用一个搜索词，换页要清掉：留着上一张页的关键词，
+    // 新页看起来像是"什么都没有"
+    LaunchedEffect(kind) { viewModel.setInfoQuery("") }
     val menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpen(it.toLibraryDetail()) }) { onOpenSong(it) }
     // MAUI 的 AllSongsPage 顶部就是「播放全部 / 随机播放」两个按钮，本端此前只能一行一行点着播。
     // 艺人/专辑页没有"整张表"这张列表，所以那两个按钮只在歌曲类页面上画。
@@ -420,8 +425,14 @@ fun LibraryListScreen(
         // 头部那个数字跟着列表走：搜出 3 首却还写着「128 首」，读起来像是搜索没生效
         LibraryKind.Songs -> displaySongs.size
         LibraryKind.Favorites -> favorites.size
-        LibraryKind.Artists -> artists.size
-        LibraryKind.Albums -> albums.size
+        LibraryKind.Artists -> shownArtists.size
+        LibraryKind.Albums -> shownAlbums.size
+    }
+    val countText = when (kind) {
+        // 量词要跟着内容走：艺人页顶着一句「32 首」是把人当歌唱
+        LibraryKind.Artists -> stringResource(R.string.lib_count_artists, count)
+        LibraryKind.Albums -> stringResource(R.string.lib_count_albums, count)
+        else -> stringResource(R.string.playlist_count, count)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -441,7 +452,7 @@ fun LibraryListScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = stringResource(R.string.playlist_count, count),
+                    text = countText,
                     fontSize = 12.sp,
                     color = Color(palette.textSecondary),
                 )
@@ -493,6 +504,18 @@ fun LibraryListScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
+        // 艺人 / 专辑页的搜索（MAUI 那两张页顶部也有）。没有排序档：
+        // 这两页的行是名字列表，DAO 已经按名字升序给出来，再摆四颗排不动的 chip 就是假控件
+        if (kind == LibraryKind.Artists || kind == LibraryKind.Albums) {
+            GlassSearchField(
+                query = infoQuery,
+                onChange = viewModel::setInfoQuery,
+                placeholder = stringResource(
+                    if (kind == LibraryKind.Artists) R.string.library_search_artist_hint else R.string.library_search_album_hint,
+                ),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
 
         when (kind) {
             LibraryKind.Songs -> SongList(
@@ -511,12 +534,22 @@ fun LibraryListScreen(
                 emptyHint = stringResource(R.string.favorite_empty_hint),
             ) { viewModel.playFavoriteAt(it) }
             LibraryKind.Artists -> InfoList(
-                rows = artists.map { it.name to stringResource(R.string.playlist_count, it.songCount) },
-                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Artists, artists[index].id, artists[index].name)) },
+                rows = shownArtists.map { it.name to stringResource(R.string.playlist_count, it.songCount) },
+                emptyHint = if (infoQuery.isBlank()) {
+                    stringResource(R.string.library_none)
+                } else {
+                    stringResource(R.string.library_search_none, infoQuery.trim())
+                },
+                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Artists, shownArtists[index].id, shownArtists[index].name)) },
             )
             LibraryKind.Albums -> InfoList(
-                rows = albums.map { it.title to it.artist },
-                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Albums, albums[index].id, albums[index].title)) },
+                rows = shownAlbums.map { it.title to it.artist },
+                emptyHint = if (infoQuery.isBlank()) {
+                    stringResource(R.string.library_none)
+                } else {
+                    stringResource(R.string.library_search_none, infoQuery.trim())
+                },
+                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Albums, shownAlbums[index].id, shownAlbums[index].title)) },
             )
         }
     }
@@ -593,10 +626,10 @@ internal fun LibraryDetailScreen(
 
 /** 艺人 / 专辑列表：每一行都能点开进二级页，所以行尾要给出可点的暗示 */
 @Composable
-private fun InfoList(rows: List<Pair<String, String>>, onOpen: (Int) -> Unit) {
+private fun InfoList(rows: List<Pair<String, String>>, emptyHint: String, onOpen: (Int) -> Unit) {
     val palette = LocalCatClawPalette.current
     if (rows.isEmpty()) {
-        EmptyHint(stringResource(R.string.library_none))
+        EmptyHint(emptyHint)
         return
     }
     LazyColumn(

@@ -117,6 +117,36 @@ class LibraryViewModel @Inject constructor(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
+    /**
+     * 艺人 / 专辑列表页的搜索词。两类页共用一个词：它们从不同时显示，
+     * 各开一个流只是多一份"切页忘了清"的状态 —— 进另一类页时由页面清（见 `LaunchedEffect(kind)`）。
+     *
+     * 这两个流必须排在 [artists]/[albums] 之后：`combine` 的参数是**立即求值**的，
+     * 写在它们上面会在构造期读到还没初始化的字段。
+     */
+    private val _infoQuery = MutableStateFlow("")
+    val infoQuery = _infoQuery.asStateFlow()
+
+    fun setInfoQuery(query: String) {
+        _infoQuery.value = query
+    }
+
+    /** 名字含关键词就留下。不再排序：DAO 那条 `ORDER BY Name` 已经是名字升序 */
+    val displayArtists = combine(artists, _infoQuery) { list, query ->
+        val q = query.trim()
+        if (q.isEmpty()) list else list.filter { it.name.contains(q, ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val displayAlbums = combine(albums, _infoQuery) { list, query ->
+        val q = query.trim()
+        if (q.isEmpty()) {
+            list
+        } else {
+            // 专辑页要能按专辑名找也能按歌手找："搜 周传雄 出来他的全部专辑"才是这张页该有的行为
+            list.filter { it.title.contains(q, ignoreCase = true) || it.artist.contains(q, ignoreCase = true) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val favorites = libraryDao.observeFavorites().stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )

@@ -52,6 +52,11 @@
     <string name="library_scanning">扫描中…</string>
     <string name="library_empty">曲库为空，点「扫描曲库」导入本地音乐</string>
     <string name="library_search_hint">在曲库里搜索歌名、歌手、专辑…</string>
+    <string name="library_search_artist_hint">搜索艺人名字…</string>
+    <string name="library_search_album_hint">搜索专辑名或歌手…</string>
+    <string name="library_search_none">没找到与「%1$s」相关的结果</string>
+    <string name="lib_count_artists">%1$d 位艺人</string>
+    <string name="lib_count_albums">%1$d 张专辑</string>
     <string name="sort_title">标题</string>
     <string name="sort_artist">歌手</string>
     <string name="sort_album">专辑</string>
