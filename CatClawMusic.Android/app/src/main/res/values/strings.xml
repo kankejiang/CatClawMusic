@@ -51,6 +51,11 @@
     <string name="mode_list">列表循环</string>
     <string name="library_scanning">扫描中…</string>
     <string name="library_empty">曲库为空，点「扫描曲库」导入本地音乐</string>
+    <string name="library_search_hint">在曲库里搜索歌名、歌手、专辑…</string>
+    <string name="sort_title">标题</string>
+    <string name="sort_artist">歌手</string>
+    <string name="sort_album">专辑</string>
+    <string name="sort_duration">时长</string>
     <string name="search_none">没找到与「%1$s」相关的歌</string>
     <string name="library_none">暂无内容</string>
     <string name="lyric_close">收起</string>

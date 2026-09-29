@@ -29,7 +29,11 @@ class PlaybackSessionParityTest {
             "toggle", "next", "previous", "playSongs", "playAt", "scanAndPlayAll",
         ),
         "com/catclaw/music/kt/ui/chat/ChatViewModel.kt" to listOf("play"),
-        "com/catclaw/music/kt/ui/library/LibraryViewModel.kt" to listOf("playAt", "playFrom"),
+        // 音乐库页的出声入口全是「拿一份列表去播」这一族：playAt 已经并给 playRows
+        // （页面上有排序与搜索，可见列表才是播放的那一份，不能再用库里下标）
+        "com/catclaw/music/kt/ui/library/LibraryViewModel.kt" to listOf(
+            "playRows", "playFrom", "playFavoriteAt", "playRecentAt", "playShuffled", "playNext",
+        ),
         "com/catclaw/music/kt/ui/playlist/PlaylistViewModel.kt" to listOf("playAt", "playFrom"),
         "com/catclaw/music/kt/ui/remote/RemoteViewModel.kt" to listOf("playAt"),
         "com/catclaw/music/kt/ui/search/SearchViewModel.kt" to listOf("play"),

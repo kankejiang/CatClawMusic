@@ -1,10 +1,12 @@
 package com.catclaw.music.kt.ui.screen
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +61,7 @@ import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
+import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.isLightPalette
@@ -389,11 +394,16 @@ fun LibraryListScreen(
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val displaySongs by viewModel.displaySongs.collectAsStateWithLifecycle()
+    val sort by viewModel.songSort.collectAsStateWithLifecycle()
+    val query by viewModel.songQuery.collectAsStateWithLifecycle()
     val menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpen(it.toLibraryDetail()) }) { onOpenSong(it) }
     // MAUI 的 AllSongsPage 顶部就是「播放全部 / 随机播放」两个按钮，本端此前只能一行一行点着播。
-    // 艺人/专辑页没有"整张表"这张列表，所以那两个按钮只在歌曲类页面上画
+    // 艺人/专辑页没有"整张表"这张列表，所以那两个按钮只在歌曲类页面上画。
+    // 这里绑的是**屏幕上那份列表**：搜索框里有字、或排的是时长时，「播放全部」要播的是看到的那些，
+    // 而不是数据库里的全部——否则按钮和列表就成了两件事
     val songRows: List<SongListItem>? = when (kind) {
-        LibraryKind.Songs -> songs
+        LibraryKind.Songs -> displaySongs
         LibraryKind.Favorites -> favorites
         else -> null
     }
@@ -407,7 +417,8 @@ fun LibraryListScreen(
         },
     )
     val count = when (kind) {
-        LibraryKind.Songs -> songs.size
+        // 头部那个数字跟着列表走：搜出 3 首却还写着「128 首」，读起来像是搜索没生效
+        LibraryKind.Songs -> displaySongs.size
         LibraryKind.Favorites -> favorites.size
         LibraryKind.Artists -> artists.size
         LibraryKind.Albums -> albums.size
@@ -439,10 +450,10 @@ fun LibraryListScreen(
                 PillLabel(
                     text = stringResource(R.string.playlist_play_all),
                     onClick = {
-                        // 「播放全部」就是"从这张表的第一首开始顺序播"，与点第一行同一条路
+                        // 「播放全部」就是"从这份可见列表的第一首开始顺序播"，与点第一行同一条路
                         when (kind) {
                             LibraryKind.Favorites -> viewModel.playFavoriteAt(0)
-                            else -> viewModel.playAt(0)
+                            else -> viewModel.playRows(rows, 0)
                         }
                     },
                     filled = false,
@@ -455,11 +466,44 @@ fun LibraryListScreen(
             }
         }
 
+        // 全部歌曲页的搜索与排序（MAUI AllSongsPage 顶部那两条）。
+        // 只对歌曲这一类开：艺人/专辑页的行是名字列表，按"标题/时长"排没有意义
+        if (kind == LibraryKind.Songs) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 内边距在滚动**外面**：英文 locale 下四颗 chip 会比屏幕宽，横滑时首尾那颗
+                    // 不该贴到屏幕边缘（先 padding 再 horizontalScroll 才是"带边距的窗口"）
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LibraryViewModel.SongSort.entries.forEach { mode ->
+                    GlassChip(
+                        label = stringResource(sortLabelRes(mode)),
+                        selected = sort == mode,
+                        onClick = { viewModel.setSongSort(mode) },
+                    )
+                }
+            }
+            SearchField(
+                query = query,
+                onChange = viewModel::setSongQuery,
+                placeholder = stringResource(R.string.library_search_hint),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+
         when (kind) {
             LibraryKind.Songs -> SongList(
-                songs, subtitleOf = { it.artist }, menu = menu,
-                emptyHint = stringResource(R.string.library_empty, songs.size),
-            ) { viewModel.playAt(it) }
+                displaySongs, subtitleOf = { it.artist }, menu = menu,
+                emptyHint = if (query.isBlank()) {
+                    stringResource(R.string.library_empty, songs.size)
+                } else {
+                    // 搜出来是空的时候不能说"曲库为空"——那是两件事，用户会以为歌掉了
+                    stringResource(R.string.search_none, query.trim())
+                },
+            ) { viewModel.playRows(displaySongs, it) }
             LibraryKind.Favorites -> SongList(
                 favorites, subtitleOf = { it.artist }, menu = menu,
                 // 这句以前是「曲库为空，点扫描曲库」—— 收藏为空和曲库为空是两件事，
@@ -607,4 +651,45 @@ private fun EmptyHint(text: String) {
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
         EmptyState(hint = text, iconRes = R.drawable.ic_library)
     }
+}
+
+/** 排序 chip 的文案。四档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
+@StringRes
+internal fun sortLabelRes(sort: LibraryViewModel.SongSort): Int = when (sort) {
+    LibraryViewModel.SongSort.Title -> R.string.sort_title
+    LibraryViewModel.SongSort.Artist -> R.string.sort_artist
+    LibraryViewModel.SongSort.Album -> R.string.sort_album
+    LibraryViewModel.SongSort.Duration -> R.string.sort_duration
+}
+
+/**
+ * 曲库列表页的搜索框，配方与发现页那条一致（同一支墨色底 + 圆角 22 + 无下划线）——
+ * 输入框是全 app 唯一还留着 M3 默认样式的地方，两处就该长得一样。
+ */
+@Composable
+private fun SearchField(
+    query: String,
+    onChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    TextField(
+        value = query,
+        onValueChange = onChange,
+        placeholder = { Text(placeholder, color = Color(palette.textSecondary), fontSize = 14.sp) },
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = ink.copy(alpha = 0.10f),
+            unfocusedContainerColor = ink.copy(alpha = 0.08f),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedTextColor = ink,
+            unfocusedTextColor = ink,
+            cursorColor = Color(palette.primary),
+        ),
+        shape = RoundedCornerShape(22.dp),
+        modifier = modifier.fillMaxWidth(),
+    )
 }

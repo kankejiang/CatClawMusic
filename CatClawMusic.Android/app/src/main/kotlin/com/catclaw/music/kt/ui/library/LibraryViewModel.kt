@@ -19,6 +19,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -83,6 +85,55 @@ class LibraryViewModel @Inject constructor(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
+    /**
+     * 全部歌曲页的排序档 —— MAUI `AllSongsViewModel` 的 SortOptions。
+     *
+     * 没有「按播放次数」那一档：`SongListItem` 里不带 PlayCount，为它给每条列表 SQL 加一列
+     * 不划算，而摆一个排不动的 chip 比少摆一档更糟。
+     */
+    enum class SongSort { Title, Artist, Album, Duration }
+
+    private val _songSort = MutableStateFlow(SongSort.Title)
+    val songSort = _songSort.asStateFlow()
+
+    private val _songQuery = MutableStateFlow("")
+    val songQuery = _songQuery.asStateFlow()
+
+    /**
+     * 页面上真正显示的那份列表：先按搜索框过滤，再按档位排。
+     *
+     * 过滤与排序都在内存里做 —— 这库本来就已经全量在 [songs] 里（列表页要显示总数、
+     * 点一行要"从该位置起播这张列表"），为排序再发一条 SQL 只是多一次全表扫，
+     * 还会让"看到的顺序"和"点下去播的顺序"来自两处。
+     */
+    val displaySongs = combine(songs, _songSort, _songQuery) { list, sort, query ->
+        val q = query.trim()
+        val filtered = if (q.isEmpty()) {
+            list
+        } else {
+            list.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+        when (sort) {
+            // 大小写折叠后再比：不然 "call" 与 "Call" 会分成两段，看起来像排错了
+            SongSort.Title -> filtered.sortedBy { it.title.lowercase() }
+            SongSort.Artist -> filtered.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
+            SongSort.Album -> filtered.sortedWith(compareBy({ it.album.lowercase() }, { it.title.lowercase() }))
+            SongSort.Duration -> filtered.sortedByDescending { it.durationSeconds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setSongSort(sort: SongSort) {
+        _songSort.value = sort
+    }
+
+    fun setSongQuery(query: String) {
+        _songQuery.value = query
+    }
+
     val artists = libraryDao.observeArtists().stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
@@ -112,8 +163,6 @@ class LibraryViewModel @Inject constructor(
             }
         }
     }
-
-    fun playAt(index: Int) = playFrom(songs.value.map { it.toSong() }, index)
 
     /**
      * 「下一首播放」：插到当前曲目之后。
