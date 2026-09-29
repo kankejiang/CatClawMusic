@@ -256,6 +256,12 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+# ⚠ 上面那条 `Backup*/` 是 Visual Studio 升级备份目录的规则，但它顺手吞掉了安卓端的
+# `CatClawMusic.Android/data/**/backup/` 源码包 —— Windows 上 git 默认大小写不敏感，
+# 小写的 `backup` 目录同样命中。后果是"文件在磁盘上、编译过、测试全绿，却从来没进版本库"，
+# 而 clone 出去的人只会看到一个引用了不存在包的工程。这里显式放行整个源码路径。
+!CatClawMusic.Android/**/backup/
+!CatClawMusic.Android/**/backup/**
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

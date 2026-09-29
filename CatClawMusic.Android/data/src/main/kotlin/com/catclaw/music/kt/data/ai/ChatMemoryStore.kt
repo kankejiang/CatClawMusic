@@ -96,6 +96,39 @@ class ChatMemoryStore @Inject constructor(
         persist(emptyList())
     }
 
+    /** 备份导出用的整份文本。内存副本就是最新事实，不必再读一次盘 */
+    fun exportText(): String = ChatMemoryJson.encode(_items.value)
+
+    /**
+     * 从备份恢复整份记忆。返回恢复出的条数。
+     *
+     * 两种来源都要认：本端备份是 JSON 条目；MAUI 备份的 `aiMemoryContent` 是
+     * `ai_memory.md` 的**全文**（一行一条、可能带 `- ` 前缀）。
+     * 判据只看首字符是不是 `[` —— 不去猜"半个 JSON"这种中间态，猜错了才是真丢数据。
+     */
+    suspend fun importText(text: String): Int {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return 0
+        val next = if (trimmed.startsWith("[")) {
+            ChatMemoryJson.decode(trimmed)
+        } else {
+            val now = System.currentTimeMillis()
+            trimmed.lineSequence()
+                .map { it.trim().removePrefix("-").trim() }
+                .filter { it.isNotEmpty() }
+                .mapIndexed { i, line ->
+                    ChatMemoryRules.Item(
+                        id = "%08x".format(i),
+                        content = line,
+                        createdAt = now - i * 1000L,
+                    )
+                }.toList()
+        }
+        persist(next)
+        AppLog.i(TAG, "imported ${next.size} memories from backup")
+        return next.size
+    }
+
     /**
      * 吃模型提炼回来的原文。
      *
