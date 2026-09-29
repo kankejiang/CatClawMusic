@@ -50,6 +50,7 @@ import com.catclaw.music.kt.ui.remote.RemoteViewModel
 import androidx.activity.compose.BackHandler
 import com.catclaw.music.kt.data.remote.RemoteFile
 import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
@@ -81,6 +82,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     var share by rememberSaveable { mutableStateOf("") }
     var domain by rememberSaveable { mutableStateOf("") }
     var basePath by rememberSaveable { mutableStateOf("") }
+    var useHttps by rememberSaveable { mutableStateOf(false) }
+    var apiVersion by rememberSaveable { mutableStateOf("") }
     // 正在改哪一条（null = 新增）。只活在内存里：ConnectionProfile 不是 Saveable，
     // 进程被杀后表单字段还在但会退回"新增"档——那正是安全的方向（不会把 id 弄丢去覆盖另一条）
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
@@ -101,6 +104,10 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             shareName = share.trim().ifEmpty { null },
             domainName = domain.trim().ifEmpty { null },
             basePath = basePath.trim(),
+            // SMB 没有 http/https 这一说：给它写 useHttps 只是存一格永远没人读的值
+            useHttps = useHttps && chosen != ProtocolType.SMB,
+            // 留空交给 DAO 的默认值，别在这里重复写死同一个字面量
+            apiVersion = apiVersion.trim().ifEmpty { "1.16.1" },
         )
     }
 
@@ -231,6 +238,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                             share = profile.shareName.orEmpty()
                             domain = profile.domainName.orEmpty()
                             basePath = profile.basePath
+                            useHttps = profile.useHttps
+                            apiVersion = profile.apiVersion
                         }
                         PillButton(label = stringResource(R.string.Delete), filled = false) { viewModel.delete(profile.id) }
                     }
@@ -262,6 +271,25 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                 ProtocolType.entries.forEach { option ->
                     GlassChip(label = option.name, selected = option.name == protocol, onClick = { protocol = option.name })
                 }
+            }
+            // 协议这一格决定 origin 的 scheme，而 origin 是每条请求的前缀——没有这开关时
+            // 用户只能存进一条 http 的连接，对端只上 TLS 就连不上（字段一直在，只是没人能填）
+            if (protocol != ProtocolType.SMB.name) {
+                Spacer(Modifier.height(6.dp))
+                GlassSwitch(
+                    label = stringResource(R.string.remote_use_https),
+                    subtitle = stringResource(R.string.remote_use_https_sub),
+                    checked = useHttps,
+                    onChange = { useHttps = it },
+                )
+            }
+            if (protocol == ProtocolType.Navidrome.name) {
+                Spacer(Modifier.height(8.dp))
+                GlassField(
+                    value = apiVersion,
+                    onValue = { apiVersion = it },
+                    label = stringResource(R.string.remote_api_version),
+                )
             }
             if (protocol == ProtocolType.SMB.name) {
                 Spacer(Modifier.height(8.dp))
@@ -302,6 +330,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     share = ""
                     domain = ""
                     basePath = ""
+                    useHttps = false
+                    apiVersion = ""
                     port = "4535"
                 }
                 if (editingProfile != null) {
@@ -314,6 +344,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         share = ""
                         domain = ""
                         basePath = ""
+                        useHttps = false
+                        apiVersion = ""
                         port = "4535"
                     }
                 }

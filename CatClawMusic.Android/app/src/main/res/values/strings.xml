@@ -310,6 +310,9 @@
     <string name="remote_browse_none">这一层没有子目录</string>
     <string name="remote_browse_failed">列目录失败：%1$s</string>
     <string name="remote_browse_pick">用这个目录</string>
+    <string name="remote_use_https">使用 HTTPS</string>
+    <string name="remote_use_https_sub">决定请求前缀 http:// 还是 https://，主机地址里不用自己写</string>
+    <string name="remote_api_version">API 版本（Subsonic 的 v 参数）</string>
     <string name="remote_sync_listing">正在列出远端目录…</string>
     <string name="downloads_title">下载管理</string>
     <string name="downloads_subtitle">远程曲的本地下载任务与下载位置</string>

@@ -310,6 +310,9 @@ Download it from GitHub.</string>
     <string name="remote_browse_none">No subfolders here</string>
     <string name="remote_browse_failed">Cannot list: %1$s</string>
     <string name="remote_browse_pick">Use this folder</string>
+    <string name="remote_use_https">Use HTTPS</string>
+    <string name="remote_use_https_sub">Chooses the http:// or https:// prefix — no need to type it in the host</string>
+    <string name="remote_api_version">API version (Subsonic \"v\" param)</string>
     <string name="remote_sync_listing">Listing remote folders…</string>
     <string name="downloads_title">Downloads</string>
     <string name="downloads_subtitle">Local download tasks and where they go</string>
