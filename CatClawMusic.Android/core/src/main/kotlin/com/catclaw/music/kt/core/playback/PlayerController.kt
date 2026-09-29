@@ -6,7 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Looper
-import android.util.Log
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -349,7 +349,7 @@ class PlayerController(
             error = error,
         )
         val s = _state.value
-        Log.i(TAG, "state song=${current?.id} mode=${s.mode} playing=${s.isPlaying} size=${s.queueSize} err=$error")
+        AppLog.i(TAG, "state song=${current?.id} mode=${s.mode} playing=${s.isPlaying} size=${s.queueSize} err=$error")
         // 没接监听器时**不许**推进计数器：否则 restore() 那一次 publish 就把当前歌"用掉"了，
         // 之后同一首再怎么播都不会再记 —— 真机上就是这么漏的（队列里恢复出的歌与用户点的正是同一首）
         val listener = onListenStarted

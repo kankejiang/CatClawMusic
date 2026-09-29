@@ -1,6 +1,6 @@
 package com.catclaw.music.kt.data.playback
 
-import android.util.Log
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.data.db.LibraryDao
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,12 +28,12 @@ class PlayHistoryRecorder @Inject constructor(
     /** C# 用的是 unix 秒（`DateTimeOffset.ToUnixTimeSeconds`），这里保持同一单位 */
     fun record(songId: Int) {
         if (songId <= 0) return
-        Log.i(TAG, "record song=$songId")
+        AppLog.i(TAG, "record song=$songId")
         val nowSeconds = System.currentTimeMillis() / 1000L
         // 失败必须出声：这条链子整个是 fire-and-forget，静默吞掉就等于"最近播放"又是空的
         scope.launch {
             runCatching { dao.recordPlay(songId, nowSeconds) }
-                .onFailure { Log.w(TAG, "record play $songId failed", it) }
+                .onFailure { AppLog.w(TAG, "record play $songId failed", it) }
         }
     }
 

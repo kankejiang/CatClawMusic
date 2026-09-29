@@ -2,7 +2,7 @@ package com.catclaw.music.kt.data.library
 
 import android.content.Context
 import android.provider.MediaStore
-import android.util.Log
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import androidx.room.withTransaction
 import com.catclaw.music.kt.core.library.MediaScanRules
 import com.catclaw.music.kt.data.db.CatClawDatabase
@@ -152,7 +152,7 @@ class LibraryScanner @Inject constructor(
         }
 
         val elapsed = System.currentTimeMillis() - startedAt
-        Log.i(
+        AppLog.i(
             TAG,
             "scan done scanned=${result.scanned} inserted=${result.inserted} updated=${result.updated} " +
                 "removed=${result.removed} artists=${result.artists} albums=${result.albums} " +

@@ -1,7 +1,7 @@
 package com.catclaw.music.kt.ui.settings
 
 import android.content.Context
-import android.util.Log
+import com.catclaw.music.kt.core.diagnostic.AppLog
 
 /**
  * 应用内语言切换。表里的 tag 与 res 下的语言目录一一对应 —— 由 LocaleParityTest 守住，
@@ -82,6 +82,6 @@ object AppLocale {
 
     fun apply(context: Context, tag: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, tag).apply()
-        Log.i(TAG, "applied tag=$tag stored=${current(context)}")
+        AppLog.i(TAG, "applied tag=$tag stored=${current(context)}")
     }
 }

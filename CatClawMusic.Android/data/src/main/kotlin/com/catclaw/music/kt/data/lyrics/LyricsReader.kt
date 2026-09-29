@@ -2,7 +2,7 @@ package com.catclaw.music.kt.data.lyrics
 
 import android.content.Context
 import android.provider.MediaStore
-import android.util.Log
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.core.lyrics.KrcParser
 import com.catclaw.music.kt.core.lyrics.LrcParser
 import com.catclaw.music.kt.core.lyrics.Lyrics
@@ -67,7 +67,7 @@ class LyricsReader @Inject constructor(
         val file = File(audioPath)
         val text = runCatching { AudioTagLyrics.read(audioPath) }.getOrNull() ?: return null
         return LyricsEncoding.parseContent(text)?.also {
-            Log.i(TAG, "embedded lyrics ${file.name} lines=${it.lines.size}")
+            AppLog.i(TAG, "embedded lyrics ${file.name} lines=${it.lines.size}")
         }
     }
 
@@ -112,7 +112,7 @@ class LyricsReader @Inject constructor(
             } else {
                 LyricsEncoding.parseContent(LyricsEncoding.decode(file.readBytes()))
             }
-        }.onFailure { Log.w(TAG, "歌词解析失败 $path", it) }.getOrNull()
+        }.onFailure { AppLog.w(TAG, "歌词解析失败 $path", it) }.getOrNull()
     }
 
     private companion object {
