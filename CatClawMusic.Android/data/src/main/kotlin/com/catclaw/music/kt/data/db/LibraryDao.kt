@@ -9,7 +9,7 @@ import androidx.room.Upsert
 import com.catclaw.music.kt.data.db.entity.AlbumEntity
 import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.CachedSongEntity
-import com.catclaw.music.kt.data.db.entity.DailyPlayStatEntity
+import com.catclaw.music.kt.core.stats.PlayStatRules
 import com.catclaw.music.kt.data.db.entity.FavoriteEntity
 import com.catclaw.music.kt.data.db.entity.LyricsEntity
 import com.catclaw.music.kt.data.db.entity.PlayHistoryEntity
@@ -249,6 +249,64 @@ interface LibraryDao {
         trimHistory(200)
     }
 
+    @Insert
+    suspend fun insertSession(entry: PlaySessionEntity): Long
+
+    @Query(SQL_SESSION_BY_ID)
+    suspend fun sessionById(id: Int): PlaySessionEntity?
+
+    @Query(SQL_FLUSH_SESSION)
+    suspend fun updateSession(id: Int, durationMs: Long, playedAt: Long)
+
+    @Query(SQL_BUMP_DAILY)
+    suspend fun bumpDaily(date: String, plays: Int, ms: Long, nightPlays: Int)
+
+    @Query(SQL_BUMP_HOURLY)
+    suspend fun bumpHourly(dateHour: String, date: String, hour: Int, plays: Int, ms: Long)
+
+    @Query(SQL_BUMP_SONG)
+    suspend fun bumpSong(dateSong: String, date: String, songId: Int, plays: Int, ms: Long)
+
+    /**
+     * 一次聆听开始：建会话行 + 三张汇总表各 +1 次（时长此刻记 0，之后由 [flushListenSession] 累加）。
+     * 对应 C# `LogListenSessionAsync`。返回自增行 id，调用方要留着它做 flush。
+     */
+    @Transaction
+    suspend fun logListenSession(songId: Int, playedAt: Long, keys: PlayStatRules.Keys): Long {
+        val id = insertSession(PlaySessionEntity(songId = songId, playedAt = playedAt))
+        bumpDaily(keys.date, 1, 0, if (keys.night) 1 else 0)
+        bumpHourly(keys.dateHour, keys.date, keys.hour, 1, 0)
+        bumpSong(keys.dateSong, keys.date, songId, 1, 0)
+        trimSessions(MAX_SESSIONS_KEPT)
+        return id
+    }
+
+    /**
+     * 把一次聆听的累计时长写回**同一行**，并按增量更新汇总表。
+     * 每 30 秒 flush 一次却不新增行，就是为了别把「总播放次数」「听歌趋势」放大
+     * （C# 同注释）。
+     *
+     * 增量的日期键取自该行**上一次**的 PlayedAt：跨午夜的那次聆听归到开始那天，
+     * 而不是被最后一次的落库时刻带到第二天去。
+     *
+     * @param totalMs 本次聆听到此为止的总时长（毫秒），不是增量
+     */
+    @Transaction
+    suspend fun flushListenSession(sessionId: Int, totalMs: Long, nowSeconds: Long): Long {
+        if (sessionId <= 0) return 0
+        val row = sessionById(sessionId) ?: return 0
+        val next = totalMs.coerceAtLeast(0)
+        val delta = next - row.durationMs.coerceAtLeast(0)
+        updateSession(sessionId, next, nowSeconds)
+        if (delta != 0L) {
+            val keys = PlayStatRules.keysFor(row.playedAt, row.songId)
+            bumpDaily(keys.date, 0, delta, 0)
+            bumpHourly(keys.dateHour, keys.date, keys.hour, 0, delta)
+            bumpSong(keys.dateSong, keys.date, row.songId, 0, delta)
+        }
+        return delta
+    }
+
     /** 收藏列表（AI 工具 get_favorite_songs 用），投影与 [observeLocalSongs] 同一套 JOIN */
     @Query(
         """
@@ -358,6 +416,11 @@ interface LibraryDao {
     /** 专辑下钻页的歌，按曲目号排 */
     @Query(SQL_SONGS_OF_ALBUM)
     suspend fun songsOfAlbum(albumId: Int): List<SongListItem>
+
+    companion object {
+        /** 会话只保留最近 N 条（与 C# `TrimPlaySessionAsync(2000)` 同值） */
+        const val MAX_SESSIONS_KEPT = 2000
+    }
 }
 
 /** 歌曲详情：基本信息 + 文件与音质 + 播放次数，字段口径与 C# 详情页一致 */

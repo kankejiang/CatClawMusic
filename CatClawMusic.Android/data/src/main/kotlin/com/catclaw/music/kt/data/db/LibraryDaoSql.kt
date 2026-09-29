@@ -100,6 +100,39 @@ internal const val SQL_TRIM_SESSIONS = """
 """
 
 /**
+ * 三张汇总表的增量 UPSERT —— 逐条对齐 C# `IncrementDailyStatsAsync`。
+ *
+ * 用 `excluded.` 而不是把新值算好再写：加法的唯一事实源是数据库里那一行，
+ * 两次并发聆听才不会互相覆盖（本端 recordPlay 也走同一条规矩）。
+ * 深夜计数只在"这次算出来是深夜"时才加，且只随**次数**加、不随时长加
+ * （时长是 flush 出来的，那时已经不属于"开始那一刻"了）。
+ */
+internal const val SQL_BUMP_DAILY =
+    "INSERT INTO DailyPlayStat(Date, PlayCount, TotalDurationMs, NightPlayCount) " +
+        "VALUES (:date, :plays, :ms, :nightPlays) " +
+        "ON CONFLICT(Date) DO UPDATE SET PlayCount = PlayCount + excluded.PlayCount, " +
+        "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs, " +
+        "NightPlayCount = NightPlayCount + excluded.NightPlayCount"
+
+internal const val SQL_BUMP_HOURLY =
+    "INSERT INTO HourlyPlayStat(DateHour, Date, Hour, PlayCount, TotalDurationMs) " +
+        "VALUES (:dateHour, :date, :hour, :plays, :ms) " +
+        "ON CONFLICT(DateHour) DO UPDATE SET PlayCount = PlayCount + excluded.PlayCount, " +
+        "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs"
+
+internal const val SQL_BUMP_SONG =
+    "INSERT INTO DailySongStat(DateSong, Date, SongId, PlayCount, TotalDurationMs) " +
+        "VALUES (:dateSong, :date, :songId, :plays, :ms) " +
+        "ON CONFLICT(DateSong) DO UPDATE SET PlayCount = PlayCount + excluded.PlayCount, " +
+        "TotalDurationMs = TotalDurationMs + excluded.TotalDurationMs"
+
+/** 把一次聆听的累计时长写回同一行；PlayedAt 同步推到当下（行的归属日期用旧值算，见 flushListenSession） */
+internal const val SQL_FLUSH_SESSION =
+    "UPDATE PlaySession SET DurationMs = :durationMs, PlayedAt = :playedAt WHERE Id = :id"
+
+internal const val SQL_SESSION_BY_ID = "SELECT * FROM PlaySession WHERE Id = :id"
+
+/**
  * 某个艺人的全部歌曲 —— 对应 C# `MusicDatabase.GetSongsByArtistAsync`。
  *
  * 两处与 C# 有意不同，都是往"更准"的方向偏：

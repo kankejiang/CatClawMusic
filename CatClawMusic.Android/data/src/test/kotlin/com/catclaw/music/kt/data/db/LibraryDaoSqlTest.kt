@@ -377,4 +377,92 @@ class LibraryDaoSqlTest {
         )
         assertEquals("留下的时间戳", listOf(30L, 40L), historyRows().map { it.second }.sorted())
     }
+
+    // ── 听歌统计的三张汇总表 ──
+
+    /** Room 那边用命名参数，这里按 SQL 里出现的列序换成 ? —— 顺序改了测试会先炸 */
+    private fun bumpDaily(date: String, plays: Int, ms: Long, nightPlays: Int) {
+        db.prepareStatement(
+            SQL_BUMP_DAILY.replace(":date", "?").replace(":plays", "?").replace(":ms", "?").replace(":nightPlays", "?"),
+        ).apply { setString(1, date); setInt(2, plays); setLong(3, ms); setInt(4, nightPlays) }.executeUpdate()
+    }
+
+    private fun bumpHourly(dateHour: String, date: String, hour: Int, plays: Int, ms: Long) {
+        db.prepareStatement(
+            SQL_BUMP_HOURLY.replace(":dateHour", "?").replace(":date", "?").replace(":hour", "?")
+                .replace(":plays", "?").replace(":ms", "?"),
+        ).apply {
+            setString(1, dateHour); setString(2, date); setInt(3, hour); setInt(4, plays); setLong(5, ms)
+        }.executeUpdate()
+    }
+
+    private fun bumpSong(dateSong: String, date: String, songId: Int, plays: Int, ms: Long) {
+        db.prepareStatement(
+            SQL_BUMP_SONG.replace(":dateSong", "?").replace(":date", "?").replace(":songId", "?")
+                .replace(":plays", "?").replace(":ms", "?"),
+        ).apply {
+            setString(1, dateSong); setString(2, date); setInt(3, songId); setInt(4, plays); setLong(5, ms)
+        }.executeUpdate()
+    }
+
+    private fun dailyRow(date: String): Triple<Int, Long, Int> =
+        db.prepareStatement(
+            "SELECT PlayCount, TotalDurationMs, NightPlayCount FROM DailyPlayStat WHERE Date = '$date'",
+        ).executeQuery().let { rs ->
+            assertTrue("按天汇总应该有一行", rs.next())
+            Triple(rs.getInt(1), rs.getLong(2), rs.getInt(3))
+        }
+
+    @Test
+    fun dailyUpsertAccumulatesInsteadOfOverwriting() {
+        bumpDaily("2026-09-29", 1, 0, 1)      // 一次聆听开始（深夜）
+        bumpDaily("2026-09-29", 1, 0, 1)      // 又一首
+        assertEquals("两次聆听 = 2 次、深夜 2 次、时长还没落", Triple(2, 0L, 2), dailyRow("2026-09-29"))
+
+        bumpDaily("2026-09-29", 0, 45_000, 0) // flush：只加时长，不碰次数
+        assertEquals(
+            "flush 不能把「总播放次数」放大一倍——这正是每 30 秒新增一行会踩的坑",
+            Triple(2, 45_000L, 2), dailyRow("2026-09-29"),
+        )
+    }
+
+    @Test
+    fun hourlyAndSongKeysKeepDaysAndSongsApart() {
+        bumpHourly("2026-09-29 03", "2026-09-29", 3, 1, 0)
+        bumpHourly("2026-09-30 03", "2026-09-30", 3, 1, 0)
+        bumpSong("2026-09-29|7", "2026-09-29", 7, 1, 0)
+        bumpSong("2026-09-29|8", "2026-09-29", 8, 1, 0)
+        bumpSong("2026-09-29|7", "2026-09-29", 7, 1, 0)
+
+        assertEquals(
+            "同一小时但不同天是两行；同一天的不同歌是两行；同一天同一歌合成一行",
+            listOf("2026-09-29 03", "2026-09-30 03"),
+            db.prepareStatement("SELECT DateHour FROM HourlyPlayStat ORDER BY DateHour").executeQuery()
+                .let { rs -> buildList { while (rs.next()) add(rs.getString(1)) } },
+        )
+        assertEquals(
+            "按歌曲汇总的行数 = 天×歌，不是歌数",
+            listOf(Triple("2026-09-29|7", 2, 0L), Triple("2026-09-29|8", 1, 0L)),
+            db.prepareStatement("SELECT DateSong, PlayCount, TotalDurationMs FROM DailySongStat ORDER BY DateSong")
+                .executeQuery().let { rs ->
+                    buildList { while (rs.next()) add(Triple(rs.getString(1), rs.getInt(2), rs.getLong(3))) }
+                },
+        )
+    }
+
+    @Test
+    fun flushSessionWritesBackTheSameRowAndKeepsDelta() {
+        db.prepareStatement("INSERT INTO PlaySession (SongId, PlayedAt, DurationMs) VALUES (7, 1000, 0)").executeUpdate()
+        val id = db.prepareStatement("SELECT last_insert_rowid()").executeQuery().let { rs -> rs.next(); rs.getLong(1) }
+
+        db.prepareStatement(
+            SQL_FLUSH_SESSION.replace(":durationMs", "?").replace(":playedAt", "?").replace(":id", "?"),
+        ).apply { setLong(1, 30_000); setLong(2, 1600L); setLong(3, id) }.executeUpdate()
+
+        val row = db.prepareStatement("SELECT PlayedAt, DurationMs FROM PlaySession WHERE Id = $id").executeQuery()
+        assertTrue(row.next())
+        assertEquals("flush 写回同一行：时长累计、时间推到当下", 1600L, row.getLong(1))
+        assertEquals(30_000L, row.getLong(2))
+        assertEquals("一次聆听只应该有一行会话", 1, db.prepareStatement("SELECT COUNT(*) FROM PlaySession").executeQuery().let { it.next(); it.getInt(1) })
+    }
 }
