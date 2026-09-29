@@ -61,12 +61,14 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    /** 加进已有歌单：位置接在末尾，重复由 `INSERT OR IGNORE` 吃掉（PlaylistSongs 上有唯一索引） */
+    /**
+     * 加进已有歌单。走 [PlaylistDao.appendAll] 而不是自己插一行：
+     * 位置由它从当前最大值续起、重复由 `INSERT OR IGNORE` 吃掉（PlaylistSongs 上有唯一索引），
+     * 而 `SongCount` 那列**只有它会顺手更新**——早先这里直接 insertItem，
+     * 于是从菜单加进去的歌，歌单卡上的数字一直不涨。
+     */
     fun addToPlaylist(playlistId: Int, songId: Int) {
-        viewModelScope.launch {
-            val position = (playlistDao.maxPosition(playlistId) ?: 0) + 1
-            playlistDao.insertItem(playlistId, songId, position)
-        }
+        viewModelScope.launch { playlistDao.appendAll(playlistId, listOf(songId)) }
     }
 
     val songs = libraryDao.observeLocalSongs().stateIn(

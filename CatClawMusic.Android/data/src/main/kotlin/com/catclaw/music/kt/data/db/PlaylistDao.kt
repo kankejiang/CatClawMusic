@@ -42,8 +42,22 @@ interface PlaylistDao {
     @Query(SQL_INSERT_ITEM)
     suspend fun insertItem(playlistId: Int, songId: Int, position: Int)
 
-    @Query("DELETE FROM PlaylistSongs WHERE PlaylistId = :playlistId AND SongId = :songId")
+    @Query(SQL_REMOVE_ITEM)
     suspend fun removeItem(playlistId: Int, songId: Int)
+
+    /**
+     * 从歌单移掉一首并同步 `SongCount`。
+     *
+     * `SongCount` 是 Playlists 上的**存量列**而不是查询时算出来的，所以删行之外还得有人改它——
+     * 这条规则此前写在调用方（AI 工具里就是 `removeItem` + `touch` 两行），
+     * 于是页面侧只要少抄一行就是页面上一个错数字。收进 DAO，调用方想漏也漏不掉。
+     * 加歌方向同理，走 [appendAll]（它本来就 touch）。
+     */
+    @Transaction
+    suspend fun removeFromPlaylist(playlistId: Int, songId: Int) {
+        removeItem(playlistId, songId)
+        touch(playlistId, songIdsInOrder(playlistId).size, System.currentTimeMillis())
+    }
 
     @Query(SQL_SONG_IDS_IN_ORDER)
     suspend fun songIdsInOrder(playlistId: Int): List<Int>
@@ -109,6 +123,8 @@ internal const val SQL_RENAME_PLAYLIST =
     "UPDATE Playlists SET Name = :name, UpdatedAt = :now WHERE Id = :id AND IsSystem = 0"
 internal const val SQL_INSERT_ITEM =
     "INSERT OR IGNORE INTO PlaylistSongs (PlaylistId, SongId, Position) VALUES (:playlistId, :songId, :position)"
+internal const val SQL_REMOVE_ITEM =
+    "DELETE FROM PlaylistSongs WHERE PlaylistId = :playlistId AND SongId = :songId"
 internal const val SQL_SONG_IDS_IN_ORDER =
     "SELECT SongId FROM PlaylistSongs WHERE PlaylistId = :playlistId ORDER BY Position ASC"
 internal const val SQL_UPDATE_POSITION =

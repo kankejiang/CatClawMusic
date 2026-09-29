@@ -67,6 +67,11 @@ class SongMenuActions(
      */
     val onOpenDetail: (Int) -> Unit,
     /**
+     * 从歌单移除。null 表示这里不是歌单详情页 —— 菜单里那一项就不画
+     * （在音乐库页"移除"没有对应的那层关联可删）。
+     */
+    val onRemoveFromPlaylist: ((Int) -> Unit)?,
+    /**
      * 菜单里那些要现查一次的解析跑在这个 scope 上。必须是 VM 的而不是菜单的：
      * 菜单项点完立刻 dismiss，`rememberCoroutineScope()` 会当场取消那次查询，
      * 真机上表现成「点了没反应」（这条是本轮在列表页真机撞过的）。
@@ -78,6 +83,7 @@ class SongMenuActions(
 fun rememberSongMenu(
     viewModel: LibraryViewModel,
     onOpenBelongs: ((SongBelongs) -> Unit)? = null,
+    onRemoveFromPlaylist: ((Int) -> Unit)? = null,
     onOpenDetail: (Int) -> Unit,
 ): SongMenuActions {
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -91,6 +97,7 @@ fun rememberSongMenu(
         onOpenBelongs = onOpenBelongs,
         loadDetail = viewModel::songDetail,
         onOpenDetail = onOpenDetail,
+        onRemoveFromPlaylist = onRemoveFromPlaylist,
         scope = viewModel.viewModelScope,
     )
 }

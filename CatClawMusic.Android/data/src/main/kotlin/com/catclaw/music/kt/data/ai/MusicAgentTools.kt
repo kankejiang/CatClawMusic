@@ -753,8 +753,7 @@ class MusicAgentTools @Inject constructor(
             val playlistId = argInt(argumentsJson, "playlist_id")
             val songId = argInt(argumentsJson, "song_id")
             if (playlistId <= 0 || songId <= 0) return resultJson("error" to "请提供有效的歌单 ID 和歌曲 ID")
-            playlists.removeItem(playlistId, songId)
-            playlists.touch(playlistId, playlists.songIdsInOrder(playlistId).size, System.currentTimeMillis())
+            playlists.removeFromPlaylist(playlistId, songId)
             return resultJson("success" to true, "message" to "歌曲已从歌单中移除")
         }
     }

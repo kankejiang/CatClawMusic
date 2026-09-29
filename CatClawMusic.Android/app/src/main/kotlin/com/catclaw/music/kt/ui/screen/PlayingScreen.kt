@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
-import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
@@ -65,6 +64,7 @@ import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongMenuFor
 import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
+import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -399,16 +399,12 @@ fun PlayingScreen(
     // 目标歌在这一刻取，滑到别的歌上时不会把菜单留给上一首
     state.currentSong?.takeIf { songMenuOpen && it.id > 0 }?.let { song ->
         SongMenuFor(
-            target = SongMenuTarget(song.id, song.title, menuSubtitle(song), song),
+            target = SongMenuTarget(song.id, song.title, songMenuSubtitle(song.artist, song.album), song),
             menu = menu,
             onDismiss = { songMenuOpen = false },
         )
     }
 }
-
-/** 菜单第二行：歌手 · 专辑，缺一段就少一段，不留「· 」这种断口 */
-private fun menuSubtitle(song: Song): String =
-    listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" · ")
 
 @Composable
 private fun IconButton40(

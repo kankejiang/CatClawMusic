@@ -31,7 +31,7 @@ data class SongBelongs(val kind: SongBelongsKind, val id: Int, val name: String)
  * 歌曲长按菜单 —— MAUI `SongContextMenu` 与播放页「更多」的安卓对应物。
  *
  * MAUI 的菜单是五项：播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息，
- * 播放页的「更多」另有查看歌手 / 查看专辑 / 分享。这里合成一个菜单。
+ * 播放页的「更多」另有查看歌手 / 查看专辑 / 分享，歌单详情页另有从歌单移除。这里合成一个菜单。
  * 「播放」不放——它和点一行重复。
  * 三个可选项传 null 就不画：摆一个点了不动的项，比少摆一项更糟。
  */
@@ -48,6 +48,8 @@ fun SongActionMenu(
     onOpenArtist: (() -> Unit)?,
     onOpenAlbum: (() -> Unit)?,
     onAddToPlaylist: (Int) -> Unit,
+    /** 只在歌单详情页才有意义：为 null 就不画（音乐库页没有那层关联可删） */
+    onRemoveFromPlaylist: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -139,6 +141,17 @@ fun SongActionMenu(
                         )
                     }
                 }
+                // 移除排在最后：它是这一堆里唯一会少东西的一项
+                onRemoveFromPlaylist?.let { remove ->
+                    PillLabel(
+                        text = stringResource(R.string.song_menu_remove_from_playlist),
+                        onClick = {
+                            remove()
+                            onDismiss()
+                        },
+                        filled = false,
+                    )
+                }
             }
         },
         confirmButton = {
@@ -193,6 +206,11 @@ fun SongMenuFor(target: SongMenuTarget, menu: SongMenuActions, onDismiss: () -> 
             null
         },
         onOpenDetail = { menu.onOpenDetail(target.id) },
+        onRemoveFromPlaylist = menu.onRemoveFromPlaylist?.let { remove -> { remove(target.id) } },
         onDismiss = onDismiss,
     )
 }
+
+/** 菜单第二行：歌手 · 专辑，缺一段就少一段，不留「· 」这种断口 */
+internal fun songMenuSubtitle(artist: String, album: String): String =
+    listOf(artist, album).filter { it.isNotBlank() }.joinToString(" · ")

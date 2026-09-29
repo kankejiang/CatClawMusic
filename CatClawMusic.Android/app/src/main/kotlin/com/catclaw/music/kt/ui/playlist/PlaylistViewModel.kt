@@ -91,6 +91,15 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch { playlistDao.appendAll(playlistId, listOf(song.id)) }
     }
 
+    /**
+     * 从**当前打开的**歌单里移掉一首。只断歌单与这首歌的关联，歌还在库里、收藏与统计都不动。
+     * 计数同步在 DAO 的 `removeFromPlaylist` 里，不在这里补第二刀。
+     */
+    fun removeItem(songId: Int) {
+        val playlistId = _openId.value ?: return
+        viewModelScope.launch { playlistDao.removeFromPlaylist(playlistId, songId) }
+    }
+
     fun playAll() = playFrom(0)
 
     fun playAt(index: Int) = playFrom(index)

@@ -10,7 +10,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 把 `PlaylistDao` 里那三条"此前只能靠仪器化测试"的 SQL 拿去**真 SQLite** 上跑。
+ * 把 `PlaylistDao` 里那几条"此前只能靠仪器化测试"的 SQL 拿去**真 SQLite** 上跑。
  *
  * 为什么不需要设备：Room 的 `@Query` 字符串已经提成 `SQL_*` 常量，注解与测试读的是**同一份**，
  * 所以这里执行的就是线上将被执行的那条语句本身，不是它的抄本 —— 抄本测试是假测试。
@@ -136,6 +136,27 @@ class PlaylistSqlTest {
         assertEquals("第二次插同一首歌应被唯一索引忽略而不是抛", 0, insertItem(7, 100, 1))
         assertEquals(1, insertItem(7, 101, 1))
         assertEquals(listOf(100, 101), songIdsInOrder(7))
+    }
+
+    @Test
+    fun removeDeletesOnlyThatSongFromThatPlaylist() {
+        insertPlaylist(7, "Road", isSystem = 0)
+        insertPlaylist(8, "Night", isSystem = 0)
+        insertItem(7, 100, 0)
+        insertItem(7, 101, 1)
+        insertItem(8, 100, 0)
+
+        // 占位符顺序按 SQL 里出现的先后：(:playlistId, :songId)
+        assertEquals(1, db.prepareStatement(jdbc(SQL_REMOVE_ITEM)).apply {
+            setInt(1, 7); setInt(2, 100)
+        }.executeUpdate())
+        assertEquals("只该动 7 号歌单里的 100", listOf(101), songIdsInOrder(7))
+        assertEquals("同一首歌在别的歌单里不受牵连", listOf(100), songIdsInOrder(8))
+        assertEquals(
+            "移一条不存在的条目要返回 0 行 —— DAO 的计数同步靠的是删完再数一遍，不是靠这里判断",
+            0,
+            db.prepareStatement(jdbc(SQL_REMOVE_ITEM)).apply { setInt(1, 7); setInt(2, 999) }.executeUpdate(),
+        )
     }
 
     @Test

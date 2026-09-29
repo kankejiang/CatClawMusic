@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,11 +44,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
+import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.song.SongBelongs
 import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongList
+import com.catclaw.music.kt.ui.song.SongMenuFor
+import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
+import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.ui.playlist.PlaylistViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
@@ -81,6 +86,15 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     // 收藏/最近列表里的歌也能跳到它的歌手页或专辑页——那两页是 LibraryScreen 的下钻页，
     // 在这里用同一份组件托管一份，省掉跨页导航（返回键行为与从音乐库进去时一致）
     var belongsDetail by remember { mutableStateOf<LibraryDetail?>(null) }
+    // 歌单详情的行此前只有"点=播放"一个动作，能加进来却移不掉。长按补上菜单，
+    // 能力与音乐库/播放页同一份（收藏/下一首/详情/分享/下钻），多出来的是「从歌单移除」
+    var rowMenu by remember { mutableStateOf<SongMenuTarget?>(null) }
+    val detailMenu = rememberSongMenu(
+        viewModel = libraryViewModel,
+        onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
+        onRemoveFromPlaylist = { viewModel.removeItem(it) },
+        onOpenDetail = { songDetailId = it },
+    )
     belongsDetail?.let { d ->
         LibraryDetailScreen(
             detail = d,
@@ -296,7 +310,17 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .clickable { viewModel.playAt(index) }
+                            .combinedClickable(
+                                onClick = { viewModel.playAt(index) },
+                                onLongClick = {
+                                    rowMenu = SongMenuTarget(
+                                        id = song.id,
+                                        title = song.title,
+                                        subtitle = songMenuSubtitle(song.artist, song.album),
+                                        song = song.toSong(),
+                                    )
+                                },
+                            )
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -320,6 +344,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             }
         }
     }
+    rowMenu?.let { target -> SongMenuFor(target = target, menu = detailMenu, onDismiss = { rowMenu = null }) }
 }
 
 /** 一张歌单卡 —— MAUI 行：46dp 图标块（系统单用 ic_favorite/ic_history，自建单用首字）+ 名称 + 计数 + 44dp 改名 / 删除 */
