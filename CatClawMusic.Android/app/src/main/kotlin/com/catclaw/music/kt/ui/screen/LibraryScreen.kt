@@ -566,6 +566,20 @@ internal fun LibraryDetailScreen(
                     color = Color(palette.textSecondary),
                 )
             }
+            // 艺人/专辑页此前只能一行一行点着播：整张列表摆在这儿却没有"整张播"的入口。
+            // 两颗粒子与全部歌曲页同一套文案、同一条路径（播的就是屏幕上这份 loaded）
+            if (loaded.isNotEmpty()) {
+                PillLabel(
+                    text = stringResource(R.string.playlist_play_all),
+                    onClick = { viewModel.playRows(loaded, 0) },
+                    filled = false,
+                )
+                PillLabel(
+                    text = stringResource(R.string.shuffle_play),
+                    onClick = { viewModel.playShuffled(loaded) },
+                    filled = false,
+                )
+            }
         }
         SongList(
             rows = loaded,
