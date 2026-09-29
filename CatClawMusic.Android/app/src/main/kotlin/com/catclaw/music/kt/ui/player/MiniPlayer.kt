@@ -38,8 +38,8 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.inkOn
 
 /**
- * 迷你播放条 —— 内容尺寸按 64dp 高的胶囊排：封面 36 圆角 10、标题 13 SemiBold / 艺人 11、
- * 上一曲与下一曲 22、播放暂停 30（透明底）、底部 3dp 主题色进度条。
+ * 迷你播放条 —— 内容尺寸按 64dp 高的胶囊排：封面 36 圆角 7、标题 13 SemiBold / 艺人 11、
+ * 上一曲与下一曲 22、播放暂停 30（透明底）、底部 2dp 细白进度线（与播放页那条同档）。
  *
  * 表面走 [BarGlass]：与 TabBar 同一个组件、同一组 token（高度 64dp、圆角 16、着色、1.5dp 描边、
  * 同一条 vibrancy + blur 20dp + lens 液态玻璃路径）—— 2026-09-28 用户要求两栏效果完全一致。
@@ -83,7 +83,9 @@ fun MiniPlayer(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        // 10dp 圆角压在 36dp 的块上已经接近圆角胶囊，和播放页那颗「小圆角 + 重投影」的封面
+                        // 不是一种形状；按同一形状语言收到 7dp（等比换算是 1.7dp，小到读不出来，取能看圆的下限）
+                        .clip(RoundedCornerShape(7.dp))
                         .background(Color(palette.primary)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -154,13 +156,17 @@ fun MiniPlayer(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(3.dp),
+                    .height(2.dp)
+                    // 与播放页那条进度线同一档：细、白、未走到的部分留一层淡痕。
+                    // 原来是 3dp 实心品牌粉——页面已经改成纯白字形之后，这条粉线就是页面上唯一
+                    // 还在喊主色的地方，两栏之间看着像两套东西
+                    .background(Color(palette.textPrimary).copy(alpha = 0.22f)),
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(fraction)
-                        .background(Color(palette.primary)),
+                        .background(Color(palette.textPrimary)),
                 )
             }
         }
