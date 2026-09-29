@@ -41,15 +41,17 @@ class HttpAudioBytesReader @Inject constructor() : AudioBytesReader {
             .build()
     }
 
-    override suspend fun head(url: String, size: Int): ByteArray? = readRange(url, 0L, size)
+    override suspend fun head(url: String, size: Int): ByteArray? = readRange(url, 0L, size, requireRange = false)
 
     override suspend fun tail(url: String, bytes: Long, fileSize: Long): ByteArray? {
         if (fileSize <= 0 || bytes <= 0) return null
         val take = minOf(bytes, fileSize)
-        return readRange(url, fileSize - take, take.toInt())
+        // 尾部必须是 206：服务器不理 Range 时会从 0 开始把整首发过来，
+        // 那读到的其实是**头部**，交给 parseTail 只会白找一趟 moov
+        return readRange(url, fileSize - take, take.toInt(), requireRange = true)
     }
 
-    private suspend fun readRange(url: String, offset: Long, size: Int): ByteArray? {
+    private suspend fun readRange(url: String, offset: Long, size: Int, requireRange: Boolean): ByteArray? {
         if (size <= 0) return null
         return withContext(Dispatchers.IO) {
             try {
@@ -58,8 +60,9 @@ class HttpAudioBytesReader @Inject constructor() : AudioBytesReader {
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@use null
+                    if (requireRange && response.code != 206) return@use null
                     val stream = response.body?.byteStream() ?: return@use null
-                    // 服务器不理 Range 时会从 0 开始把整首发过来：读够 size 字节就停，绝不把整首歌灌进内存
+                    // 服务器不理 Range 时会把整首发过来：读够 size 字节就停，绝不把整首歌灌进内存
                     val buffer = ByteArray(size)
                     var filled = 0
                     while (filled < size) {
