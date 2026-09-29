@@ -89,6 +89,12 @@
     <string name="playlist_rename">重命名歌单</string>
     <string name="playlist_rename_save">保存</string>
     <string name="playlist_rename_cancel">取消</string>
+    <string name="DangerZone">危险操作</string>
+    <string name="reset_all_settings">重置所有设置</string>
+    <string name="reset_all_settings_hint">清空主题、歌词、音效、AI 配置等全部偏好（不动曲库与歌单）</string>
+    <string name="reset_all_settings_confirm">这会清掉全部偏好设置，且无法撤销。部分设置要重启应用后才完全生效。</string>
+    <string name="reset_all_settings_ok">确认重置</string>
+    <string name="reset_all_settings_done">已重置 %1$d 项存储，重启后全部生效</string>
     <string name="playlist_name_taken">已有同名歌单，换一个名字</string>
     <string name="remote_import">导入曲库</string>
     <string name="remote_add_server">新增服务器</string>

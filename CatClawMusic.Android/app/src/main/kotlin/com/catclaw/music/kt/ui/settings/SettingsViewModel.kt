@@ -20,6 +20,7 @@ import com.catclaw.music.kt.data.download.MusicDownloader
 import com.catclaw.music.kt.data.lyrics.OverlayPermission
 import com.catclaw.music.kt.data.settings.AppearanceSettings
 import com.catclaw.music.kt.data.settings.CacheSettings
+import com.catclaw.music.kt.data.settings.SettingsReset
 import com.catclaw.music.kt.ui.theme.ThemeStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -45,7 +46,19 @@ class SettingsViewModel @Inject constructor(
     private val llmStore: LlmConfigStore,
     private val llmClient: OpenAiCompatibleClient,
     private val memory: ChatMemoryStore,
+    private val settingsReset: SettingsReset,
 ) : ViewModel() {
+
+    /**
+     * 「重置所有设置」：清空全部 SharedPreferences 存储。
+     * 回调给页面的是被清掉的存储数——页面用它报"重置了 N 项"，而不是写死一个数字。
+     */
+    fun resetAllSettings(onDone: (Int) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cleared = settingsReset.resetNow().size
+            withContext(Dispatchers.Main) { onDone(cleared) }
+        }
+    }
 
     /**
      * Yuki 的长期记忆。模型自己提炼出来的东西必须看得见、删得掉 ——

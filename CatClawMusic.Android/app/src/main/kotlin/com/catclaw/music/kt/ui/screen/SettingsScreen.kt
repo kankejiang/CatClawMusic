@@ -373,6 +373,9 @@ private fun GeneralSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewMod
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     var languageDialog by remember { mutableStateOf(false) }
+    var resetDialog by remember { mutableStateOf(false) }
+    var resetNotice by remember { mutableStateOf<String?>(null) }
+    val resetDone = stringResource(R.string.reset_all_settings_done)
     // 语言生效 = 存 tag + 重建 Activity（attachBaseContext 会按 tag 重贴 Configuration）
     val activity = context.findActivity()
 
@@ -421,6 +424,18 @@ private fun GeneralSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewMod
                 onClick = { viewModel.clearAudioCache() },
             )
         }
+
+        Section(title = stringResource(R.string.DangerZone), color = secondary) {
+            ClickableRow(
+                title = stringResource(R.string.reset_all_settings),
+                value = "",
+                hint = stringResource(R.string.reset_all_settings_hint),
+                onClick = { resetDialog = true },
+            )
+            resetNotice?.let {
+                Text(it, fontSize = 12.sp, color = secondary, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
     }
 
     val chooseLanguage: (String) -> Unit = { tag ->
@@ -452,6 +467,33 @@ private fun GeneralSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewMod
                 }
             },
             confirmButton = {},
+        )
+    }
+
+    if (resetDialog) {
+        // MAUI 那颗按钮是**没有确认**直接 Preferences.Clear() 的；不可撤销的批量清空
+        // 至少该问一次。按钮走 PillLabel：TextButton 是 stock 控件，闸门会拦
+        AlertDialog(
+            onDismissRequest = { resetDialog = false },
+            containerColor = Color(palette.backgroundStops.last().argb),
+            title = { Text(stringResource(R.string.reset_all_settings), color = primary) },
+            text = { Text(stringResource(R.string.reset_all_settings_confirm), color = secondary) },
+            confirmButton = {
+                PillLabel(
+                    text = stringResource(R.string.reset_all_settings_ok),
+                    onClick = {
+                        resetDialog = false
+                        viewModel.resetAllSettings { n -> resetNotice = resetDone.format(n) }
+                    },
+                )
+            },
+            dismissButton = {
+                PillLabel(
+                    text = stringResource(R.string.playlist_rename_cancel),
+                    onClick = { resetDialog = false },
+                    filled = false,
+                )
+            },
         )
     }
 }

@@ -89,6 +89,12 @@
     <string name="playlist_rename">Rename playlist</string>
     <string name="playlist_rename_save">Save</string>
     <string name="playlist_rename_cancel">Cancel</string>
+    <string name="DangerZone">Danger zone</string>
+    <string name="reset_all_settings">Reset all settings</string>
+    <string name="reset_all_settings_hint">Clears theme, lyrics, audio effects, AI configs and every other preference (library and playlists untouched)</string>
+    <string name="reset_all_settings_confirm">This clears all preferences and cannot be undone. Some settings fully apply only after a restart.</string>
+    <string name="reset_all_settings_ok">Reset</string>
+    <string name="reset_all_settings_done">Reset %1$d stores — restart to apply fully</string>
     <string name="playlist_name_taken">Another playlist already uses this name</string>
     <string name="remote_import">Import library</string>
     <string name="remote_add_server">Add server</string>
