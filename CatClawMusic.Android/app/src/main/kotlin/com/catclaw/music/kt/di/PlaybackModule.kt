@@ -17,6 +17,7 @@ import java.io.File
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import com.catclaw.music.kt.data.playback.PlayHistoryRecorder
 import kotlinx.coroutines.SupervisorJob
 
 @Module
@@ -57,7 +58,12 @@ object PlaybackModule {
         cache: AudioCache,
         store: KeyValueStore,
         scope: CoroutineScope,
-    ): PlayerController = PlayerController(context, cache, store, scope)
+        history: PlayHistoryRecorder,
+    ): PlayerController = PlayerController(context, cache, store, scope).apply {
+        // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
+        // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
+        onListenStarted = { songId -> history.record(songId) }
+    }
 
     /**
      * AI 工具层只依赖这两个窄接口，才能在 JVM 单测里用假实现构造 `MusicAgentTools`

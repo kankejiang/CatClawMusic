@@ -331,6 +331,13 @@ class PlayerController(
         scope.launch { runCatching { cache.getOrCreate(upcoming.filePath) } }
     }
 
+    /**
+     * 每开始一次聆听回调一次。:core 不碰数据库，所以由 :data 侧（服务）接给播放历史记录器。
+     * 判定规则在 [ListenCounter] —— 挂错地方要么虚高要么漏记，两种都静默。
+     */
+    var onListenStarted: ((Int) -> Unit)? = null
+    private val listens = ListenCounter()
+
     private fun publish(current: Song? = queue.currentSong, error: String? = null) {
         _state.value = _state.value.copy(
             currentSong = current,
@@ -343,6 +350,13 @@ class PlayerController(
         )
         val s = _state.value
         Log.i(TAG, "state song=${current?.id} mode=${s.mode} playing=${s.isPlaying} size=${s.queueSize} err=$error")
+        // 没接监听器时**不许**推进计数器：否则 restore() 那一次 publish 就把当前歌"用掉"了，
+        // 之后同一首再怎么播都不会再记 —— 真机上就是这么漏的（队列里恢复出的歌与用户点的正是同一首）
+        val listener = onListenStarted
+        if (listener != null) {
+            if (s.queueSize == 0) listens.onQueueCleared()
+            listens.onPublish(current?.id ?: 0, s.isPlaying)?.let { id -> listener(id) }
+        }
     }
 
     fun save() {

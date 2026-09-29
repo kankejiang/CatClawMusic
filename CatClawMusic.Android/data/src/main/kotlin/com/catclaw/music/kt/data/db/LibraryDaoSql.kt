@@ -68,6 +68,22 @@ internal const val SQL_SEARCH_SONGS = """
 internal const val SQL_CACHED_BYTES = "SELECT COALESCE(SUM(FileSize), 0) FROM CachedSongs"
 
 /**
+ * 记一次聆听时对那一行的刷新。
+ *
+ * 单独拿出来是因为 `PlayHistory` 上**没有** SongId 唯一索引（参考 schema 里只是普通索引），
+ * "一首歌一行"没有任何数据库约束兜底，只能靠 `recordPlay` 那段读-改-写维持。
+ */
+internal const val SQL_TOUCH_HISTORY =
+    "UPDATE PlayHistory SET PlayedAt = :playedAt, PlayCount = :playCount WHERE Id = :id"
+
+/** 历史只留最近 keep 行（C# `TrimHistoryAsync(200)`）。次级键 Id DESC 让并列时的取舍确定下来 */
+internal const val SQL_TRIM_HISTORY = """
+    DELETE FROM PlayHistory WHERE Id NOT IN (
+        SELECT Id FROM PlayHistory ORDER BY PlayedAt DESC, Id DESC LIMIT :keep
+    )
+"""
+
+/**
  * 播放会话裁剪：只保留最近 keep 条。
  *
  * 加了次级键 `Id DESC`，把并列时的顺序从"依赖排序器的偶然行为"变成显式保证

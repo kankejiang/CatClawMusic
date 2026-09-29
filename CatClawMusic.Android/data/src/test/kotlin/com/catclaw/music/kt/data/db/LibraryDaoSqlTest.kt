@@ -257,4 +257,59 @@ class LibraryDaoSqlTest {
             emptyList<Int>(), idsOf(SQL_SONGS_OF_ALBUM, 21),
         )
     }
+
+    // ── recordPlay ──────────────────────────────────────────────
+
+    /** 与 `LibraryDao.recordPlay` 同一段读-改-写。PlayHistory 上没有唯一索引，"一行一歌"全靠这段维持 */
+    private fun recordPlay(songId: Int, nowSeconds: Long) {
+        val row = db.prepareStatement("SELECT Id, PlayCount FROM PlayHistory WHERE SongId = ? LIMIT 1")
+            .apply { setInt(1, songId) }.executeQuery()
+        val id: Int
+        val count: Int
+        row.apply { id = if (next()) getInt("Id") else -1; count = if (id > 0) getInt("PlayCount") else 0 }.close()
+        if (id > 0) {
+            // 具名参数按出现顺序换成位置参数：playedAt、playCount、id
+            db.prepareStatement(
+                SQL_TOUCH_HISTORY.replace(":playedAt", "?").replace(":playCount", "?").replace(":id", "?"),
+            ).apply {
+                setLong(1, nowSeconds); setInt(2, count + 1); setInt(3, id)
+            }.executeUpdate()
+        } else {
+            db.prepareStatement("INSERT INTO PlayHistory (SongId, PlayedAt, PlayCount) VALUES (?,?,1)").apply {
+                setInt(1, songId); setLong(2, nowSeconds)
+            }.executeUpdate()
+        }
+    }
+
+    private fun historyRows(): List<Triple<Int, Long, Int>> =
+        db.createStatement().executeQuery("SELECT SongId, PlayedAt, PlayCount FROM PlayHistory ORDER BY SongId")
+            .let { rs ->
+                generateSequence {
+                    if (rs.next()) Triple(rs.getInt("SongId"), rs.getLong("PlayedAt"), rs.getInt("PlayCount")) else null
+                }.toList()
+            }
+
+    @Test
+    fun recordPlayKeepsOneRowPerSongAndOnlyThenIncrements() {
+        recordPlay(7, 100L)
+        recordPlay(7, 200L)
+        recordPlay(8, 300L)
+
+        assertEquals(
+            "同一首歌两次聆听必须落在同一行上刷新（否则常听排行会把重复行当多首歌）",
+            listOf(Triple(7, 200L, 2), Triple(8, 300L, 1)), historyRows(),
+        )
+    }
+
+    @Test
+    fun trimHistoryKeepsTheMostRecentRows() {
+        recordPlay(1, 10L); recordPlay(2, 20L); recordPlay(3, 30L); recordPlay(4, 40L)
+        db.prepareStatement(SQL_TRIM_HISTORY.replace(":keep", "?")).apply { setInt(1, 2) }.executeUpdate()
+
+        assertEquals(
+            "裁剪按 PlayedAt 倒序保留：留下的是最新的两首，不是最早插入的两首",
+            listOf(3, 4), historyRows().map { it.first },
+        )
+        assertEquals("留下的时间戳", listOf(30L, 40L), historyRows().map { it.second }.sorted())
+    }
 }

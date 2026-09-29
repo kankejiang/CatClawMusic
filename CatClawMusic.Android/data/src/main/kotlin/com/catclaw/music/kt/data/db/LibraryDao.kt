@@ -235,6 +235,33 @@ interface LibraryDao {
     @Query("SELECT * FROM PlayHistory ORDER BY PlayedAt DESC LIMIT :limit")
     suspend fun recentHistory(limit: Int): List<PlayHistoryEntity>
 
+    @Query("SELECT * FROM PlayHistory WHERE SongId = :songId LIMIT 1")
+    suspend fun historyOf(songId: Int): PlayHistoryEntity?
+
+    @Query(SQL_TOUCH_HISTORY)
+    suspend fun touchHistory(id: Int, playedAt: Long, playCount: Int)
+
+    @Query(SQL_TRIM_HISTORY)
+    suspend fun trimHistory(keep: Int)
+
+    /**
+     * 记一次聆听 —— 语义照 C# `RecordPlayAsync`：一首歌只留一行，
+     * 有行就刷新 PlayedAt 并把 PlayCount +1，没行就建一条，然后把整表裁到最近 200 行。
+     *
+     * ⚠ "一行一歌"没有数据库约束兜底（PlayHistory 上只有普通索引），全靠这段读-改-写维持，
+     * 所以必须整体跑在事务里 —— 这就是 C# 那把 `SemaphoreSlim` 在本端的对应物。
+     */
+    @Transaction
+    suspend fun recordPlay(songId: Int, nowSeconds: Long) {
+        val existing = historyOf(songId)
+        if (existing == null) {
+            insertHistory(PlayHistoryEntity(songId = songId, playedAt = nowSeconds, playCount = 1))
+        } else {
+            touchHistory(existing.id, nowSeconds, existing.playCount + 1)
+        }
+        trimHistory(200)
+    }
+
     /** 收藏列表（AI 工具 get_favorite_songs 用），投影与 [observeLocalSongs] 同一套 JOIN */
     @Query(
         """
@@ -255,6 +282,10 @@ interface LibraryDao {
     /** 最近播放过的歌：按 PlayHistory 时间对歌去重后取前 N 首 */
     @Query(SQL_RECENT_SONGS)
     suspend fun recentSongs(limit: Int): List<SongListItem>
+
+    /** 同一张列表的响应式版本：PlayHistory 一变就重查，所以"最近播放"入口的计数不会停在进页那一刻 */
+    @Query(SQL_RECENT_SONGS)
+    fun observeRecentSongs(limit: Int): Flow<List<SongListItem>>
 
     // ── 发现页（MAUI 的 SearchPage）用的三条查询 ──
 
