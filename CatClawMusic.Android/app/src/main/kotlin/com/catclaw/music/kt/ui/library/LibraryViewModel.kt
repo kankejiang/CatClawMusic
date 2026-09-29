@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.audio.AudioCache
+import com.catclaw.music.kt.core.library.SongSortFields
+import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.db.SongListItem
@@ -85,53 +88,20 @@ class LibraryViewModel @Inject constructor(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
-    /**
-     * 全部歌曲页的排序档 —— MAUI `AllSongsViewModel` 的 SortOptions。
-     *
-     * 没有「按播放次数」那一档：`SongListItem` 里不带 PlayCount，为它给每条列表 SQL 加一列
-     * 不划算，而摆一个排不动的 chip 比少摆一档更糟。
-     */
-    enum class SongSort { Title, Artist, Album, Duration, DateAdded }
-
-    private val _songSort = MutableStateFlow(SongSort.Title)
+    private val _songSort = MutableStateFlow(SongSortKey.Title)
     val songSort = _songSort.asStateFlow()
 
     private val _songQuery = MutableStateFlow("")
     val songQuery = _songQuery.asStateFlow()
 
-    /**
-     * 页面上真正显示的那份列表：先按搜索框过滤，再按档位排。
-     *
-     * 过滤与排序都在内存里做 —— 这库本来就已经全量在 [songs] 里（列表页要显示总数、
-     * 点一行要"从该位置起播这张列表"），为排序再发一条 SQL 只是多一次全表扫，
-     * 还会让"看到的顺序"和"点下去播的顺序"来自两处。
-     */
+    /** 页面上真正显示的那份列表。过滤与排序的规则在 `:core`（[filterAndSortSongs]），这里只接线 */
     val displaySongs = combine(songs, _songSort, _songQuery) { list, sort, query ->
-        val q = query.trim()
-        val filtered = if (q.isEmpty()) {
-            list
-        } else {
-            list.filter {
-                it.title.contains(q, ignoreCase = true) ||
-                    it.artist.contains(q, ignoreCase = true) ||
-                    it.album.contains(q, ignoreCase = true)
-            }
-        }
-        when (sort) {
-            // 大小写折叠后再比：不然 "call" 与 "Call" 会分成两段，看起来像排错了
-            SongSort.Title -> filtered.sortedBy { it.title.lowercase() }
-            SongSort.Artist -> filtered.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
-            SongSort.Album -> filtered.sortedWith(compareBy({ it.album.lowercase() }, { it.title.lowercase() }))
-            SongSort.Duration -> filtered.sortedByDescending { it.durationSeconds }
-            // 入库时间：MAUI `AllSongsViewModel` 的 "added" 档。同一天入库的歌很多（一次扫描全在同一秒），
-            // 只按 DateAdded 排会出现"每次看顺序都可能不同"的错觉，所以补 Id 倒序当第二键
-            SongSort.DateAdded -> filtered.sortedWith(
-                compareByDescending<SongListItem> { it.dateAdded }.thenByDescending { it.id },
-            )
+        filterAndSortSongs(list, sort, query) {
+            SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun setSongSort(sort: SongSort) {
+    fun setSongSort(sort: SongSortKey) {
         _songSort.value = sort
     }
 

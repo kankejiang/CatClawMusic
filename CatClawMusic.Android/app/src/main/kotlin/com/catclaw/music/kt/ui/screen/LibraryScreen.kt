@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import com.catclaw.music.kt.core.library.SongSortKey
 import com.catclaw.music.kt.core.model.SongDetailFormat
 import com.catclaw.music.kt.ui.stats.ListeningStatsScreen
 import androidx.compose.runtime.remember
@@ -478,7 +479,7 @@ fun LibraryListScreen(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                LibraryViewModel.SongSort.entries.forEach { mode ->
+                SongSortKey.entries.forEach { mode ->
                     GlassChip(
                         label = stringResource(sortLabelRes(mode)),
                         selected = sort == mode,
@@ -667,14 +668,14 @@ private fun EmptyHint(text: String) {
     }
 }
 
-/** 排序 chip 的文案。四档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
+/** 排序 chip 的文案。五档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
 @StringRes
-internal fun sortLabelRes(sort: LibraryViewModel.SongSort): Int = when (sort) {
-    LibraryViewModel.SongSort.Title -> R.string.sort_title
-    LibraryViewModel.SongSort.Artist -> R.string.sort_artist
-    LibraryViewModel.SongSort.Album -> R.string.sort_album
-    LibraryViewModel.SongSort.Duration -> R.string.sort_duration
-    LibraryViewModel.SongSort.DateAdded -> R.string.sort_date_added
+internal fun sortLabelRes(sort: SongSortKey): Int = when (sort) {
+    SongSortKey.Title -> R.string.sort_title
+    SongSortKey.Artist -> R.string.sort_artist
+    SongSortKey.Album -> R.string.sort_album
+    SongSortKey.Duration -> R.string.sort_duration
+    SongSortKey.DateAdded -> R.string.sort_date_added
 }
 
 /**
