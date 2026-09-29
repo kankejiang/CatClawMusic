@@ -3,11 +3,10 @@ package com.catclaw.music.kt.data.playback
 import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.core.stats.PlayStatRules
 import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.data.di.IoScope
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -16,6 +15,7 @@ import kotlinx.coroutines.launch
  * 为什么要有这个类：`PlayerController` 在 `:core`，那里没有数据库也不该有；
  * 而回调又是 fire-and-forget 的，不能让用户点下去等一次磁盘写。
  * 所以 :core 只发信号，落库、开 IO 协程都在这层。
+ * 传进来的 [scope] 必须是**单 worker**的，理由见 `IoScopeModule`（并发的 record 会把会话 id 记错）。
  *
  * 这条链子此前是断的：`PlayHistory` 只有备份恢复会写，播放从来不记，
  * 于是「最近播放」和「常听排行」永远是空的 —— 而查询、页面、编译、测试全都是绿的。
@@ -23,9 +23,8 @@ import kotlinx.coroutines.launch
 @Singleton
 class PlayHistoryRecorder @Inject constructor(
     private val dao: LibraryDao,
+    @IoScope private val scope: CoroutineScope,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     /** 当前会话。四个字段一起变，所以统一在 [lock] 下读写 */
     private val lock = Any()
     private var sessionSongId = 0
