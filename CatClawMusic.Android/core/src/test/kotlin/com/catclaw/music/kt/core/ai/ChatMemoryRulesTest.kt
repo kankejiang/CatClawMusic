@@ -120,6 +120,48 @@ class ChatMemoryRulesTest {
     }
 
     @Test
+    fun parseExtractedToleratesWhatModelsActuallyReturn() {
+        val clean = ChatMemoryRules.parseExtracted(
+            """[{"id":"a1","category":"habit","content":"深夜听摇滚","importance":8}]""",
+            now = 1000L,
+        ) { 1 }
+        assertEquals(1, clean.size)
+        assertEquals("a1", clean.first().id)
+        assertEquals("habit", clean.first().category)
+        assertEquals(8, clean.first().importance)
+
+        // 模型常把 JSON 夹在解释文字与 ``` 围栏里：取第一个 [ 到最后一个 ]
+        val fenced = ChatMemoryRules.parseExtracted(
+            "好的，我提取到这些：\n```json\n[{\"content\":\"喜欢粤语歌\"}]\n```\n以上。",
+            now = 2L,
+        ) { 7 }
+        assertEquals("围栏与前后解释都不该挡住解析", 1, fenced.size)
+        assertEquals("缺 id 时要造一个 8 位十六进制", 8, fenced.first().id.length)
+        assertEquals("缺 importance 用默认值", ChatMemoryRules.DEFAULT_IMPORTANCE, fenced.first().importance)
+        assertEquals("缺 category 归到偏好", "preference", fenced.first().category)
+
+        // 一次回答里出现两个数组时，"第一个 [ 到最后一个 ]"跨出来的不是合法 JSON —— 于是什么都不记。
+        // 这是 C# 同一条取法的既有行为，宁可少记也不猜：模型吐两段数组本身就说明它没在按格式回答。
+        assertTrue(
+            ChatMemoryRules.parseExtracted("[] 先给个空的\n[{\"content\":\"这条其实读不到\"}]", 2L) { 7 }.isEmpty(),
+        )
+    }
+
+    @Test
+    fun parseExtractedDropsBadRowsInsteadOfTheWholeBatch() {
+        val mixed = ChatMemoryRules.parseExtracted(
+            """[{"content":"留着","importance":"9"},{"content":"   "},{"nope":1}]""",
+            now = 3L,
+        ) { 5 }
+        assertEquals("空内容与没有 content 的条目丢掉，其余照收", listOf("留着"), mixed.map { it.content })
+        assertEquals("importance 写成字符串也要认", 9, mixed.first().importance)
+
+        assertTrue(ChatMemoryRules.parseExtracted("没有数组", 1L) { 1 }.isEmpty())
+        assertTrue(ChatMemoryRules.parseExtracted("[{坏掉的 json", 1L) { 1 }.isEmpty())
+        assertTrue(ChatMemoryRules.parseExtracted("[]", 1L) { 1 }.isEmpty())
+    }
+
+    @Test
     fun recordableAndIdRules() {
         assertTrue(ChatMemoryRules.isRecordable("有内容"))
         assertFalse(ChatMemoryRules.isRecordable("  "))

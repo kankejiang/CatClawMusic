@@ -1,5 +1,9 @@
 package com.catclaw.music.kt.core.ai
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlin.math.max
 import kotlin.math.min
 
@@ -135,4 +139,47 @@ object ChatMemoryRules {
         }
         return candidate
     }
+
+    /**
+     * 解析模型返回的提炼结果。
+     *
+     * 这是"外来输入"的边界，所以按最脏的情况写：模型会在 JSON 前后加解释文字、
+     * 用 ```json 围栏包起来、把 importance 写成字符串、少给字段、多给字段。
+     * 判据是 C# `ProcessExtractedMemoryAsync` 的那几条：取第一个 `[` 到最后一个 `]`，
+     * 逐条宽松取值，**任何一条解析失败就丢掉那一条**，而不是让整批记忆陪葬。
+     *
+     * @param now 新条目的创建时间
+     * @param nextId 造 id 的随机源（测试里给确定值）
+     */
+    fun parseExtracted(text: String, now: Long, nextId: () -> Int): List<Item> {
+        val start = text.indexOf('[')
+        val end = text.lastIndexOf(']')
+        if (start < 0 || end <= start) return emptyList()
+        val array = runCatching { Json.parseToJsonElement(text.substring(start, end + 1)).jsonArray }.getOrNull()
+            ?: return emptyList()
+        val taken = ArrayList<Item>(array.size)
+        val used = HashSet<String>()
+        array.forEach { element ->
+            val obj = element as? JsonObject ?: return@forEach
+            val content = obj.string("content")?.trim().orEmpty()
+            if (content.isEmpty()) return@forEach
+            val givenId = obj.string("id")?.trim().orEmpty()
+            val id = givenId.ifEmpty { newId(used, nextId) }
+            used += id
+            taken += Item(
+                id = id,
+                category = obj.string("category")?.trim().orEmpty().ifEmpty { CATEGORY_PREFERENCE },
+                content = content,
+                importance = clampImportance(obj.number("importance") ?: DEFAULT_IMPORTANCE),
+                createdAt = now,
+            )
+        }
+        return taken
+    }
+
+    /** 值可能是 `"7"` 这种字符串形态，也可能真是数字 */
+    private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)
+        ?.takeIf { it.content != "null" }?.content
+
+    private fun JsonObject.number(key: String): Int? = string(key)?.trim()?.toIntOrNull()
 }
