@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -95,6 +96,20 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
         onRemoveFromPlaylist = { viewModel.removeItem(it) },
         onOpenDetail = { songDetailId = it },
     )
+    // 这四层整屏覆盖层各自画了返回方块，系统返回键必须逐层退掉而不是直接退出应用
+    // （真机验过：在歌单详情按返回是掉回桌面）。组合在后的优先，所以按「下层 → 上层」排。
+    // 歌单详情这一层别漏：它是 VM 的 openId，不像另外三层是页面里的 var
+    BackHandler(enabled = openId != null) { viewModel.close() }
+    BackHandler(enabled = entry != null) { entry = null }
+    BackHandler(enabled = belongsDetail != null) { belongsDetail = null }
+    BackHandler(enabled = songDetailId != null) { songDetailId = null }
+
+    // 早退结构里**先命中的那一块才是看得见的那一层**：歌曲信息必须排在歌手/专辑层之前判。
+    // 之前是 belongsDetail 在前，于是在歌手页点「歌曲信息」把 id 存好了却仍然画歌手页——纹丝不动
+    songDetailId?.let { id ->
+        SongDetailScreen(songId = id, load = { libraryViewModel.songDetail(it) }, onBack = { songDetailId = null })
+        return
+    }
     belongsDetail?.let { d ->
         LibraryDetailScreen(
             detail = d,
@@ -109,11 +124,6 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val open = openId?.let { id -> playlists.firstOrNull { it.id == id } }
-
-    songDetailId?.let { id ->
-        SongDetailScreen(songId = id, load = { libraryViewModel.songDetail(it) }, onBack = { songDetailId = null })
-        return
-    }
     entry?.let { kind ->
         PlaylistEntryScreen(
             kind = kind,

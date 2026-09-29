@@ -220,14 +220,31 @@ class VisualLanguageTest {
      */
     @Test
     fun `整屏覆盖层都接住系统返回键`() {
-        // 播放页那两层承载的是 id 而不是布尔（`songDetailId?.let` 形状），上面的正则抓不到，就按名字点名：
-        // 它们各自画了 BackTile，就必须也接住系统返回键，否则按返回直接退出应用
-        val playing = File(uiRoot, "screen/PlayingScreen.kt").readText()
-        assertTrue(
-            "播放页的歌手/专辑层与歌曲信息层要各自接住系统返回键",
-            Regex("""BackHandler\(enabled = belongsDetail != null""").containsMatchIn(playing) &&
-                Regex("""BackHandler\(enabled = songDetailId != null""").containsMatchIn(playing),
+        // 页内那几层承载的是 id / 对象而不是布尔（`songDetailId?.let` 形状），下面的正则抓不到，
+        // 就按名字点名：它们各自画了 BackTile，就必须也接住系统返回键，否则按返回直接退出应用
+        // （本轮就是在歌单详情按返回掉回模拟器桌面，才顺手把这三页一起点名）
+        val inPageLayers = mapOf(
+            "screen/PlayingScreen.kt" to listOf("songDetailId", "belongsDetail"),
+            "screen/PlaylistScreen.kt" to listOf("openId", "entry", "belongsDetail", "songDetailId"),
+            "screen/LibraryScreen.kt" to listOf("opened", "detail", "songDetailId"),
         )
+        val unhandled = inPageLayers.flatMap { (rel, flags) ->
+            val text = File(uiRoot, rel).readText()
+            flags.filterNot { Regex("""BackHandler\(enabled = $it != null""").containsMatchIn(text) }
+                .map { "$rel:$it" }
+        }
+        assertTrue("页内整屏层画了返回方块却不接系统返回键: $unhandled", unhandled.isEmpty())
+
+        // 早退结构里**先命中的那块才是看得见的那一层**：歌曲信息必须排在歌手/专辑层之前判。
+        // 歌单页此前正排反了——在歌手页点「歌曲信息」把 id 存好了却仍然画歌手页，纹丝不动
+        val playlist = File(uiRoot, "screen/PlaylistScreen.kt").readText()
+        val songAt = playlist.indexOf("songDetailId?.let")
+        val belongsAt = playlist.indexOf("belongsDetail?.let")
+        assertTrue(
+            "PlaylistScreen 里 songDetailId?.let 必须排在 belongsDetail?.let 之前（song=$songAt belongs=$belongsAt）",
+            songAt >= 0 && belongsAt >= 0 && songAt < belongsAt,
+        )
+
         val files = listOf("CatClawRoot.kt", "screen/SearchScreen.kt")
         val offenders = files.flatMap { rel ->
             val lines = File(uiRoot, rel).readText().lines()

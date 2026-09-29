@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -91,6 +92,11 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     var detail by remember { mutableStateOf<LibraryDetail?>(null) }
     // 歌曲详情是整页，托管在页面这一层而不是列表里：否则它会叠在列表页头下面，出现两个返回键
     var songDetailId by remember { mutableStateOf<Int?>(null) }
+    // 三层都是页内整屏层，各自画了返回方块：系统返回键要逐层退，不能一把退出应用。
+    // 组合在后的优先，所以按「下层 → 上层」排（早退块也是这个顺序，先命中的才是看得见的那层）
+    BackHandler(enabled = opened != null) { opened = null }
+    BackHandler(enabled = detail != null) { detail = null }
+    BackHandler(enabled = songDetailId != null) { songDetailId = null }
     songDetailId?.let { id ->
         SongDetailScreen(songId = id, load = { viewModel.songDetail(it) }, onBack = { songDetailId = null })
         return
