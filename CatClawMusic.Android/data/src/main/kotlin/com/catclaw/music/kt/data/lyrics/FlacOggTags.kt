@@ -32,10 +32,13 @@ internal object OggTag {
 
     private val MARKER = byteArrayOf(3, 'v'.code.toByte(), 'o'.code.toByte(), 'r'.code.toByte(), 'b'.code.toByte(), 'i'.code.toByte(), 's'.code.toByte())
 
-    fun lyrics(head: ByteArray): String? {
+    fun lyrics(head: ByteArray): String? = commentPacket(head)?.let { VorbisTag.lyrics(it) }
+
+    /** comment 包（魔数之后到窗口末尾）；远程补元数据解文本字段走的是同一个包 */
+    fun commentPacket(head: ByteArray): ByteArray? {
         val index = indexOfMarker(head)
         if (index < 0) return null
-        return VorbisTag.lyrics(head.copyOfRange(index + MARKER.size, head.size))
+        return head.copyOfRange(index + MARKER.size, head.size)
     }
 
     private fun indexOfMarker(head: ByteArray): Int {
