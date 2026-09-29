@@ -49,17 +49,6 @@ class AppearanceSettings @Inject constructor(
         prefs.edit().putInt(KEY_STARTUP, v).apply()
     }
 
-    /**
-     * 透明度夹在 0.1..1.0（`ThemeService.cs:217`）。
-     * 两端一致地**只存不渲染**：C# 侧没有把它接进背景绘制，本端也没有。
-     * 保留是因为自定义背景图那条路径会顺带写它，删了会让"选图"这一步少一个入参。
-     */
-    fun setBackgroundOpacity(value: Float) {
-        val v = value.coerceIn(0.1f, 1f)
-        _bgOpacity.value = v
-        prefs.edit().putFloat(KEY_BG_OPACITY, v).apply()
-    }
-
     fun setCustomBackground(path: String?, opacity: Float = _bgOpacity.value) {
         val v = opacity.coerceIn(0.1f, 1f)
         _customBgPath.value = path
@@ -119,7 +108,6 @@ class AppearanceSettings @Inject constructor(
     companion object {
         const val DEFAULT_STARTUP = 2
         const val DEFAULT_BG_OPACITY = 0.5f
-        val STARTUP_LABELS = listOf("音乐库", "探索", "播放")
 
         /** 启动页选项 → ViewPager 页号；0 音乐库→4、1 探索→2、2 播放→1（歌单一档在 C# 里到不了） */
         fun startupToPagerPage(index: Int): Int = when (index) {

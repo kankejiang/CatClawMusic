@@ -29,9 +29,6 @@ interface ChatDao {
     /** 裁掉最旧的多余部分，只保留最近 keep 条（C# `TrimChatMessagesAsync` 同做法） */
     @Query(SQL_TRIM_KEEPING_NEWEST)
     suspend fun trimKeepingNewest(keep: Int)
-
-    @Query("DELETE FROM ChatMessageRecord")
-    suspend fun clearAll()
 }
 
 /**

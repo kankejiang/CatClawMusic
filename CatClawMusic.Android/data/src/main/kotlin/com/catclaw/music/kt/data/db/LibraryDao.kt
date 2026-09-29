@@ -65,9 +65,6 @@ interface LibraryDao {
     @Query("SELECT * FROM Songs WHERE Id = :id")
     suspend fun songById(id: Int): SongEntity?
 
-    @Query("SELECT * FROM Songs WHERE FilePath = :path LIMIT 1")
-    suspend fun songByPath(path: String): SongEntity?
-
     /** 猫爪服务器同步按 C# 的做法用 FilePath 去重（`GetLocalSongPathModTimesAsync` 的键集） */
     @Query("SELECT FilePath FROM Songs")
     suspend fun songPaths(): List<String>
@@ -163,17 +160,11 @@ interface LibraryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAlbum(album: AlbumEntity): Long
 
-    @Upsert
-    suspend fun upsertSongArtist(link: SongArtistEntity)
-
     @Query("SELECT Id FROM Artists WHERE Name = :name LIMIT 1")
     suspend fun artistIdByName(name: String): Int?
 
     @Query("SELECT Id FROM Albums WHERE Title = :title AND ArtistId = :artistId LIMIT 1")
     suspend fun albumIdByTitle(title: String, artistId: Int): Int?
-
-    @Query("UPDATE Songs SET CoverArtPath = :path WHERE Id = :id")
-    suspend fun setCoverPath(id: Int, path: String?)
 
     @Query("UPDATE Songs SET LyricsPath = :path WHERE Id = :id")
     suspend fun setLyricsPath(id: Int, path: String?)
@@ -184,9 +175,6 @@ interface LibraryDao {
 
     @Query("DELETE FROM SongArtists WHERE SongId NOT IN (SELECT Id FROM Songs)")
     suspend fun pruneSongArtists()
-
-    @Query("SELECT Id AS id, FilePath AS filePath FROM Songs WHERE Source = 0")
-    suspend fun localPaths(): List<SongPath>
 
     // ── 收藏 ──
 
@@ -225,15 +213,6 @@ interface LibraryDao {
 
     @Insert
     suspend fun insertHistory(entry: PlayHistoryEntity): Long
-
-    @Insert
-    suspend fun insertSession(entry: PlaySessionEntity): Long
-
-    @Upsert
-    suspend fun upsertDailyPlayStat(entry: DailyPlayStatEntity)
-
-    @Query("SELECT * FROM PlayHistory ORDER BY PlayedAt DESC LIMIT :limit")
-    suspend fun recentHistory(limit: Int): List<PlayHistoryEntity>
 
     @Query("SELECT * FROM PlayHistory WHERE SongId = :songId LIMIT 1")
     suspend fun historyOf(songId: Int): PlayHistoryEntity?
@@ -379,11 +358,6 @@ interface LibraryDao {
     /** 专辑下钻页的歌，按曲目号排 */
     @Query(SQL_SONGS_OF_ALBUM)
     suspend fun songsOfAlbum(albumId: Int): List<SongListItem>
-
-    @Transaction
-    suspend fun upsertSongArtistPair(songId: Int, artistId: Int) {
-        upsertSongArtist(SongArtistEntity(songId = songId, artistId = artistId))
-    }
 }
 
 /** 歌曲详情：基本信息 + 文件与音质 + 播放次数，字段口径与 C# 详情页一致 */
@@ -410,8 +384,6 @@ data class SongDetailRow(
 
 /** 播放统计：播过的歌数 + 总播放次数 */
 data class PlayStats(val songsPlayed: Int, val totalPlays: Int)
-
-data class SongPath(val id: Int, val filePath: String)
 
 data class NameId(val id: Int, val name: String)
 

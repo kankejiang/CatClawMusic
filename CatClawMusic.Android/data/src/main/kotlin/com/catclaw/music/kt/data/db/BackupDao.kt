@@ -59,9 +59,6 @@ interface BackupDao {
     @Query("DELETE FROM ChatMessageRecord")
     suspend fun clearChat()
 
-    @Query("SELECT * FROM ChatMessageRecord ORDER BY Id ASC")
-    suspend fun allChat(): List<ChatMessageEntity>
-
     @Query("SELECT Name FROM Artists ORDER BY Name")
     suspend fun artistNames(): List<String>
 }
