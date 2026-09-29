@@ -53,6 +53,7 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.theme.AppearanceMode
 import com.catclaw.music.kt.ui.settings.AppLocale
 import com.catclaw.music.kt.ui.settings.BackupRestoreScreen
+import com.catclaw.music.kt.ui.settings.DiagnosticLogScreen
 import com.catclaw.music.kt.ui.settings.AboutScreen
 import com.catclaw.music.kt.ui.settings.PermissionManagementScreen
 import com.catclaw.music.kt.ui.settings.AiSettingsScreen
@@ -71,7 +72,7 @@ import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 
 /** MAUI `SettingsPage` 是枢纽 + push 子页；这里用同一份状态在整屏之间切换 */
-private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, About }
+private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About }
 
 /** M4 壳层：设置枢纽页。语言切换以自己的 SharedPreferences 为事实来源（那台 MIUI 没有 locale_manager 服务），51 个语言全在包里。 */
 @Composable
@@ -92,6 +93,7 @@ fun SettingsScreen(
         SettingsDest.Backup -> BackupRestoreScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Permission -> PermissionManagementScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.About -> AboutScreen(onBack = { dest = SettingsDest.Hub })
+        SettingsDest.DiagnosticLog -> DiagnosticLogScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Hub -> Unit
     }
     if (dest != SettingsDest.Hub) return
@@ -234,6 +236,13 @@ fun SettingsScreen(
             title = stringResource(R.string.Permissions),
             desc = stringResource(R.string.PermissionsSubtitle),
             onClick = { dest = SettingsDest.Permission },
+        )
+        HubRow(
+            iconRes = R.drawable.ic_info,
+            tileArgb = 0x1A7ED8C3L,
+            title = stringResource(R.string.diagnostic_title),
+            desc = stringResource(R.string.diagnostic_subtitle),
+            onClick = { dest = SettingsDest.DiagnosticLog },
         )
         HubRow(
             iconRes = R.drawable.ic_info,
@@ -766,7 +775,7 @@ private fun ClickableRow(title: String, value: String, hint: String, onClick: ()
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     val palette = LocalCatClawPalette.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),

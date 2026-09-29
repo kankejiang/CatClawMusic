@@ -194,4 +194,14 @@
     <string name="playlist_entry_favorites">收藏</string>
     <string name="playlist_entry_recent">最近播放</string>
     <string name="recent_empty_hint">还没有播放记录。去音乐库里点一首歌。</string>
+    <string name="diagnostic_title">诊断日志</string>
+    <string name="diagnostic_subtitle">记录运行细节，便于排查问题。日志只写在本应用目录下。</string>
+    <string name="diagnostic_enable_title">写入诊断日志</string>
+    <string name="diagnostic_enable_desc">默认关闭。开启后才会把运行细节写进文件。</string>
+    <string name="diagnostic_refresh">刷新</string>
+    <string name="diagnostic_all">全部</string>
+    <string name="diagnostic_empty">暂无日志。</string>
+    <string name="diagnostic_disabled_hint">诊断日志未开启，开启后新产生的日志才会写进文件。</string>
+    <string name="diagnostic_path">文件：%1$s</string>
+    <string name="diagnostic_clear">清空</string>
 </resources>
