@@ -23,6 +23,7 @@ import com.catclaw.music.kt.data.remote.RemoteMetadataBackfiller
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -257,6 +258,47 @@ class RemoteViewModel @Inject constructor(
                     backfiller.run(profile) { done, total -> _progress.value = SyncProgress(done, total) }
                         .let { RemoteMessage.BackfillResult(it.total, it.updated, it.skipped, it.failed, it.elapsedMs) }
                 }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
+            } finally {
+                _progress.value = null
+                _busy.value = false
+            }
+        }
+    }
+
+    /**
+     * 一次把所有 WebDAV/SMB 连接补完，对位 C# `BackfillAllMetadataAsync`。
+     *
+     * 逐条按钮解决不了"换过一次 NAS、旧库里几千首全是 0:00"这种场景 ——
+     * 那要连着点十几条连接，而用户不知道哪几条有欠账。
+     * 进度沿用「每条连接各自从 0 走到满」的形状（C# 也是复用同一个状态栏），
+     * 结果把四条连接的数字合并成一句。
+     */
+    fun backfillAll() {
+        if (_busy.value) return
+        val targets = profiles.value.filter { it.protocol != ProtocolType.Navidrome }
+        if (targets.isEmpty()) return
+        viewModelScope.launch {
+            _busy.value = true
+            var total = 0
+            var updated = 0
+            var skipped = 0
+            var failed = 0
+            var elapsed = 0L
+            try {
+                targets.forEach { profile ->
+                    val one = backfiller.run(profile) { done, count -> _progress.value = SyncProgress(done, count) }
+                    total += one.total
+                    updated += one.updated
+                    skipped += one.skipped
+                    failed += one.failed
+                    elapsed += one.elapsedMs
+                }
+                _message.value = RemoteMessage.BackfillResult(total, updated, skipped, failed, elapsed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 中途断线：前面几条已经落库了，把已经攒到的数照实报出来
+                _message.value = RemoteMessage.Failed(e.message ?: e.javaClass.simpleName)
             } finally {
                 _progress.value = null
                 _busy.value = false

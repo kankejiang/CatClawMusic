@@ -76,6 +76,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
 
     /** 等确认的补全目标：只在对话框期间有值，按完就清空 */
     var backfillTarget by remember { mutableStateOf<ConnectionProfile?>(null) }
+    var confirmBackfillAll by remember { mutableStateOf(false) }
 
     var name by rememberSaveable { mutableStateOf("") }
     var host by rememberSaveable { mutableStateOf("") }
@@ -292,6 +293,51 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     }
                 }
             }
+        }
+
+        // MAUI 的「补全元数据」是一次把 WebDAV/SMB 连接全跑一遍；逐条按钮解决不了
+        // "换过一次 NAS、旧库里几千首全是 0:00"，因为用户不知道哪几条有欠账
+        val backfillable = profiles.filter { it.protocol != ProtocolType.Navidrome }
+        if (backfillable.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.remote_backfill_all_hint, backfillable.size),
+                    fontSize = 12.sp,
+                    color = secondary,
+                    modifier = Modifier.weight(1f),
+                )
+                PillButton(
+                    label = stringResource(R.string.remote_backfill_all),
+                    filled = false,
+                    enabled = !busy,
+                ) { confirmBackfillAll = true }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (confirmBackfillAll) {
+            AlertDialog(
+                onDismissRequest = { confirmBackfillAll = false },
+                containerColor = Color(palette.backgroundStops.last().argb),
+                title = { Text(stringResource(R.string.remote_backfill)) },
+                text = { Text(stringResource(R.string.remote_backfill_desc), color = Color(palette.textPrimary)) },
+                confirmButton = {
+                    PillLabel(
+                        text = stringResource(R.string.remote_backfill_start),
+                        onClick = {
+                            confirmBackfillAll = false
+                            viewModel.backfillAll()
+                        },
+                    )
+                },
+                dismissButton = {
+                    PillLabel(text = stringResource(R.string.Cancel), onClick = { confirmBackfillAll = false }, filled = false)
+                },
+            )
         }
 
         val editingProfile = editing
