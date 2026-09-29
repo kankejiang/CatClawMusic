@@ -97,6 +97,10 @@
     <string name="reset_all_settings_done">已重置 %1$d 项存储，重启后全部生效</string>
     <string name="playlist_name_taken">已有同名歌单，换一个名字</string>
     <string name="remote_import">导入曲库</string>
+    <string name="remote_backfill">补全元数据</string>
+    <string name="remote_backfill_desc">将逐首读取远程文件头部，解出时长、歌手、专辑与码率。歌曲较多时耗时较长，建议连 Wi-Fi 再执行。</string>
+    <string name="remote_backfill_start">开始补全</string>
+    <string name="remote_backfill_result">补全元数据：候选 %1$d 首，写入 %2$d 首，补不出 %3$d 首，失败 %4$d 首（%5$d ms）</string>
     <string name="remote_add_server">新增服务器</string>
     <string name="download">下载</string>
     <string name="download_cancel">取消下载</string>

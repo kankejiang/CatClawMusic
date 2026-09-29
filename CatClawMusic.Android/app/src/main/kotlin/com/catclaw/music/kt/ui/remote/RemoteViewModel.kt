@@ -19,6 +19,7 @@ import com.catclaw.music.kt.data.remote.RemoteFile
 import com.catclaw.music.kt.data.smb.SmbImporter
 import com.catclaw.music.kt.data.smb.SmbProbe
 import com.catclaw.music.kt.data.remote.SubsonicImporter
+import com.catclaw.music.kt.data.remote.RemoteMetadataBackfiller
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -43,6 +44,16 @@ sealed interface RemoteMessage {
     data object NeedHost : RemoteMessage
     data class TestResult(val ok: Boolean, val detail: String) : RemoteMessage
     data class SyncResult(val scanned: Int, val inserted: Int, val updated: Int, val elapsedMs: Long) : RemoteMessage
+
+    /** 补全元数据的结果：四个数分开报，「跳过」和「失败」不是一回事 */
+    data class BackfillResult(
+        val total: Int,
+        val updated: Int,
+        val skipped: Int,
+        val failed: Int,
+        val elapsedMs: Long,
+    ) : RemoteMessage
+
     data class Failed(val detail: String) : RemoteMessage
 }
 
@@ -57,6 +68,7 @@ class RemoteViewModel @Inject constructor(
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
     private val downloader: MusicDownloader,
+    private val backfiller: RemoteMetadataBackfiller,
 ) : ViewModel() {
 
     val downloadTasks = downloader.tasks
@@ -225,6 +237,27 @@ class RemoteViewModel @Inject constructor(
                 }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
             } finally {
                 // 失败也要把进度条收掉：留在页面上就是一条永远走不完的进度
+                _progress.value = null
+                _busy.value = false
+            }
+        }
+    }
+
+    /**
+     * 补全这条源里骨架行的元数据（时长、歌手、专辑、码率、年份、曲目号、类型）。
+     *
+     * 只对 WebDAV/SMB 提供：Subsonic 的曲清单本来就带着这些列，给它做这个按钮就是放假控件。
+     */
+    fun backfillMetadata(profile: ConnectionProfile) {
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            try {
+                _message.value = runCatching {
+                    backfiller.run(profile) { done, total -> _progress.value = SyncProgress(done, total) }
+                        .let { RemoteMessage.BackfillResult(it.total, it.updated, it.skipped, it.failed, it.elapsedMs) }
+                }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
+            } finally {
                 _progress.value = null
                 _busy.value = false
             }

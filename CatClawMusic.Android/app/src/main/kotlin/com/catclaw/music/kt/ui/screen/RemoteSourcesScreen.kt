@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -72,6 +73,9 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
 
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+
+    /** 等确认的补全目标：只在对话框期间有值，按完就清空 */
+    var backfillTarget by remember { mutableStateOf<ConnectionProfile?>(null) }
 
     var name by rememberSaveable { mutableStateOf("") }
     var host by rememberSaveable { mutableStateOf("") }
@@ -166,6 +170,14 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         it.elapsedMs,
                     )
                     is RemoteMessage.Failed -> stringResource(R.string.remote_failed, it.detail)
+                    is RemoteMessage.BackfillResult -> stringResource(
+                        R.string.remote_backfill_result,
+                        it.total,
+                        it.updated,
+                        it.skipped,
+                        it.failed,
+                        it.elapsedMs,
+                    )
                 },
                 fontSize = 12.sp,
                 color = Color(palette.textPrimary),
@@ -190,6 +202,33 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                 fontSize = 12.sp,
                 color = Color(palette.textPrimary),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+            )
+        }
+
+        // 补全是一次「逐首下载远程文件头」的长任务，MAUI 那边也是先问一句再动手
+        backfillTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { backfillTarget = null },
+                containerColor = Color(palette.backgroundStops.last().argb),
+                title = { Text(stringResource(R.string.remote_backfill)) },
+                text = {
+                    Text(
+                        "${target.name} · ${stringResource(R.string.remote_backfill_desc)}",
+                        color = Color(palette.textPrimary),
+                    )
+                },
+                confirmButton = {
+                    PillLabel(
+                        text = stringResource(R.string.remote_backfill_start),
+                        onClick = {
+                            backfillTarget = null
+                            viewModel.backfillMetadata(target)
+                        },
+                    )
+                },
+                dismissButton = {
+                    PillLabel(text = stringResource(R.string.Cancel), onClick = { backfillTarget = null }, filled = false)
+                },
             )
         }
 
@@ -226,6 +265,14 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
                         PillButton(label = stringResource(R.string.Test), filled = false) { viewModel.test(profile) }
                         PillButton(label = stringResource(R.string.remote_import), filled = true, enabled = !busy) { viewModel.import(profile) }
+                        // 只有 WebDAV/SMB 需要补：Subsonic 的清单本来就带这些列，摆出来就是假控件
+                        if (profile.protocol != ProtocolType.Navidrome) {
+                            PillButton(
+                                label = stringResource(R.string.remote_backfill),
+                                filled = false,
+                                enabled = !busy,
+                            ) { backfillTarget = profile }
+                        }
                         // 此前只能删了重填：改一个密码要把整条连接删掉，而删掉会连带丢 basePath
                         PillButton(label = stringResource(R.string.remote_edit), filled = false) {
                             editing = profile

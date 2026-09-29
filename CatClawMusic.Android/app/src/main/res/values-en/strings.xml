@@ -97,6 +97,10 @@
     <string name="reset_all_settings_done">Reset %1$d stores — restart to apply fully</string>
     <string name="playlist_name_taken">Another playlist already uses this name</string>
     <string name="remote_import">Import library</string>
+    <string name="remote_backfill">Complete metadata</string>
+    <string name="remote_backfill_desc">Reads the beginning of each remote file to recover duration, artist, album and bitrate. Large libraries take a while - Wi-Fi recommended.</string>
+    <string name="remote_backfill_start">Start</string>
+    <string name="remote_backfill_result">Metadata: %1$d candidates, %2$d written, %3$d without useful tags, %4$d failed (%5$d ms)</string>
     <string name="remote_add_server">Add server</string>
     <string name="download">Download</string>
     <string name="download_cancel">Cancel</string>
