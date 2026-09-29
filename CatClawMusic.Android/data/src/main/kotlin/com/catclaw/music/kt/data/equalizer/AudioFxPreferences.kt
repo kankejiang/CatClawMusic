@@ -18,10 +18,12 @@ data class AudioFxSettings(
     val bassBoost: Int = 0,
     /** 0..100，映射到响度增益 */
     val loudness: Int = 0,
+    /** 虚拟环绕声（原生 Virtualizer），开关型 */
+    val spatial: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean = other is AudioFxSettings &&
         enabled == other.enabled && preset == other.preset && bassBoost == other.bassBoost &&
-        loudness == other.loudness && gains.contentEquals(other.gains)
+        loudness == other.loudness && spatial == other.spatial && gains.contentEquals(other.gains)
 
     override fun hashCode(): Int =
         ((enabled.hashCode() * 31 + preset.hashCode()) * 31 + bassBoost) * 31 + loudness
@@ -63,12 +65,24 @@ class AudioFxPreferences @Inject constructor(
 
     fun setLoudness(value: Int) = write(_settings.value.copy(loudness = value.coerceIn(0, 100)))
 
+    fun setSpatial(value: Boolean) = write(_settings.value.copy(spatial = value))
+
+    /** 对齐 C# 的「重置」：曲线回平、空间/低频/响度归零，但**不动总开关** —— 用户刚关掉的东西不该被"重置"重新打开 */
+    fun reset() = write(
+        AudioFxSettings(
+            enabled = _settings.value.enabled,
+            preset = "flat",
+            gains = DoubleArray(bandCount),
+        ),
+    )
+
     private fun read(): AudioFxSettings = AudioFxSettings(
         enabled = prefs.getBoolean(KEY_ENABLED, false),
         preset = prefs.getString(KEY_PRESET, "flat") ?: "flat",
         gains = EqualizerRules.decodeGains(prefs.getString(KEY_GAINS, "").orEmpty(), bandCount),
         bassBoost = prefs.getInt(KEY_BASS, 0).coerceIn(0, 100),
         loudness = prefs.getInt(KEY_LOUDNESS, 0).coerceIn(0, 100),
+        spatial = prefs.getBoolean(KEY_SPATIAL, false),
     )
 
     private fun write(next: AudioFxSettings) {
@@ -79,6 +93,7 @@ class AudioFxPreferences @Inject constructor(
             .putString(KEY_GAINS, EqualizerRules.encodeGains(next.gains))
             .putInt(KEY_BASS, next.bassBoost)
             .putInt(KEY_LOUDNESS, next.loudness)
+            .putBoolean(KEY_SPATIAL, next.spatial)
             .apply()
     }
 
@@ -89,5 +104,6 @@ class AudioFxPreferences @Inject constructor(
         const val KEY_GAINS = "eq_band_gains"
         const val KEY_BASS = "eq_bass_boost"
         const val KEY_LOUDNESS = "eq_loudness"
+        const val KEY_SPATIAL = "eq_spatial"
     }
 }
