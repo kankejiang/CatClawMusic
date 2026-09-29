@@ -47,6 +47,15 @@ class PlayingViewModel @Inject constructor(
 
     val state = controller.state
 
+    /** 睡眠定时的实况（剩余秒、是否在等曲目播完）。倒计时与音量淡出都在播放器那一侧走，
+     *  页面只是读它——关掉页面定时也该继续。 */
+    val sleep = controller.sleep
+
+    fun startSleepTimer(minutes: Int, stopAfterSong: Boolean, fadeOut: Boolean) =
+        controller.startSleepTimer(minutes, stopAfterSong, fadeOut)
+
+    fun cancelSleepTimer() = controller.cancelSleepTimer()
+
     val queueSongs = controller.queueSongs.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

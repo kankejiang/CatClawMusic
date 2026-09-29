@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +55,8 @@ import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
 import com.catclaw.music.kt.ui.player.PlayerIcons
+import com.catclaw.music.kt.ui.player.SleepTimerDialog
+import com.catclaw.music.kt.ui.player.formatCountdown
 import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
@@ -71,6 +74,9 @@ fun PlayingScreen(
     val positionMs by viewModel.positionMs.collectAsStateWithLifecycle()
     val scanning by viewModel.busy.collectAsStateWithLifecycle()
     val lastScan by viewModel.lastScan.collectAsStateWithLifecycle()
+    // 定时跑在播放器那一侧，这里只是显示与开关；关掉这页它也该继续
+    val sleepState by viewModel.sleep.collectAsStateWithLifecycle()
+    var showSleepDialog by remember { mutableStateOf(false) }
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
 
@@ -258,7 +264,7 @@ fun PlayingScreen(
         }
 
         // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
-        // 这里放**已实现**的三个——定时与横屏在安卓侧还没有功能，
+        // 这里放**已实现**的四个——横屏与「更多」在安卓侧还没有功能，
         // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）；
         // 「详情」不在这排，它挂在歌曲长按菜单里（歌曲信息是歌曲的属性，不是播放页的属性）
         Row(
@@ -299,6 +305,30 @@ fun PlayingScreen(
                     .size(49.dp)
                     .clickable(onClick = onOpenSoundFx)
                     .padding(8.dp),
+            )
+            Icon(
+                imageVector = PlayerIcons.Timer,
+                contentDescription = if (sleepState.running) {
+                    stringResource(R.string.sleep_timer_running_desc, formatCountdown(sleepState.remainingSec))
+                } else {
+                    stringResource(R.string.sleep_timer_entry)
+                },
+                // 定时开着要用主色点出来：图标是唯一能看见它的地方（弹窗得点开才有）
+                tint = if (sleepState.running) Color(palette.primary) else Color(palette.textSecondary),
+                modifier = Modifier
+                    .size(49.dp)
+                    .clickable { showSleepDialog = true }
+                    .padding(8.dp),
+            )
+        }
+        if (showSleepDialog) {
+            SleepTimerDialog(
+                sleep = sleepState,
+                onStart = { minutes, stopAfterSong, fadeOut ->
+                    viewModel.startSleepTimer(minutes, stopAfterSong, fadeOut)
+                },
+                onCancel = { viewModel.cancelSleepTimer() },
+                onDismiss = { showSleepDialog = false },
             )
         }
 

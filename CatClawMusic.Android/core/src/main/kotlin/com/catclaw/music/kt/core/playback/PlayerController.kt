@@ -149,7 +149,7 @@ class PlayerController(
     private fun applyVolume() {
         // 设置一恢复就会调这里，播放器还没建时不该顺手把它建出来（start() 在主线程，构造有线程约束）
         if (!started) return
-        player.volume = CrossfadeRules.volumeOf(userVolume, xfadeFactor)
+        player.volume = CrossfadeRules.volumeOf(userVolume, xfadeFactor * sleepFactor)
     }
 
     /** 每个滴答推进一次系数；只在播放中跑，暂停时把计时基准对齐到恢复那一刻 */
@@ -226,6 +226,73 @@ class PlayerController(
     private fun stopCrossfadeTicker() {
         xfadeWatcher?.cancel()
         xfadeWatcher = null
+    }
+
+    // ── 睡眠定时（倒计时结束后暂停；规则在 [SleepTimerRules]）──
+
+    private val _sleep = MutableStateFlow(SleepTimerRules.State())
+
+    /** UI 读这条流显示剩余时间；不持久化，进程没了定时也就没了（与 C# 一致） */
+    val sleep: StateFlow<SleepTimerRules.State> = _sleep.asStateFlow()
+
+    private var sleepFactor = 1.0
+    private var sleepWatcher: kotlinx.coroutines.Job? = null
+
+    fun startSleepTimer(minutes: Int, stopAfterSong: Boolean, fadeOut: Boolean) {
+        _sleep.value = SleepTimerRules.start(minutes, stopAfterSong, fadeOut)
+        sleepFactor = 1.0
+        applyVolume()
+        startSleepTicker()
+        AppLog.i(TAG, "sleep start minutes=$minutes stopAfterSong=$stopAfterSong fade=$fadeOut")
+    }
+
+    fun cancelSleepTimer() {
+        if (!_sleep.value.running) return
+        val t = SleepTimerRules.cancel(_sleep.value)
+        _sleep.value = t.state
+        sleepFactor = t.factor
+        stopSleepTicker()
+        applyVolume()
+        AppLog.i(TAG, "sleep cancelled")
+    }
+
+    /** 一首歌结束（含单曲循环回到本曲）：只有处于等待阶段才在这里收尾 */
+    private fun onTrackEnded() {
+        val t = SleepTimerRules.onSongCompleted(_sleep.value)
+        _sleep.value = t.state
+        sleepFactor = t.factor
+        applyVolume()
+        if (t.pause) {
+            stopSleepTicker()
+            player.pause()
+        }
+    }
+
+    private fun tickSleep() {
+        val t = SleepTimerRules.tick(_sleep.value, player.isPlaying)
+        _sleep.value = t.state
+        sleepFactor = t.factor
+        applyVolume()
+        if (t.pause) {
+            stopSleepTicker()
+            AppLog.i(TAG, "sleep elapsed -> pause")
+            player.pause()
+        }
+    }
+
+    private fun startSleepTicker() {
+        if (sleepWatcher?.isActive == true) return
+        sleepWatcher = scope.launch {
+            while (_sleep.value.running) {
+                delay(SLEEP_TICK_MS)
+                tickSleep()
+            }
+        }
+    }
+
+    private fun stopSleepTicker() {
+        sleepWatcher?.cancel()
+        sleepWatcher = null
     }
 
     /** 用一批歌替换队列并从 startIndex 播 */
@@ -342,6 +409,7 @@ class PlayerController(
         if (!started) return
         // 淡入淡出是 100ms 一跳直接摸 player 的，release 之后不取消就会踩到已释放实例
         stopCrossfadeTicker()
+        stopSleepTicker()
         runCatching { appContext.unregisterReceiver(noisyReceiver) }
         player.removeListener(playerListener)
         player.release()
@@ -566,6 +634,9 @@ class PlayerController(
             ) {
                 syncQueueIndexToPlayer()
             }
+            // 换曲（含单曲循环回到本曲）是"这一首唱完了"的唯一可靠信号：
+            // 睡眠定时设了「播完当前歌曲后停止」时要在这里收尾
+            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) onTrackEnded()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -600,6 +671,9 @@ class PlayerController(
 
         /** 淡入淡出的推进节奏：4 秒窗口按 500ms 走只有 8 级，听得出台阶 */
         const val CROSSFADE_TICK_MS = 100L
+
+        /** 睡眠定时按秒走：规则本身就是"每秒一格"，快了没有意义 */
+        const val SLEEP_TICK_MS = 1_000L
         const val ERROR_BACKOFF_MS = 5_000L
     }
 }
