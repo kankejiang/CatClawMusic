@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -309,9 +310,12 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                     }
                 }
             }
+            // 系统返回键先退掉最上层的覆盖层。这两层是压在发现页（聊天/统计）之上的整屏层，
+            // 而 Compose 的 BackHandler 是**后组合者优先**，所以放在这里正好盖过发现页那两条
+            BackHandler(enabled = showQueue) { showQueue = false }
+            BackHandler(enabled = showSoundFx) { showSoundFx = false }
             // 队列页：MAUI 是 push 出来的独立页，这里同样盖满整屏并带自己的返回
-            if (showQueue) {
-                Box(
+            if (showQueue) {                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .catClawBackground()

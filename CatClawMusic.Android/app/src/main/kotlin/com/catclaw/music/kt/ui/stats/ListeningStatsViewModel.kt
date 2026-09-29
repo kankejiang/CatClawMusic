@@ -55,10 +55,11 @@ class ListeningStatsViewModel @Inject constructor(
     private val _view = MutableStateFlow(View())
     val view: StateFlow<View> = _view.asStateFlow()
 
-    init {
-        reload()
-    }
-
+    /**
+     * 不在 init 里加载：这页是从发现页的覆盖层进来的，VM 挂在整页的 ViewModelStore 上，
+     * 关掉覆盖层再进来**还是同一个 VM**。真机上就是这样把已经落库的数读成 0 的。
+     * 所以刷新由界面进入时调 [reload]（见 ListeningStatsScreen 的 LaunchedEffect）。
+     */
     fun setRange(range: ListeningStatsRules.Range) {
         if (_view.value.range == range) return
         _view.value = _view.value.copy(range = range)
@@ -79,6 +80,8 @@ class ListeningStatsViewModel @Inject constructor(
             // 上一周期只用于环比，"全部"没有上一周期
             val prevBounds = prevRangeBounds(range, today)
             runCatching {
+                // 老库兼容：汇总三表落后于会话日志时先重建再读（判据在 DAO 里，平时两条 COUNT 就走掉）
+                dao.rebuildStatsFromSessionsIfNeeded()
                 val daily = dao.dailyStatsRange(start, end).toRules()
                 val hourly = dao.hourlyHoursRange(start, end)
                     .map { ListeningStatsRules.HourBucket(it.hour, it.plays, it.ms) }

@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -58,6 +60,7 @@ import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.catClawBackground
 import com.catclaw.music.kt.ui.theme.inkOnGradient
 import com.catclaw.music.kt.ui.theme.HeroScrimBandArgb
 import com.catclaw.music.kt.ui.theme.HeroScrimDeepArgb
@@ -96,6 +99,10 @@ fun SearchScreen(
     // 还要看 active：Pager 不会销毁别的页，横滑走开时这两个标志仍是 true，
     // 只按覆盖层标志上报会让别的 tab 也永久没有底栏
     LaunchedEffect(chatMode, statsOpen, active) { onChatOpen((chatMode || statsOpen) && active) }
+    // 系统返回键必须先退掉本页的覆盖层。整个 app 之前没有任何 BackHandler：
+    // 覆盖层开着按返回会直接退出应用（真机上验到过），而覆盖层里往往正是用户刚看的东西
+    BackHandler(enabled = statsOpen && active) { statsOpen = false }
+    BackHandler(enabled = chatMode && active) { chatMode = false }
     var cat by rememberSaveable { mutableIntStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -197,8 +204,19 @@ fun SearchScreen(
 
         // 聊天是盖在发现页上的一层（MAUI 同为 overlay 而非独立路由），退出后搜索结果原样保留
         if (chatMode) ChatScreen(onBack = { chatMode = false })
-        // 听歌统计同样是一层覆盖：它从「统计」这一格进，返回就该回到原来那格，不该新增一次路由栈翻页
-        if (statsOpen) ListeningStatsScreen(onBack = { statsOpen = false })
+        // 听歌统计同样是一层覆盖：它从「统计」这一格进，返回就该回到原来那格，不该新增一次路由栈翻页。
+        // 背景必须由这层来铺（和队列页/音效页同一个写法）—— 页面组件本身不画底，
+        // 少了这个 Box，真机上整页内容会直接压在发现页上，两层字叠成一片糊
+        if (statsOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .catClawBackground()
+                    .statusBarsPadding(),
+            ) {
+                ListeningStatsScreen(onBack = { statsOpen = false })
+            }
+        }
     }
 }
 

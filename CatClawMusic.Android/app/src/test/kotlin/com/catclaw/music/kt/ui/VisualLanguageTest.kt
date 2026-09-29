@@ -211,6 +211,35 @@ class VisualLanguageTest {
         assertTrue("这些页面没引用任何共享件，等于自成一套视觉: $missing", missing.isEmpty())
     }
 
+    /**
+     * 每个整屏覆盖层都必须接住系统返回键。
+     *
+     * 这条是**真机上撞出来的**：统计页开着按返回，整个应用直接退出（此前全工程没有一处
+     * `BackHandler`，覆盖层只认自己画的那个返回方块）。检测方式是拿 `if (showXxx)` 这种
+     * 覆盖层开关当清单，逐个要求配套的 `BackHandler(enabled = showXxx …)`。
+     */
+    @Test
+    fun `整屏覆盖层都接住系统返回键`() {
+        val files = listOf("CatClawRoot.kt", "screen/SearchScreen.kt")
+        val offenders = files.flatMap { rel ->
+            val lines = File(uiRoot, rel).readText().lines()
+            buildList {
+                lines.forEachIndexed { i, line ->
+                    val m = Regex("""^\s*if \((\w+)\)\s*\{?""").find(line) ?: return@forEachIndexed
+                    val flag = m.groupValues[1]
+                    // 只认"自己画了出口"的那一层：块体里出现 `flag = false` 说明它是个可以关掉的覆盖层，
+                    // 而 `if (showMiniPlayer)` 这类只是显隐开关，不该被算进来
+                    val body = lines.drop(i).take(10).joinToString(" ")
+                    if ("$flag = false" !in body) return@forEachIndexed
+                    if (!Regex("""BackHandler\(enabled = $flag\b""").containsMatchIn(lines.joinToString("\n"))) {
+                        add("$rel:$flag (行 ${i + 1})")
+                    }
+                }
+            }
+        }
+        assertTrue("覆盖层画了自己的返回方块却不接系统返回键，按返回会直接退出应用: $offenders", offenders.isEmpty())
+    }
+
     @Test
     fun `页面不铺背景色纯色底`() {
         val offenders = pages.flatMap { f -> flatPageHits(f.readText()).map { "${f.name}:$it" } }

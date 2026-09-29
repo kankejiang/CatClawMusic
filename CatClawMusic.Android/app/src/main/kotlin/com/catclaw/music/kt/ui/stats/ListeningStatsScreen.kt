@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +63,9 @@ fun ListeningStatsScreen(
 ) {
     val palette = LocalCatClawPalette.current
     val view by viewModel.view.collectAsStateWithLifecycle()
+    // 每次进入这层覆盖都重查一遍。VM 跟着整页活著，只在第一次组合加载会把"刚才听的那首"漏掉，
+    // 而统计页恰好是最容易被再次进来的页面（关掉 → 听一首 → 回来看数字）
+    LaunchedEffect(Unit) { viewModel.reload() }
     val stats = view.stats
     val ink = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
@@ -91,7 +95,7 @@ fun ListeningStatsScreen(
             }
         }
 
-        if (!view.hasData) {
+        if (!view.hasData && !view.loading) {
             EmptyState(hint = stringResource(R.string.StatsEmpty), iconRes = R.drawable.ic_library)
             return@Column
         }
