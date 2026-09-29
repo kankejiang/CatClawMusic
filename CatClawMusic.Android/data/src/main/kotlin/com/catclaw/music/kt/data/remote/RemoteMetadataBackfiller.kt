@@ -132,6 +132,9 @@ class RemoteMetadataBackfiller @Inject constructor(
     ): Patch? {
         val url = row.filePath
         if (url.isBlank()) return null
+        // SQL 里已经写了同一条判据；这里再走一次纯规则，是为了让规则本身是承重的 ——
+        // 哪天 WHERE 改了而规则没改，多进来的行会被安静地挡掉，而不是白下一轮头
+        if (!MetadataBackfill.needsBackfill(row.durationSeconds, row.artistId)) return null
         var best: AudioTags? = null
         for (size in MetadataBackfill.headSizes(url)) {
             val bytes = head.read(url, size) ?: continue

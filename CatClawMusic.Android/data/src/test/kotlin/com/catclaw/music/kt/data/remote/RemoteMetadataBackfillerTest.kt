@@ -206,6 +206,20 @@ class RemoteMetadataBackfillerTest {
 
     private fun requestsOf(head: FakeHead): List<Pair<String, Int>> = head.requests.toList()
 
+    @Test
+    fun rowsThatDoNotNeedBackfillAreSkippedWithoutAnyRequest() {
+        // SQL 的 WHERE 与 :core 的判据是同一条；万一两边漂了，这里也不会白下头
+        val complete = row(id = 21, path = "/dav/full.mp3").copy(durationSeconds = 180, artistId = 5)
+        val dao = FakeDao(listOf(complete))
+        val head = FakeHead(mapOf("full.mp3" to id3Head(artist = "周杰伦")))
+        val result = RemoteMetadataBackfiller(dao.build(), head.reader()).runNow(webdav)
+
+        assertEquals(1, result.total)
+        assertEquals(0, result.updated)
+        assertTrue(head.requests.isEmpty())
+        assertTrue(dao.writtenSongs.isEmpty())
+    }
+
     private fun row(id: Int, path: String, artistId: Int = 0, albumId: Int = 0, size: Long = 3_200_000L) = SongEntity(
         id = id,
         title = path.substringAfterLast('/'),
