@@ -6,6 +6,8 @@ import com.catclaw.music.kt.core.playback.KeyValueStore
 import com.catclaw.music.kt.core.playback.PlayerApi
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.core.playback.SessionLauncher
+import com.catclaw.music.kt.data.equalizer.AndroidAudioFx
+import com.catclaw.music.kt.data.equalizer.AudioFxPreferences
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.Module
 import dagger.Provides
@@ -59,10 +61,18 @@ object PlaybackModule {
         store: KeyValueStore,
         scope: CoroutineScope,
         history: PlayHistoryRecorder,
+        audioFx: AndroidAudioFx,
+        fxPrefs: AudioFxPreferences,
     ): PlayerController = PlayerController(context, cache, store, scope).apply {
         // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
         // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
         onListenStarted = { songId -> history.record(songId) }
+        // 音效同理：会话就绪那一刻把效果挂上，并把存下来的设置应用一遍，
+        // 否则"上次调过 EQ、这次没进 EQ 页"就等于没设过
+        onAudioSessionReady = { sessionId ->
+            audioFx.attach(sessionId)
+            audioFx.apply(fxPrefs.settings.value)
+        }
     }
 
     /**

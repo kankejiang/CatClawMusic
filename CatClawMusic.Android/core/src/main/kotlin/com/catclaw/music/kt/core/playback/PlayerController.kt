@@ -338,6 +338,14 @@ class PlayerController(
     var onListenStarted: ((Int) -> Unit)? = null
     private val listens = ListenCounter()
 
+    /**
+     * 音频会话就绪时回调（STATE_READY）。:core 不认识 android.media.audiofx，音效层由 :data 接。
+     *
+     * 为什么不在播放器建好时就给会话 id：ExoPlayer 在 AudioTrack 创建前 `audioSessionId` 是 0，
+     * 挂到 0 等于把均衡器绑到全局会话上，对歌曲不生效且之后不会再更新（C# 侧踩过，注释里写着）。
+     */
+    var onAudioSessionReady: ((Int) -> Unit)? = null
+
     private fun publish(current: Song? = queue.currentSong, error: String? = null) {
         _state.value = _state.value.copy(
             currentSong = current,
@@ -416,6 +424,8 @@ class PlayerController(
                     )
                     // 列表位置可能由系统控件改变，回来时把队列索引对齐并预缓冲下一首
                     syncQueueIndexToPlayer()
+                    // 到这儿 AudioTrack 已经建好，会话 id 才是真值 —— 音效层挂在这里
+                    onAudioSessionReady?.invoke(player.audioSessionId)
                 }
 
                 Player.STATE_ENDED -> {
