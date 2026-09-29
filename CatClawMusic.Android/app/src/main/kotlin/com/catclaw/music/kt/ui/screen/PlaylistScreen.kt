@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.song.SongList
+import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.ui.playlist.PlaylistViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
@@ -60,10 +64,19 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val openId by viewModel.openId.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
+    // 收藏 / 最近播放这两个入口的数据与播放动作都在 LibraryViewModel 里，
+    // 两个 VM 读的是同一批 Room 单例流，不会因为多拿一个 VM 而出现两份状态
+    val libraryViewModel: LibraryViewModel = hiltViewModel()
+    var entry by remember { mutableStateOf<PlaylistEntry?>(null) }
 
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val open = openId?.let { id -> playlists.firstOrNull { it.id == id } }
+
+    entry?.let { kind ->
+        PlaylistEntryScreen(kind = kind, viewModel = libraryViewModel, onBack = { entry = null })
+        return
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(14.dp))
@@ -100,6 +113,27 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                         modifier = Modifier.size(22.dp),
                     )
                 }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            // MAUI 的 PlaylistPage 顶部就是这两张带计数的入口卡片。本端此前一张都没有，
+            // 于是收藏在歌单页完全不可达，而 `PlaylistCard` 里的 isSystem 分支一直是死代码 ——
+            // 系统歌单从来没被种进 Playlists 表（MAUI 也没有），它们本来就是虚拟入口而不是虚拟行。
+            val favorites by libraryViewModel.favorites.collectAsStateWithLifecycle()
+            val recent by libraryViewModel.recent.collectAsStateWithLifecycle()
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                EntryCard(
+                    iconRes = R.drawable.ic_favorite,
+                    label = stringResource(R.string.playlist_entry_favorites),
+                    count = favorites.size,
+                    modifier = Modifier.weight(1f),
+                ) { entry = PlaylistEntry.Favorites }
+                EntryCard(
+                    iconRes = R.drawable.ic_history,
+                    label = stringResource(R.string.playlist_entry_recent),
+                    count = recent.size,
+                    modifier = Modifier.weight(1f),
+                ) { entry = PlaylistEntry.Recent }
             }
             Spacer(Modifier.height(12.dp))
 
@@ -292,5 +326,100 @@ private fun PlaylistCard(playlist: PlaylistEntity, onOpen: () -> Unit, onDelete:
                 )
             }
         }
+    }
+}
+
+/** 歌单页顶部那两个入口。它们是虚拟入口，不是 Playlists 表里的行 */
+enum class PlaylistEntry { Favorites, Recent }
+
+@Composable
+private fun EntryCard(
+    iconRes: Int,
+    label: String,
+    count: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    Column(
+        modifier = modifier
+            .glassCard(palette = palette, corner = 22)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(palette.primary).copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = Color(palette.textPrimary),
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = stringResource(R.string.playlist_count, count),
+            fontSize = 12.sp,
+            color = Color(palette.textSecondary),
+        )
+    }
+}
+
+/** 入口点进去的列表。两张列表共用同一份行组件，所以长按菜单、收藏标记、封面规则都一致 */
+@Composable
+private fun PlaylistEntryScreen(kind: PlaylistEntry, viewModel: LibraryViewModel, onBack: () -> Unit) {
+    val palette = LocalCatClawPalette.current
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val recent by viewModel.recent.collectAsStateWithLifecycle()
+    val isFavorites = kind == PlaylistEntry.Favorites
+    val rows = if (isFavorites) favorites else recent
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(
+                        if (isFavorites) R.string.playlist_entry_favorites else R.string.playlist_entry_recent,
+                    ),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(palette.textPrimary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.playlist_count, rows.size),
+                    fontSize = 12.sp,
+                    color = Color(palette.textSecondary),
+                )
+            }
+        }
+        SongList(
+            rows = rows,
+            subtitleOf = { it.artist },
+            menu = rememberSongMenu(viewModel),
+            emptyHint = stringResource(
+                if (isFavorites) R.string.favorite_empty_hint else R.string.recent_empty_hint,
+            ),
+            onPlay = { if (isFavorites) viewModel.playFavoriteAt(it) else viewModel.playRecentAt(it) },
+        )
     }
 }

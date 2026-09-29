@@ -191,4 +191,7 @@
     <string name="song_menu_close">关闭</string>
     <string name="favorite_empty_hint">还没有收藏。长按一首歌，菜单里点「收藏」。</string>
     <string name="song_list_empty_hint">这里还没有歌。</string>
+    <string name="playlist_entry_favorites">收藏</string>
+    <string name="playlist_entry_recent">最近播放</string>
+    <string name="recent_empty_hint">还没有播放记录。去音乐库里点一首歌。</string>
 </resources>

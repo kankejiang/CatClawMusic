@@ -35,6 +35,11 @@ class LibraryViewModel @Inject constructor(
 
     suspend fun songsOfAlbum(albumId: Int) = libraryDao.songsOfAlbum(albumId)
 
+    /** 最近播放：歌单页顶部那个入口卡片与它点进去的列表，同一份数据源 */
+    val recent = libraryDao.observeRecentSongs(100).stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
+    )
+
     fun playRows(rows: List<SongListItem>, index: Int) = playFrom(rows.map { it.toSong() }, index)
 
     /**
@@ -93,6 +98,8 @@ class LibraryViewModel @Inject constructor(
     fun playAt(index: Int) = playFrom(songs.value.map { it.toSong() }, index)
 
     fun playFavoriteAt(index: Int) = playFrom(favorites.value.map { it.toSong() }, index)
+
+    fun playRecentAt(index: Int) = playFrom(recent.value.map { it.toSong() }, index)
 
     private fun playFrom(list: List<com.catclaw.music.kt.core.model.Song>, index: Int) {
         if (list.isEmpty()) return

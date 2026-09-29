@@ -46,8 +46,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.db.SongListItem
-import com.catclaw.music.kt.ui.song.SongActionMenu
-import com.catclaw.music.kt.ui.song.SongMenuTarget
+import com.catclaw.music.kt.ui.song.SongList
+import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -430,107 +430,6 @@ private fun LibraryDetailScreen(
             menu = rememberSongMenu(viewModel),
             emptyHint = stringResource(R.string.song_list_empty_hint),
             onPlay = { viewModel.playRows(loaded, it) },
-        )
-    }
-}
-
-/** 长按菜单的能力由页面注入：SongList 只负责弹菜单，不知道收藏怎么存、歌单从哪来 */
-private class SongMenuActions(
-    val playlists: List<Pair<Int, String>>,
-    val favoriteIds: Set<Int>,
-    val onToggleFavorite: (Int) -> Unit,
-    val onAddToPlaylist: (Int, Int) -> Unit,
-)
-
-@Composable
-private fun rememberSongMenu(viewModel: LibraryViewModel): SongMenuActions {
-    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
-    return SongMenuActions(
-        playlists = playlists.map { it.id to it.name },
-        favoriteIds = remember(favorites) { favorites.map { it.id }.toSet() },
-        onToggleFavorite = viewModel::toggleFavorite,
-        onAddToPlaylist = viewModel::addToPlaylist,
-    )
-}
-
-@Composable
-private fun SongList(
-    rows: List<SongListItem>,
-    subtitleOf: (SongListItem) -> String,
-    menu: SongMenuActions,
-    emptyHint: String,
-    onPlay: (Int) -> Unit,
-) {
-    val palette = LocalCatClawPalette.current
-    var target by remember { mutableStateOf<SongMenuTarget?>(null) }
-    if (rows.isEmpty()) {
-        EmptyHint(emptyHint)
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        itemsIndexed(rows) { index, row ->
-            val subtitle = subtitleOf(row)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .glassCard(palette = palette, corner = 22)
-                    .combinedClickable(
-                        onClick = { onPlay(index) },
-                        onLongClick = { target = SongMenuTarget(row.id, row.title, subtitle) },
-                    )
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(
-                            if (row.id in menu.favoriteIds) Color(palette.primary).copy(alpha = 0.55f)
-                            else Color(palette.primary).copy(alpha = 0.22f),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = (index + 1).toString(),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textPrimary),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = row.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(palette.textPrimary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(palette.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-    target?.let { song ->
-        SongActionMenu(
-            target = song,
-            isFavorite = song.id in menu.favoriteIds,
-            playlists = menu.playlists,
-            onToggleFavorite = { menu.onToggleFavorite(song.id) },
-            onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
-            onDismiss = { target = null },
         )
     }
 }
