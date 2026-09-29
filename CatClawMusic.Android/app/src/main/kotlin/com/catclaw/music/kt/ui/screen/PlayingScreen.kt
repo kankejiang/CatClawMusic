@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.screen
 
 import android.Manifest
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -45,18 +46,22 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.core.lyrics.LyricsState
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.lyrics.LyricsViewModel
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
@@ -144,6 +149,10 @@ fun PlayingScreen(
         return
     }
 
+    // 横屏（含平板 / 折叠屏展开）走另一套形状：见 [LandscapeBody]。这一句要在页面顶层拿到，
+    // 因为要减的不只是中栏——抓栏在横屏是多余的一行，去掉它才给歌词行腾出高度。
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     // 页面底色由当前那张封面染出来（[artworkWash]：平均色三段渐变，盖在外壳的主题底之上），
     // 于是封面、歌名、控制区落在同一个色温里。
     // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
@@ -207,73 +216,37 @@ fun PlayingScreen(
                 .weight(1f),
             contentAlignment = Alignment.Center,
         ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                // 封面边长取「页宽的 0.76」与「这一栏高度减去文字块」里的小者。
-                // 只按宽度算会出事：Column 是顺序分配高度的，封面先吃掉一大块之后若不够，
-                // 下面的歌词行就拿到 0 高——**0 高的 Text 一个像素都不画，可它的 clickable 仍然
-                // 撑出 48dp 触达框**，于是节点树里那行还在、屏幕上却是一条空白。
-                // 真机量出来的：同位置放一颗写死绿色的探针也不显示，改这一处之后两者都出来了。
-                val coverSide = minOf(maxWidth * 0.76f, maxHeight - 190.dp).coerceAtLeast(150.dp)
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(coverSide)
-                            // Apple 的封面是"小圆角 + 重投影"，不是描边；投影把封面从染色的环境里抬出来
-                            .shadow(26.dp, RoundedCornerShape(14.dp))
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (cover != null) {
-                            Image(
-                                bitmap = cover.asImageBitmap(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize(),
-                            )
-                        } else {
-                            Text(
-                                text = song?.title?.take(1) ?: "♪",
-                                fontSize = 64.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(palette.textSecondary),
-                            )
-                        }
-                    }
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                // 封面边长必须同时受「宽度」与「这一栏剩给文字的高度」约束：Column 是顺序分配高度的，
+                // 封面先吃满之后下面的文字块会拿到 0 高——**0 高的 Text 一个像素都不画，可它的 clickable
+                // 仍然撑出 48dp 触达框**，于是节点树里那行还在、屏幕上却是一条空白（真机量出来的坑）。
+                val coverSide = minOf(
+                    maxWidth * if (landscape) 0.94f else 0.76f,
+                    maxHeight - if (landscape) 0.dp else 190.dp,
+                ).coerceAtLeast(150.dp)
+                if (landscape) {
+                    // 横屏走 MAUI `LandscapeRoot` 的同一形状：左封面 + 右「标题·歌手 / 当前这一句词」
+                    LandscapeBody(
+                        side = coverSide,
+                        cover = cover,
+                        placeholder = song?.title?.take(1) ?: "♪",
+                        title = state.currentSong?.title,
+                        artist = state.currentSong?.artist,
+                        error = state.error,
+                        positionMs = positionMs,
+                    )
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CoverSquare(side = coverSide, cover = cover, placeholder = song?.title?.take(1) ?: "♪")
 
-                    Spacer(Modifier.height(26.dp))
-                    // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = state.currentSong?.title ?: stringResource(R.string.m1_nothing),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(palette.textPrimary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = state.currentSong?.artist ?: "",
-                            fontSize = 17.sp,
-                            color = Color(palette.textSecondary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 3.dp),
-                        )
-                        state.error?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(palette.textPrimary),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
+                        Spacer(Modifier.height(26.dp))
+                        // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
+                        TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
 
-                    Spacer(Modifier.height(14.dp))
-                    // 歌词预览与标题/歌手共用一条左边距（Apple 那三行是同一列），点它横滑进全屏歌词页
-                    com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
+                        Spacer(Modifier.height(14.dp))
+                        // 歌词预览与标题/歌手共用一条左边距（Apple 那三行是同一列），点它横滑进全屏歌词页
+                        com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
+                    }
                 }
             }
         }
@@ -340,25 +313,29 @@ fun PlayingScreen(
         }
 
         // Apple 的"上滑看更多"提示就是一根小灰棒。这里它不是装饰：点它就是进歌词页，
-        // 与下面那行歌词预览同一个动作，两者都真跳得过去
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(26.dp)
-                .clickable(onClick = onOpenLyrics),
-            contentAlignment = Alignment.Center,
-        ) {
+        // 与下面那行歌词预览同一个动作，两者都真跳得过去。
+        // 横屏不画这一行：中栏只有 ~330px 高，这根棒要占掉 68px，而它的功能次级图标行的「词」已经给了
+        if (!landscape) {
             Box(
                 modifier = Modifier
-                    .size(width = 40.dp, height = 4.dp)
-                    .clip(CircleShape)
-                    .background(Color(palette.textPrimary).copy(alpha = 0.26f)),
-            )
+                    .fillMaxWidth()
+                    .height(26.dp)
+                    .clickable(onClick = onOpenLyrics),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(Color(palette.textPrimary).copy(alpha = 0.26f)),
+                )
+            }
         }
 
         // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
-        // 这里放**已实现**的五个——横屏在安卓侧还没有功能，
-        // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）；
+        // 这里放**已实现**的五个——「横屏」在 MAUI 不是一颗按钮，而是窗口转横时换的那套形状
+        // （本端就是上面 LandscapeBody 那一支）；安卓的旋转归系统管，摆一颗「切横屏」的图标反而是假控件
+        // （本项目的既有判例：宁可不放，也不放不工作的入口）；
         // 「详情」不单独占一格，它收在「更多」里（歌曲信息是歌曲的属性，不是播放页的属性）
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
@@ -457,6 +434,125 @@ fun PlayingScreen(
             menu = menu,
             onDismiss = { songMenuOpen = false },
         )
+    }
+}
+
+/** 播放页的封面方块：竖屏与横屏同一形状（小圆角 + 重投影），只是边长不同 */
+@Composable
+private fun CoverSquare(side: Dp, cover: android.graphics.Bitmap?, placeholder: String) {
+    val palette = LocalCatClawPalette.current
+    Box(
+        modifier = Modifier
+            .size(side)
+            // Apple 的封面是"小圆角 + 重投影"，不是描边；投影把封面从染色的环境里抬出来
+            .shadow(26.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (cover != null) {
+            Image(
+                bitmap = cover.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            Text(
+                text = placeholder,
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(palette.textSecondary),
+            )
+        }
+    }
+}
+
+/** 标题 / 歌手 / 错误行：两栏布局共用，左对齐到所在栏的边距。[compact] 给横屏——那窗口只有 1440px 高 */
+@Composable
+private fun TitleBlock(title: String?, artist: String?, error: String?, compact: Boolean = false) {
+    val palette = LocalCatClawPalette.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title ?: stringResource(R.string.m1_nothing),
+            fontSize = if (compact) 18.sp else 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = artist ?: "",
+            fontSize = if (compact) 13.sp else 17.sp,
+            color = Color(palette.textSecondary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+        error?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(palette.textPrimary),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * 横屏（窗口宽 > 高，含平板与折叠屏展开）的播放页中栏：左封面 + 右「标题·歌手 / 当前这一句词」。
+ * 形状照 MAUI `NowPlayingPage` 的 `LandscapeRoot`（左封面、右信息），但右栏放的是**一句词而不是整首列表**：
+ * 真机量过，1440px 高的横屏窗口里中间那一栏只剩 ~300px，标题块自己就占掉 216px，
+ * 塞滚动列表（或带译文/罗马音副行的 [LyricLineText]）会被压成一条看不见的窄缝——
+ * 整首词在横滑到的全屏歌词页里本来就有，那一页在横屏是通栏的，比在这里挤一个残破的列表更合适。
+ * 歌词数据走与全屏歌词页同一个 [LyricsViewModel]（同一批 Room / 控制器流），点这一句 = seek 回这一句起点。
+ */
+@Composable
+private fun LandscapeBody(
+    side: Dp,
+    cover: android.graphics.Bitmap?,
+    placeholder: String,
+    title: String?,
+    artist: String?,
+    error: String?,
+    positionMs: Long,
+    lyricsViewModel: LyricsViewModel = hiltViewModel(),
+) {
+    val palette = LocalCatClawPalette.current
+    val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
+    val lineMode by lyricsViewModel.lineMode.collectAsStateWithLifecycle()
+    val presentation = LyricsState.present(
+        lyrics = lyricsViewModel.visibleLyrics(),
+        positionMs = positionMs,
+        lineMode = lineMode,
+    )
+    val line = presentation?.line?.takeIf { it.text.isNotBlank() }
+
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(26.dp),
+    ) {
+        CoverSquare(side = side, cover = cover, placeholder = placeholder)
+        Column(modifier = Modifier.weight(1f)) {
+            TitleBlock(title = title, artist = artist, error = error, compact = true)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = line?.text ?: stringResource(R.string.lyric_none),
+                fontSize = if (line == null) 13.sp else 17.sp,
+                fontWeight = if (line == null) FontWeight.Normal else FontWeight.Medium,
+                color = if (line == null) Color(palette.textSecondary) else Color(palette.textPrimary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = line != null) { line?.let { lyricsViewModel.seekTo(it.startMs) } }
+                    .padding(vertical = 4.dp),
+            )
+        }
     }
 }
 

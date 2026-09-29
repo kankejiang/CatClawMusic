@@ -451,7 +451,7 @@ class VisualLanguageTest {
         val text = File(uiRoot, "screen/PlayingScreen.kt").readText()
         assertTrue(
             "封面边长要同时按宽度与剩余高度取小者（否则下面的文字块拿不到高度，直接不渲染）",
-            Regex("""minOf\(maxWidth \* 0\.76f, maxHeight - \d+\.dp""").containsMatchIn(text),
+            Regex("""minOf\([\s\S]{0,160}maxHeight - [\s\S]{0,40}\.dp""").containsMatchIn(text),
         )
     }
 
