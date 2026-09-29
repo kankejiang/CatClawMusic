@@ -177,7 +177,7 @@ fun SearchScreen(
                         }
                     }
                     DiscCat.Artist -> ArtistGrid(artists.map { it.name to it.songCount })
-                    DiscCat.Album -> AlbumGrid(albums.map { it.title to it.artist })
+                    DiscCat.Album -> AlbumGrid(albums)
                     DiscCat.Stats -> StatsPanel(
                         listOf(
                             artists.size.toString() to stringResource(R.string.lib_stat_artists),
@@ -252,7 +252,7 @@ private fun RecommendPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().height(170.dp),
         ) {
-            items(albums.take(12), key = { "a${it.id}" }) { AlbumCard(it.title, it.artist) }
+            items(albums.take(12), key = { "a${it.id}" }) { AlbumCard(it) }
         }
     }
 
@@ -317,19 +317,23 @@ private fun HeroCard(tag: String, title: String, desc: String, brush: Brush, onC
 }
 
 @Composable
-private fun AlbumCard(title: String, artist: String) {
+private fun AlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem) {
     val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.width(124.dp)) {
-        Box(
+        // 专辑级 CoverArtPath 本地曲一直是空，所以借代表曲的内嵌图；取不到才留渐变块
+        CoverTile(
+            coverArtPath = album.coverArtPath,
+            audioPath = album.sampleFilePath,
+            maxPx = 320,
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Brush.linearGradient(listOf(Color(0xFFFF8FB8), Color(0xFF7ED8C3))))
                 .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(18.dp)),
-        )
+        ) {}
         Text(
-            text = title,
+            text = album.title,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = Color(palette.textPrimary),
@@ -338,7 +342,7 @@ private fun AlbumCard(title: String, artist: String) {
             modifier = Modifier.padding(top = 6.dp),
         )
         Text(
-            text = artist,
+            text = album.artist,
             fontSize = 10.sp,
             color = Color(palette.textSecondary),
             maxLines = 1,
@@ -404,12 +408,12 @@ private fun ArtistGrid(rows: List<Pair<String, Int>>) {
 }
 
 @Composable
-private fun AlbumGrid(rows: List<Pair<String, String>>) {
+private fun AlbumGrid(rows: List<com.catclaw.music.kt.data.db.AlbumListItem>) {
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         rows.chunked(2).forEach { line ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                line.forEach { (title, artist) ->
-                    Box(modifier = Modifier.weight(1f)) { AlbumCard(title, artist) }
+                line.forEach { album ->
+                    Box(modifier = Modifier.weight(1f)) { AlbumCard(album) }
                 }
                 repeat(2 - line.size) { Spacer(Modifier.weight(1f)) }
             }

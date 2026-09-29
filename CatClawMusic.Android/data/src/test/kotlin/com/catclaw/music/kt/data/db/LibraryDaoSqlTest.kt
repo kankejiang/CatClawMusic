@@ -5,6 +5,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -247,6 +248,26 @@ class LibraryDaoSqlTest {
             listOf(3, 2, 4, 1), idsOf(SQL_SONGS_OF_ALBUM, 21),
         )
         assertEquals(listOf(5), idsOf(SQL_SONGS_OF_ALBUM, 22))
+    }
+
+    @Test
+    fun albumRowsCarryTheLowestTrackedSongAsTheCoverSource() {
+        addAlbum(21, "一张专辑"); addAlbum(22, "空专辑")
+        addSong(1, "第三轨", albumId = 21)
+        addSong(2, "第一轨", albumId = 21)
+        addSong(3, "没有轨号", albumId = 21)
+        track(1, 3); track(2, 1)
+
+        val samples = db.createStatement().executeQuery(SQL_ALBUMS).let { rs ->
+            buildMap {
+                while (rs.next()) put(rs.getString("title"), rs.getString("sampleFilePath"))
+            }
+        }
+        assertEquals(
+            "代表曲取最小曲目号的那首（有轨号的排在没轨号的前面）",
+            "/m/2.mp3", samples["一张专辑"],
+        )
+        assertNull("专辑里没有歌时就是 null，不能凭空指一条路径", samples["空专辑"])
     }
 
     @Test

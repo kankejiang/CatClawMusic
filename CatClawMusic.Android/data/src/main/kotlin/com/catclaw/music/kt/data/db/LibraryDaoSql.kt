@@ -140,3 +140,18 @@ internal const val SQL_SONGS_OF_ALBUM = """
     ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC,
              s.Title COLLATE NOCASE ASC
 """
+
+/**
+ * 专辑列表。带一首代表曲的文件路径：本地曲的专辑级 `CoverArtPath` 一直是空的
+ * （本端没有 MAUI 那台 CoverHelper 抽图引擎），所以卡片要出图只能借代表曲的内嵌图。
+ * 代表曲取「最小曲目号的那首」，与专辑页里第一行的歌一致。
+ */
+internal const val SQL_ALBUMS = """
+    SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
+           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
+             ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
+             LIMIT 1) AS sampleFilePath
+    FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
+    ORDER BY al.Title COLLATE NOCASE ASC
+"""

@@ -361,14 +361,7 @@ interface LibraryDao {
     )
     fun observeArtists(): Flow<List<ArtistListItem>>
 
-    @Query(
-        """
-        SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
-               al.CoverArtPath AS coverArtPath, al.SongCount AS songCount
-        FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
-        ORDER BY al.Title COLLATE NOCASE ASC
-        """,
-    )
+    @Query(SQL_ALBUMS)
     fun observeAlbums(): Flow<List<AlbumListItem>>
 
     /** 艺人下钻页的歌（主歌手 + 合作歌手） */
@@ -399,4 +392,6 @@ data class AlbumListItem(
     val artist: String,
     val coverArtPath: String?,
     val songCount: Int,
+    /** 代表曲的文件路径：专辑级封面是空的，卡片靠它去读那首歌的内嵌图 */
+    val sampleFilePath: String? = null,
 )
