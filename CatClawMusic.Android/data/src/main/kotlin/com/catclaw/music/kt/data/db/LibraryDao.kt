@@ -162,6 +162,10 @@ interface LibraryDao {
     @Query("DELETE FROM CachedSongs")
     suspend fun clearCached()
 
+    /** 下载管理页「删除（含文件）」：只撤这一首的记账，别的缓存不动 */
+    @Query("DELETE FROM CachedSongs WHERE SongId = :songId")
+    suspend fun removeCached(songId: Int)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArtist(artist: ArtistEntity): Long
 

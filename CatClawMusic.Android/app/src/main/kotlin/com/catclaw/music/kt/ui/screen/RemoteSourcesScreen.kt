@@ -42,6 +42,7 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.core.model.ConnectionProfile
 import com.catclaw.music.kt.core.model.ProtocolType
+import com.catclaw.music.kt.core.model.SongDetailFormat
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.download.DownloadState
 import com.catclaw.music.kt.ui.remote.RemoteMessage
@@ -292,7 +293,13 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         Text(song.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             text = when {
-                                task != null && task.state == DownloadState.Running -> "${task.downloaded}/${task.total}"
+                                task != null && task.state == DownloadState.Running -> stringResource(
+                                    R.string.downloads_bytes,
+                                    SongDetailFormat.bytes(task.downloaded),
+                                    SongDetailFormat.bytes(task.total),
+                                )
+                                task != null && task.state == DownloadState.Paused ->
+                                    stringResource(R.string.downloads_state_paused)
                                 task != null && task.state == DownloadState.Failed -> stringResource(R.string.download_failed)
                                 cached -> stringResource(R.string.download_done)
                                 else -> listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" · ")

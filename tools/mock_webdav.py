@@ -23,8 +23,10 @@ USER, PASS = "cat", "p@ss"
 EXPECTED = "Basic " + base64.b64encode(f"{USER}:{PASS}".encode("utf-8")).decode()
 
 # 取证开关（默认全关，不影响既有验证）：
-#   MOCK_DAV_SLOW=秒数 —— PROPFIND 前先 sleep，让"总数未知"那段进度条能被 uiautomator dump 抓到
+#   MOCK_DAV_SLOW=秒数          —— PROPFIND 前先 sleep，让"总数未知"那段进度条能被 uiautomator dump 抓到
+#   MOCK_DAV_THROTTLE=字节每秒  —— GET 音频时限速，让下载慢到能中途点「暂停」再「继续」
 _SLOW = float(os.environ.get("MOCK_DAV_SLOW") or 0)
+_THROTTLE = float(os.environ.get("MOCK_DAV_THROTTLE") or 0)
 
 # (name, path, is_dir, size)
 ENTRIES = [
@@ -115,7 +117,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(b"need basic", "text/plain", 401)
         raw = unquote(self.path.split("?")[0])
         if raw == "/dav/Music/plain.mp3" or raw.endswith("中文.mp3"):
-            return self._send(wav_bytes(seconds=20.0), "audio/wav")
+            payload = wav_bytes(seconds=20.0)
+            if _THROTTLE <= 0:
+                return self._send(payload, "audio/wav")
+            # 限速发：分块写 + 按 _THROTTLE 折算 sleep，让客户端的进度条真的在动
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            chunk = 16 * 1024
+            for off in range(0, len(payload), chunk):
+                self.wfile.write(payload[off:off + chunk])
+                self.wfile.flush()
+                time.sleep(chunk / _THROTTLE)
+            return
         if raw.endswith(".lrc"):
             return self._send(LRC.encode("utf-8"), "text/plain; charset=utf-8")
         return self._send(b"", "application/octet-stream", 404)
