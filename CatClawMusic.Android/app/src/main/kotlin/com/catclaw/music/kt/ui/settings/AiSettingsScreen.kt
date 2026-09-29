@@ -45,6 +45,7 @@ import com.catclaw.music.kt.core.ai.ChatMemoryRules
 import com.catclaw.music.kt.core.ai.LlmConfig
 import com.catclaw.music.kt.core.ai.LlmProviderInfo
 import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -201,10 +202,16 @@ fun AiSettingsPanel(viewModel: SettingsViewModel = hiltViewModel()) {
                     inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
                 ),
             )
-            AiSwitch(stringResource(R.string.ai_enabled), editing.enabled) { draft = editing.copy(enabled = it) }
-            AiSwitch(stringResource(R.string.ai_fallback), editing.fallbackEnabled) {
-                draft = editing.copy(fallbackEnabled = it)
-            }
+            GlassSwitch(
+                label = stringResource(R.string.ai_enabled),
+                checked = editing.enabled,
+                onChange = { draft = editing.copy(enabled = it) },
+            )
+            GlassSwitch(
+                label = stringResource(R.string.ai_fallback),
+                checked = editing.fallbackEnabled,
+                onChange = { draft = editing.copy(fallbackEnabled = it) },
+            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
                 AiPill(label = stringResource(R.string.ai_save), filled = true) { viewModel.saveConfig(editing) }
@@ -369,24 +376,6 @@ private fun AiField(label: String, value: String, password: Boolean = false, onC
             ),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun AiSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, fontSize = 14.sp, color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(palette.primary),
-                checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
-                uncheckedThumbColor = Color(palette.textSecondary),
-                uncheckedTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
-            ),
         )
     }
 }

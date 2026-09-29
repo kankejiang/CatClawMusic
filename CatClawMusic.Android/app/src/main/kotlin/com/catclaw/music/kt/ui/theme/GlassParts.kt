@@ -9,7 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -130,6 +135,55 @@ fun GlassChip(
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
     )
+}
+
+/**
+ * 开关行：标题（可带副标题）在左，开关在右。
+ *
+ * 之前有两份：AI 设置页那一份给 Switch 配了 `palette.primary` 的滑块 + α.32 轨道，
+ * 设置主页 `SwitchRow` 那一份不配色——**真机量下来两份都是粉的**（stock Switch 的选中轨道
+ * 取的是主题 primary，而主题 primary 就是品牌粉），差别在**角色**：
+ * 旧的那份是"实心粉轨道 + 白滑块"(245,111,160)/(237,232,234)，
+ * 新这份是"半透明粉轨道 + 实心粉滑块"(240,193,210)/(245,113,161)。
+ * 同一类控件两种长相就是这份要收掉的理由；别据此以为旧的是紫色。
+ */
+@Composable
+fun GlassSwitch(
+    label: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+    palette: CatClawPalette = LocalCatClawPalette.current,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                fontSize = 15.sp,
+                color = Color(palette.textPrimary),
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrEmpty()) {
+                Text(subtitle, fontSize = 12.sp, color = Color(palette.textSecondary))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(palette.primary),
+                checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
+                uncheckedThumbColor = Color(palette.textSecondary),
+                uncheckedTrackColor = Color(palette.textPrimary).copy(alpha = 0.18f),
+            ),
+        )
+    }
 }
 
 /**

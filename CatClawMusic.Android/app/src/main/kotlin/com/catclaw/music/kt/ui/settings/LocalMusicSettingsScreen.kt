@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
@@ -81,17 +82,17 @@ fun LocalMusicSettingsScreen(
         Spacer(Modifier.height(14.dp))
 
         SectionCard(stringResource(R.string.local_scan_method)) {
-            SwitchRow(
+            GlassSwitch(
                 label = stringResource(R.string.local_scan_media_store),
-                sub = stringResource(R.string.local_scan_media_store_sub),
+                subtitle = stringResource(R.string.local_scan_media_store_sub),
                 checked = view.useMediaStore,
-                onChecked = viewModel::setMediaStore,
+                onChange = viewModel::setMediaStore,
             )
-            SwitchRow(
+            GlassSwitch(
                 label = stringResource(R.string.local_scan_saf),
-                sub = stringResource(R.string.local_scan_saf_sub),
+                subtitle = stringResource(R.string.local_scan_saf_sub),
                 checked = view.useSafScan,
-                onChecked = viewModel::setSafScan,
+                onChange = viewModel::setSafScan,
             )
             if (!view.useMediaStore && !view.useSafScan) {
                 // 两种全关时扫描按钮是灰的，这里必须说清为什么灰着，而不是留一个点不动的按钮
@@ -190,14 +191,3 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
     }
 }
 
-@Composable
-private fun SwitchRow(label: String, sub: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = label, fontSize = 14.sp, color = Color(palette.textPrimary))
-            Text(text = sub, fontSize = 12.sp, color = Color(palette.textSecondary))
-        }
-        Switch(checked = checked, onCheckedChange = onChecked)
-    }
-}

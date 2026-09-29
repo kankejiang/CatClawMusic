@@ -389,6 +389,25 @@ class VisualLanguageTest {
     }
 
     /**
+     * 开关行只许有一份定义（`GlassSwitch`）。这条是补 `GlassSearchField` 那条的同形检查：
+     * 按"页面里自己写了一个 `fun *Switch(`"抓另实现，转调共享件的薄封装放过。
+     * （不用颜色当判据：stock Switch 的选中轨道取主题 primary，量出来也是粉的，抓不到差异。）
+     */
+    @Test
+    fun `开关不在页面里各自实现`() {
+        val offenders = pages.flatMap { f ->
+            val lines = f.readText().lines()
+            lines.mapIndexedNotNull { i, line ->
+                val m = Regex("""fun (\w*Switch\w*)\(""").find(line.trim()) ?: return@mapIndexedNotNull null
+                val body = lines.drop(i).take(8).joinToString(" ")
+                if ("GlassSwitch(" in body && "Switch(" !in body.replace("GlassSwitch(", "")) return@mapIndexedNotNull null
+                "${f.name}:${i + 1} ${m.groupValues[1]}"
+            }
+        }
+        assertTrue("开关行请统一走 GlassSwitch（滑块与轨道只该有一处定义）: $offenders", offenders.isEmpty())
+    }
+
+    /**
      * `.size()` 之后紧跟 `.padding()` 再到 `.clickable` 是**顺序错**：padding 会把 clickable
      * 那个节点缩掉，图标和可点区一起变小（播放页那两个图标原本因此只有 17dp，比设计的小一半）。
      * 正确写法是可点节点在外：`.size(外框).clickable{}.padding{}`。

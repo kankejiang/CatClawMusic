@@ -70,6 +70,7 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.TouchMin
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -877,17 +878,9 @@ private fun ClickableRow(title: String, value: String, hint: String, onClick: ()
 
 @Composable
 fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = Color(palette.textPrimary))
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Color(palette.textSecondary))
-        }
-        Switch(checked = checked, onCheckedChange = onChecked)
-    }
+    // 走共享件：这一份此前不配 Switch 颜色，选中态是"实心粉轨道 + 白滑块"，
+    // 而 AI 设置页那一份是"半透明轨道 + 实心粉滑块"——同一类控件两种长相
+    GlassSwitch(label = title, checked = checked, onChange = onChecked, subtitle = subtitle)
 }
 
 @Composable

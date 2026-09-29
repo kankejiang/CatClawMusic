@@ -37,6 +37,7 @@ import com.catclaw.music.kt.core.playback.CrossfadeRules
 import com.catclaw.music.kt.data.equalizer.AndroidAudioFx
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
@@ -110,11 +111,11 @@ fun SoundEffectsScreen(
         // 真机上滑到频段滑杆之后就只能靠系统返回键离开一页（覆盖层没有自己的 back 处理）
         Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
             SectionCard(title = stringResource(R.string.soundfx_section_eq)) {
-                SwitchRow(
-                    title = stringResource(R.string.soundfx_switch),
+                GlassSwitch(
+                    label = stringResource(R.string.soundfx_switch),
                     subtitle = stringResource(R.string.soundfx_switch_sub),
                     checked = settings.enabled,
-                    onChecked = { viewModel.setEnabled(it) },
+                    onChange = { viewModel.setEnabled(it) },
                 )
                 if (caps.probed && !caps.supported) {
                     Text(
@@ -185,18 +186,18 @@ fun SoundEffectsScreen(
                 }
                 // 虚拟环绕独立于总开关：它是空间效果，与频段曲线是两件事（C# 同规则）
                 if (hasSpatial) {
-                    SwitchRow(
-                        title = stringResource(R.string.soundfx_spatial),
+                    GlassSwitch(
+                        label = stringResource(R.string.soundfx_spatial),
                         subtitle = stringResource(R.string.soundfx_spatial_sub),
                         checked = settings.spatial,
-                        onChecked = { viewModel.setSpatial(it) },
+                        onChange = { viewModel.setSpatial(it) },
                     )
                 }
-                SwitchRow(
-                    title = stringResource(R.string.soundfx_crossfade),
+                GlassSwitch(
+                    label = stringResource(R.string.soundfx_crossfade),
                     subtitle = stringResource(R.string.soundfx_crossfade_sub),
                     checked = settings.crossfade,
-                    onChecked = { viewModel.setCrossfade(it) },
+                    onChange = { viewModel.setCrossfade(it) },
                 )
                 ValueSlider(
                     title = stringResource(R.string.soundfx_crossfade_dur),
@@ -227,27 +228,6 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
-@Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontSize = 14.sp, color = Color(palette.textPrimary))
-            Text(text = subtitle, fontSize = 12.sp, color = Color(palette.textSecondary))
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onChecked,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color(palette.primary),
-                checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
-            ),
-        )
-    }
-}
 
 /**
  * 带当前值标签的滑杆。值标签落在玻璃卡上，所以走 highlightOnGlassCard 而不是次要色。
