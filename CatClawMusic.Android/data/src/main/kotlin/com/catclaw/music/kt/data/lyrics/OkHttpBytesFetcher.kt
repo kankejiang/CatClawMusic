@@ -1,7 +1,7 @@
 package com.catclaw.music.kt.data.lyrics
 
 import com.catclaw.music.kt.core.lyrics.RemoteBytesFetcher
-import com.catclaw.music.kt.core.net.UrlCredentials
+import com.catclaw.music.kt.data.remote.authorizedRequest
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -9,7 +9,6 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
 
 /**
  * 远程侧车歌词的取字节实现。
@@ -38,16 +37,6 @@ class OkHttpBytesFetcher @Inject constructor() : RemoteBytesFetcher {
             throw e
         } catch (e: Exception) {
             null // 歌词是锦上添花：拿不到就回 null，让上层继续走内嵌，不打断播放
-        }
-    }
-
-    internal companion object {
-        /** 拆掉 userinfo 并把 Basic 头贴上；无 userinfo 时不加头 */
-        fun authorizedRequest(url: String): Request {
-            val (clean, authorization) = UrlCredentials.split(url)
-            return Request.Builder().url(clean).apply {
-                if (authorization != null) header("Authorization", authorization)
-            }.build()
         }
     }
 }

@@ -131,6 +131,14 @@ interface LibraryDao {
     @Query("SELECT Id AS id, RemoteId AS remoteId, DateAdded AS dateAdded FROM Songs WHERE Source <> 0 AND RemoteId IS NOT NULL")
     suspend fun remoteKeys(): List<RemoteSongKey>
 
+    /**
+     * 待补元数据的远程曲 —— 时长没填**或**艺术家没建关联。
+     * 判据本身在 `MetadataBackfill.needsBackfill`（对着 C# 的同名查询写的），这里只是把它落进 SQL。
+     * 按 Id 排序让每一轮跑的顺序一致，中断后重跑不会换一批。
+     */
+    @Query("SELECT * FROM Songs WHERE Source = :source AND (Duration <= 0 OR ArtistId = 0) ORDER BY Id")
+    suspend fun remoteMissingMetadata(source: Int): List<SongEntity>
+
     /** 远程曲整表：带歌手名/专辑名，直接可播 */
     @Query(
         """
@@ -189,6 +197,28 @@ interface LibraryDao {
 
     @Query("DELETE FROM SongArtists WHERE SongId NOT IN (SELECT Id FROM Songs)")
     suspend fun pruneSongArtists()
+
+    /**
+     * 清掉一首歌的合作歌手关联。`SongArtists.Id` 是自增主键、没有 (SongId, ArtistId) 唯一索引，
+     * 所以重建关联必须**先删再插**，不然每跑一轮补全就多一行，下钻页会出现重复行。
+     */
+    @Query("DELETE FROM SongArtists WHERE SongId = :songId")
+    suspend fun clearSongArtistLinks(songId: Int)
+
+    /**
+     * 远程补元数据的落库口子：一整批歌曲行 + 歌手关联，一个事务。
+     *
+     * 之所以要显式批处理，是让 `RemoteMetadataBackfiller` 只依赖 DAO 而不是整个数据库 ——
+     * 那样它的取字节、合并、建歌手专辑这几步能在 JVM 里用假 DAO 测到底（Room 的库对象不行）。
+     */
+    @Transaction
+    suspend fun writeBackfill(songs: List<SongEntity>, links: List<SongArtistEntity>) {
+        if (songs.isNotEmpty()) upsertSongs(songs)
+        if (links.isNotEmpty()) {
+            links.map { it.songId }.distinct().forEach { clearSongArtistLinks(it) }
+            upsertSongArtists(links)
+        }
+    }
 
     // ── 收藏 ──
 

@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.data.remote
 
+import com.catclaw.music.kt.core.net.UrlCredentials
 import java.io.IOException
 import java.net.URL
 import java.util.concurrent.TimeUnit
@@ -10,6 +11,20 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 /** 一次 HTTP 往返的最小结果；WebDAV 要自己处理重定向，所以状态码与 Location 都得露出来 */
 data class HttpResult(val status: Int, val location: String?, val body: String)
+
+/**
+ * 组一个 GET：URL 上带 `user:pass@` 时摘掉换成 `Authorization: Basic`，可选加 Range。
+ *
+ * 单点在这而不是各调用点各写一遍：`java.net` 与 okhttp 都不会替你把 userinfo 变成凭据，
+ * 而这一处此前写错过一次（把已经拼好的头当用户名又编码了一层），表现是每次 401 且不报错。
+ */
+internal fun authorizedRequest(url: String, rangeBytes: Int? = null): Request {
+    val (clean, authorization) = UrlCredentials.split(url)
+    return Request.Builder().url(clean).apply {
+        if (authorization != null) header("Authorization", authorization)
+        if (rangeBytes != null && rangeBytes > 0) header("Range", "bytes=0-${rangeBytes - 1}")
+    }.build()
+}
 
 /**
  * 远程音源共用的取数口子：单测塞假响应，真机走 [UrlHttpFetcher]。
