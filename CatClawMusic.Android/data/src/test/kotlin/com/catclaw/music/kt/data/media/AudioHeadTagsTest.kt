@@ -277,4 +277,99 @@ class AudioHeadTagsTest {
         out.write(comment)
         return out.toByteArray()
     }
+
+    // ---- M4A（faststart：moov 落在头部窗口里）----
+
+    @Test
+    fun mp4FaststartGivesFieldsAndDuration() {
+        val head = mp4File(
+            mvhdV0(timescale = 44_100, duration = 44_100L * 180L),
+            listOf(
+                "©nam" to utf8Item("夜曲"),
+                "©ART" to utf8Item("周杰伦"),
+                "©alb" to utf8Item("十一月的萧邦"),
+                "©gen" to utf8Item("Pop"),
+                "©day" to utf8Item("2005"),
+                "trkn" to binaryTrack(3, 12),
+            ),
+        )
+        val tags = AudioHeadTags.parse(head)
+        assertEquals("夜曲", tags.title)
+        assertEquals("周杰伦", tags.artist)
+        assertEquals("十一月的萧邦", tags.album)
+        assertEquals("Pop", tags.genre)
+        assertEquals(2005, tags.year)
+        assertEquals(3, tags.trackNumber)
+        assertEquals(180_000L, tags.durationMs)
+    }
+
+    @Test
+    fun mp4VersionOneHeaderIsReadAsSixtyFourBit() {
+        // v1 的 duration 是 64 位：按 32 位读会在长文件上溢出
+        val body = byteArrayOf(1, 0, 0, 0) + ByteArray(16) + TagFixtures.be32(44_100) + be64(44_100L * 60L)
+        val head = TagFixtures.atom("ftyp", "M4A ".toByteArray(StandardCharsets.ISO_8859_1)) +
+            TagFixtures.atom("moov", TagFixtures.atom("mvhd", body))
+        assertEquals(60_000L, AudioHeadTags.parse(head).durationMs)
+    }
+
+    @Test
+    fun mp4TextAtomsOutsideIlstAreIgnored() {
+        val head = mp4File(
+            mvhdV0(44_100, 44_100L * 30L),
+            emptyList(),
+            strayAtoms = listOf(TagFixtures.atom("©nam", utf8Item("不该被读到"))),
+        )
+        val tags = AudioHeadTags.parse(head)
+        assertEquals("", tags.title)
+        // 时长仍然要拿到：证明「没读到标题」是因为键的位置，不是整棵树没走
+        assertEquals(30_000L, tags.durationMs)
+    }
+
+    @Test
+    fun mp4WithoutMoovInHeadYieldsNothing() {
+        val head = TagFixtures.atom("ftyp", "M4A ".toByteArray(StandardCharsets.ISO_8859_1)) +
+            TagFixtures.atom("mdat", ByteArray(64))
+        assertEquals(AudioTags(), AudioHeadTags.parse(head))
+    }
+
+    @Test
+    fun zeroSizedAtomStopsTheWalkInsteadOfSpinning() {
+        // 尺寸写 0 的坏 atom 会让「按尺寸前进」的循环原地打转，必须直接收摊
+        val head = TagFixtures.atom("ftyp", "M4A ".toByteArray(StandardCharsets.ISO_8859_1)) +
+            ByteArray(8) + ByteArray(32)
+        assertEquals(AudioTags(), AudioHeadTags.parse(head))
+    }
+
+    /** 造一个 faststart 形状的 M4A：ftyp + moov(mvhd, 散落原子, udta/meta/ilst(键…)) */
+    private fun mp4File(
+        mvhd: ByteArray,
+        items: List<Pair<String, ByteArray>>,
+        strayAtoms: List<ByteArray> = emptyList(),
+    ): ByteArray {
+        val ilstBody = ByteArray(0).let { start -> items.fold(start) { acc, (key, body) -> acc + TagFixtures.atom(key, body) } }
+        val ilst = TagFixtures.atom("ilst", ilstBody)
+        val meta = TagFixtures.atom("meta", ByteArray(4) + ilst)
+        var moovBody = mvhd
+        strayAtoms.forEach { moovBody += it }
+        moovBody += TagFixtures.atom("udta", meta)
+        val ftyp = TagFixtures.atom(
+            "ftyp",
+            "M4A ".toByteArray(StandardCharsets.ISO_8859_1) + ByteArray(4) + "M4A ".toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        return ftyp + TagFixtures.atom("moov", moovBody)
+    }
+
+    private fun mvhdV0(timescale: Int, duration: Long): ByteArray =
+        TagFixtures.atom("mvhd", ByteArray(12) + TagFixtures.be32(timescale) + TagFixtures.be32(duration.toInt()))
+
+    /** data 项：原子头 8 + 版本/标志 4 + 保留 4 + 正文；标志 1 = UTF-8 */
+    private fun utf8Item(text: String): ByteArray =
+        TagFixtures.atom("data", byteArrayOf(0, 0, 0, 1) + ByteArray(4) + text.toByteArray(StandardCharsets.UTF_8))
+
+    private fun binaryTrack(track: Int, total: Int): ByteArray = TagFixtures.atom(
+        "data",
+        ByteArray(8) + byteArrayOf(0, 0, (track shr 8).toByte(), track.toByte(), (total shr 8).toByte(), total.toByte(), 0, 0),
+    )
+
+    private fun be64(value: Long): ByteArray = ByteArray(8) { (value shr ((7 - it) * 8)).toByte() }
 }
