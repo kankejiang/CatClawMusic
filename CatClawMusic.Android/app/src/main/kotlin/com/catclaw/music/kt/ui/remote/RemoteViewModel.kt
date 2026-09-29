@@ -29,6 +29,20 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * 远程页要给用户看的一句话。
+ *
+ * 为什么是类型而不是现成的字符串：本端语言是应用内切换的（Activity 的 `attachBaseContext`
+ * 里覆盖 configuration），ViewModel 拿到的 application context **不一定带这个覆盖**，
+ * 在那边 `getString` 会拿到错语言。所以 VM 只报"发生了什么"，措辞交给页面组合期的 `stringResource`。
+ */
+sealed interface RemoteMessage {
+    data object NeedHost : RemoteMessage
+    data class TestResult(val ok: Boolean, val detail: String) : RemoteMessage
+    data class SyncResult(val scanned: Int, val inserted: Int, val updated: Int, val elapsedMs: Long) : RemoteMessage
+    data class Failed(val detail: String) : RemoteMessage
+}
+
 /** 发现 tab 的远程音源：配置 → ping 测试 → 导库 → 直接播 */
 @HiltViewModel
 class RemoteViewModel @Inject constructor(
@@ -61,12 +75,12 @@ class RemoteViewModel @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message
+    private val _message = MutableStateFlow<RemoteMessage?>(null)
+    val message: StateFlow<RemoteMessage?> = _message
 
     fun save(profile: ConnectionProfile) {
         if (profile.host.isBlank()) {
-            _message.value = "host required"
+            _message.value = RemoteMessage.NeedHost
             return
         }
         viewModelScope.launch {
@@ -100,18 +114,32 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch {
             _busy.value = true
             _message.value = withContext(Dispatchers.IO) {
-                when (profile.protocol) {
-                    ProtocolType.Navidrome -> SubsonicClient(profile).ping().let {
-                        if (it.ok) "ok ${it.version}" else "fail ${it.message}"
+                runCatching {
+                    when (profile.protocol) {
+                        ProtocolType.Navidrome -> SubsonicClient(profile).ping().let {
+                            RemoteMessage.TestResult(it.ok, if (it.ok) it.version.orEmpty() else it.message.orEmpty())
+                        }
+                        ProtocolType.WebDAV -> WebDavClient(profile).test().let {
+                            RemoteMessage.TestResult(
+                                it.ok,
+                                if (it.ok) "${it.serverType.name} ${it.davPrefix}" else it.message.orEmpty(),
+                            )
+                        }
+                        ProtocolType.SMB -> smbProbeText(profile)
                     }
-                    ProtocolType.WebDAV -> WebDavClient(profile).test().let {
-                        if (it.ok) "ok ${it.serverType.name} ${it.davPrefix}" else "fail ${it.message}"
-                    }
-                    ProtocolType.SMB -> SmbProbe.test(profile)
-                }
+                }.getOrElse { RemoteMessage.TestResult(false, it.message ?: it.javaClass.simpleName) }
             }
             _busy.value = false
         }
+    }
+
+    /** `SmbProbe.test` 的形状是 "ok …" / "fail …"（:data 那层的约定），这里只翻一次成成/败 */
+    private fun smbProbeText(profile: ConnectionProfile): RemoteMessage.TestResult {
+        val text = SmbProbe.test(profile)
+        return RemoteMessage.TestResult(
+            ok = text.startsWith("ok"),
+            detail = text.removePrefix("ok ").removePrefix("fail "),
+        )
     }
 
     fun import(profile: ConnectionProfile) {
@@ -120,19 +148,21 @@ class RemoteViewModel @Inject constructor(
             _busy.value = true
             _message.value = runCatching {
                 withContext(Dispatchers.IO) {
+                    // scanned 一律报"这首歌源里有多少**首**"：Navidrome 的 albums、
+                    // WebDAV/SMB 的 listed(文件数) 都不是首数，混进去就是页面上一个对不上的数
                     when (profile.protocol) {
                         ProtocolType.Navidrome -> importer.importAll(profile).let {
-                            "albums=${it.albums} tracks=${it.tracks} +${it.inserted} ~${it.updated} ${it.elapsedMs}ms"
+                            RemoteMessage.SyncResult(it.tracks, it.inserted, it.updated, it.elapsedMs)
                         }
                         ProtocolType.WebDAV -> webDavImporter.importAll(profile).let {
-                            "files=${it.listed} audio=${it.audio} +${it.inserted} ~${it.updated} ${it.elapsedMs}ms"
+                            RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
                         }
                         ProtocolType.SMB -> smbImporter.importAll(profile).let {
-                            "files=${it.listed} audio=${it.audio} +${it.inserted} ~${it.updated} ${it.elapsedMs}ms"
+                            RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
                         }
                     }
                 }
-            }.getOrElse { "fail ${it.message}" }
+            }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
             _busy.value = false
         }
     }

@@ -23,6 +23,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import com.catclaw.music.kt.core.model.ConnectionProfile
 import com.catclaw.music.kt.core.model.ProtocolType
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.download.DownloadState
+import com.catclaw.music.kt.ui.remote.RemoteMessage
 import com.catclaw.music.kt.ui.remote.RemoteViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
@@ -73,6 +75,9 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     var protocol by rememberSaveable { mutableStateOf(ProtocolType.Navidrome.name) }
     var share by rememberSaveable { mutableStateOf("") }
     var domain by rememberSaveable { mutableStateOf("") }
+    // 正在改哪一条（null = 新增）。只活在内存里：ConnectionProfile 不是 Saveable，
+    // 进程被杀后表单字段还在但会退回"新增"档——那正是安全的方向（不会把 id 弄丢去覆盖另一条）
+    var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
 
     Column(
         modifier = Modifier
@@ -92,7 +97,21 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
 
         message?.let {
             Text(
-                text = it,
+                text = when (it) {
+                    RemoteMessage.NeedHost -> stringResource(R.string.remote_need_host)
+                    is RemoteMessage.TestResult -> stringResource(
+                        if (it.ok) R.string.remote_test_ok else R.string.remote_test_fail,
+                        it.detail,
+                    )
+                    is RemoteMessage.SyncResult -> stringResource(
+                        R.string.remote_sync_result,
+                        it.scanned,
+                        it.inserted,
+                        it.updated,
+                        it.elapsedMs,
+                    )
+                    is RemoteMessage.Failed -> stringResource(R.string.remote_failed, it.detail)
+                },
                 fontSize = 12.sp,
                 color = Color(palette.textPrimary),
                 modifier = Modifier
@@ -137,13 +156,32 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
                         PillButton(label = stringResource(R.string.Test), filled = false) { viewModel.test(profile) }
                         PillButton(label = stringResource(R.string.remote_import), filled = true, enabled = !busy) { viewModel.import(profile) }
+                        // 此前只能删了重填：改一个密码要把整条连接删掉，而删掉会连带丢 basePath
+                        PillButton(label = stringResource(R.string.remote_edit), filled = false) {
+                            editing = profile
+                            name = profile.name
+                            host = profile.host
+                            port = profile.port.toString()
+                            user = profile.userName
+                            pass = profile.password
+                            protocol = profile.protocol.name
+                            share = profile.shareName.orEmpty()
+                            domain = profile.domainName.orEmpty()
+                        }
                         PillButton(label = stringResource(R.string.Delete), filled = false) { viewModel.delete(profile.id) }
                     }
                 }
             }
         }
 
-        SectionCard(title = stringResource(R.string.remote_add_server)) {
+        val editingProfile = editing
+        SectionCard(
+            title = if (editingProfile == null) {
+                stringResource(R.string.remote_add_server)
+            } else {
+                stringResource(R.string.remote_edit_server, editingProfile.name)
+            },
+        ) {
             GlassField(value = name, onValue = { name = it }, label = stringResource(R.string.Name))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -169,26 +207,44 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                 }
             }
             Spacer(Modifier.height(12.dp))
-            PillButton(label = stringResource(R.string.Save), filled = true) {
-                val chosen = ProtocolType.valueOf(protocol)
-                viewModel.save(
-                    ConnectionProfile(
-                        name = name.ifBlank { host },
-                        host = host.trim(),
-                        port = port.trim().toIntOrNull() ?: if (chosen == ProtocolType.SMB) 445 else 4535,
-                        userName = user.trim(),
-                        password = pass,
-                        protocol = chosen,
-                        shareName = share.trim().ifEmpty { null },
-                        domainName = domain.trim().ifEmpty { null },
-                    ),
-                )
-                name = ""
-                host = ""
-                user = ""
-                pass = ""
-                share = ""
-                domain = ""
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton(label = stringResource(R.string.Save), filled = true) {
+                    val chosen = ProtocolType.valueOf(protocol)
+                    // 从正在改的那条出发 copy：id / basePath / apiVersion / serverType / useHttps
+                    // 都不在这个表单里，重新 new 一个会把它们悄悄抹回默认值
+                    viewModel.save(
+                        (editing ?: ConnectionProfile(name = "")).copy(
+                            name = name.ifBlank { host },
+                            host = host.trim(),
+                            port = port.trim().toIntOrNull() ?: if (chosen == ProtocolType.SMB) 445 else 4535,
+                            userName = user.trim(),
+                            password = pass,
+                            protocol = chosen,
+                            shareName = share.trim().ifEmpty { null },
+                            domainName = domain.trim().ifEmpty { null },
+                        ),
+                    )
+                    editing = null
+                    name = ""
+                    host = ""
+                    user = ""
+                    pass = ""
+                    share = ""
+                    domain = ""
+                    port = "4535"
+                }
+                if (editingProfile != null) {
+                    PillButton(label = stringResource(R.string.remote_cancel_edit), filled = false) {
+                        editing = null
+                        name = ""
+                        host = ""
+                        user = ""
+                        pass = ""
+                        share = ""
+                        domain = ""
+                        port = "4535"
+                    }
+                }
             }
         }
 

@@ -275,6 +275,14 @@ Download it from GitHub.</string>
     <string name="lib_stat_storage">Storage</string>
     <string name="lib_cache_label">cache</string>
     <string name="lib_open_stats">Listening stats</string>
+    <string name="remote_edit">Edit</string>
+    <string name="remote_edit_server">Editing: %1$s</string>
+    <string name="remote_cancel_edit">Cancel editing</string>
+    <string name="remote_need_host">Host address is required</string>
+    <string name="remote_test_ok">Connected: %1$s</string>
+    <string name="remote_test_fail">Connection failed: %1$s</string>
+    <string name="remote_sync_result">Synced %1$d songs · %2$d new · %3$d updated · %4$d ms</string>
+    <string name="remote_failed">Operation failed: %1$s</string>
     <string name="sleep_timer_entry">Sleep timer</string>
     <string name="sleep_timer_title">Stop playback after</string>
     <string name="sleep_timer_stop_time">Stop after</string>

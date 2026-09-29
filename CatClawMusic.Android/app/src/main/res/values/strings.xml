@@ -275,6 +275,14 @@
     <string name="lib_stat_storage">存储占用</string>
     <string name="lib_cache_label">缓存</string>
     <string name="lib_open_stats">听歌统计</string>
+    <string name="remote_edit">编辑</string>
+    <string name="remote_edit_server">编辑连接：%1$s</string>
+    <string name="remote_cancel_edit">取消编辑</string>
+    <string name="remote_need_host">请先填服务器地址</string>
+    <string name="remote_test_ok">连接成功：%1$s</string>
+    <string name="remote_test_fail">连接失败：%1$s</string>
+    <string name="remote_sync_result">同步 %1$d 首 · 新增 %2$d · 更新 %3$d · 用时 %4$d ms</string>
+    <string name="remote_failed">操作失败：%1$s</string>
     <string name="sleep_timer_entry">睡眠定时</string>
     <string name="sleep_timer_title">定时停止播放</string>
     <string name="sleep_timer_stop_time">停止时间</string>
