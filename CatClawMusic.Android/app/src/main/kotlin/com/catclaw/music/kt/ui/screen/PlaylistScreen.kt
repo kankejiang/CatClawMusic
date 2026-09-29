@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
@@ -69,13 +70,23 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     // 两个 VM 读的是同一批 Room 单例流，不会因为多拿一个 VM 而出现两份状态
     val libraryViewModel: LibraryViewModel = hiltViewModel()
     var entry by remember { mutableStateOf<PlaylistEntry?>(null) }
+    var songDetailId by remember { mutableStateOf<Int?>(null) }
 
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val open = openId?.let { id -> playlists.firstOrNull { it.id == id } }
 
+    songDetailId?.let { id ->
+        SongDetailScreen(songId = id, load = { libraryViewModel.songDetail(it) }, onBack = { songDetailId = null })
+        return
+    }
     entry?.let { kind ->
-        PlaylistEntryScreen(kind = kind, viewModel = libraryViewModel, onBack = { entry = null })
+        PlaylistEntryScreen(
+            kind = kind,
+            viewModel = libraryViewModel,
+            onBack = { entry = null },
+            onOpenDetail = { songDetailId = it },
+        )
         return
     }
 
@@ -382,7 +393,12 @@ private fun EntryCard(
 
 /** 入口点进去的列表。两张列表共用同一份行组件，所以长按菜单、收藏标记、封面规则都一致 */
 @Composable
-private fun PlaylistEntryScreen(kind: PlaylistEntry, viewModel: LibraryViewModel, onBack: () -> Unit) {
+private fun PlaylistEntryScreen(
+    kind: PlaylistEntry,
+    viewModel: LibraryViewModel,
+    onBack: () -> Unit,
+    onOpenDetail: (Int) -> Unit,
+) {
     val palette = LocalCatClawPalette.current
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
@@ -417,7 +433,7 @@ private fun PlaylistEntryScreen(kind: PlaylistEntry, viewModel: LibraryViewModel
         SongList(
             rows = rows,
             subtitleOf = { it.artist },
-            menu = rememberSongMenu(viewModel),
+            menu = rememberSongMenu(viewModel, onOpenDetail),
             emptyHint = stringResource(
                 if (isFavorites) R.string.favorite_empty_hint else R.string.recent_empty_hint,
             ),

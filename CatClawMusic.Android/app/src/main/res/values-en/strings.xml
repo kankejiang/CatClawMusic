@@ -208,4 +208,26 @@ Download it from GitHub.</string>
     <string name="disc_shelf_recent_added">Recently added</string>
     <string name="disc_stat_total_plays">Total plays</string>
     <string name="disc_stat_songs_played">Songs played</string>
+    <string name="song_detail_title">Song details</string>
+    <string name="detail_loading">Loading…</string>
+    <string name="detail_none">None</string>
+    <string name="detail_section_basic">Basic info</string>
+    <string name="detail_section_file">File and quality</string>
+    <string name="detail_album">Album</string>
+    <string name="detail_artist">Artist</string>
+    <string name="detail_genre">Genre</string>
+    <string name="detail_year">Year</string>
+    <string name="detail_track">Track</string>
+    <string name="detail_duration">Duration</string>
+    <string name="detail_bitrate">Bitrate</string>
+    <string name="detail_format">Format</string>
+    <string name="detail_size">Size</string>
+    <string name="detail_source">Source</string>
+    <string name="detail_play_count">Plays</string>
+    <string name="detail_lyrics">Lyrics</string>
+    <string name="detail_source_local">Local library</string>
+    <string name="detail_source_webdav">WebDAV</string>
+    <string name="detail_source_smb">SMB</string>
+    <string name="detail_source_cache">Cached</string>
+    <string name="song_menu_detail">Details</string>
 </resources>

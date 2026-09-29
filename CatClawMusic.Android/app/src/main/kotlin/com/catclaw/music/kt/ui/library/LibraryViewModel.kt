@@ -10,6 +10,7 @@ import com.catclaw.music.kt.data.db.entity.FavoriteEntity
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.library.LibraryScanner
+import com.catclaw.music.kt.data.media.MediaPathResolver
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,12 +29,19 @@ class LibraryViewModel @Inject constructor(
     private val session: PlaybackSessionStarter,
     private val libraryDao: LibraryDao,
     private val playlistDao: PlaylistDao,
+    private val paths: MediaPathResolver,
 ) : ViewModel() {
 
     /** 下钻页要按艺人/专辑现读一次歌单 */
     suspend fun songsOfArtist(artistId: Int) = libraryDao.songsOfArtist(artistId)
 
     suspend fun songsOfAlbum(albumId: Int) = libraryDao.songsOfAlbum(albumId)
+
+    /**
+     * 详情页的一行。本地曲库里存的是 MediaStore 的 content URI，
+     * 而 URI 里没有文件名与后缀 —— 不解回真实路径，「文件格式」这一格就永远是"无"。
+     */
+    suspend fun songDetail(id: Int) = libraryDao.songDetail(id)?.let { it.copy(filePath = paths.resolve(it.filePath)) }
 
     /** 最近播放：歌单页顶部那个入口卡片与它点进去的列表，同一份数据源 */
     val recent = libraryDao.observeRecentSongs(100).stateIn(

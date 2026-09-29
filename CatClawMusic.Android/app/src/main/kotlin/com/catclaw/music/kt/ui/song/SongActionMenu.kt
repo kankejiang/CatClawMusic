@@ -19,12 +19,11 @@ data class SongMenuTarget(val id: Int, val title: String, val subtitle: String)
 /**
  * 歌曲长按菜单 —— MAUI `SongContextMenu` 的安卓对应物。
  *
- * MAUI 那份是五项：播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息。这里只放**本端做得到**的两项，
- * 因为另外三项今天点了没反应：
+ * MAUI 那份是五项：播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息。
+ * 本端放得下其中三项（收藏 / 歌曲信息 / 添加到歌单），另两项今天点了没反应所以不放：
  * - 「下一首播放」要播放队列支持定点插入，`PlayerController` 没有这个口子；
- * - 「歌曲信息」是 `SongDetailPage`，本端没有这首歌的详情数据面；
  * - 「播放」和点一行重复。
- * 摆三个点了不动的项，比只摆两个能用的更糟。
+ * 摆一个点了不动的项，比少摆一项更糟。
  */
 @Composable
 fun SongActionMenu(
@@ -32,6 +31,7 @@ fun SongActionMenu(
     isFavorite: Boolean,
     playlists: List<Pair<Int, String>>,
     onToggleFavorite: () -> Unit,
+    onOpenDetail: () -> Unit,
     onAddToPlaylist: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -51,6 +51,14 @@ fun SongActionMenu(
                     text = stringResource(if (isFavorite) R.string.favorite_remove else R.string.favorite_add),
                     onClick = {
                         onToggleFavorite()
+                        onDismiss()
+                    },
+                    filled = false,
+                )
+                PillLabel(
+                    text = stringResource(R.string.song_menu_detail),
+                    onClick = {
+                        onOpenDetail()
                         onDismiss()
                     },
                     filled = false,

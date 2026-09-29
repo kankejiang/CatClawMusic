@@ -208,4 +208,26 @@
     <string name="disc_shelf_recent_added">最近添加</string>
     <string name="disc_stat_total_plays">总播放次数</string>
     <string name="disc_stat_songs_played">播过的歌</string>
+    <string name="song_detail_title">歌曲详情</string>
+    <string name="detail_loading">读取中…</string>
+    <string name="detail_none">无</string>
+    <string name="detail_section_basic">基本信息</string>
+    <string name="detail_section_file">文件与音质</string>
+    <string name="detail_album">专辑</string>
+    <string name="detail_artist">艺术家</string>
+    <string name="detail_genre">流派</string>
+    <string name="detail_year">发行年份</string>
+    <string name="detail_track">曲目</string>
+    <string name="detail_duration">时长</string>
+    <string name="detail_bitrate">音质</string>
+    <string name="detail_format">文件格式</string>
+    <string name="detail_size">文件大小</string>
+    <string name="detail_source">来源</string>
+    <string name="detail_play_count">播放次数</string>
+    <string name="detail_lyrics">歌词</string>
+    <string name="detail_source_local">本地曲库</string>
+    <string name="detail_source_webdav">WebDAV</string>
+    <string name="detail_source_smb">SMB</string>
+    <string name="detail_source_cache">已缓存</string>
+    <string name="song_menu_detail">歌曲信息</string>
 </resources>

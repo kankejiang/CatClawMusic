@@ -46,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.library.LibraryViewModel
@@ -79,8 +80,19 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     // 少一条路由与一次 VM 作用域切换，返回行为一致
     var opened by remember { mutableStateOf<LibraryKind?>(null) }
     var detail by remember { mutableStateOf<LibraryDetail?>(null) }
+    // 歌曲详情是整页，托管在页面这一层而不是列表里：否则它会叠在列表页头下面，出现两个返回键
+    var songDetailId by remember { mutableStateOf<Int?>(null) }
+    songDetailId?.let { id ->
+        SongDetailScreen(songId = id, load = { viewModel.songDetail(it) }, onBack = { songDetailId = null })
+        return
+    }
     detail?.let {
-        LibraryDetailScreen(detail = it, onBack = { detail = null }, viewModel = viewModel)
+        LibraryDetailScreen(
+            detail = it,
+            onBack = { detail = null },
+            onOpenSong = { songDetailId = it },
+            viewModel = viewModel,
+        )
         return
     }
     opened?.let { kind ->
@@ -88,6 +100,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             kind = kind,
             onBack = { opened = null },
             onOpen = { detail = it },
+            onOpenSong = { songDetailId = it },
             viewModel = viewModel,
         )
         return
@@ -311,6 +324,7 @@ fun LibraryListScreen(
     kind: LibraryKind,
     onBack: () -> Unit,
     onOpen: (LibraryDetail) -> Unit,
+    onOpenSong: (Int) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
@@ -318,7 +332,7 @@ fun LibraryListScreen(
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
-    val menu = rememberSongMenu(viewModel)
+    val menu = rememberSongMenu(viewModel) { onOpenSong(it) }
 
     val title = stringResource(
         when (kind) {
@@ -392,6 +406,7 @@ fun LibraryListScreen(
 private fun LibraryDetailScreen(
     detail: LibraryDetail,
     onBack: () -> Unit,
+    onOpenSong: (Int) -> Unit,
     viewModel: LibraryViewModel,
 ) {
     val palette = LocalCatClawPalette.current
@@ -427,7 +442,7 @@ private fun LibraryDetailScreen(
         SongList(
             rows = loaded,
             subtitleOf = { if (byArtist) it.album else it.artist },
-            menu = rememberSongMenu(viewModel),
+            menu = rememberSongMenu(viewModel) { onOpenSong(it) },
             emptyHint = stringResource(R.string.song_list_empty_hint),
             onPlay = { viewModel.playRows(loaded, it) },
         )

@@ -290,6 +290,26 @@ class LibraryDaoSqlTest {
     }
 
     @Test
+    fun songDetailSumsPlaysAndToleratesMissingArtistAndAlbum() {
+        addArtist(11, "周柏豪"); addAlbum(21, "8")
+        addSong(1, "你还怕大雨吗", artistId = 11, albumId = 21)
+        addSong(2, "无归属的歌")
+        recordPlay(1, 100L)
+        recordPlay(1, 200L)
+
+        val rs = db.prepareStatement(SQL_SONG_DETAIL.replace(":id", "?")).apply { setInt(1, 1) }.executeQuery()
+        assertTrue(rs.next())
+        assertEquals("周柏豪", rs.getString("artist"))
+        assertEquals("8", rs.getString("album"))
+        assertEquals("详情里的播放次数是该歌所有历史行之和", 2, rs.getInt("playCount"))
+
+        val orphan = db.prepareStatement(SQL_SONG_DETAIL.replace(":id", "?")).apply { setInt(1, 2) }.executeQuery()
+        assertTrue(orphan.next())
+        assertEquals("没有歌手/专辑时给出空串而不是 null 或 '未知'", "", orphan.getString("artist"))
+        assertEquals(0, orphan.getInt("playCount"))
+    }
+
+    @Test
     fun albumSongsNeedTheAlbumRowToExist() {
         addSong(1, "孤儿曲", albumId = 21) // AlbumId 指向一张已被清理掉的专辑
         assertEquals(

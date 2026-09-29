@@ -167,3 +167,22 @@ internal const val SQL_PLAY_STATS = """
     SELECT COUNT(DISTINCT SongId) AS songsPlayed, COALESCE(SUM(PlayCount), 0) AS totalPlays
     FROM PlayHistory
 """
+
+/**
+ * 歌曲详情的一行 —— 对应 C# `SongDetailViewModel` 读的那些字段。
+ *
+ * 播放次数用子查询而不是 JOIN：`PlayHistory` 是"一行一歌"由代码维持的不变量，
+ * 一旦哪天写坏了，JOIN 会把一首歌变成多行详情，子查询最多把次数加总。
+ */
+internal const val SQL_SONG_DETAIL = """
+    SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
+           IFNULL(al.Title, '') AS album, s.Genre AS genre, s.Year AS year,
+           s.TrackNumber AS trackNumber, s.Duration AS durationSeconds, s.Bitrate AS bitrate,
+           s.FileSize AS fileSize, s.FilePath AS filePath, s.CoverArtPath AS coverArtPath,
+           s.LyricsPath AS lyricsPath, s.Source AS source,
+           (SELECT COALESCE(SUM(h.PlayCount), 0) FROM PlayHistory h WHERE h.SongId = s.Id) AS playCount
+    FROM Songs s
+    LEFT JOIN Artists a ON a.Id = s.ArtistId
+    LEFT JOIN Albums al ON al.Id = s.AlbumId
+    WHERE s.Id = :id
+"""

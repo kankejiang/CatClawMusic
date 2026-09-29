@@ -244,6 +244,10 @@ interface LibraryDao {
     @Query(SQL_TRIM_HISTORY)
     suspend fun trimHistory(keep: Int)
 
+    /** 歌曲详情页的一行；歌被删了就回 null，让页面自己退回 */
+    @Query(SQL_SONG_DETAIL)
+    suspend fun songDetail(id: Int): SongDetailRow?
+
     /** 发现页「统计」那一格要的真实聚合 */
     @Query(SQL_PLAY_STATS)
     suspend fun playStats(): PlayStats
@@ -381,6 +385,25 @@ interface LibraryDao {
         upsertSongArtist(SongArtistEntity(songId = songId, artistId = artistId))
     }
 }
+
+/** 歌曲详情：基本信息 + 文件与音质 + 播放次数，字段口径与 C# 详情页一致 */
+data class SongDetailRow(
+    val id: Int,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val genre: String?,
+    val year: Int,
+    val trackNumber: Int,
+    val durationSeconds: Int,
+    val bitrate: Int,
+    val fileSize: Long,
+    val filePath: String,
+    val coverArtPath: String?,
+    val lyricsPath: String?,
+    val source: Int,
+    val playCount: Int,
+)
 
 /** 播放统计：播过的歌数 + 总播放次数 */
 data class PlayStats(val songsPlayed: Int, val totalPlays: Int)

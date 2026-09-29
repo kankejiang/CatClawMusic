@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.db.SongDetailRow
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -47,10 +48,17 @@ class SongMenuActions(
     val favoriteIds: Set<Int>,
     val onToggleFavorite: (Int) -> Unit,
     val onAddToPlaylist: (Int, Int) -> Unit,
+    /** 详情页要读的那一行；null 表示这首歌已从库里删掉 */
+    val loadDetail: suspend (Int) -> SongDetailRow?,
+    /**
+     * 打开详情页。由**页面**而不是列表自己托管 —— 详情是整页，
+     * 在列表内部渲染会叠在列表页的页头下面，出现两个返回键。
+     */
+    val onOpenDetail: (Int) -> Unit,
 )
 
 @Composable
-fun rememberSongMenu(viewModel: LibraryViewModel): SongMenuActions {
+fun rememberSongMenu(viewModel: LibraryViewModel, onOpenDetail: (Int) -> Unit): SongMenuActions {
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     return SongMenuActions(
@@ -58,6 +66,8 @@ fun rememberSongMenu(viewModel: LibraryViewModel): SongMenuActions {
         favoriteIds = remember(favorites) { favorites.map { it.id }.toSet() },
         onToggleFavorite = viewModel::toggleFavorite,
         onAddToPlaylist = viewModel::addToPlaylist,
+        loadDetail = viewModel::songDetail,
+        onOpenDetail = onOpenDetail,
     )
 }
 
@@ -143,6 +153,7 @@ fun SongList(
             playlists = menu.playlists,
             onToggleFavorite = { menu.onToggleFavorite(song.id) },
             onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
+            onOpenDetail = { menu.onOpenDetail(song.id) },
             onDismiss = { target = null },
         )
     }
