@@ -119,6 +119,13 @@ class LibraryViewModel @Inject constructor(
 
     fun playFavoriteAt(index: Int) = playFrom(favorites.value.map { it.toSong() }, index)
 
+    /** 「随机播放」按钮：MAUI `AllSongsViewModel.ShufflePlayAsync` 的对应物，规则在播放器那一侧 */
+    fun playShuffled(rows: List<SongListItem>) {
+        if (rows.isEmpty()) return
+        session.ensure()
+        controller.playShuffled(rows.map { it.toSong() })
+    }
+
     fun playRecentAt(index: Int) = playFrom(recent.value.map { it.toSong() }, index)
 
     private fun playFrom(list: List<com.catclaw.music.kt.core.model.Song>, index: Int) {

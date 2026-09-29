@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -278,7 +280,11 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                // 三个动作并排，窄屏（360dp）放不下，横向可滚而不是把最后一个裁掉
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -296,6 +302,18 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                     )
                     Text(stringResource(R.string.playlist_play_all), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(inkOn(palette.primary)))
                 }
+                // MAUI 的歌单详情就是这两个播放动作：整张表顺序播 / 随机播
+                Text(
+                    text = stringResource(R.string.shuffle_play),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = secondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+                        .clickable { viewModel.playAllShuffled() }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                )
                 Text(
                     text = stringResource(R.string.playlist_add_current),
                     fontSize = 14.sp,

@@ -102,6 +102,14 @@ class PlaylistViewModel @Inject constructor(
 
     fun playAll() = playFrom(0)
 
+    /** 随机播放当前歌单（MAUI `PlaylistDetailViewModel.ShufflePlayAsync` 的对应物） */
+    fun playAllShuffled() {
+        val songs = items.value.map { it.toSong() }
+        if (songs.isEmpty()) return
+        session.ensure()
+        controller.playShuffled(songs)
+    }
+
     fun playAt(index: Int) = playFrom(index)
 
     private fun playFrom(index: Int) {

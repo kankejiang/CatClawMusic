@@ -349,6 +349,13 @@ fun LibraryListScreen(
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpen(it.toLibraryDetail()) }) { onOpenSong(it) }
+    // MAUI 的 AllSongsPage 顶部就是「播放全部 / 随机播放」两个按钮，本端此前只能一行一行点着播。
+    // 艺人/专辑页没有"整张表"这张列表，所以那两个按钮只在歌曲类页面上画
+    val songRows: List<SongListItem>? = when (kind) {
+        LibraryKind.Songs -> songs
+        LibraryKind.Favorites -> favorites
+        else -> null
+    }
 
     val title = stringResource(
         when (kind) {
@@ -385,6 +392,24 @@ fun LibraryListScreen(
                     text = stringResource(R.string.playlist_count, count),
                     fontSize = 12.sp,
                     color = Color(palette.textSecondary),
+                )
+            }
+            songRows?.let { rows ->
+                PillLabel(
+                    text = stringResource(R.string.playlist_play_all),
+                    onClick = {
+                        // 「播放全部」就是"从这张表的第一首开始顺序播"，与点第一行同一条路
+                        when (kind) {
+                            LibraryKind.Favorites -> viewModel.playFavoriteAt(0)
+                            else -> viewModel.playAt(0)
+                        }
+                    },
+                    filled = false,
+                )
+                PillLabel(
+                    text = stringResource(R.string.shuffle_play),
+                    onClick = { viewModel.playShuffled(rows) },
+                    filled = false,
                 )
             }
         }

@@ -310,6 +310,19 @@ class PlayerController(
     /** 队列的只读快照，供 AI 工具与统计展示；改队列必须走下面的显式方法 */
     override fun queueSongs(): List<Song> = queue.songs()
 
+    /**
+     * 整张表进队列并随机播放：先切随机模式，再从**随机那一首**开始。
+     *
+     * 这条规则在 MAUI 侧写在 `PlayQueue.PlayMode` 的 setter 里（空闲态随机选起点），
+     * 全部歌曲页与歌单详情页都调它 —— 所以放播放器这一侧，而不是两个 ViewModel 各抄一遍
+     * 抄出两种"随机"（从第一首开始再随机，等于没随机）。
+     */
+    fun playShuffled(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        setMode(PlayMode.Shuffle)
+        playSongs(songs, startIndex = songs.indices.random())
+    }
+
     /** 当前播放位置（毫秒）。UI 走 positionMsFlow 轮询，工具这种一次性读取用这个 */
     override fun currentPositionMs(): Long = player.currentPosition
 
