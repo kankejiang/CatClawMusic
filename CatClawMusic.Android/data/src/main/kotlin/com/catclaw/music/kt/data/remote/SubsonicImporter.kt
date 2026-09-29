@@ -39,16 +39,21 @@ class SubsonicImporter @Inject constructor(
     suspend fun importAll(
         profile: ConnectionProfile,
         client: SubsonicClient = SubsonicClient(profile),
+        onProgress: (SyncProgress) -> Unit = {},
     ): Result = withContext(Dispatchers.IO) {
         val startedAt = SystemClock.elapsedRealtime()
+        // 拉到曲目清单之前总数未知；清单到手后按**曲目数**报进度（专辑数不是首数）
+        onProgress(SyncProgress(0, 0))
         val refs = client.allAlbums()
         val tracks = fetchTracks(client, refs)
+        onProgress(SyncProgress(0, tracks.size))
         val library = db.libraryDao()
         val known = library.remoteKeys().associateBy { it.remoteId }
         val artistIds = HashMap<String, Int>()
         val albumIds = HashMap<String, Int>()
         var inserted = 0
         var updated = 0
+        var done = 0
         val now = System.currentTimeMillis()
 
         db.withTransaction {
@@ -93,6 +98,8 @@ class SubsonicImporter @Inject constructor(
                         remoteId = track.remoteId,
                     ),
                 )
+                done++
+                if (done % PROGRESS_STEP == 0 || done == tracks.size) onProgress(SyncProgress(done, tracks.size))
             }
         }
         Result(

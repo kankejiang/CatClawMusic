@@ -13,12 +13,18 @@ import math
 import struct
 import sys
 import io
+import os
+import time
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import quote, unquote
 
 USER, PASS = "cat", "p@ss"
 EXPECTED = "Basic " + base64.b64encode(f"{USER}:{PASS}".encode("utf-8")).decode()
+
+# 取证开关（默认全关，不影响既有验证）：
+#   MOCK_DAV_SLOW=秒数 —— PROPFIND 前先 sleep，让"总数未知"那段进度条能被 uiautomator dump 抓到
+_SLOW = float(os.environ.get("MOCK_DAV_SLOW") or 0)
 
 # (name, path, is_dir, size)
 ENTRIES = [
@@ -88,6 +94,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PROPFIND(self):
         self._body()  # 读掉请求体，保持 keep-alive 干净
+        if _SLOW:
+            time.sleep(_SLOW)
         if not self._authed():
             return self._send(b"need basic", "text/plain", 401)
         raw = self.path.split("?")[0]

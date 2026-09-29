@@ -35,14 +35,17 @@ class WebDavImporter @Inject constructor(
     suspend fun importAll(
         profile: ConnectionProfile,
         client: WebDavClient = WebDavClient(profile),
+        onProgress: (SyncProgress) -> Unit = {},
     ): Result = withContext(Dispatchers.IO) {
         val startedAt = SystemClock.elapsedRealtime()
-        // 先探测前缀（/dav、/webdav）与服务器类型，和 C# 列库前的 EnsureDetectedAsync 同一步；
+        // 列目录之前总数未知（页面据此走不定进度），这一步和 C# 一样先探测前缀（/dav、/webdav）与服务器类型，
         // 少了这步，挂在 /dav 下的 NAS 会直接 404
+        onProgress(SyncProgress(0, 0))
         val probe = client.test()
         if (!probe.ok) throw IOException(probe.message)
         val all = client.listAll(profile.basePath)
         val audio = all.filter { !it.isDirectory && MediaScanRules.isAudioFile(it.name.ifEmpty { it.path }) }
+        onProgress(SyncProgress(0, audio.size))
         val lyrics = all.filter { isLyricsSidecar(it.name) }.associateBy { sidecarKey(it) }
         val covers = all.filter { isImageSidecar(it.name) }.associateBy { sidecarKey(it) }
         val dirCovers = all.filter { isImageSidecar(it.name) }
@@ -52,6 +55,7 @@ class WebDavImporter @Inject constructor(
         val known = library.remoteKeys().associateBy { it.remoteId }
         var inserted = 0
         var updated = 0
+        var done = 0
         val now = System.currentTimeMillis()
 
         db.withTransaction {
@@ -77,6 +81,8 @@ class WebDavImporter @Inject constructor(
                         remoteCoverPath = covers["$parent/$nameNoExt"]?.path ?: dirCovers[parent],
                     ),
                 )
+                done++
+                if (done % PROGRESS_STEP == 0 || done == audio.size) onProgress(SyncProgress(done, audio.size))
             }
         }
         Result(

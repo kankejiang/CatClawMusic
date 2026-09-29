@@ -12,6 +12,7 @@ import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.toModel
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.remote.SubsonicClient
+import com.catclaw.music.kt.data.remote.SyncProgress
 import com.catclaw.music.kt.data.remote.WebDavClient
 import com.catclaw.music.kt.data.remote.WebDavImporter
 import com.catclaw.music.kt.data.smb.SmbImporter
@@ -77,6 +78,13 @@ class RemoteViewModel @Inject constructor(
 
     private val _message = MutableStateFlow<RemoteMessage?>(null)
     val message: StateFlow<RemoteMessage?> = _message
+
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
+    /**
+     * 导入进度，null = 没在导。总数未知时是 `SyncProgress(0, 0)`，
+     * 页面据此显示"正在列出远端目录…"——MAUI 那条 `total == 0` 走不定进度的规则。
+     */
+    val progress: StateFlow<SyncProgress?> = _progress
 
     fun save(profile: ConnectionProfile) {
         if (profile.host.isBlank()) {
@@ -146,24 +154,30 @@ class RemoteViewModel @Inject constructor(
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
-            _message.value = runCatching {
-                withContext(Dispatchers.IO) {
-                    // scanned 一律报"这首歌源里有多少**首**"：Navidrome 的 albums、
-                    // WebDAV/SMB 的 listed(文件数) 都不是首数，混进去就是页面上一个对不上的数
-                    when (profile.protocol) {
-                        ProtocolType.Navidrome -> importer.importAll(profile).let {
-                            RemoteMessage.SyncResult(it.tracks, it.inserted, it.updated, it.elapsedMs)
-                        }
-                        ProtocolType.WebDAV -> webDavImporter.importAll(profile).let {
-                            RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
-                        }
-                        ProtocolType.SMB -> smbImporter.importAll(profile).let {
-                            RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
+            try {
+                _message.value = runCatching {
+                    withContext(Dispatchers.IO) {
+                        val report: (SyncProgress) -> Unit = { _progress.value = it }
+                        // scanned 一律报"这首歌源里有多少**首**"：Navidrome 的 albums、
+                        // WebDAV/SMB 的 listed(文件数) 都不是首数，混进去就是页面上一个对不上的数
+                        when (profile.protocol) {
+                            ProtocolType.Navidrome -> importer.importAll(profile, onProgress = report).let {
+                                RemoteMessage.SyncResult(it.tracks, it.inserted, it.updated, it.elapsedMs)
+                            }
+                            ProtocolType.WebDAV -> webDavImporter.importAll(profile, onProgress = report).let {
+                                RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
+                            }
+                            ProtocolType.SMB -> smbImporter.importAll(profile, onProgress = report).let {
+                                RemoteMessage.SyncResult(it.audio, it.inserted, it.updated, it.elapsedMs)
+                            }
                         }
                     }
-                }
-            }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
-            _busy.value = false
+                }.getOrElse { RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
+            } finally {
+                // 失败也要把进度条收掉：留在页面上就是一条永远走不完的进度
+                _progress.value = null
+                _busy.value = false
+            }
         }
     }
 

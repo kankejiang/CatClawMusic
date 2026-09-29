@@ -6,7 +6,9 @@ import com.catclaw.music.kt.core.model.SongSource
 import com.catclaw.music.kt.core.library.MediaScanRules
 import com.catclaw.music.kt.data.db.CatClawDatabase
 import com.catclaw.music.kt.data.db.entity.SongEntity
+import com.catclaw.music.kt.data.remote.PROGRESS_STEP
 import com.catclaw.music.kt.data.remote.RemoteFile
+import com.catclaw.music.kt.data.remote.SyncProgress
 import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -75,8 +77,13 @@ class SmbImporter @Inject constructor(
 ) {
     data class Result(val listed: Int, val audio: Int, val inserted: Int, val updated: Int, val elapsedMs: Long)
 
-    suspend fun importAll(profile: ConnectionProfile): Result = withContext(Dispatchers.IO) {
+    suspend fun importAll(
+        profile: ConnectionProfile,
+        onProgress: (SyncProgress) -> Unit = {},
+    ): Result = withContext(Dispatchers.IO) {
         val startedAt = android.os.SystemClock.elapsedRealtime()
+        // 递归 walk 完之前总数未知（SMB 的目录遍历可能就是几分钟的事），这正是不定进度该出现的场合
+        onProgress(SyncProgress(0, 0))
         val target = parseSmbUrl(smbUrlOf(profile, "\\")) ?: return@withContext Result(0, 0, 0, 0, 0)
         val reader = SmbjReader(target)
         val files = try {
@@ -85,11 +92,13 @@ class SmbImporter @Inject constructor(
             runCatching { reader.close() }
         }
         val audio = files.filter { !it.isDirectory && MediaScanRules.isAudioFile(it.name) }
+        onProgress(SyncProgress(0, audio.size))
 
         val library = db.libraryDao()
         val known = library.remoteKeys().associateBy { it.remoteId }
         var inserted = 0
         var updated = 0
+        var done = 0
         val now = System.currentTimeMillis()
 
         db.withTransaction {
@@ -111,6 +120,8 @@ class SmbImporter @Inject constructor(
                         remoteId = smbUrl,
                     ),
                 )
+                done++
+                if (done % PROGRESS_STEP == 0 || done == audio.size) onProgress(SyncProgress(done, audio.size))
             }
         }
         Result(files.size, audio.size, inserted, updated, android.os.SystemClock.elapsedRealtime() - startedAt)

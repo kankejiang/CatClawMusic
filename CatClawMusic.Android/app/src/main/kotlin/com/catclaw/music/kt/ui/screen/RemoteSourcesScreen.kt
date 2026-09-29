@@ -63,6 +63,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     val message by viewModel.message.collectAsStateWithLifecycle()
     val downloadTasks by viewModel.downloadTasks.collectAsStateWithLifecycle()
     val cachedIds by viewModel.cachedSongIds.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
 
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
@@ -121,6 +122,21 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )
             Spacer(Modifier.height(10.dp))
+        }
+
+        progress?.let {
+            // MAUI 的同步进度面板：total 为 0 是"目录还没列完"，不是"一共 0 首"。
+            // 此前这里只有一个灰掉的按钮，扫几千个文件的 SMB 源看起来像卡死了
+            Text(
+                text = if (it.unknownTotal) {
+                    stringResource(R.string.remote_sync_listing)
+                } else {
+                    stringResource(R.string.remote_sync_progress, it.done, it.total)
+                },
+                fontSize = 12.sp,
+                color = Color(palette.textPrimary),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+            )
         }
 
         SectionCard(title = stringResource(R.string.ConfiguredConnections)) {
