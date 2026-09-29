@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -26,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +40,8 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcons
+import com.catclaw.music.kt.ui.player.rememberCover
+import com.catclaw.music.kt.ui.theme.HeroScrimDeepArgb
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.highlightOnSelectedCard
@@ -113,6 +119,7 @@ fun QueueScreen(
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 128)
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -120,16 +127,32 @@ fun QueueScreen(
                             .background(primary.copy(alpha = if (isCurrent) 0.18f else 0.10f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = PlayerIcons.Play,
+                        if (cover != null) {
+                            Image(
+                                bitmap = cover.asImageBitmap(),
                                 contentDescription = null,
-                                // 「正在播放」这块 α.18 的粉底上，浅色主题的 primary 只有约 2:1，
-                                // 它是这一行唯一的当前项线索，所以退回判据而不是留粉
-                                tint = Color(highlightOnSelectedCard(palette)),
-                                modifier = Modifier.size(16.dp),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize(),
                             )
-                        } else {
+                        }
+                        if (isCurrent) {
+                            // 「正在播放」这块线索不能因为换了封面就丢掉：压在照片上必须自带垫层，
+                            // 否则遇到浅色封面就看不出来了
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(HeroScrimDeepArgb)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = PlayerIcons.Play,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                            }
+                        } else if (cover == null) {
                             Text(text = (index + 1).toString(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = secondary)
                         }
                     }
