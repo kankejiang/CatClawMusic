@@ -403,6 +403,9 @@ data class SongDetailRow(
     val lyricsPath: String?,
     val source: Int,
     val playCount: Int,
+    /** 主歌手 / 所属专辑的 id；0 表示这首歌没有归属（详情菜单据此决定画不画「查看歌手」） */
+    val artistId: Int,
+    val albumId: Int,
 )
 
 /** 播放统计：播过的歌数 + 总播放次数 */

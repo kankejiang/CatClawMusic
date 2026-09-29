@@ -20,12 +20,18 @@ import com.catclaw.music.kt.ui.theme.PillLabel
  */
 data class SongMenuTarget(val id: Int, val title: String, val subtitle: String, val song: Song)
 
+/** 这首歌"属于谁"——菜单要跳去的那一页；由各页映射成自己的下钻类型 */
+enum class SongBelongsKind { Artist, Album }
+
+data class SongBelongs(val kind: SongBelongsKind, val id: Int, val name: String)
+
 /**
- * 歌曲长按菜单 —— MAUI `SongContextMenu` 的安卓对应物。
+ * 歌曲长按菜单 —— MAUI `SongContextMenu` 与播放页「更多」的安卓对应物。
  *
- * MAUI 那份是五项：播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息。
- * 本端放得下其中四项，「播放」不放是因为它和点一行重复。
- * 摆一个点了不动的项，比少摆一项更糟。
+ * MAUI 的菜单是五项：播放 / 下一首播放 / 收藏 / 添加到歌单 / 歌曲信息，
+ * 播放页的「更多」另有查看歌手 / 查看专辑 / 分享。这里合成一个菜单。
+ * 「播放」不放——它和点一行重复。
+ * 三个可选项传 null 就不画：摆一个点了不动的项，比少摆一项更糟。
  */
 @Composable
 fun SongActionMenu(
@@ -37,6 +43,8 @@ fun SongActionMenu(
     onPlayNext: () -> Unit,
     /** 为 null 表示这首歌给不出一个对方真能读到的地址 —— 那就**不画这一项** */
     onShare: (() -> Unit)?,
+    onOpenArtist: (() -> Unit)?,
+    onOpenAlbum: (() -> Unit)?,
     onAddToPlaylist: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -81,6 +89,26 @@ fun SongActionMenu(
                         text = stringResource(R.string.song_menu_share),
                         onClick = {
                             share()
+                            onDismiss()
+                        },
+                        filled = false,
+                    )
+                }
+                onOpenArtist?.let { open ->
+                    PillLabel(
+                        text = stringResource(R.string.song_menu_open_artist),
+                        onClick = {
+                            open()
+                            onDismiss()
+                        },
+                        filled = false,
+                    )
+                }
+                onOpenAlbum?.let { open ->
+                    PillLabel(
+                        text = stringResource(R.string.song_menu_open_album),
+                        onClick = {
+                            open()
                             onDismiss()
                         },
                         filled = false,

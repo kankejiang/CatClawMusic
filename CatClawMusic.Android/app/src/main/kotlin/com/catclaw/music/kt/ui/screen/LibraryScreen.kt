@@ -46,6 +46,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.ui.song.SongBelongs
+import com.catclaw.music.kt.ui.song.SongBelongsKind
 import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
@@ -74,6 +76,13 @@ enum class LibraryKind { Songs, Artists, Albums, Favorites }
  */
 data class LibraryDetail(val kind: LibraryKind, val id: Int, val name: String)
 
+/** 歌曲菜单给的归属目标 → 本页的下钻类型 */
+internal fun SongBelongs.toLibraryDetail(): LibraryDetail = LibraryDetail(
+    kind = if (kind == SongBelongsKind.Artist) LibraryKind.Artists else LibraryKind.Albums,
+    id = id,
+    name = name,
+)
+
 @Composable
 fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
     // 统计格 / 资料库行的下钻。MAUI 是 push 独立页（AllSongsPage 等），这里在页内切换：
@@ -91,6 +100,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel()) {
             detail = it,
             onBack = { detail = null },
             onOpenSong = { songDetailId = it },
+            onOpenDetail = { detail = it },
             viewModel = viewModel,
         )
         return
@@ -332,7 +342,7 @@ fun LibraryListScreen(
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
-    val menu = rememberSongMenu(viewModel) { onOpenSong(it) }
+    val menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpen(it.toLibraryDetail()) }) { onOpenSong(it) }
 
     val title = stringResource(
         when (kind) {
@@ -403,10 +413,12 @@ fun LibraryListScreen(
  * 专辑页反过来给歌手名。
  */
 @Composable
-private fun LibraryDetailScreen(
+internal fun LibraryDetailScreen(
     detail: LibraryDetail,
     onBack: () -> Unit,
     onOpenSong: (Int) -> Unit,
+    /** 从下钻页里的歌再跳到它的另一个归属（专辑页 → 歌手页） */
+    onOpenDetail: (LibraryDetail) -> Unit,
     viewModel: LibraryViewModel,
 ) {
     val palette = LocalCatClawPalette.current
@@ -442,7 +454,7 @@ private fun LibraryDetailScreen(
         SongList(
             rows = loaded,
             subtitleOf = { if (byArtist) it.album else it.artist },
-            menu = rememberSongMenu(viewModel) { onOpenSong(it) },
+            menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpenDetail(it.toLibraryDetail()) }) { onOpenSong(it) },
             emptyHint = stringResource(R.string.song_list_empty_hint),
             onPlay = { viewModel.playRows(loaded, it) },
         )

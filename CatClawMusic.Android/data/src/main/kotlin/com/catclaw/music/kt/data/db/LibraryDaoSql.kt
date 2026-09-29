@@ -180,6 +180,7 @@ internal const val SQL_SONG_DETAIL = """
            s.TrackNumber AS trackNumber, s.Duration AS durationSeconds, s.Bitrate AS bitrate,
            s.FileSize AS fileSize, s.FilePath AS filePath, s.CoverArtPath AS coverArtPath,
            s.LyricsPath AS lyricsPath, s.Source AS source,
+           IFNULL(s.ArtistId, 0) AS artistId, IFNULL(s.AlbumId, 0) AS albumId,
            (SELECT COALESCE(SUM(h.PlayCount), 0) FROM PlayHistory h WHERE h.SongId = s.Id) AS playCount
     FROM Songs s
     LEFT JOIN Artists a ON a.Id = s.ArtistId

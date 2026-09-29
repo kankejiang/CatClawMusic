@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.song.SongBelongs
 import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
@@ -71,6 +72,19 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val libraryViewModel: LibraryViewModel = hiltViewModel()
     var entry by remember { mutableStateOf<PlaylistEntry?>(null) }
     var songDetailId by remember { mutableStateOf<Int?>(null) }
+    // 收藏/最近列表里的歌也能跳到它的歌手页或专辑页——那两页是 LibraryScreen 的下钻页，
+    // 在这里用同一份组件托管一份，省掉跨页导航（返回键行为与从音乐库进去时一致）
+    var belongsDetail by remember { mutableStateOf<LibraryDetail?>(null) }
+    belongsDetail?.let { d ->
+        LibraryDetailScreen(
+            detail = d,
+            onBack = { belongsDetail = null },
+            onOpenSong = { songDetailId = it },
+            onOpenDetail = { belongsDetail = it },
+            viewModel = libraryViewModel,
+        )
+        return
+    }
 
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
@@ -86,6 +100,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             viewModel = libraryViewModel,
             onBack = { entry = null },
             onOpenDetail = { songDetailId = it },
+            onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
         )
         return
     }
@@ -398,6 +413,7 @@ private fun PlaylistEntryScreen(
     viewModel: LibraryViewModel,
     onBack: () -> Unit,
     onOpenDetail: (Int) -> Unit,
+    onOpenBelongs: ((SongBelongs) -> Unit)?,
 ) {
     val palette = LocalCatClawPalette.current
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
@@ -433,7 +449,7 @@ private fun PlaylistEntryScreen(
         SongList(
             rows = rows,
             subtitleOf = { it.artist },
-            menu = rememberSongMenu(viewModel, onOpenDetail),
+            menu = rememberSongMenu(viewModel, onOpenBelongs = onOpenBelongs, onOpenDetail = onOpenDetail),
             emptyHint = stringResource(
                 if (isFavorites) R.string.favorite_empty_hint else R.string.recent_empty_hint,
             ),

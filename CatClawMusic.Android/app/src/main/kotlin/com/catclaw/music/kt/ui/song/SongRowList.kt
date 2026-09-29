@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.glassCard
+import kotlinx.coroutines.launch
 
 /**
  * 长按菜单的能力由页面注入：列表只管弹菜单，不知道收藏怎么存、歌单从哪来。
@@ -53,6 +55,11 @@ class SongMenuActions(
     val onAddToPlaylist: (Int, Int) -> Unit,
     /** 插到当前曲目之后 */
     val onPlayNext: (Song) -> Unit,
+    /**
+     * 跳去这首歌的歌手页 / 专辑页。null 表示这一页没有"下钻到归属"的落点，
+     * 于是菜单里那两项不画 —— 而不是点了没反应。
+     */
+    val onOpenBelongs: ((SongBelongs) -> Unit)?,
     /** 详情页要读的那一行；null 表示这首歌已从库里删掉 */
     val loadDetail: suspend (Int) -> SongDetailRow?,
     /**
@@ -63,7 +70,11 @@ class SongMenuActions(
 )
 
 @Composable
-fun rememberSongMenu(viewModel: LibraryViewModel, onOpenDetail: (Int) -> Unit): SongMenuActions {
+fun rememberSongMenu(
+    viewModel: LibraryViewModel,
+    onOpenBelongs: ((SongBelongs) -> Unit)? = null,
+    onOpenDetail: (Int) -> Unit,
+): SongMenuActions {
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     return SongMenuActions(
@@ -72,6 +83,7 @@ fun rememberSongMenu(viewModel: LibraryViewModel, onOpenDetail: (Int) -> Unit): 
         onToggleFavorite = viewModel::toggleFavorite,
         onAddToPlaylist = viewModel::addToPlaylist,
         onPlayNext = viewModel::playNext,
+        onOpenBelongs = onOpenBelongs,
         loadDetail = viewModel::songDetail,
         onOpenDetail = onOpenDetail,
     )
@@ -154,8 +166,20 @@ fun SongList(
     }
     target?.let { song ->
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         // 能不能分享在弹菜单这一刻判一次：判不出可分享地址就不画这一项
         val shareUri = shareUriFor(context, song.song.filePath)
+        val belongs = menu.onOpenBelongs
+        // 画不画看行里已有的名字，id 在点的那一刻从详情行现读一次：
+        // 为这两项给每条列表 SQL 都加两列不划算
+        fun openBelongs(kind: SongBelongsKind, name: String) {
+            if (belongs == null) return
+            scope.launch {
+                val detail = menu.loadDetail(song.id) ?: return@launch
+                val id = if (kind == SongBelongsKind.Artist) detail.artistId else detail.albumId
+                if (id > 0) belongs(SongBelongs(kind, id, name))
+            }
+        }
         SongActionMenu(
             target = song,
             isFavorite = song.id in menu.favoriteIds,
@@ -167,6 +191,16 @@ fun SongList(
                 null
             } else {
                 { openShareSheet(context, shareUri, song.title, song.song.artist) }
+            },
+            onOpenArtist = if (belongs != null && song.song.artist.isNotBlank()) {
+                { openBelongs(SongBelongsKind.Artist, song.song.artist) }
+            } else {
+                null
+            },
+            onOpenAlbum = if (belongs != null && song.song.album.isNotBlank()) {
+                { openBelongs(SongBelongsKind.Album, song.song.album) }
+            } else {
+                null
             },
             onOpenDetail = { menu.onOpenDetail(song.id) },
             onDismiss = { target = null },

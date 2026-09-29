@@ -302,11 +302,16 @@ class LibraryDaoSqlTest {
         assertEquals("周柏豪", rs.getString("artist"))
         assertEquals("8", rs.getString("album"))
         assertEquals("详情里的播放次数是该歌所有历史行之和", 2, rs.getInt("playCount"))
+        // 「查看歌手/查看专辑」要的是 id，不是名字——名字重名时会跳错页
+        assertEquals(11, rs.getInt("artistId"))
+        assertEquals(21, rs.getInt("albumId"))
 
         val orphan = db.prepareStatement(SQL_SONG_DETAIL.replace(":id", "?")).apply { setInt(1, 2) }.executeQuery()
         assertTrue(orphan.next())
         assertEquals("没有歌手/专辑时给出空串而不是 null 或 '未知'", "", orphan.getString("artist"))
         assertEquals(0, orphan.getInt("playCount"))
+        assertEquals("无归属时 id 给 0，菜单据此不画「查看歌手」", 0, orphan.getInt("artistId"))
+        assertEquals(0, orphan.getInt("albumId"))
     }
 
     @Test

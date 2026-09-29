@@ -232,6 +232,8 @@
     <string name="song_menu_detail">歌曲信息</string>
     <string name="song_menu_play_next">下一首播放</string>
     <string name="song_menu_share">分享</string>
+    <string name="song_menu_open_artist">查看歌手</string>
+    <string name="song_menu_open_album">查看专辑</string>
     <string name="soundfx_title">音效</string>
     <string name="soundfx_entry">音效设置</string>
     <string name="soundfx_reset">重置</string>
