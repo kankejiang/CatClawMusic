@@ -61,6 +61,9 @@ class AudioFxPreferences @Inject constructor(
         write(_settings.value.copy(gains = gains, preset = "custom"))
     }
 
+    /** 点「自定义」这一格：只把名字改成 custom，不动曲线。C# 的 SelectPreset 也是这个分支 */
+    fun markCustom() = write(_settings.value.copy(preset = "custom"))
+
     fun setBassBoost(value: Int) = write(_settings.value.copy(bassBoost = value.coerceIn(0, 100)))
 
     fun setLoudness(value: Int) = write(_settings.value.copy(loudness = value.coerceIn(0, 100)))

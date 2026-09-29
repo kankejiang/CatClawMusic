@@ -27,8 +27,14 @@ import javax.inject.Singleton
 @Suppress("DEPRECATION") // BassBoost / Virtualizer / LoudnessEnhancer 在新 API 上被标了过时，但它们仍是唯一能挂到音频会话的效果
 class AndroidAudioFx @Inject constructor() {
 
-    /** 设备到底给不给这些效果 —— 页面据此决定画滑杆还是画「本设备不支持」 */
+    /**
+     * 设备到底给不给这些效果 —— 页面据此决定画滑杆还是画「本设备不支持」。
+     *
+     * `probed` 不能省：效果要等播放器 STATE_READY 拿到真实会话才挂得上，
+     * 没播过歌时 supported 也是 false。把"还没试过"报成"不支持"是一句假话。
+     */
     data class Capabilities(
+        val probed: Boolean = false,
         val supported: Boolean = false,
         val frequencies: IntArray = IntArray(0),
         val minDb: Double = EqualizerRules.MIN_GAIN_DB,
@@ -38,7 +44,8 @@ class AndroidAudioFx @Inject constructor() {
         val spatialSupported: Boolean = false,
     ) {
         override fun equals(other: Any?): Boolean = other is Capabilities &&
-            supported == other.supported && frequencies.contentEquals(other.frequencies) &&
+            probed == other.probed && supported == other.supported &&
+            frequencies.contentEquals(other.frequencies) &&
             minDb == other.minDb && maxDb == other.maxDb &&
             bassSupported == other.bassSupported && loudnessSupported == other.loudnessSupported &&
             spatialSupported == other.spatialSupported
@@ -85,6 +92,7 @@ class AndroidAudioFx @Inject constructor() {
         val spatialOk = virtualizer?.let { v -> runCatching { v.strengthSupported }.getOrDefault(false) } == true
         val levelRange = runCatching { equalizer?.bandLevelRange }.getOrNull()
         caps = Capabilities(
+            probed = true,
             supported = equalizer != null && bands > 0,
             frequencies = freqs,
             minDb = (levelRange?.getOrNull(0) ?: -1200) / 100.0,
@@ -137,6 +145,7 @@ class AndroidAudioFx @Inject constructor() {
         loudness = null
         virtualizer = null
         attachedSession = -1
+        caps = Capabilities()
     }
 
     /** dB → 设备毫贝：夹在设备自己给的范围内，越界的部分直接丢掉，不让原生层报错 */
