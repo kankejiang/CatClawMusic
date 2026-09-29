@@ -254,6 +254,7 @@
     <string name="soundfx_crossfade_sub">换曲时尾段淡出、新曲淡入（不重叠播放）</string>
     <string name="soundfx_crossfade_dur">淡入淡出时长</string>
     <string name="soundfx_seconds">%1$d 秒</string>
+    <string name="playing_more">更多操作</string>
     <string name="sleep_timer_entry">睡眠定时</string>
     <string name="sleep_timer_title">定时停止播放</string>
     <string name="sleep_timer_stop_time">停止时间</string>

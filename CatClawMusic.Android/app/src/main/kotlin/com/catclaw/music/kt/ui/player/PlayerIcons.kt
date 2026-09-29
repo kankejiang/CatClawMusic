@@ -45,5 +45,6 @@ object PlayerIcons {
     val DesktopLyrics = PlayerIcon(R.drawable.ic_notif_lyric_on)
     val SoundFx = PlayerIcon(R.drawable.ic_equalizer)
     val Timer = PlayerIcon(R.drawable.ic_timer)
+    val More = PlayerIcon(R.drawable.ic_more)
     val Close = PlayerIcon(R.drawable.ic_close)
 }

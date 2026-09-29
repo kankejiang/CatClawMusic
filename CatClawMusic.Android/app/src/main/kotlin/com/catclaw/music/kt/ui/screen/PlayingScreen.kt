@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.screen
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -50,7 +51,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.playback.PlayMode
+import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
@@ -58,6 +61,10 @@ import com.catclaw.music.kt.ui.player.PlayerIcons
 import com.catclaw.music.kt.ui.player.SleepTimerDialog
 import com.catclaw.music.kt.ui.player.formatCountdown
 import com.catclaw.music.kt.ui.player.rememberCover
+import com.catclaw.music.kt.ui.song.SongDetailScreen
+import com.catclaw.music.kt.ui.song.SongMenuFor
+import com.catclaw.music.kt.ui.song.SongMenuTarget
+import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -79,6 +86,23 @@ fun PlayingScreen(
     var showSleepDialog by remember { mutableStateOf(false) }
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
+    // 「更多」菜单要的能力（收藏/加入歌单/下一首/详情/歌手·专辑）与列表页是同一份，
+    // 都来自 LibraryViewModel；两个 VM 读的是同一批 Room 单例流，不会因为多拿一个 VM 而出现两份状态
+    val libraryViewModel: LibraryViewModel = hiltViewModel()
+    var songMenuOpen by remember { mutableStateOf(false) }
+    var songDetailId by remember { mutableStateOf<Int?>(null) }
+    // 歌手页/专辑页由播放页自己托管（与歌单页同一个做法）：MAUI 的「更多」有这两项，
+    // 本端要么真跳得过去，要么不画，不留一个点了不动的入口
+    var belongsDetail by remember { mutableStateOf<LibraryDetail?>(null) }
+    val menu = rememberSongMenu(
+        viewModel = libraryViewModel,
+        onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
+        onOpenDetail = { songDetailId = it },
+    )
+    // 两层都画了自己的返回方块，系统返回键也必须退它们。组合在后的那条优先，
+    // 所以按「先下层、后上层」排：两层同时开着时先退最上面那层
+    BackHandler(enabled = belongsDetail != null) { belongsDetail = null }
+    BackHandler(enabled = songDetailId != null) { songDetailId = null }
 
     // Android 13+ 无 POST_NOTIFICATIONS 时 StartForeground 会抛 SecurityException；
     // 读本地曲库需要 READ_MEDIA_AUDIO（33+）或 READ_EXTERNAL_STORAGE（<=32）
@@ -98,6 +122,23 @@ fun PlayingScreen(
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
+    }
+
+    // 整屏层沿用音乐库/歌单页的做法：直接顶掉本页内容而不是再叠一层 Box——
+    // 外壳已经把渐变底与状态栏内边距铺好了，页面里再画一遍就是两层底
+    songDetailId?.let { id ->
+        SongDetailScreen(songId = id, load = { libraryViewModel.songDetail(it) }, onBack = { songDetailId = null })
+        return
+    }
+    belongsDetail?.let { detail ->
+        LibraryDetailScreen(
+            detail = detail,
+            onBack = { belongsDetail = null },
+            onOpenSong = { songDetailId = it },
+            onOpenDetail = { belongsDetail = it },
+            viewModel = libraryViewModel,
+        )
+        return
     }
 
     Column(
@@ -264,9 +305,9 @@ fun PlayingScreen(
         }
 
         // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
-        // 这里放**已实现**的四个——横屏与「更多」在安卓侧还没有功能，
+        // 这里放**已实现**的五个——横屏在安卓侧还没有功能，
         // 摆上去就是假控件（本项目的既有判例：宁可不放，也不放不工作的入口）；
-        // 「详情」不在这排，它挂在歌曲长按菜单里（歌曲信息是歌曲的属性，不是播放页的属性）
+        // 「详情」不单独占一格，它收在「更多」里（歌曲信息是歌曲的属性，不是播放页的属性）
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             // MAUI 是 6 等分槽位；图标不满，用 weight 会推到两端显得很空，改成居中定距
@@ -320,6 +361,18 @@ fun PlayingScreen(
                     .clickable { showSleepDialog = true }
                     .padding(8.dp),
             )
+            // 「更多」只在真有一首歌可动的时候画：没有当前曲目时菜单里每一项都点不动
+            state.currentSong?.takeIf { it.id > 0 }?.let {
+                Icon(
+                    imageVector = PlayerIcons.More,
+                    contentDescription = stringResource(R.string.playing_more),
+                    tint = Color(palette.textSecondary),
+                    modifier = Modifier
+                        .size(49.dp)
+                        .clickable { songMenuOpen = true }
+                        .padding(8.dp),
+                )
+            }
         }
         if (showSleepDialog) {
             SleepTimerDialog(
@@ -341,7 +394,21 @@ fun PlayingScreen(
             )
         }
     }
+
+    // 菜单指向当前曲目。用 takeIf 而不是 `if (songMenuOpen)`：菜单项点完即 dismiss，
+    // 目标歌在这一刻取，滑到别的歌上时不会把菜单留给上一首
+    state.currentSong?.takeIf { songMenuOpen && it.id > 0 }?.let { song ->
+        SongMenuFor(
+            target = SongMenuTarget(song.id, song.title, menuSubtitle(song), song),
+            menu = menu,
+            onDismiss = { songMenuOpen = false },
+        )
+    }
 }
+
+/** 菜单第二行：歌手 · 专辑，缺一段就少一段，不留「· 」这种断口 */
+private fun menuSubtitle(song: Song): String =
+    listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" · ")
 
 @Composable
 private fun IconButton40(

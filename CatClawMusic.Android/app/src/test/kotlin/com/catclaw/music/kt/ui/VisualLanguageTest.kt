@@ -220,6 +220,14 @@ class VisualLanguageTest {
      */
     @Test
     fun `整屏覆盖层都接住系统返回键`() {
+        // 播放页那两层承载的是 id 而不是布尔（`songDetailId?.let` 形状），上面的正则抓不到，就按名字点名：
+        // 它们各自画了 BackTile，就必须也接住系统返回键，否则按返回直接退出应用
+        val playing = File(uiRoot, "screen/PlayingScreen.kt").readText()
+        assertTrue(
+            "播放页的歌手/专辑层与歌曲信息层要各自接住系统返回键",
+            Regex("""BackHandler\(enabled = belongsDetail != null""").containsMatchIn(playing) &&
+                Regex("""BackHandler\(enabled = songDetailId != null""").containsMatchIn(playing),
+        )
         val files = listOf("CatClawRoot.kt", "screen/SearchScreen.kt")
         val offenders = files.flatMap { rel ->
             val lines = File(uiRoot, rel).readText().lines()

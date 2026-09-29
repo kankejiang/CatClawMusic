@@ -7,12 +7,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
+import kotlinx.coroutines.launch
 
 /**
  * 菜单要对哪首歌动手：id 用来查收藏与写库，两行文字用来说给用户听，
@@ -142,5 +144,55 @@ fun SongActionMenu(
         confirmButton = {
             PillLabel(text = stringResource(R.string.song_menu_close), onClick = onDismiss, filled = false)
         },
+    )
+}
+
+/**
+ * 「手里已经有一首歌 → 弹出该给的菜单」这一段，列表页和播放页都要用，所以连带的两处判断一起收在这儿：
+ * - 分享：这一刻判一次能不能给出对方真能读到的地址，判不出就不画这一项；
+ * - 歌手/专辑：行里只有名字没有 id，点下去才现读一次详情行（为这两项给每条列表 SQL 加两列不划算）。
+ *
+ * 解析跑在 [SongMenuActions.scope]（ViewModel 的 scope）而不是这里 `rememberCoroutineScope()`：
+ * 菜单项点完立刻 dismiss，菜单自己的 scope 当场被取消，真机上表现成「点了没反应」。
+ */
+@Composable
+fun SongMenuFor(target: SongMenuTarget, menu: SongMenuActions, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val shareUri = shareUriFor(context, target.song.filePath)
+    val belongs = menu.onOpenBelongs
+
+    fun openBelongs(kind: SongBelongsKind, name: String) {
+        if (belongs == null) return
+        menu.scope.launch {
+            val detail = menu.loadDetail(target.id) ?: return@launch
+            val id = if (kind == SongBelongsKind.Artist) detail.artistId else detail.albumId
+            if (id > 0) belongs(SongBelongs(kind, id, name))
+        }
+    }
+
+    SongActionMenu(
+        target = target,
+        isFavorite = target.id in menu.favoriteIds,
+        playlists = menu.playlists,
+        onToggleFavorite = { menu.onToggleFavorite(target.id) },
+        onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, target.id) },
+        onPlayNext = { menu.onPlayNext(target.song) },
+        onShare = if (shareUri == null) {
+            null
+        } else {
+            { openShareSheet(context, shareUri, target.title, target.song.artist) }
+        },
+        onOpenArtist = if (belongs != null && target.song.artist.isNotBlank()) {
+            { openBelongs(SongBelongsKind.Artist, target.song.artist) }
+        } else {
+            null
+        },
+        onOpenAlbum = if (belongs != null && target.song.album.isNotBlank()) {
+            { openBelongs(SongBelongsKind.Album, target.song.album) }
+        } else {
+            null
+        },
+        onOpenDetail = { menu.onOpenDetail(target.id) },
+        onDismiss = onDismiss,
     )
 }

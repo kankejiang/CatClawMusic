@@ -254,6 +254,7 @@ Download it from GitHub.</string>
     <string name="soundfx_crossfade_sub">Fades the tail out and the next track in (no overlap)</string>
     <string name="soundfx_crossfade_dur">Fade duration</string>
     <string name="soundfx_seconds">%1$d s</string>
+    <string name="playing_more">More actions</string>
     <string name="sleep_timer_entry">Sleep timer</string>
     <string name="sleep_timer_title">Stop playback after</string>
     <string name="sleep_timer_stop_time">Stop after</string>

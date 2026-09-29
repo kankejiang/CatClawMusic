@@ -20,19 +20,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.data.db.SongDetailRow
@@ -42,7 +41,7 @@ import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.glassCard
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * 长按菜单的能力由页面注入：列表只管弹菜单，不知道收藏怎么存、歌单从哪来。
@@ -67,6 +66,12 @@ class SongMenuActions(
      * 在列表内部渲染会叠在列表页的页头下面，出现两个返回键。
      */
     val onOpenDetail: (Int) -> Unit,
+    /**
+     * 菜单里那些要现查一次的解析跑在这个 scope 上。必须是 VM 的而不是菜单的：
+     * 菜单项点完立刻 dismiss，`rememberCoroutineScope()` 会当场取消那次查询，
+     * 真机上表现成「点了没反应」（这条是本轮在列表页真机撞过的）。
+     */
+    val scope: CoroutineScope,
 )
 
 @Composable
@@ -86,6 +91,7 @@ fun rememberSongMenu(
         onOpenBelongs = onOpenBelongs,
         loadDetail = viewModel::songDetail,
         onOpenDetail = onOpenDetail,
+        scope = viewModel.viewModelScope,
     )
 }
 
@@ -103,10 +109,6 @@ fun SongList(
 ) {
     val palette = LocalCatClawPalette.current
     var target by remember { mutableStateOf<SongMenuTarget?>(null) }
-    // 作用域挂在列表上而不是菜单上：菜单项点完会立刻 dismiss，
-    // 若在 `target?.let` 里 rememberCoroutineScope，那次查询会在菜单离开组合时被取消
-    // （真机上表现成"点了没反应"）
-    val scope = rememberCoroutineScope()
     if (rows.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
             EmptyState(hint = emptyHint, iconRes = R.drawable.ic_library)
@@ -168,45 +170,5 @@ fun SongList(
             }
         }
     }
-    target?.let { song ->
-        val context = LocalContext.current
-        // 能不能分享在弹菜单这一刻判一次：判不出可分享地址就不画这一项
-        val shareUri = shareUriFor(context, song.song.filePath)
-        val belongs = menu.onOpenBelongs
-        // 画不画看行里已有的名字，id 在点的那一刻从详情行现读一次：
-        // 为这两项给每条列表 SQL 都加两列不划算
-        fun openBelongs(kind: SongBelongsKind, name: String) {
-            if (belongs == null) return
-            scope.launch {
-                val detail = menu.loadDetail(song.id) ?: return@launch
-                val id = if (kind == SongBelongsKind.Artist) detail.artistId else detail.albumId
-                if (id > 0) belongs(SongBelongs(kind, id, name))
-            }
-        }
-        SongActionMenu(
-            target = song,
-            isFavorite = song.id in menu.favoriteIds,
-            playlists = menu.playlists,
-            onToggleFavorite = { menu.onToggleFavorite(song.id) },
-            onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
-            onPlayNext = { menu.onPlayNext(song.song) },
-            onShare = if (shareUri == null) {
-                null
-            } else {
-                { openShareSheet(context, shareUri, song.title, song.song.artist) }
-            },
-            onOpenArtist = if (belongs != null && song.song.artist.isNotBlank()) {
-                { openBelongs(SongBelongsKind.Artist, song.song.artist) }
-            } else {
-                null
-            },
-            onOpenAlbum = if (belongs != null && song.song.album.isNotBlank()) {
-                { openBelongs(SongBelongsKind.Album, song.song.album) }
-            } else {
-                null
-            },
-            onOpenDetail = { menu.onOpenDetail(song.id) },
-            onDismiss = { target = null },
-        )
-    }
+    target?.let { song -> SongMenuFor(target = song, menu = menu, onDismiss = { target = null }) }
 }
