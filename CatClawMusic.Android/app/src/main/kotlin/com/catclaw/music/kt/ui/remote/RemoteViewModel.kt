@@ -15,6 +15,7 @@ import com.catclaw.music.kt.data.remote.SubsonicClient
 import com.catclaw.music.kt.data.remote.SyncProgress
 import com.catclaw.music.kt.data.remote.WebDavClient
 import com.catclaw.music.kt.data.remote.WebDavImporter
+import com.catclaw.music.kt.data.remote.RemoteFile
 import com.catclaw.music.kt.data.smb.SmbImporter
 import com.catclaw.music.kt.data.smb.SmbProbe
 import com.catclaw.music.kt.data.remote.SubsonicImporter
@@ -25,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -75,6 +77,54 @@ class RemoteViewModel @Inject constructor(
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
+
+    /**
+     * WebDAV 目录浏览的一层状态。表单里那格 BasePath 此前只能手打，
+     * 打错一个字符就是"连得上却导不到歌"，所以给它一个逐层点选出来的入口。
+     */
+    data class RemoteBrowser(val path: String, val dirs: List<RemoteFile>, val busy: Boolean, val error: String?)
+
+    private val _browse = MutableStateFlow<RemoteBrowser?>(null)
+    val browse: StateFlow<RemoteBrowser?> = _browse.asStateFlow()
+
+    /**
+     * 用**表单当前这份**去列目录：用户是边填边试的，读已保存的那条会浏览到另一台服务器。
+     *
+     * 子目录的 `path` 直接就能当新的 BasePath —— 它是含 `/dav` 前缀的服务器绝对路径，
+     * 而 `buildUrl` 有"带前缀不重复拼"的守卫。第一条是 PROPFIND 返回目录自身，按路径剔掉。
+     *
+     * BasePath 还空着时先走一遍 `test()` 的那套探测（空前缀 → /dav → /webdav）：
+     * 直接打服务器根多半是 404，真机就是这样第一次点「浏览目录」报"列目录失败"的。
+     * 探到的那一层要回写进浏览状态，后面「用这个目录」才会填对路径。
+     */
+    fun browseWebDav(profile: ConnectionProfile, path: String) {
+        _browse.value = RemoteBrowser(path, emptyList(), busy = true, error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            val outcome = runCatching {
+                val client = WebDavClient(profile.copy(basePath = path))
+                var at = path
+                if (at.isBlank() || at == "/") {
+                    val probed = client.test()
+                    if (!probed.ok) error(probed.message)
+                    at = probed.davPrefix.ifBlank { "/" }
+                }
+                val dirs = client.list(at)
+                    .filter { it.isDirectory && it.path.trimEnd('/') != at.trimEnd('/') }
+                    .sortedBy { it.name.lowercase() }
+                at to dirs
+            }
+            withContext(Dispatchers.Main) {
+                _browse.value = outcome.fold(
+                    onSuccess = { (at, dirs) -> RemoteBrowser(at, dirs, busy = false, error = null) },
+                    onFailure = { RemoteBrowser(path, emptyList(), busy = false, error = it.message ?: "PROPFIND") },
+                )
+            }
+        }
+    }
+
+    fun closeWebDavBrowser() {
+        _browse.value = null
+    }
 
     private val _message = MutableStateFlow<RemoteMessage?>(null)
     val message: StateFlow<RemoteMessage?> = _message

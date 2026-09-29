@@ -302,6 +302,14 @@ Download it from GitHub.</string>
     <string name="remote_sync_result">Synced %1$d songs · %2$d new · %3$d updated · %4$d ms</string>
     <string name="remote_failed">Operation failed: %1$s</string>
     <string name="remote_sync_progress">Syncing %1$d/%2$d</string>
+    <string name="remote_base_path">Remote folder (BasePath)</string>
+    <string name="remote_browse">Browse</string>
+    <string name="remote_browse_title">Remote folders</string>
+    <string name="remote_browse_up">Up</string>
+    <string name="remote_browse_loading">Listing…</string>
+    <string name="remote_browse_none">No subfolders here</string>
+    <string name="remote_browse_failed">Cannot list: %1$s</string>
+    <string name="remote_browse_pick">Use this folder</string>
     <string name="remote_sync_listing">Listing remote folders…</string>
     <string name="downloads_title">Downloads</string>
     <string name="downloads_subtitle">Local download tasks and where they go</string>

@@ -302,6 +302,14 @@
     <string name="remote_sync_result">同步 %1$d 首 · 新增 %2$d · 更新 %3$d · 用时 %4$d ms</string>
     <string name="remote_failed">操作失败：%1$s</string>
     <string name="remote_sync_progress">正在同步 %1$d/%2$d</string>
+    <string name="remote_base_path">远端目录（BasePath）</string>
+    <string name="remote_browse">浏览目录</string>
+    <string name="remote_browse_title">远端目录</string>
+    <string name="remote_browse_up">上一级</string>
+    <string name="remote_browse_loading">正在读取目录…</string>
+    <string name="remote_browse_none">这一层没有子目录</string>
+    <string name="remote_browse_failed">列目录失败：%1$s</string>
+    <string name="remote_browse_pick">用这个目录</string>
     <string name="remote_sync_listing">正在列出远端目录…</string>
     <string name="downloads_title">下载管理</string>
     <string name="downloads_subtitle">远程曲的本地下载任务与下载位置</string>

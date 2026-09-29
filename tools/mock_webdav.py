@@ -32,10 +32,13 @@ _THROTTLE = float(os.environ.get("MOCK_DAV_THROTTLE") or 0)
 ENTRIES = [
     ("dav", "/dav/", True, 0),
     ("Music", "/dav/Music/", True, 0),
+    # 第二层：给"逐层点选 BasePath"那条路径做证据（名字带空格，顺便验 href 解码）
+    ("Album A", "/dav/Music/Album%20A/", True, 0),
     ("中文.mp3", "/dav/Music/%s.mp3" % quote("中文"), False, 4096),
     ("中文.lrc", "/dav/Music/%s.lrc" % quote("中文"), False, 120),
     ("中文.jpg", "/dav/Music/%s.jpg" % quote("中文"), False, 2048),
     ("plain.mp3", "/dav/Music/plain.mp3", False, 3072),
+    ("track-one.mp3", "/dav/Music/Album%20A/track-one.mp3", False, 3072),
 ]
 
 LRC = "[00:00.000]mock first line\n[00:02.000]mock second line\n"
@@ -105,12 +108,19 @@ class Handler(BaseHTTPRequestHandler):
         if raw == "/":
             # 故意不认根：逼客户端去探测 /dav
             return self._send(b"not found", "text/plain", 404)
-        if raw.rstrip("/") != "/dav":
+        want = raw if raw.endswith("/") else raw + "/"
+        if want != "/dav/" and not want.startswith("/dav/"):
             return self._send(b"not found", "text/plain", 404)
+
+        def parent_of(path):
+            trimmed = path.rstrip("/")
+            return trimmed[: trimmed.rfind("/") + 1]
+
         if depth in ("infinity", "899") or int(depth or 0) > 1:
             return self._send(propfind_xml(ENTRIES), status=207)
-        # Depth 0/1：只回目录本身与直接子项
-        return self._send(propfind_xml(ENTRIES[:2]), status=207)
+        # Depth 0/1：只回目录本身与**这一层的**直接子项（逐层浏览要的就是这个语义）
+        here = [e for e in ENTRIES if e[1] == want or parent_of(e[1]) == want]
+        return self._send(propfind_xml(here), status=207)
 
     def do_GET(self):
         if not self._authed():

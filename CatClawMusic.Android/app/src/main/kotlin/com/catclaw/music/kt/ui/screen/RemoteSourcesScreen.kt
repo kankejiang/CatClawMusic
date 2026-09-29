@@ -47,6 +47,9 @@ import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.data.download.DownloadState
 import com.catclaw.music.kt.ui.remote.RemoteMessage
 import com.catclaw.music.kt.ui.remote.RemoteViewModel
+import androidx.activity.compose.BackHandler
+import com.catclaw.music.kt.data.remote.RemoteFile
+import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
@@ -77,9 +80,52 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     var protocol by rememberSaveable { mutableStateOf(ProtocolType.Navidrome.name) }
     var share by rememberSaveable { mutableStateOf("") }
     var domain by rememberSaveable { mutableStateOf("") }
+    var basePath by rememberSaveable { mutableStateOf("") }
     // 正在改哪一条（null = 新增）。只活在内存里：ConnectionProfile 不是 Saveable，
     // 进程被杀后表单字段还在但会退回"新增"档——那正是安全的方向（不会把 id 弄丢去覆盖另一条）
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
+
+    /**
+     * 表单当前这份 → 连接配置。「保存」与「浏览目录」共用同一个构造口：
+     * 抄两份的话早晚会一份带 basePath、另一份不带，而 basePath 正是浏览要写进去的那格。
+     */
+    fun buildDraft(): ConnectionProfile {
+        val chosen = ProtocolType.valueOf(protocol)
+        return (editing ?: ConnectionProfile(name = "")).copy(
+            name = name.ifBlank { host },
+            host = host.trim(),
+            port = port.trim().toIntOrNull() ?: if (chosen == ProtocolType.SMB) 445 else 4535,
+            userName = user.trim(),
+            password = pass,
+            protocol = chosen,
+            shareName = share.trim().ifEmpty { null },
+            domainName = domain.trim().ifEmpty { null },
+            basePath = basePath.trim(),
+        )
+    }
+
+    val browse by viewModel.browse.collectAsStateWithLifecycle()
+    // 目录浏览器是整屏层：它画了自己的返回块，系统返回键要退这一层，不是弹掉整页
+    BackHandler(enabled = browse != null) { viewModel.closeWebDavBrowser() }
+    browse?.let { panel ->
+        RemoteBrowserPanel(
+            panel = panel,
+            onEnter = { viewModel.browseWebDav(buildDraft(), it.path) },
+            // 上一级：把路径最后一段切掉。根目录（"/" 或空）时不给这个按钮
+            onUp = {
+                val parent = panel.path.trimEnd('/').substringBeforeLast('/', "")
+                viewModel.browseWebDav(buildDraft(), parent.ifEmpty { "/" })
+            },
+            onPick = {
+                // 选的是**人现在站的这一层**，不是某个子目录：走进去看到里面全是歌，
+                // 再说"就要这个"，确认的语义才跟着动作
+                basePath = panel.path.trimEnd('/').ifEmpty { "/" }
+                viewModel.closeWebDavBrowser()
+            },
+            onClose = { viewModel.closeWebDavBrowser() },
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -184,6 +230,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                             protocol = profile.protocol.name
                             share = profile.shareName.orEmpty()
                             domain = profile.domainName.orEmpty()
+                            basePath = profile.basePath
                         }
                         PillButton(label = stringResource(R.string.Delete), filled = false) { viewModel.delete(profile.id) }
                     }
@@ -223,24 +270,30 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     GlassField(value = domain, onValue = { domain = it }, label = stringResource(R.string.SmbDomain), modifier = Modifier.weight(1f))
                 }
             }
+            // 只有 WebDAV 有"目录"这个概念：Subsonic/猫爪服务器给的是曲库不是路径树，
+            // 摆在这几档上会是一个填了没用的格子
+            if (protocol == ProtocolType.WebDAV.name) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GlassField(
+                        value = basePath,
+                        onValue = { basePath = it },
+                        label = stringResource(R.string.remote_base_path),
+                        modifier = Modifier.weight(1f),
+                    )
+                    PillLabel(
+                        text = stringResource(R.string.remote_browse),
+                        onClick = { viewModel.browseWebDav(buildDraft(), basePath.ifBlank { "/" }) },
+                        filled = false,
+                    )
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PillButton(label = stringResource(R.string.Save), filled = true) {
-                    val chosen = ProtocolType.valueOf(protocol)
-                    // 从正在改的那条出发 copy：id / basePath / apiVersion / serverType / useHttps
-                    // 都不在这个表单里，重新 new 一个会把它们悄悄抹回默认值
-                    viewModel.save(
-                        (editing ?: ConnectionProfile(name = "")).copy(
-                            name = name.ifBlank { host },
-                            host = host.trim(),
-                            port = port.trim().toIntOrNull() ?: if (chosen == ProtocolType.SMB) 445 else 4535,
-                            userName = user.trim(),
-                            password = pass,
-                            protocol = chosen,
-                            shareName = share.trim().ifEmpty { null },
-                            domainName = domain.trim().ifEmpty { null },
-                        ),
-                    )
+                    // 从正在改的那条出发 copy：id / apiVersion / serverType / useHttps 都不在这个表单里，
+                    // 重新 new 一个会把它们悄悄抹回默认值
+                    viewModel.save(buildDraft())
                     editing = null
                     name = ""
                     host = ""
@@ -248,6 +301,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     pass = ""
                     share = ""
                     domain = ""
+                    basePath = ""
                     port = "4535"
                 }
                 if (editingProfile != null) {
@@ -259,6 +313,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         pass = ""
                         share = ""
                         domain = ""
+                        basePath = ""
                         port = "4535"
                     }
                 }
@@ -364,6 +419,114 @@ private fun PillButton(label: String, filled: Boolean, enabled: Boolean = true, 
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
+}
+
+/**
+ * WebDAV 目录浏览器 —— 整屏层：自己的返回块 + 当前路径 + 子目录 + 「用这个目录」。
+ *
+ * 存在的理由：BasePath 打错一个字符，连接测试照样能过（它会自动试空前缀与 /dav），
+ * 导库却是 0 首 —— 一个"看起来连上了"的空结果最难查。
+ */
+@Composable
+private fun RemoteBrowserPanel(
+    panel: RemoteViewModel.RemoteBrowser,
+    onEnter: (RemoteFile) -> Unit,
+    onUp: () -> Unit,
+    onPick: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    val here = panel.path.trimEnd('/')
+    val atRoot = here.isEmpty() || here == "/"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+    ) {
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            BackTile(onBack = onClose, description = stringResource(R.string.GoBack))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = stringResource(R.string.remote_browse_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
+                Text(
+                    text = panel.path.ifEmpty { "/" },
+                    fontSize = 12.sp,
+                    color = secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (!atRoot) {
+                PillLabel(text = stringResource(R.string.remote_browse_up), onClick = onUp, filled = false)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        when {
+            panel.busy -> Text(stringResource(R.string.remote_browse_loading), fontSize = 13.sp, color = secondary)
+            panel.error != null -> Text(
+                text = stringResource(R.string.remote_browse_failed, panel.error.orEmpty()),
+                fontSize = 13.sp,
+                color = secondary,
+            )
+
+            panel.dirs.isEmpty() -> EmptyState(
+                hint = stringResource(R.string.remote_browse_none),
+                iconRes = R.drawable.ic_library,
+                modifier = Modifier.padding(top = 24.dp),
+            )
+
+            else -> panel.dirs.forEach { dir ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onEnter(dir) }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(palette.primary).copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = dir.name.take(1),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primary,
+                        )
+                    }
+                    Text(
+                        text = dir.name,
+                        fontSize = 15.sp,
+                        color = primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        tint = secondary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        // 确认按钮排在最后：上面那串列表是"走进去看看"，这一颗才是"就定在这层"
+        PillLabel(text = stringResource(R.string.remote_browse_pick), onClick = onPick, filled = true)
+        Spacer(Modifier.height(120.dp))
+    }
 }
 
 /** 玻璃输入框：透明容器、无下划线，标签与光标走调色板 */
