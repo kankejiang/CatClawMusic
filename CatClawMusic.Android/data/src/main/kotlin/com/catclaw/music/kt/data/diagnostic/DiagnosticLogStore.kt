@@ -1,7 +1,12 @@
 package com.catclaw.music.kt.data.diagnostic
 
 import android.content.Context
+import android.os.Build
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.catclaw.music.kt.core.diagnostic.DiagnosticLogRules
+import com.catclaw.music.kt.core.diagnostic.DiagnosticReport
 import com.catclaw.music.kt.core.diagnostic.DiagnosticSink
 import com.catclaw.music.kt.core.diagnostic.LogEntry
 import com.catclaw.music.kt.core.diagnostic.LogLevel
@@ -22,7 +27,7 @@ import kotlinx.coroutines.withContext
  */
 @Singleton
 class DiagnosticLogStore @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) : DiagnosticSink {
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -49,8 +54,44 @@ class DiagnosticLogStore @Inject constructor(
 
     fun path(): String = log.path()
 
+    /** 导出诊断包（整份日志 + 一份设备信息），给系统分享用 */
+    suspend fun exportPackage(): File = withContext(Dispatchers.IO) {
+        val entries = entries()
+        DiagnosticPackage(logFile = File(log.path()), cacheDir = context.cacheDir)
+            .build(
+                DiagnosticReport.header(
+                    appVersion = versionName(),
+                    buildNumber = buildNumber(),
+                    deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
+                    osVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                    firstInstall = firstInstall(),
+                    entries = entries,
+                    exportedAt = EXPORT_STAMP.format(Date()),
+                ),
+            )
+    }
+
+    private fun versionName(): String = packageInfo?.versionName ?: "?"
+
+    private fun buildNumber(): String = packageInfo?.let {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode.toString() else @Suppress("DEPRECATION") it.versionCode.toString()
+    } ?: "?"
+
+    private fun firstInstall(): String {
+        // 统一用 firstInstallTime：`InstallSourceInfo.getInstallTime()` 要 API 30+，
+        // 而 minSdk 是 31 也换不来什么额外信息 —— 这里只要"这台设备什么时候装的"
+        val at = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrNull() ?: return "?"
+        return EXPORT_STAMP.format(Date(at))
+    }
+
+    private val packageInfo get() = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+
     private companion object {
         const val PREFS = "catclaw_state"
         const val KEY_ENABLED = "diagnostic_enabled"
+        val EXPORT_STAMP = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
     }
+
 }

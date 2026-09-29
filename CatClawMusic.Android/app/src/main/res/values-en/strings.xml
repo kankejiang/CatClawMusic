@@ -204,4 +204,6 @@ Download it from GitHub.</string>
     <string name="diagnostic_disabled_hint">Diagnostics are off; new lines are written only after you turn them on.</string>
     <string name="diagnostic_path">File: %1$s</string>
     <string name="diagnostic_clear">Clear</string>
+    <string name="diagnostic_export">Export</string>
+    <string name="diagnostic_export_title">CatClawMusic diagnostics</string>
 </resources>

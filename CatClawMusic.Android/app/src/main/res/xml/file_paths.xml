@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 只暴露缓存根目录：诊断 zip 就落在这里，按文件授权给接收方 -->
+    <cache-path name="diagnostics" path="." />
+</paths>

@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.settings
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
@@ -51,6 +54,7 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -81,6 +85,8 @@ class DiagnosticLogViewModel @Inject constructor(
 
     suspend fun clearLog() = store.clear()
 
+    suspend fun exportPackage(): File = store.exportPackage()
+
     fun path(): String = store.path()
 }
 
@@ -88,6 +94,7 @@ class DiagnosticLogViewModel @Inject constructor(
 fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = hiltViewModel()) {
     val palette = LocalCatClawPalette.current
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var tick by remember { mutableStateOf(0) }
     var level by remember { mutableStateOf<LogLevel?>(null) }
     var tag by remember { mutableStateOf<String?>(null) }
@@ -122,17 +129,7 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
                 )
             }
             PillLabel(text = stringResource(R.string.diagnostic_refresh), onClick = { tick += 1 }, filled = false)
-            Spacer(Modifier.width(8.dp))
-            PillLabel(
-                text = stringResource(R.string.diagnostic_clear),
-                onClick = {
-                    scope.launch {
-                        viewModel.clearLog()
-                        tick += 1
-                    }
-                },
-                filled = false,
-            )
+
         }
         Spacer(Modifier.height(10.dp))
 
@@ -173,6 +170,37 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
                     onClick = { tag = if (tag == name) null else name },
                 )
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillLabel(
+                text = stringResource(R.string.diagnostic_clear),
+                onClick = {
+                    scope.launch {
+                        viewModel.clearLog()
+                        tick += 1
+                    }
+                },
+                filled = false,
+            )
+            PillLabel(
+                text = stringResource(R.string.diagnostic_export),
+                onClick = {
+                    scope.launch {
+                        val file = viewModel.exportPackage()
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/zip"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(
+                            Intent.createChooser(send, context.getString(R.string.diagnostic_export_title)),
+                        )
+                    }
+                },
+                filled = false,
+            )
         }
         Spacer(Modifier.height(8.dp))
 
