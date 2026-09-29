@@ -2,6 +2,7 @@ package com.catclaw.music.kt.data.download
 
 import android.content.Context
 import com.catclaw.music.kt.core.ai.DownloadEnqueuer
+import com.catclaw.music.kt.core.download.FileNames
 import com.catclaw.music.kt.core.download.RangeDownloader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
