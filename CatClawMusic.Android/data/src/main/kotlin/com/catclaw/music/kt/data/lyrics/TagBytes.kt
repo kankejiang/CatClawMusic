@@ -38,13 +38,18 @@ internal object TagBytes {
         return -1
     }
 
+    /**
+     * 每一段都得自己先算完再 `or` —— Kotlin 的 `shl` 与 `or` 是同级中缀、**从左往右**结合，
+     * 少了括号就变成 `((a shl 21 or b) shl 14 or c) shl 7 or d`，读出来的数完全不是那个数。
+     * 只有一位非零时两种算法碰巧相等，所以小标签一直没暴露这个问题。
+     */
     fun synchsafe(b: ByteArray, at: Int): Int =
-        (b[at].toInt() and 0x7F) shl 21 or (b[at + 1].toInt() and 0x7F) shl 14 or
-            (b[at + 2].toInt() and 0x7F) shl 7 or (b[at + 3].toInt() and 0x7F)
+        ((b[at].toInt() and 0x7F) shl 21) or ((b[at + 1].toInt() and 0x7F) shl 14) or
+            ((b[at + 2].toInt() and 0x7F) shl 7) or (b[at + 3].toInt() and 0x7F)
 
     fun be32(b: ByteArray, at: Int): Int =
-        (b[at].toInt() and 0xFF) shl 24 or (b[at + 1].toInt() and 0xFF) shl 16 or
-            (b[at + 2].toInt() and 0xFF) shl 8 or (b[at + 3].toInt() and 0xFF)
+        ((b[at].toInt() and 0xFF) shl 24) or ((b[at + 1].toInt() and 0xFF) shl 16) or
+            ((b[at + 2].toInt() and 0xFF) shl 8) or (b[at + 3].toInt() and 0xFF)
 
     fun be64(b: ByteArray, at: Int): Long {
         var v = 0L
