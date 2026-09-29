@@ -456,6 +456,27 @@ class VisualLanguageTest {
     }
 
     /**
+     * 整屏覆盖层压住身后那页时，那一层必须从**无障碍树**里摘掉。
+     *
+     * 真机 dump 量到的（版面体检扫出来的）：队列页上「设置」（播放页的按钮）与「返回」（队列页的）
+     * 两个节点的 bounds **100% 重叠**，音效页上「设置」与「返回上级」同样。它们是同一个 ComposeView 里的
+     * 两层——视觉上被盖住，读屏却能滑进那些看不见、也点不到的控件。
+     * 判据钉的是「那层的 modifier 链上真挂了一个按覆盖层开关走的 `hideFromAccessibility()`」，
+     * 且条件在**组合期**读（写进 lambda 里读状态不会触发重组，覆盖层关掉后那棵树就再也挂不回来了）。
+     */
+    @Test
+    fun `覆盖层压住的那层从无障碍树里摘掉`() {
+        val cases = mapOf(
+            "CatClawRoot.kt" to "coverLayersOpen",
+            "screen/SearchScreen.kt" to "chatMode || statsOpen",
+        )
+        val missing = cases.filter { (rel, cond) ->
+            !("semantics { if ($cond) hideFromAccessibility() }" in File(uiRoot, rel).readText())
+        }.keys
+        assertTrue("这些整屏覆盖层没把身后那层摘出无障碍树（读屏会滑进看不见的控件）: $missing", missing.isEmpty())
+    }
+
+    /**
      * `.size()` 之后紧跟 `.padding()` 再到 `.clickable` 是**顺序错**：padding 会把 clickable
      * 那个节点缩掉，图标和可点区一起变小（播放页那两个图标原本因此只有 17dp，比设计的小一半）。
      * 正确写法是可点节点在外：`.size(外框).clickable{}.padding{}`。

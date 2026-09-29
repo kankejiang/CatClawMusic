@@ -38,6 +38,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -213,6 +215,8 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
     var showQueue by remember { mutableStateOf(false) }
     // 音效页和队列页一样是整页覆盖层：它是"播放的附属设置"，不该占一个 pager 槽位
     var showSoundFx by remember { mutableStateOf(false) }
+    // 在组合期算好，再喂给下面 pager 宿主的 semantics（见那处的注释）
+    val coverLayersOpen = showQueue || showSoundFx
     // 聊天覆盖层打开时悬浮两栏要让位（否则输入行被 TabBar 盖住）
     var chatOpen by remember { mutableStateOf(false) }
     // MAUI 的显隐规则：`_currentIndex <= 1`（播放页 / 全屏歌词页）收起 TabBar 与 MiniPlayer；
@@ -237,7 +241,13 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .catClawBackground()
-                        .statusBarsPadding(),
+                        .statusBarsPadding()
+                        // 整屏覆盖层（队列 / 音效）压住五页时，身后那页仍留在同一棵无障碍树里——
+                        // 真机 dump 量到队列页上「设置」与「返回」两个节点的 bounds 100% 重叠，
+                        // 读屏用户能滑进看不见、也点不到的那一层。覆盖层显示时把身后整棵子树摘掉。
+                        // 条件在组合期算好再进 semantics：写在 lambda 里的话状态读取发生在语义阶段，
+                        // 不会触发重组，覆盖层关掉后那棵子树就再也摘不回来了。
+                        .semantics { if (coverLayersOpen) hideFromAccessibility() },
                 ) {
                     HorizontalPager(
                         state = pagerState,
