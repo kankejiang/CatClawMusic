@@ -56,6 +56,7 @@
     <string name="sort_artist">歌手</string>
     <string name="sort_album">专辑</string>
     <string name="sort_duration">时长</string>
+    <string name="sort_date_added">入库时间</string>
     <string name="search_none">没找到与「%1$s」相关的歌</string>
     <string name="library_none">暂无内容</string>
     <string name="lyric_close">收起</string>

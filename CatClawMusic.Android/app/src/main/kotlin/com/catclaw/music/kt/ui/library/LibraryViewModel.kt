@@ -91,7 +91,7 @@ class LibraryViewModel @Inject constructor(
      * 没有「按播放次数」那一档：`SongListItem` 里不带 PlayCount，为它给每条列表 SQL 加一列
      * 不划算，而摆一个排不动的 chip 比少摆一档更糟。
      */
-    enum class SongSort { Title, Artist, Album, Duration }
+    enum class SongSort { Title, Artist, Album, Duration, DateAdded }
 
     private val _songSort = MutableStateFlow(SongSort.Title)
     val songSort = _songSort.asStateFlow()
@@ -123,6 +123,11 @@ class LibraryViewModel @Inject constructor(
             SongSort.Artist -> filtered.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
             SongSort.Album -> filtered.sortedWith(compareBy({ it.album.lowercase() }, { it.title.lowercase() }))
             SongSort.Duration -> filtered.sortedByDescending { it.durationSeconds }
+            // 入库时间：MAUI `AllSongsViewModel` 的 "added" 档。同一天入库的歌很多（一次扫描全在同一秒），
+            // 只按 DateAdded 排会出现"每次看顺序都可能不同"的错觉，所以补 Id 倒序当第二键
+            SongSort.DateAdded -> filtered.sortedWith(
+                compareByDescending<SongListItem> { it.dateAdded }.thenByDescending { it.id },
+            )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

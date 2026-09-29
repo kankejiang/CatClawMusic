@@ -674,6 +674,7 @@ internal fun sortLabelRes(sort: LibraryViewModel.SongSort): Int = when (sort) {
     LibraryViewModel.SongSort.Artist -> R.string.sort_artist
     LibraryViewModel.SongSort.Album -> R.string.sort_album
     LibraryViewModel.SongSort.Duration -> R.string.sort_duration
+    LibraryViewModel.SongSort.DateAdded -> R.string.sort_date_added
 }
 
 /**

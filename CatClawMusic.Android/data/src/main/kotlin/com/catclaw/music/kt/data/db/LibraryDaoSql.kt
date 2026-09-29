@@ -14,7 +14,7 @@ internal const val SQL_RECENT_SONGS = """
     SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
            COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
            s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-           s.Source AS source, s.Protocol AS protocol
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
     FROM (
         SELECT SongId, MAX(PlayedAt) AS lastPlayed FROM PlayHistory
         GROUP BY SongId ORDER BY lastPlayed DESC LIMIT :limit
@@ -29,7 +29,7 @@ internal const val SQL_FREQUENT_SONGS = """
     SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
            COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
            s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-           s.Source AS source, s.Protocol AS protocol
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
     FROM Songs s
     JOIN PlayHistory h ON h.SongId = s.Id
     LEFT JOIN Artists a ON a.Id = s.ArtistId
@@ -50,7 +50,7 @@ internal const val SQL_SEARCH_SONGS = """
     SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
            COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
            s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-           s.Source AS source, s.Protocol AS protocol
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
     FROM Songs s
     LEFT JOIN Artists a ON a.Id = s.ArtistId
     LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -146,7 +146,7 @@ internal const val SQL_SONGS_OF_ARTIST = """
     SELECT DISTINCT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
            COALESCE(al.Title, '') AS album, s.Duration AS durationSeconds,
            s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-           s.Source AS source, s.Protocol AS protocol
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
     FROM Songs s
     LEFT JOIN Artists a ON a.Id = s.ArtistId
     LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -165,7 +165,7 @@ internal const val SQL_SONGS_OF_ALBUM = """
     SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
            COALESCE(al.Title, '') AS album, s.Duration AS durationSeconds,
            s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-           s.Source AS source, s.Protocol AS protocol
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
     FROM Songs s
     LEFT JOIN Artists a ON a.Id = s.ArtistId
     JOIN Albums al ON al.Id = s.AlbumId

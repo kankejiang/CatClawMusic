@@ -32,6 +32,8 @@ data class SongListItem(
     /** 远程曲必须带着真实来源与协议回播放层，否则 isRemote / 预缓冲判断会把它当本地文件 */
     val source: Int,
     val protocol: Int,
+    /** epoch 秒，0 = 没有这个信息。全部歌曲页的「入库时间」排序读它（列表 SQL 里用 IFNULL 兜 NULL） */
+    val dateAdded: Long = 0,
 )
 
 /** 常听排行的一行 */
@@ -53,7 +55,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
                IFNULL(al.Title, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Songs s
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -115,7 +117,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
                COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Songs s
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -135,7 +137,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
                COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Songs s
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -204,7 +206,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
                IFNULL(al.Title, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Favorites f JOIN Songs s ON s.Id = f.SongId
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -389,7 +391,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
                COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Favorites f
         JOIN Songs s ON s.Id = f.SongId
         LEFT JOIN Artists a ON a.Id = s.ArtistId
@@ -439,7 +441,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
                COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Songs s
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId
@@ -456,7 +458,7 @@ interface LibraryDao {
         SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
                COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM Songs s
         LEFT JOIN Artists a ON a.Id = s.ArtistId
         LEFT JOIN Albums al ON al.Id = s.AlbumId

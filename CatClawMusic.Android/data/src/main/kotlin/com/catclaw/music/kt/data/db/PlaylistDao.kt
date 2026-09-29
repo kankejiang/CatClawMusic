@@ -67,7 +67,7 @@ interface PlaylistDao {
         SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
                IFNULL(al.Title, '') AS album, s.Duration AS durationSeconds,
                s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
         FROM PlaylistSongs ps
         JOIN Songs s ON s.Id = ps.SongId
         LEFT JOIN Artists a ON a.Id = s.ArtistId
