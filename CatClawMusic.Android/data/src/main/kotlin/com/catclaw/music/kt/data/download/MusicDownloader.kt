@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
 
 enum class DownloadState { Running, Paused, Done, Failed }
 
@@ -39,8 +38,8 @@ class MusicDownloader @Inject constructor(
     private val db: CatClawDatabase,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    // 任务从 IO 线程与主线程两边读写，普通 map 会在扩容时读到半截状态
-    private val jobs = ConcurrentHashMap<Int, Job>()
+    /** 收尾只摘自己那一份，理由见 [DownloadJobTable] */
+    private val jobs = DownloadJobTable()
 
     private val directory: File
         get() = File(context.getExternalFilesDir(null), "downloads").apply { if (!exists()) mkdirs() }
@@ -73,13 +72,13 @@ class MusicDownloader @Inject constructor(
     private val cancelled = mutableSetOf<Int>()
 
     fun enqueue(song: Song) {
-        if (jobs[song.id]?.isActive == true) return
+        if (jobs.isActive(song.id)) return
         if (urlOf(song) == null) return
         val fileName = fileNameFor(song)
         songsById[song.id] = song
         clearCancelled(song.id)
         replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Running))
-        jobs[song.id] = scope.launch {
+        val job = scope.launch {
             try {
                 val result = downloader.download(fileName, urlOf(song)!!) { done, total ->
                     // cancel 是异步的：pause 写下 Paused 之后最后一批进度回调还可能到达，
@@ -96,9 +95,11 @@ class MusicDownloader @Inject constructor(
             } catch (e: Exception) {
                 replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Failed))
             } finally {
-                jobs.remove(song.id)
+                // 认货再摘：这一格可能已经被 pause→resume 换成新任务了
+                coroutineContext[Job]?.let { jobs.release(song.id, it) }
             }
         }
+        jobs.put(song.id, job)
     }
 
     private fun isPaused(songId: Int): Boolean =
@@ -115,7 +116,7 @@ class MusicDownloader @Inject constructor(
      * 已下量不能清零 —— RangeDownloader 留着 `.part`，进度条退回 0 会让人以为白下了。
      */
     fun pause(songId: Int) {
-        jobs.remove(songId)?.cancel()
+        jobs.cancel(songId)
         val task = registry.find(songId) ?: return
         replace(task.copy(state = DownloadState.Paused))
     }
@@ -139,7 +140,7 @@ class MusicDownloader @Inject constructor(
 
     /** 取消：RangeDownloader 会保留 .part，下次 enqueue 从断点续 */
     fun cancel(songId: Int) {
-        jobs.remove(songId)?.cancel()
+        jobs.cancel(songId)
         markCancelled(songId)
         registry.remove(songId)
     }
