@@ -132,6 +132,7 @@ class PlayerController(
     private var xfadeSongId = -1
     private var xfadeElapsedSec = 0.0
     private var xfadeLastTickAtMs = 0L
+    private var xfadeLoggedSec = -1
     private var xfadeWatcher: kotlinx.coroutines.Job? = null
 
     /** 由设置侧调用：改完立刻把音量交还用户（关掉时不该停在半路上） */
@@ -164,6 +165,7 @@ class PlayerController(
             xfadeElapsedSec = 0.0
             xfadeLastTickAtMs = now
             applyVolume()
+            logCrossfade()
             return
         }
         if (xfadePhase == CrossfadePhase.Idle && !crossfadeEnabled) return
@@ -182,10 +184,32 @@ class PlayerController(
             durationSec = durSec,
             windowSec = crossfadeWindowSec,
         )
-        if (next.phase == CrossfadePhase.Idle && xfadeFactor == 1.0) return
+        if (next.phase == CrossfadePhase.Idle && xfadeFactor == 1.0) {
+            xfadePhase = CrossfadePhase.Idle
+            logCrossfade()
+            return
+        }
         xfadePhase = next.phase
         xfadeFactor = next.factor
         applyVolume()
+        logCrossfade()
+    }
+
+    /**
+     * 每秒一条。淡入淡出的效果只有"过程"可看，100ms 一条就是刷屏；
+     * 而没有这条日志时，"到底淡没淡"在设备侧完全无从取证。
+     */
+    private fun logCrossfade() {
+        val active = xfadePhase != CrossfadePhase.Idle || xfadeFactor < 1.0
+        if (!active) {
+            if (xfadeLoggedSec != -1) AppLog.d(TAG, "crossfade done")
+            xfadeLoggedSec = -1
+            return
+        }
+        val sec = xfadeElapsedSec.toInt()
+        if (sec == xfadeLoggedSec) return
+        xfadeLoggedSec = sec
+        AppLog.d(TAG, "crossfade phase=$xfadePhase factor=$xfadeFactor vol=${player.volume}")
     }
 
     private fun startCrossfadeTicker() {
