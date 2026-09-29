@@ -12,6 +12,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -145,23 +147,30 @@ fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewM
                     )
                 }
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 120.dp),
-                ) {
-                    items(count = lines.size) { index ->
-                        LyricLineText(
-                            line = lines[index],
-                            isCurrent = index == currentIndex,
-                            progress = if (index == currentIndex) presentation?.fillProgress ?: 0.0 else 0.0,
-                            showExtras = index == currentIndex,
-                            onClick = { viewModel.seekTo(lines[index].startMs) },
-                            fontSizeSp = fontSize,
-                            alignmentOverride = alignment,
-                            showTranslation = showTranslation,
-                            showRoma = showRoma,
-                        )
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // 首行离顶部的留白按**视口高度的比例**取，而不是写死 120dp：
+                    // 竖屏这块有 ~2100px 高，120dp ≈ 15%，正好；横屏窗口只有 1440px 高，
+                    // 同一个 120dp 就变成 31% —— 真机量到歌词首行落在 y=924（屏高才 1440），
+                    // 上面白掉四成、下面只塞得下三行词。
+                    val edge = (maxHeight * 0.15f).coerceIn(40.dp, 140.dp)
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = edge),
+                    ) {
+                        items(count = lines.size) { index ->
+                            LyricLineText(
+                                line = lines[index],
+                                isCurrent = index == currentIndex,
+                                progress = if (index == currentIndex) presentation?.fillProgress ?: 0.0 else 0.0,
+                                showExtras = index == currentIndex,
+                                onClick = { viewModel.seekTo(lines[index].startMs) },
+                                fontSizeSp = fontSize,
+                                alignmentOverride = alignment,
+                                showTranslation = showTranslation,
+                                showRoma = showRoma,
+                            )
+                        }
                     }
                 }
             }
