@@ -105,6 +105,16 @@ class LibraryViewModel @Inject constructor(
 
     fun playAt(index: Int) = playFrom(songs.value.map { it.toSong() }, index)
 
+    /**
+     * 「下一首播放」：插到当前曲目之后。
+     * 队列侧的口子一直有（`addToQueue(nextUp = true)`），菜单里此前没摆它，
+     * 是因为那条评论误判成"播放器不支持定点插入"——查清了，接上。
+     */
+    fun playNext(song: com.catclaw.music.kt.core.model.Song) {
+        session.ensure()
+        controller.addToQueue(song, nextUp = true)
+    }
+
     fun playFavoriteAt(index: Int) = playFrom(favorites.value.map { it.toSong() }, index)
 
     fun playRecentAt(index: Int) = playFrom(recent.value.map { it.toSong() }, index)

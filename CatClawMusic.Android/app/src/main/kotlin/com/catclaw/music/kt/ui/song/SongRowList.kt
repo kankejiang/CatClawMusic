@@ -32,8 +32,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.data.db.SongDetailRow
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
@@ -48,6 +50,8 @@ class SongMenuActions(
     val favoriteIds: Set<Int>,
     val onToggleFavorite: (Int) -> Unit,
     val onAddToPlaylist: (Int, Int) -> Unit,
+    /** 插到当前曲目之后 */
+    val onPlayNext: (Song) -> Unit,
     /** 详情页要读的那一行；null 表示这首歌已从库里删掉 */
     val loadDetail: suspend (Int) -> SongDetailRow?,
     /**
@@ -66,6 +70,7 @@ fun rememberSongMenu(viewModel: LibraryViewModel, onOpenDetail: (Int) -> Unit): 
         favoriteIds = remember(favorites) { favorites.map { it.id }.toSet() },
         onToggleFavorite = viewModel::toggleFavorite,
         onAddToPlaylist = viewModel::addToPlaylist,
+        onPlayNext = viewModel::playNext,
         loadDetail = viewModel::songDetail,
         onOpenDetail = onOpenDetail,
     )
@@ -104,7 +109,7 @@ fun SongList(
                     .glassCard(palette = palette, corner = 22)
                     .combinedClickable(
                         onClick = { onPlay(index) },
-                        onLongClick = { target = SongMenuTarget(row.id, row.title, subtitle) },
+                        onLongClick = { target = SongMenuTarget(row.id, row.title, subtitle, row.toSong()) },
                     )
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -153,6 +158,7 @@ fun SongList(
             playlists = menu.playlists,
             onToggleFavorite = { menu.onToggleFavorite(song.id) },
             onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, song.id) },
+            onPlayNext = { menu.onPlayNext(song.song) },
             onOpenDetail = { menu.onOpenDetail(song.id) },
             onDismiss = { target = null },
         )

@@ -230,6 +230,7 @@ Download it from GitHub.</string>
     <string name="detail_source_smb">SMB</string>
     <string name="detail_source_cache">Cached</string>
     <string name="song_menu_detail">Details</string>
+    <string name="song_menu_play_next">Play next</string>
     <string name="soundfx_title">Sound</string>
     <string name="soundfx_entry">Sound effects</string>
     <string name="soundfx_reset">Reset</string>
