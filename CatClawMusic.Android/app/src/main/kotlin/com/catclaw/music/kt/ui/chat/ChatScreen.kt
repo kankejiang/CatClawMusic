@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.core.ai.Bubble
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.ui.theme.BackTile
@@ -253,12 +254,15 @@ private fun SongCardRow(song: Song, onPlay: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(
+        // 有封面时这块不再需要 `inkOn` 现算的面前景 —— 图上不写字；取不到图才回落到首字母
+        CoverTile(
+            coverArtPath = song.coverArtPath,
+            audioPath = song.filePath,
+            maxPx = 96,
             modifier = Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color(palette.primary)),
-            contentAlignment = Alignment.Center,
         ) {
             Text(text = song.title.take(1), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(inkOn(palette.primary)))
         }

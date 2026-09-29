@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.ui.chat.ChatScreen
 import com.catclaw.music.kt.ui.search.SearchViewModel
@@ -476,12 +477,13 @@ private fun SongRows(
                     .padding(horizontal = 8.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
+                CoverTile(
+                    coverArtPath = song.coverArtPath,
+                    audioPath = song.filePath,
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(primary.copy(alpha = 0.08f)),
-                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = (index + 1).toString(),

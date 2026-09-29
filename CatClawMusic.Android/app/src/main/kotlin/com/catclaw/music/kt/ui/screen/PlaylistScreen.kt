@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
@@ -246,12 +247,13 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Box(
+                        CoverTile(
+                            coverArtPath = song.coverArtPath,
+                            audioPath = song.filePath,
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                            contentAlignment = Alignment.Center,
                         ) {
                             Text(text = (index + 1).toString(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = secondary)
                         }

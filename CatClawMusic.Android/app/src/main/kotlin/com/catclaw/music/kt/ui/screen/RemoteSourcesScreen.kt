@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.core.model.ConnectionProfile
 import com.catclaw.music.kt.core.model.ProtocolType
 import com.catclaw.music.kt.data.db.toSong
@@ -200,13 +201,15 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Box(
+                    CoverTile(
+                        coverArtPath = song.coverArtPath,
+                        audioPath = song.filePath,
+                        maxPx = 96,
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(palette.textPrimary).copy(alpha = 0.10f))
                             .clickable { viewModel.playAt(index) },
-                        contentAlignment = Alignment.Center,
                     ) {
                         Text(text = song.title.take(1), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = primary)
                     }

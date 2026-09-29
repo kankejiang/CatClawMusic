@@ -5,9 +5,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.util.LruCache
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -115,4 +121,33 @@ fun rememberCover(coverArtPath: String?, audioPath: String?, maxPx: Int = 512): 
         value = load(context, coverArtPath, audioPath, maxPx)
     }
     return cover
+}
+
+/**
+ * 列表行的小封面方块：有图就裁成方块铺满，没图回落到调用方给的占位内容（首字母或序号）。
+ *
+ * 外层的尺寸/圆角/底色由调用方通过 [modifier] 给 —— 各页的方块形状本来就不一样，
+ * 统一在这里反而会把视觉语言拉平成一处。
+ */
+@Composable
+fun CoverTile(
+    coverArtPath: String?,
+    audioPath: String?,
+    modifier: Modifier = Modifier,
+    maxPx: Int = 128,
+    fallback: @Composable () -> Unit,
+) {
+    val cover = rememberCover(coverArtPath, audioPath, maxPx)
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (cover != null) {
+            Image(
+                bitmap = cover.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            fallback()
+        }
+    }
 }
