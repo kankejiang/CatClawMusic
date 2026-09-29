@@ -145,6 +145,8 @@ fun SongDetailScreen(songId: Int, load: suspend (Int) -> SongDetailRow?, onBack:
                 }.orEmpty(),
                 stringResource(R.string.detail_play_count) to (detail?.playCount ?: 0).toString(),
                 stringResource(R.string.detail_lyrics) to detail?.lyricsPath.orEmpty(),
+                stringResource(R.string.detail_date_added) to SongDetailFormat.date(detail?.dateAdded ?: 0L),
+                stringResource(R.string.detail_date_modified) to SongDetailFormat.date(detail?.dateModified ?: 0L),
             ),
         )
         // 这页是横滑容器里的一页，迷你播放器 + 底栏是浮在内容上的：

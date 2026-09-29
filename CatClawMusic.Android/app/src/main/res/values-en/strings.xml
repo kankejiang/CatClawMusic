@@ -234,6 +234,8 @@ Download it from GitHub.</string>
     <string name="detail_source">Source</string>
     <string name="detail_play_count">Plays</string>
     <string name="detail_lyrics">Lyrics</string>
+    <string name="detail_date_added">Added</string>
+    <string name="detail_date_modified">Modified</string>
     <string name="detail_source_local">Local library</string>
     <string name="detail_source_webdav">WebDAV</string>
     <string name="detail_source_smb">SMB</string>

@@ -516,6 +516,9 @@ data class SongDetailRow(
     val lyricsPath: String?,
     val source: Int,
     val playCount: Int,
+    /** epoch 秒；0 = 没这个信息（详情页画占位而不是 1970） */
+    val dateAdded: Long,
+    val dateModified: Long,
     /** 主歌手 / 所属专辑的 id；0 表示这首歌没有归属（详情菜单据此决定画不画「查看歌手」） */
     val artistId: Int,
     val albumId: Int,

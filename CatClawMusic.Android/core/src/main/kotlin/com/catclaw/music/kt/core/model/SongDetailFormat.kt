@@ -1,5 +1,8 @@
 package com.catclaw.music.kt.core.model
 
+import java.time.Instant
+import java.time.ZoneId
+
 /**
  * 歌曲详情页的取值格式化 —— 对应 C# `SongDetailViewModel` 里那几个显示属性。
  *
@@ -44,6 +47,19 @@ object SongDetailFormat {
     fun track(number: Int): String = if (number > 0) number.toString() else ""
 
     fun year(value: Int): String = if (value > 0) value.toString() else ""
+
+    /**
+     * epoch 秒 → `yyyy-MM-dd`（C# `SongDetailViewModel.FormatTimestamp` 的对应物）。
+     *
+     * 库里 DateAdded/DateModified 存的都是**秒**（扫描器 `currentTimeMillis()/1000`、
+     * MediaStore 的 DATE_MODIFIED、SAF 的 lastModified/1000），别按毫秒算。
+     * 0 与负数回空串：填个 1970-01-01 上去，看着像数据，其实是缺数据。
+     * 时区做成参数而不是直接取系统默认，是为了让这条规则能在 JVM 测试里被钉死。
+     */
+    fun date(seconds: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (seconds <= 0L) return ""
+        return Instant.ofEpochSecond(seconds).atZone(zone).toLocalDate().toString()
+    }
 
     /** 歌词一栏：有侧车/内嵌路径就说有，否则空串（详情页据此显示"无"） */
     fun lyricsSource(lyricsPath: String?, hasEmbedded: Boolean = false): String = when {

@@ -234,6 +234,8 @@
     <string name="detail_source">来源</string>
     <string name="detail_play_count">播放次数</string>
     <string name="detail_lyrics">歌词</string>
+    <string name="detail_date_added">添加时间</string>
+    <string name="detail_date_modified">修改时间</string>
     <string name="detail_source_local">本地曲库</string>
     <string name="detail_source_webdav">WebDAV</string>
     <string name="detail_source_smb">SMB</string>

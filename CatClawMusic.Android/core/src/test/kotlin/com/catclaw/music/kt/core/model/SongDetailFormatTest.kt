@@ -1,5 +1,7 @@
 package com.catclaw.music.kt.core.model
 
+import java.time.ZoneId
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -44,5 +46,16 @@ class SongDetailFormatTest {
         assertEquals("", SongDetailFormat.year(0))
         assertEquals("320 kbps", SongDetailFormat.bitrate(320))
         assertEquals("", SongDetailFormat.bitrate(0))
+    }
+
+    @Test
+    fun stampIsSecondsAndTheZoneDecidesTheDay() {
+        // 1790697600 = 2026-09-29T16:00Z：UTC 还在 29 日，东八区已经跨到 30 日。
+        // 拿一个会跨日的点，才能测出"按秒解释"和"套了时区"两件事都真的做了
+        val stamp = 1_790_697_600L
+        assertEquals("2026-09-29", SongDetailFormat.date(stamp, ZoneOffset.UTC))
+        assertEquals("2026-09-30", SongDetailFormat.date(stamp, ZoneId.of("Asia/Shanghai")))
+        assertEquals("0 是「没这个信息」，不能画成 1970-01-01", "", SongDetailFormat.date(0, ZoneOffset.UTC))
+        assertEquals("", SongDetailFormat.date(-1, ZoneOffset.UTC))
     }
 }
