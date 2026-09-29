@@ -51,11 +51,13 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.ui.chat.ChatScreen
+import com.catclaw.music.kt.ui.stats.ListeningStatsScreen
 import com.catclaw.music.kt.ui.search.SearchViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOnGradient
 import com.catclaw.music.kt.ui.theme.HeroScrimBandArgb
 import com.catclaw.music.kt.ui.theme.HeroScrimDeepArgb
@@ -89,10 +91,11 @@ fun SearchScreen(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     var chatMode by rememberSaveable { mutableStateOf(false) }
-    // 聊天是整屏覆盖层，外壳的悬浮两栏必须让位，否则输入行会被 TabBar 盖住。
-    // 还要看 active：Pager 不会销毁别的页，横滑走开时 chatMode 仍是 true，
-    // 只按 chatMode 上报会让别的 tab 也永久没有底栏
-    LaunchedEffect(chatMode, active) { onChatOpen(chatMode && active) }
+    var statsOpen by rememberSaveable { mutableStateOf(false) }
+    // 聊天与统计都是整屏覆盖层，外壳的悬浮两栏必须让位，否则页底的内容会被 TabBar 盖住。
+    // 还要看 active：Pager 不会销毁别的页，横滑走开时这两个标志仍是 true，
+    // 只按覆盖层标志上报会让别的 tab 也永久没有底栏
+    LaunchedEffect(chatMode, statsOpen, active) { onChatOpen((chatMode || statsOpen) && active) }
     var cat by rememberSaveable { mutableIntStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -186,6 +189,7 @@ fun SearchScreen(
                             stats.totalPlays.toString() to stringResource(R.string.disc_stat_total_plays),
                             stats.songsPlayed.toString() to stringResource(R.string.disc_stat_songs_played),
                         ),
+                        onOpenFull = { statsOpen = true },
                     )
                 }
             }
@@ -193,6 +197,8 @@ fun SearchScreen(
 
         // 聊天是盖在发现页上的一层（MAUI 同为 overlay 而非独立路由），退出后搜索结果原样保留
         if (chatMode) ChatScreen(onBack = { chatMode = false })
+        // 听歌统计同样是一层覆盖：它从「统计」这一格进，返回就该回到原来那格，不该新增一次路由栈翻页
+        if (statsOpen) ListeningStatsScreen(onBack = { statsOpen = false })
     }
 }
 
@@ -423,7 +429,7 @@ private fun AlbumGrid(rows: List<com.catclaw.music.kt.data.db.AlbumListItem>) {
 }
 
 @Composable
-private fun StatsPanel(cells: List<Pair<String, String>>) {
+private fun StatsPanel(cells: List<Pair<String, String>>, onOpenFull: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         cells.chunked(2).forEach { line ->
@@ -442,6 +448,8 @@ private fun StatsPanel(cells: List<Pair<String, String>>) {
                 }
             }
         }
+        // 四格只说"听过多少"，趋势/时段/连续/环比在统计页 —— 没有这个入口，那页就没人看得到
+        PillLabel(text = stringResource(R.string.StatsOpenFull), onClick = onOpenFull)
     }
 }
 

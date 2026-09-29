@@ -197,7 +197,7 @@ class VisualLanguageTest {
             "CatClawRoot.kt", "chat/ChatScreen.kt", "player/MiniPlayer.kt",
             "screen/FullLyricsScreen.kt", "screen/LibraryScreen.kt", "screen/PlayingScreen.kt",
             "screen/PlaylistScreen.kt", "screen/QueueScreen.kt", "screen/RemoteSourcesScreen.kt",
-            "screen/SearchScreen.kt", "screen/SettingsScreen.kt", "settings/AiSettingsScreen.kt", "settings/BackupRestoreScreen.kt", "settings/PermissionManagementScreen.kt", "settings/AboutScreen.kt", "settings/DiagnosticLogScreen.kt", "song/SongDetailScreen.kt", "equalizer/SoundEffectsScreen.kt", "player/SleepTimerDialog.kt",
+            "screen/SearchScreen.kt", "screen/SettingsScreen.kt", "settings/AiSettingsScreen.kt", "settings/BackupRestoreScreen.kt", "settings/PermissionManagementScreen.kt", "settings/AboutScreen.kt", "settings/DiagnosticLogScreen.kt", "song/SongDetailScreen.kt", "equalizer/SoundEffectsScreen.kt", "player/SleepTimerDialog.kt", "stats/ListeningStatsScreen.kt",
         )
         val primitives = listOf(
             "glassCard(", "PillLabel(", "GlassChip(", "EmptyState(", "BackTile(",
@@ -246,13 +246,14 @@ class VisualLanguageTest {
     }
 
     @Test
-    fun `聊天覆盖层的让栏规则同时看 chatMode 与 active`() {
+    fun `覆盖层的让栏规则同时看两个覆盖层与 active`() {
         val search = File(uiRoot, "screen/SearchScreen.kt").readText()
         val root = File(uiRoot, "CatClawRoot.kt").readText()
-        // Pager 不销毁别的页面，横滑走开时 chatMode 仍是 true；少了 active 底栏就永久消失
+        // Pager 不销毁别的页面，横滑走开时标志仍是 true；少了 active 底栏就永久消失。
+        // 统计页是后加的第二层覆盖，让栏上报必须把它一起算进去 —— 漏了就是统计页底下一截点不到
         assertTrue(
-            "SearchScreen 的上报必须是 chatMode && active",
-            Regex("""onChatOpen\(\s*chatMode\s*&&\s*active\s*\)""").containsMatchIn(search),
+            "SearchScreen 的上报必须是 (chatMode || statsOpen) && active",
+            Regex("""onChatOpen\(\s*\(\s*chatMode\s*\|\|\s*statsOpen\s*\)\s*&&\s*active\s*\)""").containsMatchIn(search),
         )
         assertTrue(
             "CatClawRoot 的悬浮两栏必须在聊天打开时让位",
