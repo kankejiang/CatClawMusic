@@ -10,6 +10,7 @@ import com.catclaw.music.kt.data.db.entity.AlbumEntity
 import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.CachedSongEntity
 import com.catclaw.music.kt.core.stats.PlayStatRules
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.data.db.entity.FavoriteEntity
 import com.catclaw.music.kt.data.db.entity.LyricsEntity
 import com.catclaw.music.kt.data.db.entity.PlayHistoryEntity
@@ -231,6 +232,70 @@ interface LibraryDao {
     @Query(SQL_PLAY_STATS)
     suspend fun playStats(): PlayStats
 
+    // ── 听歌统计页读路径 ──
+
+    /** 范围内的按天汇总；[start]/[end] 传空串表示不限（"全部时间"） */
+    @Query(SQL_DAILY_STATS_RANGE)
+    suspend fun dailyStatsRange(start: String, end: String): List<DailyStatRow>
+
+    /** 范围内的时段分布，已经折成至多 24 根柱子 */
+    @Query(SQL_HOURLY_HOURS_RANGE)
+    suspend fun hourlyHoursRange(start: String, end: String): List<HourBucketRow>
+
+    /** 范围内听过几首歌 */
+    @Query(SQL_SONGS_HEARD_RANGE)
+    suspend fun songsHeardRange(start: String, end: String): Int
+
+    /** 常听歌手榜（全部时间，按播放量） */
+    @Query(SQL_TOP_ARTISTS)
+    suspend fun topArtists(limit: Int): List<ArtistPlayRow>
+
+    @Query(SQL_SESSION_COUNT)
+    suspend fun playSessionCount(): Int
+
+    @Query(SQL_SUMMARY_PLAY_TOTAL)
+    suspend fun summaryPlayTotal(): Int
+
+    /** 深夜判据按参数传进来，规则本体只存在于 [PlayStatRules] 一处 */
+    @Query(SQL_REBUILD_DAILY)
+    suspend fun insertRebuiltDaily(nightStart: Int, nightEnd: Int)
+
+    @Query(SQL_REBUILD_HOURLY)
+    suspend fun insertRebuiltHourly()
+
+    @Query(SQL_REBUILD_SONG)
+    suspend fun insertRebuiltSong()
+
+    /**
+     * 老库升级兼容：汇总三表只在"汇总总次数落后于会话条数"时才从 `PlaySession` 重建。
+     *
+     * 判据照 C# 同一条，且顺序不能反 —— 先清表再判就等于每次都把干净的数据毁一遍。
+     * @return 是否真的重建了（统计页据此决定要不要重跑一次查询）
+     */
+    @Transaction
+    suspend fun rebuildStatsFromSessionsIfNeeded(): Boolean {
+        val sessions = playSessionCount()
+        if (sessions == 0) return false
+        if (summaryPlayTotal() >= sessions) return false
+        AppLog.i("CatClawStats", "rebuild summaries from $sessions sessions")
+        clearDailyStats()
+        clearHourlyStats()
+        clearSongStats()
+        insertRebuiltDaily(PlayStatRules.NIGHT_START_HOUR, PlayStatRules.NIGHT_END_HOUR)
+        insertRebuiltHourly()
+        insertRebuiltSong()
+        return true
+    }
+
+    @Query("DELETE FROM DailyPlayStat")
+    suspend fun clearDailyStats()
+
+    @Query("DELETE FROM HourlyPlayStat")
+    suspend fun clearHourlyStats()
+
+    @Query("DELETE FROM DailySongStat")
+    suspend fun clearSongStats()
+
     /**
      * 记一次聆听 —— 语义照 C# `RecordPlayAsync`：一首歌只留一行，
      * 有行就刷新 PlayedAt 并把 PlayCount +1，没行就建一条，然后把整表裁到最近 200 行。
@@ -447,6 +512,20 @@ data class SongDetailRow(
 
 /** 播放统计：播过的歌数 + 总播放次数 */
 data class PlayStats(val songsPlayed: Int, val totalPlays: Int)
+
+/** 统计页的一天：`yyyy-MM-dd` + 当天次数 / 时长 / 深夜次数 */
+data class DailyStatRow(
+    val date: String,
+    val plays: Int,
+    val ms: Long,
+    val nightPlays: Int,
+)
+
+/** 统计页的一根时段柱：某个钟点在范围内的合计 */
+data class HourBucketRow(val hour: Int, val plays: Int, val ms: Long)
+
+/** 常听歌手榜的一行。[name] 为空串表示这首歌没登记歌手，由 UI 决定显示什么 */
+data class ArtistPlayRow(val name: String, val plays: Int)
 
 data class NameId(val id: Int, val name: String)
 

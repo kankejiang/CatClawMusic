@@ -42,7 +42,7 @@ data class DailyPlayStatEntity(
     indices = [Index("Date")],
 )
 data class DailySongStatEntity(
-    /** 复合唯一键 "date_songId"，线上库就是这么存的 */
+    /** 复合唯一键 `"yyyy-MM-dd|songId"`（**竖线**），线上库就是这么存的 */
     @ColumnInfo(name = "DateSong") val dateSong: String,
     @ColumnInfo(name = "Date") val date: String,
     @ColumnInfo(name = "SongId") val songId: Int,

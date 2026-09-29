@@ -220,3 +220,130 @@ internal const val SQL_SONG_DETAIL = """
     LEFT JOIN Albums al ON al.Id = s.AlbumId
     WHERE s.Id = :id
 """
+
+/*
+ * ── 听歌统计读路径（对应 C# `MusicDatabase.PlayHistory.cs` 的 Get*PlayStatsAsync）──
+ *
+ * 三个范围查询共用同一个"空串=不限"写法，而不是像 C# 那样分两条查询：
+ * 少一条 SQL、也少一个"哪条忘了加 WHERE"的分支。Date 是 `yyyy-MM-dd`，
+ * 字符串序即日期序，所以 >= / <= 直接可比 —— 也正因如此，写侧的日期格式是契约的一部分。
+ */
+
+/** 按天汇总。空表时 `SUM` 回 NULL 而不是 0，所以每列都 COALESCE。 */
+internal const val SQL_DAILY_STATS_RANGE = """
+    SELECT Date AS date,
+           COALESCE(PlayCount, 0) AS plays,
+           COALESCE(TotalDurationMs, 0) AS ms,
+           COALESCE(NightPlayCount, 0) AS nightPlays
+    FROM DailyPlayStat
+    WHERE (:start = '' OR Date >= :start) AND (:end = '' OR Date <= :end)
+    ORDER BY Date
+"""
+
+/**
+ * 时段分布：把范围内每一天的小时行合成 24 根柱子。
+ *
+ * 聚合放在 SQL 里而不是把每天的每小时行拉到内存 —— 全部时间范围下这是几千行，
+ * 而 UI 只需要 24 个格子。
+ */
+internal const val SQL_HOURLY_HOURS_RANGE = """
+    SELECT Hour AS hour,
+           COALESCE(SUM(PlayCount), 0) AS plays,
+           COALESCE(SUM(TotalDurationMs), 0) AS ms
+    FROM HourlyPlayStat
+    WHERE (:start = '' OR Date >= :start) AND (:end = '' OR Date <= :end)
+    GROUP BY Hour
+    ORDER BY Hour
+"""
+
+/** 范围内听过几首歌。`COUNT(DISTINCT SongId)` 而不是行数：同一首听两天算一首。 */
+internal const val SQL_SONGS_HEARD_RANGE = """
+    SELECT COUNT(DISTINCT SongId)
+    FROM DailySongStat
+    WHERE (:start = '' OR Date >= :start) AND (:end = '' OR Date <= :end)
+"""
+
+/**
+ * 常听歌手榜 —— 对应 C# `GetTopPlayedArtistsAsync`。
+ *
+ * C# 是把每首歌的"全部歌手"拼成 `"A / B"` 再按 `"/"` 拆开累加；这里用 `SongArtists`
+ * 直接 JOIN，一行就是一个（歌, 歌手），天然就是这个口径，不必再拆字符串。
+ * 内层先按 (歌手, 歌) 收一次，保证一首歌对它每个歌手只贡献自己那一份播放量
+ * （`SongArtists` 没有 (SongId, ArtistId) 唯一索引，重复行不能让它算两遍）。
+ * 没有关联行时退回主歌手；主歌手也空 → 名字留空串，由 UI 决定显示什么，
+ * 榜单里出现硬编码的"未知歌手"就再也翻不了译。
+ *
+ * 两处 `GROUP BY` 用**序号**而不是列名：`artistId` / `name` 在这两条查询里既是输出别名、
+ * 又是 `s.ArtistId`/`a.Name` 这样的输入列，SQLite 解析 GROUP BY 时会报
+ * `ambiguous column name`（Room 在校验阶段就拦下了）。
+ */
+internal const val SQL_TOP_ARTISTS = """
+    SELECT CASE WHEN a.Name IS NULL OR TRIM(a.Name) = '' THEN '' ELSE TRIM(a.Name) END AS name,
+           SUM(t.plays) AS plays
+    FROM (
+        SELECT CASE WHEN sa.ArtistId IS NULL OR sa.ArtistId = 0 THEN s.ArtistId ELSE sa.ArtistId END AS artistId,
+               h.SongId AS songId,
+               SUM(h.PlayCount) AS plays
+        FROM PlayHistory h
+        JOIN Songs s ON s.Id = h.SongId
+        LEFT JOIN (SELECT DISTINCT SongId, ArtistId FROM SongArtists) sa ON sa.SongId = s.Id
+        GROUP BY 1, 2
+    ) t
+    LEFT JOIN Artists a ON a.Id = t.artistId
+    GROUP BY 1
+    ORDER BY plays DESC, name ASC
+    LIMIT :limit
+"""
+
+/**
+ * 汇总表落后于会话日志时，从 `PlaySession` 重建三张汇总表 —— C# `RebuildDailyStatsIfNeededAsync`。
+ *
+ * 为什么还需要它：安卓端读的是用户既有的库文件，很老的版本只写过 `PlaySession`，
+ * 那种库直接进统计页会是"一首都没听过"。而重建只看得见留下来的会话
+ * （`PlaySession` 裁到最近 2000 条），所以判据是 C# 同一条：**会话条数 > 汇总总次数** 才动手，
+ * 平时一条 SQL 都不发。
+ *
+ * 日期/小时全按**本地时区**取，和 [com.catclaw.music.kt.core.stats.PlayStatRules] 同一口径；
+ * 用 UTC 取会把东八区用户的深夜听歌整段挪到白天。深夜判据走参数，规则只在 Kotlin 里存一份。
+ */
+internal const val SQL_REBUILD_DAILY = """
+    INSERT INTO DailyPlayStat(Date, PlayCount, TotalDurationMs, NightPlayCount)
+    SELECT date(PlayedAt, 'unixepoch', 'localtime') AS d,
+           COUNT(*),
+           COALESCE(SUM(MAX(DurationMs, 0)), 0),
+           COALESCE(SUM(CASE WHEN CAST(strftime('%H', PlayedAt, 'unixepoch', 'localtime') AS INTEGER) >= :nightStart
+                              OR CAST(strftime('%H', PlayedAt, 'unixepoch', 'localtime') AS INTEGER) < :nightEnd
+                             THEN 1 ELSE 0 END), 0)
+    FROM PlaySession
+    GROUP BY d
+"""
+
+/** `DateHour` 的形状是 `"yyyy-MM-dd HH"`（中间一个空格、小时两位），和写侧的键完全一致 */
+internal const val SQL_REBUILD_HOURLY = """
+    INSERT INTO HourlyPlayStat(DateHour, Date, Hour, PlayCount, TotalDurationMs)
+    SELECT strftime('%Y-%m-%d %H', PlayedAt, 'unixepoch', 'localtime') AS dh,
+           date(PlayedAt, 'unixepoch', 'localtime'),
+           CAST(strftime('%H', PlayedAt, 'unixepoch', 'localtime') AS INTEGER),
+           COUNT(*),
+           COALESCE(SUM(MAX(DurationMs, 0)), 0)
+    FROM PlaySession
+    GROUP BY dh
+"""
+
+/** `DateSong` 是 `yyyy-MM-dd|songId`（**竖线**）；写成下划线就会和写侧变成两份数据 */
+internal const val SQL_REBUILD_SONG = """
+    INSERT INTO DailySongStat(DateSong, Date, SongId, PlayCount, TotalDurationMs)
+    SELECT date(PlayedAt, 'unixepoch', 'localtime') || '|' || SongId AS ds,
+           date(PlayedAt, 'unixepoch', 'localtime'),
+           SongId,
+           COUNT(*),
+           COALESCE(SUM(MAX(DurationMs, 0)), 0)
+    FROM PlaySession
+    GROUP BY date(PlayedAt, 'unixepoch', 'localtime'), SongId
+"""
+
+/** 重建前的判据：会话条数 */
+internal const val SQL_SESSION_COUNT = "SELECT COUNT(*) FROM PlaySession"
+
+/** 重建前的判据：汇总表已记录的总次数 */
+internal const val SQL_SUMMARY_PLAY_TOTAL = "SELECT COALESCE(SUM(PlayCount), 0) FROM DailyPlayStat"
