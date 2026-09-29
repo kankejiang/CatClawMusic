@@ -110,11 +110,18 @@ class SettingsViewModel @Inject constructor(
     val desktopLyricLocked: StateFlow<Boolean> = desktopLyric.locked
     val desktopLyricFontSize: StateFlow<Float> = desktopLyric.fontSizeSp
     val desktopLyricBgOpacity: StateFlow<Float> = desktopLyric.bgOpacity
+    val desktopLyricTextColor: StateFlow<Int> = desktopLyric.textColor
+    val desktopLyricHighlightColor: StateFlow<Int> = desktopLyric.highlightColor
 
 
     fun setDesktopLyricFontSize(size: Float) = desktopLyric.setFontSize(size)
 
     fun setDesktopLyricBgOpacity(value: Float) = desktopLyric.setBgOpacity(value)
+
+    /** 两个颜色都只写设置；悬浮窗那条 onStyleChanged 会就地重绘（#35 已验过这条链） */
+    fun setDesktopLyricTextColor(argb: Int) = desktopLyric.setTextColor(argb)
+
+    fun setDesktopLyricHighlightColor(argb: Int) = desktopLyric.setHighlightColor(argb)
 
     fun setMode(mode: AppearanceMode) = themeStore.setMode(mode)
 

@@ -113,6 +113,15 @@ class DesktopLyricSettings @Inject constructor(
         const val DEFAULT_TEXT = 0xB3FFFFFF.toInt()
         const val DEFAULT_HL = 0xFFFFE082.toInt()
         const val DEFAULT_BG = 0.3f
+        /**
+         * 设置页给的两排色板（正文 / 高亮共用）。后六个是 C# `DesktopLyricPage.xaml`
+         * 那六个色块的 ARGB，第一个纯白是本端补的——正文默认就是接近白的颜色，
+         * 没有白可选反而回不去。
+         */
+        val COLOR_SWATCHES = listOf(
+            0xFFFFFFFF.toInt(), 0xFFFFE082.toInt(), 0xFFFF7043.toInt(),
+            0xFFEC407A.toInt(), 0xFFEF5350.toInt(), 0xFF26C6DA.toInt(), 0xFFFFCA28.toInt(),
+        )
         const val DEFAULT_Y = 0.75f
         const val MIN_Y = 0.1f
         const val MAX_Y = 0.95f

@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -442,6 +443,8 @@ private fun DesktopLyricSettingsScreen(onBack: () -> Unit, viewModel: SettingsVi
     val locked by viewModel.desktopLyricLocked.collectAsStateWithLifecycle()
     val fontSp by viewModel.desktopLyricFontSize.collectAsStateWithLifecycle()
     val bgOpacity by viewModel.desktopLyricBgOpacity.collectAsStateWithLifecycle()
+    val textColor by viewModel.desktopLyricTextColor.collectAsStateWithLifecycle()
+    val highlightColor by viewModel.desktopLyricHighlightColor.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -484,6 +487,18 @@ private fun DesktopLyricSettingsScreen(onBack: () -> Unit, viewModel: SettingsVi
                     steps = 19,
                     label = "${(bgOpacity * 100).toInt()}%",
                     onValue = { viewModel.setDesktopLyricBgOpacity(it) },
+                )
+                // 这两个颜色悬浮窗一直在读（DesktopLyricController 的 textBase / textFill），
+                // 之前设置页没有入口，等于"引擎可配、用户不可配"
+                ColorRow(
+                    title = stringResource(R.string.DesktopLyricTextColor),
+                    current = textColor,
+                    onPick = { viewModel.setDesktopLyricTextColor(it) },
+                )
+                ColorRow(
+                    title = stringResource(R.string.DesktopLyricHighlightColor),
+                    current = highlightColor,
+                    onPick = { viewModel.setDesktopLyricHighlightColor(it) },
                 )
             }
         }
@@ -709,6 +724,49 @@ private fun SliderRow(
                 activeTrackColor = Color(palette.primary),
             ),
         )
+    }
+}
+
+/**
+ * 色板行：悬浮窗正文 / 高亮颜色的选择。
+ * 选中态用一圈主色描边说清楚，不靠"点下去看起来有反应"来暗示；
+ * 44dp 的触达壳套 26dp 的色块，色块本身小到能一眼排成一排。
+ */
+@Composable
+private fun ColorRow(title: String, current: Int, onPick: (Int) -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color(palette.textPrimary),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            DesktopLyricSettings.COLOR_SWATCHES.forEach { argb ->
+                val selected = argb == current
+                Box(
+                    modifier = Modifier
+                        .size(TouchMin)
+                        .clickable(onClickLabel = title) { onPick(argb) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(Color(argb))
+                            .border(
+                                width = if (selected) 3.dp else 1.dp,
+                                color = if (selected) Color(palette.primary) else Color(palette.textPrimary).copy(alpha = 0.28f),
+                                shape = CircleShape,
+                            ),
+                    )
+                }
+            }
+        }
     }
 }
 
