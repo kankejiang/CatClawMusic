@@ -17,11 +17,13 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 外观页的持久项，键与默认值对齐 MAUI `ThemeService.cs:20-31,787-791`：
- * 启动页索引默认 **2（播放）**、自定义背景图路径、背景透明度默认 0.5、
- * 雾面动态背景默认 **开**、莫奈取色默认关、动态封面背景默认关。
+ * 启动页索引默认 **2（播放）**、自定义背景图路径、背景透明度默认 0.5、莫奈取色默认关。
  *
- * 互斥规则照抄 `AppearanceSettingsViewModel.cs:98-123` + `ThemeService.cs:275-307`：
- * 莫奈与动态封面互斥；开动态封面必须先开雾面；关雾面会连带关掉动态封面。
+ * MAUI 还有两项**没有搬过来**：`frosted_bg_enabled`（雾面动态背景）与
+ * `cover_bg_enabled`（动态封面背景）。前者在 C# 侧是一整套背景渲染引擎，
+ * 后者在 C# 里连渲染都没有（只存不画）。本端此前只留了"存"的那一半——
+ * 没有页面写它、也没有任何地方读它，一条谁都不消费的开关留着只会让人以为有这功能，
+ * 所以删掉。要接动态背景时连同渲染一起做，不先留空壳。
  */
 @Singleton
 class AppearanceSettings @Inject constructor(
@@ -38,14 +40,8 @@ class AppearanceSettings @Inject constructor(
     private val _bgOpacity = MutableStateFlow(prefs.getFloat(KEY_BG_OPACITY, DEFAULT_BG_OPACITY))
     val bgOpacity: StateFlow<Float> = _bgOpacity.asStateFlow()
 
-    private val _frosted = MutableStateFlow(prefs.getBoolean(KEY_FROSTED, true))
-    val frostedEnabled: StateFlow<Boolean> = _frosted.asStateFlow()
-
     private val _monet = MutableStateFlow(prefs.getBoolean(KEY_MONET, false))
     val monetEnabled: StateFlow<Boolean> = _monet.asStateFlow()
-
-    private val _cover = MutableStateFlow(prefs.getBoolean(KEY_COVER, false))
-    val coverEnabled: StateFlow<Boolean> = _cover.asStateFlow()
 
     fun setStartupIndex(value: Int) {
         val v = value.coerceIn(0, 2)
@@ -53,7 +49,11 @@ class AppearanceSettings @Inject constructor(
         prefs.edit().putInt(KEY_STARTUP, v).apply()
     }
 
-    /** 透明度夹在 0.1..1.0（`ThemeService.cs:217`）；注意 MAUI 侧这个值只存不渲染，见下方注释 */
+    /**
+     * 透明度夹在 0.1..1.0（`ThemeService.cs:217`）。
+     * 两端一致地**只存不渲染**：C# 侧没有把它接进背景绘制，本端也没有。
+     * 保留是因为自定义背景图那条路径会顺带写它，删了会让"选图"这一步少一个入参。
+     */
     fun setBackgroundOpacity(value: Float) {
         val v = value.coerceIn(0.1f, 1f)
         _bgOpacity.value = v
@@ -70,34 +70,9 @@ class AppearanceSettings @Inject constructor(
             .apply()
     }
 
-    fun setFrostedEnabled(value: Boolean) {
-        _frosted.value = value
-        if (!value && _cover.value) {
-            _cover.value = false
-            prefs.edit().putBoolean(KEY_COVER, false).apply()
-        }
-        prefs.edit().putBoolean(KEY_FROSTED, value).apply()
-    }
-
     fun setMonetEnabled(value: Boolean) {
         _monet.value = value
-        if (value && _cover.value) {
-            _cover.value = false
-            prefs.edit().putBoolean(KEY_COVER, false).apply()
-        }
         prefs.edit().putBoolean(KEY_MONET, value).apply()
-    }
-
-    /** 动态封面要雾面打底：雾面关着时这个开不了（与 C# 的拒绝式校验同形） */
-    fun setCoverEnabled(value: Boolean): Boolean {
-        if (value && !_frosted.value) return false
-        _cover.value = value
-        if (value && _monet.value) {
-            _monet.value = false
-            prefs.edit().putBoolean(KEY_MONET, false).apply()
-        }
-        prefs.edit().putBoolean(KEY_COVER, value).apply()
-        return true
     }
 
     /**
@@ -158,8 +133,6 @@ class AppearanceSettings @Inject constructor(
         private const val KEY_STARTUP = "startup_page_index"
         private const val KEY_BG_PATH = "custom_bg_path"
         private const val KEY_BG_OPACITY = "custom_bg_opacity"
-        private const val KEY_FROSTED = "frosted_bg_enabled"
         private const val KEY_MONET = "monet_bg_enabled"
-        private const val KEY_COVER = "cover_bg_enabled"
     }
 }
