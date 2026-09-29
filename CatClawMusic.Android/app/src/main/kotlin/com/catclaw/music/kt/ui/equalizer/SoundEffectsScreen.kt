@@ -125,10 +125,17 @@ fun SoundEffectsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // 存的名字不在这 9 格里（例如「重置」后是 flat）就高亮「自定义」：
+                    // 一条谁都没亮着的芯片组会让人以为重置没生效（C# 同规则）
+                    val selectedKey = if (settings.preset in EqualizerRules.PRESET_KEYS) {
+                        settings.preset
+                    } else {
+                        SoundEffectsViewModel.PRESET_CUSTOM
+                    }
                     EqualizerRules.PRESET_KEYS.forEach { key ->
                         GlassChip(
                             label = stringResource(presetNameRes(key)),
-                            selected = settings.preset == key,
+                            selected = key == selectedKey,
                             onClick = { viewModel.selectPreset(key) },
                         )
                     }
@@ -140,7 +147,6 @@ fun SoundEffectsScreen(
                         value = settings.gains.getOrElse(i) { 0.0 }.toFloat(),
                         valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
                         steps = 24,
-                        enabled = settings.enabled,
                         onValue = { viewModel.setGain(i, it.toDouble()) },
                     )
                 }
@@ -161,7 +167,6 @@ fun SoundEffectsScreen(
                         value = settings.bassBoost.toFloat(),
                         valueRange = 0f..100f,
                         steps = 9,
-                        enabled = settings.enabled,
                         onValue = { viewModel.setBassBoost(it.toInt()) },
                     )
                 }
@@ -172,7 +177,6 @@ fun SoundEffectsScreen(
                         value = settings.loudness.toFloat(),
                         valueRange = 0f..100f,
                         steps = 9,
-                        enabled = settings.enabled,
                         onValue = { viewModel.setLoudness(it.toInt()) },
                     )
                 }
@@ -228,7 +232,12 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
     }
 }
 
-/** 带当前值标签的滑杆。值标签落在玻璃卡上，所以走 highlightOnGlassCard 而不是次要色 */
+/**
+ * 带当前值标签的滑杆。值标签落在玻璃卡上，所以走 highlightOnGlassCard 而不是次要色。
+ *
+ * 滑杆**不因总开关关闭而禁用**：调曲线这件事本来就该在听不到的时候先摆好，
+ * 而且禁用态的 M3 滑杆画成一根竖条（真机截图里五根一排，看着像坏了）。
+ */
 @Composable
 private fun ValueSlider(
     title: String,
@@ -236,7 +245,6 @@ private fun ValueSlider(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
-    enabled: Boolean,
     onValue: (Float) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -259,7 +267,6 @@ private fun ValueSlider(
             onValueChange = onValue,
             valueRange = valueRange,
             steps = steps,
-            enabled = enabled,
             colors = SliderDefaults.colors(
                 thumbColor = Color(palette.primary),
                 activeTrackColor = Color(palette.primary),

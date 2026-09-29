@@ -117,6 +117,11 @@ class AndroidAudioFx @Inject constructor() {
                 if (settings.enabled) {
                     curve.forEachIndexed { i, db -> eq.setBandLevel(i.toShort(), toMillibels(db)) }
                 }
+                // 回读 DSP 里的值，而不是打我们算出来的数：只有前者能证明"真设进去了"
+                val applied = IntArray(curve.size) { i ->
+                    runCatching { eq.getBandLevel(i.toShort()).toInt() }.getOrDefault(0)
+                }
+                AppLog.d(TAG, "apply enabled=${settings.enabled} mB=${applied.joinToString(",")}")
             }.onFailure { AppLog.w(TAG, "应用均衡器失败", it) }
         }
         // 低频增强：原生强度是 0..1000（千分比），UI 上是 0..100；设备不支持时这两个调用都落不到实例上
