@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,6 +129,40 @@ fun GlassChip(
             .border(width = if (selected) 0.dp else 1.dp, color = ink.copy(alpha = 0.16f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
+    )
+}
+
+/**
+ * 搜索框。全 app 只这一份配方：墨色 α.10 面 / α.08 未聚焦面、圆角 22、去掉 M3 的下划线。
+ *
+ * 输入框是页面里最后还带着 M3 默认样式的那类控件（它自带一套 primary 配色），
+ * 各页自己写就会写出不同的底色与圆角，所以收成一个入口。
+ */
+@Composable
+fun GlassSearchField(
+    query: String,
+    onChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    palette: CatClawPalette = LocalCatClawPalette.current,
+) {
+    val ink = Color(palette.textPrimary)
+    TextField(
+        value = query,
+        onValueChange = onChange,
+        placeholder = { Text(placeholder, color = Color(palette.textSecondary), fontSize = 14.sp) },
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = ink.copy(alpha = 0.10f),
+            unfocusedContainerColor = ink.copy(alpha = 0.08f),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedTextColor = ink,
+            unfocusedTextColor = ink,
+            cursorColor = Color(palette.primary),
+        ),
+        shape = RoundedCornerShape(22.dp),
+        modifier = modifier.fillMaxWidth(),
     )
 }
 

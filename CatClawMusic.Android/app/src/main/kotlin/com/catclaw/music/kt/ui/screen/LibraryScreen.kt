@@ -28,8 +28,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +61,7 @@ import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.isLightPalette
@@ -487,7 +486,7 @@ fun LibraryListScreen(
                     )
                 }
             }
-            SearchField(
+            GlassSearchField(
                 query = query,
                 onChange = viewModel::setSongQuery,
                 placeholder = stringResource(R.string.library_search_hint),
@@ -676,36 +675,4 @@ internal fun sortLabelRes(sort: SongSortKey): Int = when (sort) {
     SongSortKey.Album -> R.string.sort_album
     SongSortKey.Duration -> R.string.sort_duration
     SongSortKey.DateAdded -> R.string.sort_date_added
-}
-
-/**
- * 曲库列表页的搜索框，配方与发现页那条一致（同一支墨色底 + 圆角 22 + 无下划线）——
- * 输入框是全 app 唯一还留着 M3 默认样式的地方，两处就该长得一样。
- */
-@Composable
-private fun SearchField(
-    query: String,
-    onChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-) {
-    val palette = LocalCatClawPalette.current
-    val ink = Color(palette.textPrimary)
-    TextField(
-        value = query,
-        onValueChange = onChange,
-        placeholder = { Text(placeholder, color = Color(palette.textSecondary), fontSize = 14.sp) },
-        singleLine = true,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = ink.copy(alpha = 0.10f),
-            unfocusedContainerColor = ink.copy(alpha = 0.08f),
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = ink,
-            unfocusedTextColor = ink,
-            cursorColor = Color(palette.primary),
-        ),
-        shape = RoundedCornerShape(22.dp),
-        modifier = modifier.fillMaxWidth(),
-    )
 }

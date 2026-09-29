@@ -26,8 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +58,7 @@ import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.catClawBackground
 import com.catclaw.music.kt.ui.theme.inkOnGradient
 import com.catclaw.music.kt.ui.theme.HeroScrimBandArgb
@@ -132,22 +131,11 @@ fun SearchScreen(
             }
 
             if (searchOpen || query.isNotBlank()) {
-                TextField(
-                    value = query,
-                    onValueChange = viewModel::setQuery,
-                    placeholder = { Text(stringResource(R.string.disc_search_hint), color = secondary, fontSize = 14.sp) },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = primary.copy(alpha = 0.10f),
-                        unfocusedContainerColor = primary.copy(alpha = 0.08f),
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = primary,
-                        unfocusedTextColor = primary,
-                        cursorColor = Color(palette.primary),
-                    ),
-                    shape = RoundedCornerShape(22.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                GlassSearchField(
+                    query = query,
+                    onChange = viewModel::setQuery,
+                    placeholder = stringResource(R.string.disc_search_hint),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                 )
             }
 

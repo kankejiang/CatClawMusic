@@ -368,6 +368,27 @@ class VisualLanguageTest {
     }
 
     /**
+     * 搜索框只许有一份定义（`GlassSearchField`，在 theme/GlassParts.kt，不在本条扫描范围内）。
+     *
+     * 判据取"页面里自己写了一个 `fun *SearchField(`"，而不是取配色：表单输入框
+     * （歌单名、服务器地址、聊天输入行）也写 `focusedContainerColor`，那是各自该长得不一样，
+     * 抓它们等于误报。薄封装（转调 GlassSearchField）放过，另写一份视觉才报。
+     */
+    @Test
+    fun `搜索框不在页面里各自实现`() {
+        val offenders = pages.flatMap { f ->
+            val lines = f.readText().lines()
+            lines.mapIndexedNotNull { i, line ->
+                val m = Regex("""fun (\w*SearchField\w*)\(""").find(line.trim()) ?: return@mapIndexedNotNull null
+                val body = lines.drop(i).take(10).joinToString(" ")
+                if ("GlassSearchField(" in body && "TextField(" !in body) return@mapIndexedNotNull null
+                "${f.name}:${i + 1} ${m.groupValues[1]}"
+            }
+        }
+        assertTrue("搜索框请统一走 GlassSearchField（配色与圆角只该有一处定义）: $offenders", offenders.isEmpty())
+    }
+
+    /**
      * `.size()` 之后紧跟 `.padding()` 再到 `.clickable` 是**顺序错**：padding 会把 clickable
      * 那个节点缩掉，图标和可点区一起变小（播放页那两个图标原本因此只有 17dp，比设计的小一半）。
      * 正确写法是可点节点在外：`.size(外框).clickable{}.padding{}`。
