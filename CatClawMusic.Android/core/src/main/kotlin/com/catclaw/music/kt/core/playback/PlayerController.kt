@@ -380,10 +380,13 @@ class PlayerController(
         save()
     }
 
-    /** 顺序 → 随机 → 单曲循环 → 列表循环 → 顺序 */
+    /** 按钮循环对齐 MAUI：列表循环 → 单曲循环 → 随机 → 列表循环。
+     *  顺序播放不进这个环——它和列表循环共用同一颗 repeat_all 图标，排进来会出现
+     *  「点一下图标纹丝不动」的档位（真机反馈 2026-10-01）；MAUI 也只在 FM 电台模式下用顺序播放。
+     *  当前若是顺序播放（agent / FM 设进来的），下一跳落到列表循环。 */
     fun cycleMode() {
-        val modes = PlayMode.entries
-        setMode(modes[(modes.indexOf(queue.playMode) + 1) % modes.size])
+        val order = listOf(PlayMode.ListRepeat, PlayMode.SingleRepeat, PlayMode.Shuffle)
+        setMode(order[(order.indexOf(queue.playMode) + 1) % order.size])
     }
 
     override fun addToQueue(song: Song, nextUp: Boolean) {
