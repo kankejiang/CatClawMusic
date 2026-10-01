@@ -22,6 +22,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -214,6 +220,21 @@ fun SearchScreen(
     }
 }
 
+
+/**
+ * 板块入场：减速滑入（LinearOutSlowIn，无回弹），与底栏/迷你条同一套语言。
+ * 按 index 自上而下错峰（每档 50ms）；`remember` 住状态，滚出去再滚回来不重播。
+ */
+@Composable
+private fun StaggerIn(index: Int, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visibleState = remember { MutableTransitionState(false).apply { targetState = true } },
+        enter = slideInHorizontally(
+            tween(320, delayMillis = index * 50, easing = LinearOutSlowInEasing),
+        ) { it } + fadeIn(tween(140, delayMillis = index * 50)),
+    ) { content() }
+}
+
 @Composable
 private fun RecommendPanel(
     viewModel: SearchViewModel,
@@ -229,6 +250,7 @@ private fun RecommendPanel(
         stringResource(R.string.disc_tag_fav), stringResource(R.string.disc_tag_shuffle),
     )
     val heroes = sections.daily.take(3) + sections.frequent.take(1) + sections.fresh.take(1)
+    StaggerIn(index = 0) {
     LazyRow(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -254,6 +276,7 @@ private fun RecommendPanel(
             )
         }
     }
+    }
 
     // AI 卡片始终可用；但曲库为空时其余板块全空，得把「先去扫描」这句显式说出来
     if (heroes.isEmpty() && albums.isEmpty() && artists.isEmpty() && sections.daily.isEmpty()) {
@@ -264,7 +287,7 @@ private fun RecommendPanel(
         )
     }
 
-    if (albums.isNotEmpty()) {
+    if (albums.isNotEmpty()) StaggerIn(index = 1) {
         SectionHead(stringResource(R.string.disc_albums_rec))
         LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
@@ -275,14 +298,14 @@ private fun RecommendPanel(
         }
     }
 
-    if (sections.daily.isNotEmpty()) {
+    if (sections.daily.isNotEmpty()) StaggerIn(index = 2) {
         // SongRows 自己会画小标题，这里不能再 SectionHead 一次（真机上出现过「每日推荐」重复两遍）
         SongRows(stringResource(R.string.disc_tag_daily), sections.daily.take(8), primary, secondary) {
             viewModel.play(sections.daily, it)
         }
     }
 
-    if (artists.isNotEmpty()) {
+    if (artists.isNotEmpty()) StaggerIn(index = 3) {
         SectionHead(stringResource(R.string.disc_artists_rec))
         LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
