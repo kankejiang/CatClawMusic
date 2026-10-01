@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -56,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.flow.StateFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.lyrics.LyricsState
@@ -66,8 +69,6 @@ import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.Icon
 import com.catclaw.music.kt.ui.player.PlayerIcon
 import com.catclaw.music.kt.ui.player.PlayerIcons
-import com.catclaw.music.kt.ui.player.SleepTimerDialog
-import com.catclaw.music.kt.ui.player.formatCountdown
 import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.song.SongDetailScreen
 import com.catclaw.music.kt.ui.song.SongMenuFor
@@ -75,6 +76,7 @@ import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.artworkBackdrop
 import com.catclaw.music.kt.ui.theme.artworkWash
 
 @Composable
@@ -83,15 +85,11 @@ fun PlayingScreen(
     onOpenSettings: () -> Unit = {},
     onOpenQueue: () -> Unit = {},
     onOpenSoundFx: () -> Unit = {},
+    onCollapse: () -> Unit = {},
     viewModel: PlayingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val positionMs by viewModel.positionMs.collectAsStateWithLifecycle()
-    val scanning by viewModel.busy.collectAsStateWithLifecycle()
     val lastScan by viewModel.lastScan.collectAsStateWithLifecycle()
-    // 定时跑在播放器那一侧，这里只是显示与开关；关掉这页它也该继续
-    val sleepState by viewModel.sleep.collectAsStateWithLifecycle()
-    var showSleepDialog by remember { mutableStateOf(false) }
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
     // 「更多」菜单要的能力（收藏/加入歌单/下一首/详情/歌手·专辑）与列表页是同一份，
@@ -153,73 +151,57 @@ fun PlayingScreen(
     // 因为要减的不只是中栏——抓栏在横屏是多余的一行，去掉它才给歌词行腾出高度。
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // 页面底色由当前那张封面染出来（[artworkWash]：平均色三段渐变，盖在外壳的主题底之上），
-    // 于是封面、歌名、控制区落在同一个色温里。
+    // 页面底 = 当前这张封面本身（[artworkBackdrop]：全屏 AspectFill + 上下压暗，网易云「一起听」那套），
+    // 竖屏不再画居中的封面方块——封面已经占满全屏，再画一个就是重复。
     // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
     val song = state.currentSong
-    val cover = rememberCover(song?.coverArtPath, song?.filePath)
+    // 全屏铺满需要比列表行更高的分辨率，别再用 512 的默认值拉成糊图
+    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 1440)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .artworkWash(cover)
+            // 有封面：网易云那套「原图占上半屏 + 下缘雾化 + 均色底」；没封面：退回 Apple 的染色渐变
+            .then(if (cover != null) Modifier.artworkBackdrop(cover) else Modifier.artworkWash(cover))
+            // 封面铺满整个屏幕（含状态栏区域），内容再从状态栏下方排
+            .statusBarsPadding()
             .padding(horizontal = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(14.dp))
-
+        Spacer(Modifier.height(12.dp))
+        // 顶部：歌名/歌手在左上角（雾带里），右上角一颗「收起」（⌄ 回发现页）
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 顶栏收成"左右各一个图标 + 居中标题"：Apple 那一行只有下拉箭头和来源，
-            // 我们得留住设置与扫描两个真功能，所以降级成图标而不是两颗胶囊
+            Column(modifier = Modifier.weight(1f)) {
+                TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
+            }
+            Spacer(Modifier.width(8.dp))
             Icon(
-                painter = painterResource(R.drawable.ic_settings),
-                contentDescription = stringResource(R.string.SettingsEntry),
-                tint = Color(palette.textSecondary),
+                painter = painterResource(R.drawable.ic_collapse),
+                contentDescription = stringResource(R.string.player_collapse),
+                tint = Color(palette.textPrimary),
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onOpenSettings)
-                    .padding(11.dp),
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = stringResource(R.string.PageTitleNowPlaying),
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.6.sp,
-                color = Color(palette.textSecondary),
-                maxLines = 1,
-            )
-            Spacer(Modifier.weight(1f))
-            Icon(
-                painter = painterResource(R.drawable.ic_refresh),
-                contentDescription = stringResource(if (scanning) R.string.library_scanning else R.string.m1_scan_play),
-                tint = if (scanning) Color(palette.textSecondary) else Color(palette.textPrimary).copy(alpha = 0.72f),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(enabled = !scanning) { viewModel.scanAndPlayAll() }
-                    .padding(11.dp),
+                    .clickable(onClick = onCollapse)
+                    .padding(10.dp),
             )
         }
+        Spacer(Modifier.height(2.dp))
 
-        Spacer(Modifier.height(10.dp))
-
-        // MAUI 的 RootGrid 是 `Auto,*,Auto`：中间（封面+歌词）吃满剩余高度，控制区沉底。
-        // 队列移出本页后如果不做这一步，播放页下方会空出一大片
+        // MAUI 的 RootGrid 是 `Auto,*,Auto`：中间（歌词预览）吃满剩余高度，控制区沉底。
+        // 队列移出本页后如果不做这一步，播放页下方会空出一大片。
+        // 竖屏内容沉底：封面占了上半屏，标题要落在雾化结束后的底色带上（网易云同款位置）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            contentAlignment = Alignment.Center,
+            contentAlignment = if (landscape) Alignment.Center else Alignment.BottomCenter,
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                // 封面边长必须同时受「宽度」与「这一栏剩给文字的高度」约束：Column 是顺序分配高度的，
-                // 封面先吃满之后下面的文字块会拿到 0 高——**0 高的 Text 一个像素都不画，可它的 clickable
-                // 仍然撑出 48dp 触达框**，于是节点树里那行还在、屏幕上却是一条空白（真机量出来的坑）。
+                // 封面边长同时受「宽度」与「这一栏的高度」约束，只喂给横屏（竖屏封面已是全屏背景）
                 val coverSide = minOf(
                     maxWidth * if (landscape) 0.94f else 0.76f,
                     maxHeight - if (landscape) 0.dp else 190.dp,
@@ -233,26 +215,64 @@ fun PlayingScreen(
                         title = state.currentSong?.title,
                         artist = state.currentSong?.artist,
                         error = state.error,
-                        positionMs = positionMs,
+                        positionMsFlow = viewModel.positionMs,
                     )
                 } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CoverSquare(side = coverSide, cover = cover, placeholder = song?.title?.take(1) ?: "♪")
-
-                        Spacer(Modifier.height(26.dp))
-                        // 标题/歌手左对齐到页面边距：Apple 那两行是顶格的，居中会让长歌名断成两行还看不出主次
-                        TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
-
-                        Spacer(Modifier.height(14.dp))
-                        // 歌词预览与标题/歌手共用一条左边距（Apple 那三行是同一列），点它横滑进全屏歌词页
+                    // 沉底：BoxWithConstraints 的子项才吃得到对齐，外层 Box 的 contentAlignment 管不到它
+                    Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                        // 歌名/歌手已提到左上角，底部只留歌词预览行（点它横滑进全屏歌词页）；
+                        // 只有整张取不到封面的歌才退回首字母方块
+                        if (cover == null) {
+                            CoverSquare(side = coverSide, cover = null, placeholder = song?.title?.take(1) ?: "♪")
+                            Spacer(Modifier.height(14.dp))
+                        }
                         com.catclaw.music.kt.ui.CurrentLyricLine(onOpenLyrics = onOpenLyrics)
                     }
                 }
             }
         }
 
+        // 进度条右上角的两个常驻入口：收藏 + 更多（2026-10-01 收拢自被摘掉的两排图标）。
+        // 收藏态从 menu.favoriteIds 读——与列表页同一个来源，切歌后心形会跟着当前曲变
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            val current = state.currentSong?.takeIf { it.id > 0 }
+            val favorite = current != null && current.id in menu.favoriteIds
+            Icon(
+                painter = painterResource(
+                    if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border,
+                ),
+                contentDescription = stringResource(
+                    if (favorite) R.string.favorite_remove else R.string.favorite_add,
+                ),
+                tint = if (favorite) Color(palette.textPrimary) else Color(palette.textSecondary),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = current != null) { current?.let { menu.onToggleFavorite(it.id) } }
+                    .padding(9.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            // 「更多」只在真有一首歌可动的时候画：没有当前曲目时菜单里每一项都点不动
+            if (current != null) {
+                Icon(
+                    imageVector = PlayerIcons.More,
+                    contentDescription = stringResource(R.string.playing_more),
+                    tint = Color(palette.textSecondary),
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { songMenuOpen = true }
+                        .padding(9.dp),
+                )
+            }
+        }
+
         ProgressRow(
-            positionMs = positionMs,
+            positionMsFlow = viewModel.positionMs,
             durationMs = state.durationMs,
             onSeek = { viewModel.seekTo(it) },
         )
@@ -312,109 +332,8 @@ fun PlayingScreen(
             }
         }
 
-        // Apple 的"上滑看更多"提示就是一根小灰棒。这里它不是装饰：点它就是进歌词页，
-        // 与下面那行歌词预览同一个动作，两者都真跳得过去。
-        // 横屏不画这一行：中栏只有 ~330px 高，这根棒要占掉 68px，而它的功能次级图标行的「词」已经给了
-        if (!landscape) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(26.dp)
-                    .clickable(onClick = onOpenLyrics),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 40.dp, height = 4.dp)
-                        .clip(CircleShape)
-                        .background(Color(palette.textPrimary).copy(alpha = 0.26f)),
-                )
-            }
-        }
-
-        // 次要图标行：MAUI 有 6 个（歌词/定时/详情/音效/横屏/更多），
-        // 这里放**已实现**的五个——「横屏」在 MAUI 不是一颗按钮，而是窗口转横时换的那套形状
-        // （本端就是上面 LandscapeBody 那一支）；安卓的旋转归系统管，摆一颗「切横屏」的图标反而是假控件
-        // （本项目的既有判例：宁可不放，也不放不工作的入口）；
-        // 「详情」不单独占一格，它收在「更多」里（歌曲信息是歌曲的属性，不是播放页的属性）
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            // 五颗图标等距分布：原来是"居中定距 34dp"，第五颗（更多）会被推到屏幕边上贴住，
-            // 视觉上像被裁掉（真机 bounds 到 1432/1440）
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            val desktopOn by viewModel.desktopLyricEnabled.collectAsStateWithLifecycle()
-            Icon(
-                imageVector = PlayerIcons.Lyrics,
-                contentDescription = stringResource(R.string.open_lyrics),
-                tint = Color(palette.textSecondary),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(onClick = onOpenLyrics)
-                    .padding(10.dp),
-            )
-            Icon(
-                imageVector = PlayerIcons.DesktopLyrics,
-                contentDescription = stringResource(
-                    R.string.lyric_desktop,
-                    stringResource(if (desktopOn) R.string.lyric_on else R.string.lyric_off),
-                ),
-                tint = if (desktopOn) Color(palette.textPrimary) else Color(palette.textSecondary),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable {
-                        if (!viewModel.toggleDesktopLyric()) {
-                            context.startActivity(viewModel.overlayPermissionIntent())
-                        }
-                    }
-                    .padding(10.dp),
-            )
-            Icon(
-                imageVector = PlayerIcons.SoundFx,
-                contentDescription = stringResource(R.string.soundfx_entry),
-                tint = Color(palette.textSecondary),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(onClick = onOpenSoundFx)
-                    .padding(10.dp),
-            )
-            Icon(
-                imageVector = PlayerIcons.Timer,
-                contentDescription = if (sleepState.running) {
-                    stringResource(R.string.sleep_timer_running_desc, formatCountdown(sleepState.remainingSec))
-                } else {
-                    stringResource(R.string.sleep_timer_entry)
-                },
-                // 定时开着要用最高对比点出来：图标是唯一能看见它的地方（弹窗得点开才有）
-                tint = if (sleepState.running) Color(palette.textPrimary) else Color(palette.textSecondary),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable { showSleepDialog = true }
-                    .padding(10.dp),
-            )
-            // 「更多」只在真有一首歌可动的时候画：没有当前曲目时菜单里每一项都点不动
-            state.currentSong?.takeIf { it.id > 0 }?.let {
-                Icon(
-                    imageVector = PlayerIcons.More,
-                    contentDescription = stringResource(R.string.playing_more),
-                    tint = Color(palette.textSecondary),
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clickable { songMenuOpen = true }
-                        .padding(10.dp),
-                )
-            }
-        }
-        if (showSleepDialog) {
-            SleepTimerDialog(
-                sleep = sleepState,
-                onStart = { minutes, stopAfterSong, fadeOut ->
-                    viewModel.startSleepTimer(minutes, stopAfterSong, fadeOut)
-                },
-                onCancel = { viewModel.cancelSleepTimer() },
-                onDismiss = { showSleepDialog = false },
-            )
-        }
+        // Apple 的"上滑看更多"小灰棒也暂时摘掉（2026-10-01 用户要求，恢复看 git 历史）；
+        // 进歌词页的入口还剩歌词预览行一处
 
         Spacer(Modifier.height(8.dp))
         lastScan?.let {
@@ -476,14 +395,15 @@ private fun TitleBlock(title: String?, artist: String?, error: String?, compact:
         Text(
             text = title ?: stringResource(R.string.m1_nothing),
             fontSize = if (compact) 18.sp else 22.sp,
-            fontWeight = FontWeight.Bold,
+            // 播放页头部要压得住雾底：加粗到 ExtraBold（compact 分支是横屏右栏，保持 Bold）
+            fontWeight = if (compact) FontWeight.Bold else FontWeight.ExtraBold,
             color = Color(palette.textPrimary),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = artist ?: "",
-            fontSize = if (compact) 13.sp else 17.sp,
+            fontSize = if (compact) 13.sp else 14.sp,
             color = Color(palette.textSecondary),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -517,12 +437,13 @@ private fun LandscapeBody(
     title: String?,
     artist: String?,
     error: String?,
-    positionMs: Long,
+    positionMsFlow: StateFlow<Long>,
     lyricsViewModel: LyricsViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
     val lyrics by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
     val lineMode by lyricsViewModel.lineMode.collectAsStateWithLifecycle()
+    val positionMs by positionMsFlow.collectAsStateWithLifecycle()
     val presentation = LyricsState.present(
         lyrics = lyricsViewModel.visibleLyrics(),
         positionMs = positionMs,
@@ -613,7 +534,9 @@ private fun modeLabelRes(mode: PlayMode): Int = when (mode) {
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
+private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSeek: (Long) -> Unit) {
+    // 进度在自己的作用域里收集：每 250ms 的位置刷新只重画这一行，不再整页重组
+    val positionMs by positionMsFlow.collectAsStateWithLifecycle()
     var dragFraction by remember { mutableFloatStateOf(-1f) }
     val shownMs = if (dragFraction >= 0) dragFraction * durationMs else positionMs.toFloat()
     val fraction = if (durationMs > 0) (shownMs / durationMs).coerceIn(0f, 1f) else 0f

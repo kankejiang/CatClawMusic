@@ -3,7 +3,6 @@
     <!-- 以下是 Kotlin 端新增文案（MAUI 资源里没有对应键）；
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">Not playing</string>
-    <string name="m1_scan_play">Scan &amp; play</string>
     <string name="queue_title">Play Queue</string>
     <string name="queue_songs">%1$d songs</string>
     <string name="queue_empty">Queue is empty</string>
@@ -14,7 +13,6 @@
     <string name="prev_song">Previous</string>
     <string name="next_song">Next</string>
     <string name="play_or_pause">Play or pause</string>
-    <string name="open_lyrics">Open lyrics</string>
     <string name="mini_player_open">Back to now playing</string>
     <string name="lib_my_library">My Library</string>
     <string name="lib_sources_count">Local + network · %1$d libraries</string>
@@ -65,13 +63,11 @@
     <string name="search_none">No songs match \"%1$s\"</string>
     <string name="library_none">Nothing here yet</string>
     <string name="lyric_close">Close</string>
+    <string name="player_collapse">Collapse player</string>
     <string name="lyric_none">No lyrics</string>
     <string name="lyric_loading">Loading lyrics…</string>
     <string name="lyric_mode_line">Per line</string>
     <string name="lyric_mode_word">Karaoke</string>
-    <string name="lyric_desktop">Desktop lyrics: %1$s</string>
-    <string name="lyric_on">on</string>
-    <string name="lyric_off">off</string>
     <string name="appearance_system">Follow system</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
@@ -272,7 +268,6 @@ Download it from GitHub.</string>
     <string name="shuffle_play">Shuffle play</string>
     <string name="desktop_lyric_not_attached">Turned on, but the overlay window isn\'t up yet (usually the overlay permission is missing)</string>
     <string name="soundfx_title">Sound</string>
-    <string name="soundfx_entry">Sound effects</string>
     <string name="soundfx_reset">Reset</string>
     <string name="soundfx_section_eq">Equalizer</string>
     <string name="soundfx_section_other">Other effects</string>
@@ -340,7 +335,6 @@ Download it from GitHub.</string>
     <string name="downloads_resume">Resume</string>
     <string name="downloads_retry">Retry</string>
     <string name="downloads_delete_file">Delete with file</string>
-    <string name="sleep_timer_entry">Sleep timer</string>
     <string name="sleep_timer_title">Stop playback after</string>
     <string name="sleep_timer_stop_time">Stop after</string>
     <string name="sleep_timer_minutes_n">%1$d min</string>
@@ -354,7 +348,6 @@ Download it from GitHub.</string>
     <string name="sleep_timer_close">Close</string>
     <string name="sleep_timer_remaining">Stops in %1$s</string>
     <string name="sleep_timer_waiting">Time is up — waiting for the current track to end</string>
-    <string name="sleep_timer_running_desc">Sleep timer: %1$s left</string>
     <string name="sleep_timer_options_echo">Current: %1$s · wait for track %2$s · fade %3$s</string>
     <string name="sleep_timer_on">on</string>
     <string name="sleep_timer_off">off</string>

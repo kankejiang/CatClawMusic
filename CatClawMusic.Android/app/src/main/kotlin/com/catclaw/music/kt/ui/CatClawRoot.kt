@@ -1,5 +1,12 @@
 package com.catclaw.music.kt.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,12 +32,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -241,7 +250,8 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .catClawBackground()
-                        .statusBarsPadding()
+                        // 状态栏留白不再统一加在这里：播放页 / 全屏歌词页要沉浸到状态栏后面
+                        // （封面染色铺满整个状态栏区域），留白由各页自己处理（2026-10-01）
                         // 整屏覆盖层（队列 / 音效）压住五页时，身后那页仍留在同一棵无障碍树里——
                         // 真机 dump 量到队列页上「设置」与「返回」两个节点的 bounds 100% 重叠，
                         // 读屏用户能滑进看不见、也点不到的那一层。覆盖层显示时把身后整棵子树摘掉。
@@ -262,59 +272,97 @@ private fun TabsHost(onOpenSettings: () -> Unit) {
                                 onOpenSettings = onOpenSettings,
                                 onOpenQueue = { showQueue = true },
                                 onOpenSoundFx = { showSoundFx = true },
+                                // ⌄ 收起：横滑回发现页（网易云的 ⌄ 是关掉播放器回主页面）
+                                onCollapse = { scope.launch { pagerState.animateScrollToPage(2) } },
                                 viewModel = playingViewModel,
                             )
-                            2 -> SearchScreen(
-                                active = pagerState.currentPage == 2,
-                                onOpenSettings = onOpenSettings,
-                                onChatOpen = { chatOpen = it },
-                            )
-                            3 -> PlaylistScreen()
-                            else -> LibraryScreen()
+                            // 普通三页不画状态栏后面的区域，头部从状态栏下方开始
+                            2 -> Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                                SearchScreen(
+                                    active = pagerState.currentPage == 2,
+                                    onOpenSettings = onOpenSettings,
+                                    onChatOpen = { chatOpen = it },
+                                )
+                            }
+                            3 -> Box(Modifier.fillMaxSize().statusBarsPadding()) { PlaylistScreen() }
+                            else -> Box(Modifier.fillMaxSize().statusBarsPadding()) { LibraryScreen() }
                         }
                     }
                 }
             }
-            if (!immersivePage && !chatOpen) {
-                // MAUI 的 MobileStage 是 RowDefinitions="*,Auto,Auto"：MiniPlayer（Row1）在 TabBar（Row2）**上方**，
-                // 两栏都是左右留白 18 的悬浮胶囊（MiniPlayer margin 下 2、TabBar margin 下 4），不是贴边的整宽条
+            // 底栏/迷你条只在从播放页/歌词页切回页签时「延迟弹出」：减速滑入（LinearOutSlowIn，无回弹），
+            // 迷你条先进、底栏延后 90ms 跟进；页签之间来回滑它们原地不动（反复弹会晃眼）。
+            // 手势结束落定后弹出手势期间玻璃是空的，模糊不参与滑动帧（gfxinfo A/B：卡顿帧 35%→11%）
+            val chromeVisible = !immersivePage && !chatOpen
+            var miniIn by remember { mutableStateOf(false) }
+            var barIn by remember { mutableStateOf(false) }
+            LaunchedEffect(chromeVisible) {
+                if (chromeVisible) {
+                    miniIn = true
+                    delay(50)
+                    barIn = true
+                } else {
+                    miniIn = false
+                    barIn = false
+                }
+            }
+            AnimatedVisibility(
+                visible = chromeVisible,
+                enter = fadeIn(tween(1)),
+                exit = fadeOut(tween(130)),
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
                 Column(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
                         .padding(start = 18.dp, end = 18.dp, bottom = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     playState.currentSong?.let { song ->
                         if (showMiniPlayer) {
-                            MiniPlayer(
-                                song = song,
-                                isPlaying = playState.isPlaying,
-                                backdrop = backdrop,
-                                progress = if (playState.durationMs > 0) {
-                                    positionMs.toFloat() / playState.durationMs
-                                } else {
-                                    0f
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                onOpen = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
-                                onToggle = { playingViewModel.toggle() },
-                                onPrevious = { playingViewModel.previous() },
-                                onNext = { playingViewModel.next() },
-                            )
+                            AnimatedVisibility(
+                                visible = miniIn,
+                                enter = slideInHorizontally(tween(320, easing = LinearOutSlowInEasing)) { it } +
+                                    fadeIn(tween(140)),
+                                exit = fadeOut(tween(100)),
+                            ) {
+                                MiniPlayer(
+                                    song = song,
+                                    isPlaying = playState.isPlaying,
+                                    backdrop = backdrop,
+                                    progress = if (playState.durationMs > 0) {
+                                        positionMs.toFloat() / playState.durationMs
+                                    } else {
+                                        0f
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onOpen = { scope.launch { pagerState.animateScrollToPage(PAGE_NOW_PLAYING) } },
+                                    onToggle = { playingViewModel.toggle() },
+                                    onPrevious = { playingViewModel.previous() },
+                                    onNext = { playingViewModel.next() },
+                                )
+                            }
                         }
                     }
-                    BarGlass(state = backdrop, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-                            TopTab.entries.forEach { tab ->
-                                TabCell(
-                                    tab = tab,
-                                    selected = pagerState.settledPage == tab.pageIndex,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
-                                    },
-                                )
+                    AnimatedVisibility(
+                        visible = barIn,
+                        enter = slideInHorizontally(
+                            tween(320, delayMillis = 50, easing = LinearOutSlowInEasing),
+                        ) { it } + fadeIn(tween(140, delayMillis = 50)),
+                        exit = fadeOut(tween(100)),
+                    ) {
+                        BarGlass(state = backdrop, modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                                TopTab.entries.forEach { tab ->
+                                    TabCell(
+                                        tab = tab,
+                                        selected = pagerState.settledPage == tab.pageIndex,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

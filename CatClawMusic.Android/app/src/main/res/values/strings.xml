@@ -3,7 +3,6 @@
     <!-- 以下是 Kotlin 端新增文案（MAUI 资源里没有对应键）；
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">未在播放</string>
-    <string name="m1_scan_play">扫描并播放</string>
     <string name="queue_title">播放列表</string>
     <string name="queue_songs">%1$d 首歌曲</string>
     <string name="queue_empty">队列为空</string>
@@ -14,7 +13,6 @@
     <string name="prev_song">上一曲</string>
     <string name="next_song">下一曲</string>
     <string name="play_or_pause">播放或暂停</string>
-    <string name="open_lyrics">进入歌词页面</string>
     <string name="mini_player_open">回到播放页</string>
     <string name="lib_my_library">我的音乐库</string>
     <string name="lib_sources_count">本地 + 网络 · 共 %1$d 个资料库</string>
@@ -65,13 +63,11 @@
     <string name="search_none">没找到与「%1$s」相关的歌</string>
     <string name="library_none">暂无内容</string>
     <string name="lyric_close">收起</string>
+    <string name="player_collapse">收起播放页</string>
     <string name="lyric_none">暂无歌词</string>
     <string name="lyric_loading">歌词加载中…</string>
     <string name="lyric_mode_line">逐行</string>
     <string name="lyric_mode_word">逐字</string>
-    <string name="lyric_desktop">桌面歌词：%1$s</string>
-    <string name="lyric_on">开</string>
-    <string name="lyric_off">关</string>
     <string name="appearance_system">跟随系统</string>
     <string name="appearance_light">浅色</string>
     <string name="appearance_dark">深色</string>
@@ -272,7 +268,6 @@
     <string name="shuffle_play">随机播放</string>
     <string name="desktop_lyric_not_attached">已开启，但悬浮窗还没起来（多半是缺少悬浮窗权限）</string>
     <string name="soundfx_title">音效</string>
-    <string name="soundfx_entry">音效设置</string>
     <string name="soundfx_reset">重置</string>
     <string name="soundfx_section_eq">均衡器</string>
     <string name="soundfx_section_other">其它音效</string>
@@ -340,7 +335,6 @@
     <string name="downloads_resume">继续</string>
     <string name="downloads_retry">重试</string>
     <string name="downloads_delete_file">删除（含文件）</string>
-    <string name="sleep_timer_entry">睡眠定时</string>
     <string name="sleep_timer_title">定时停止播放</string>
     <string name="sleep_timer_stop_time">停止时间</string>
     <string name="sleep_timer_minutes_n">%1$d 分钟</string>
@@ -354,7 +348,6 @@
     <string name="sleep_timer_close">关闭</string>
     <string name="sleep_timer_remaining">剩余 %1$s 后停止</string>
     <string name="sleep_timer_waiting">已到时间，等当前曲目播完后停止</string>
-    <string name="sleep_timer_running_desc">睡眠定时：剩余 %1$s</string>
     <string name="sleep_timer_options_echo">当前设置：%1$s · 播完当前曲目 %2$s · 淡出 %3$s</string>
     <string name="sleep_timer_on">开</string>
     <string name="sleep_timer_off">关</string>

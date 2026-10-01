@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -99,10 +100,69 @@ fun Modifier.artworkWash(cover: Bitmap?): Modifier {
 }
 
 /**
+ * 网易云「一起听」那套：封面原图**全宽、清晰**地占满上半屏（顶对齐 AspectFill），
+ * 下缘一段雾化渐隐融进取自封面均色的底色，下半屏就是这块干净的纯色——没有方块、没有毛玻璃。
+ * 取不到封面时调用方应退回 [artworkWash]。
+ * 位图数学与 [catClawBackground] 的自定义背景同一套 AspectFill（2026-10-01 仿，第二版：不是小方块浮在模糊图上）。
+ */
+private fun darken(c: Color, fraction: Float): Color =
+    Color(c.red * (1 - fraction), c.green * (1 - fraction), c.blue * (1 - fraction))
+@Composable
+fun Modifier.artworkBackdrop(cover: Bitmap?): Modifier {
+    val tint = rememberArtworkTint(cover)
+    if (cover == null) return this
+    val base = darken(tint, 0.35f)
+    return drawBehind {
+        // 封面全宽 AspectFill：上缘 18% 屏高、下缘 66%。上缘与雾带各自独立调——
+        // 雾带高度固定，别跟着封面长，否则「下移封面」会被雾变厚吃掉（真机教训）
+        val imgTop = size.height * 0.18f
+        val imgBottom = size.height * 0.66f
+        val scale = maxOf(size.width / cover.width, (imgBottom - imgTop) / cover.height)
+        val w = cover.width * scale
+        val h = cover.height * scale
+        drawImage(
+            image = cover.asImageBitmap(),
+            dstOffset = IntOffset(((size.width - w) / 2f).roundToInt(), imgTop.roundToInt()),
+            dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+        )
+        // 顶部雾化区：颜色与底部底色同源（base），上下两端把封面夹在同一种雾里。
+        // 雾在封面上缘处必须完全不透明（100% 盖住图像边界），往下才渐隐——
+        // 上一版雾只盖到 55%，图像顶边直接透出来，就是真机上那条「断层」
+        val fadeBand = size.height * 0.12f
+        drawRect(
+            brush = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0f to base,
+                    (imgTop / (imgTop + fadeBand)) to base,
+                    1f to Color.Transparent,
+                ),
+                startY = 0f, endY = imgTop + fadeBand,
+            ),
+            size = Size(size.width, imgTop + fadeBand),
+        )
+        // 下缘雾化→底色一条连续渐变到屏底。色标必须显式给：base 要恰好在封面下缘到位，
+        // 均分三色的话到位点会掉到屏高中部，图像底边就会留一条缝（真机 v4 量到的）
+        val fadeStart = imgBottom * 0.55f
+        val midStop = (imgBottom - fadeStart) / (size.height - fadeStart)
+        drawRect(
+            brush = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0f to Color.Transparent,
+                    midStop to base,
+                    1f to darken(base, 0.35f),
+                ),
+                startY = fadeStart, endY = size.height,
+            ),
+            topLeft = Offset(0f, fadeStart),
+            size = Size(size.width, size.height - fadeStart),
+        )
+    }
+}
+
+/**
  * 封面平均色：26×26 网格采样（≤676 个像素，一次算完，不逐帧扫图）。
  * 取不到封面就退回主色——染色不该因为一张图都没解出来就变成透明。
- */
-@Composable
+ */@Composable
 fun rememberArtworkTint(cover: Bitmap?): Color {
     val palette = LocalCatClawPalette.current
     val sampled = remember(cover) {

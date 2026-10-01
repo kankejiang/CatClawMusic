@@ -46,5 +46,6 @@ object PlayerIcons {
     val SoundFx = PlayerIcon(R.drawable.ic_equalizer)
     val Timer = PlayerIcon(R.drawable.ic_timer)
     val More = PlayerIcon(R.drawable.ic_more)
+    val Collapse = PlayerIcon(R.drawable.ic_collapse)
     val Close = PlayerIcon(R.drawable.ic_close)
 }

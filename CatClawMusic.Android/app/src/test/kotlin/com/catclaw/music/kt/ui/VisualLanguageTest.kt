@@ -202,7 +202,7 @@ class VisualLanguageTest {
         val primitives = listOf(
             "glassCard(", "PillLabel(", "GlassChip(", "EmptyState(", "BackTile(",
             "inkOn(", "highlightOn", "catClawBackground(", "BarGlass(", "GlassTokens.",
-            "artworkWash(",
+            "artworkWash(", "artworkBackdrop(",
         )
         val missing = pageFiles.filter { rel ->
             val f = File(uiRoot, rel)
@@ -417,11 +417,13 @@ class VisualLanguageTest {
     }
 
     /**
-     * 封面染色只许有一份定义（`Modifier.artworkWash`，在 theme/Background.kt，不在本条扫描范围内）。
+     * 封面染色只许有一份定义（`Modifier.artworkWash` 与「封面即背景」的 `Modifier.artworkBackdrop`，
+     * 都在 theme/Background.kt，不在本条扫描范围内）。
      *
      * 播放页按 Apple Music 重排时把「取封面平均色 + 三段竖向渐变」写在了页面里，歌词页要接同一套语言
      * 就会各抄一份——而抄的那一版底部压到 α.94，等于把外壳的三层渐变、光晕、用户自定义背景图整张盖掉，
      * 正是第 7 条背景闸门要防的那件事。所以取色与三档 alpha 一起收进 theme，页面只能调 `artworkWash(`。
+     * 2026-10-01 播放页仿网易云改「封面即背景」，全屏位图 + 压暗渐变同样收进 theme（artworkBackdrop）。
      */
     @Test
     fun `封面染色不在页面里各自实现`() {
@@ -432,9 +434,11 @@ class VisualLanguageTest {
             }
         }
         assertTrue("封面染色请统一走 Modifier.artworkWash（取色与三档 alpha 只该有一处定义）: $offenders", offenders.isEmpty())
-        // 该被染的两页必须真接上：少了这一句，上面那条零命中就只是空转
+        // 该被染的两页必须真接上：少了这一句，上面那条零命中就只是空转。
+        // 播放页已换成「封面即背景」的 artworkBackdrop，与 artworkWash 同算合格
         for (rel in listOf("screen/PlayingScreen.kt", "screen/FullLyricsScreen.kt")) {
-            assertTrue("$rel 没接封面染色 artworkWash", "artworkWash(" in File(uiRoot, rel).readText())
+            val text = File(uiRoot, rel).readText()
+            assertTrue("$rel 没接封面染色 artworkWash / artworkBackdrop", "artworkWash(" in text || "artworkBackdrop(" in text)
         }
     }
 

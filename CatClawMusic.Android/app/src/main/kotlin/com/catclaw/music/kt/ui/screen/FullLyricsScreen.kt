@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clip
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -87,7 +88,8 @@ fun FullLyricsScreen(onClose: () -> Unit, viewModel: LyricsViewModel = hiltViewM
     val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256)
 
     Box(modifier = Modifier.fillMaxSize().catClawBackground().artworkWash(cover)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // 染色铺满整屏（含状态栏），内容从状态栏下方开始——壳层的统一留白已下放到各页
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
