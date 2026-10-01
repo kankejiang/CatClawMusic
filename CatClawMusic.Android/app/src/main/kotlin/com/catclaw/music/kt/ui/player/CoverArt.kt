@@ -29,7 +29,11 @@ import kotlinx.coroutines.withContext
  * 扫描器不往 `CoverArtPath` 里写东西（MAUI 是另有一台 CoverHelper 抽图落盘，本端没有那台引擎），
  * 所以不读内嵌图的话，本地曲就永远只有首字母。
  */
-private val memoryCache = LruCache<String, Bitmap>(96)
+// 按字节限额（32MB，≈ 常用堆的 1/16）：之前按「96 条」计数，一张 1440px 全屏封面 8MB、
+// 512px 行图 1MB，攒满 96 条能压近百 MB——滑动中 GC 一停顿就是几十毫秒的尖峰（gfxinfo 77~133ms 桶）
+private val memoryCache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+}
 
 /** 只算数不碰 Android 类型的那半件，单独拆出来是为了能在 JVM 上测 */
 internal fun inSampleSizeFor(width: Int, height: Int, maxPx: Int): Int {
