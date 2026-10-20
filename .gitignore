@@ -435,3 +435,7 @@ vitrum-src/
 .openclaw*
 .autoclaw*
 CLAUDE.local.md
+
+# zcode / agent 工具生成物：忽略文件副本与运行日志，工作区也不留
+.zcodeignore
+**/.zcode/
