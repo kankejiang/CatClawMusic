@@ -5,6 +5,8 @@ import com.catclaw.music.kt.core.playback.PlaybackUiState
 import com.catclaw.music.kt.core.playback.PlayerApi
 import com.catclaw.music.kt.core.playback.SessionLauncher
 import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.data.db.PlaylistCover
+import com.catclaw.music.kt.data.db.FakePlaylistDao
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
@@ -24,7 +26,11 @@ import org.junit.Test
  */
 class PlaylistToolsTest {
 
-    private class FakePlaylists : PlaylistDao {
+    /**
+     * 只需要覆写这个测试真正碰到的那些成员 —— 其余走共享替身的「被调到就抛」。
+     * 这样 `PlaylistDao` 以后加方法，这里不用动（以前要手动补两处，已经因此编译失败过两次）。
+     */
+    private class FakePlaylists : FakePlaylistDao() {
         val created = mutableListOf<PlaylistEntity>()
         val items = linkedMapOf<Int, MutableList<Int>>()
         val deleted = mutableListOf<Int>()
@@ -72,10 +78,26 @@ class PlaylistToolsTest {
 
         override fun observeItems(playlistId: Int): Flow<List<SongListItem>> = MutableStateFlow(emptyList())
 
+        /** 封面来源：工具层不碰它，但要满足接口 */
+        override fun observePlaylistCovers(): Flow<List<PlaylistCover>> = MutableStateFlow(emptyList())
+
         override suspend fun touch(id: Int, count: Int, now: Long) { touched += id to count }
 
         override suspend fun reorder(playlistId: Int, orderedSongIds: List<Int>) {
             items[playlistId] = orderedSongIds.toMutableList()
+        }
+
+        /** 拖拽提交收集器：工具层不碰它，但接口要满足 */
+        val reordered = mutableListOf<List<Int>>()
+
+        override suspend fun reorderPlaylists(orderedIds: List<Int>) {
+            reordered += orderedIds
+        }
+
+        /** 内置单改不动，与 SQL 里的 `IsSystem = 0` 同一语义 */
+        override suspend fun updateSortOrder(id: Int, order: Int) {
+            val at = created.indexOfFirst { it.id == id && !it.isSystem }
+            if (at >= 0) created[at] = created[at].copy(sortOrder = order)
         }
 
         override suspend fun updatePosition(playlistId: Int, songId: Int, position: Int) = Unit

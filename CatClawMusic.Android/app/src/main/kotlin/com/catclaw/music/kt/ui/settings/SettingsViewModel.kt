@@ -95,9 +95,17 @@ class SettingsViewModel @Inject constructor(
         audioCache.maxSizeBytes = cacheSettings.sizeMb.value.toLong() * 1024L * 1024L
     }
 
-    fun clearAudioCache() {
+    /**
+     * 清除缓存 —— **必须与上面那个数字覆盖同一批东西**。
+     *
+     * 那个数字是「音频缓存 + 下载目录」的和（见 [refreshCacheUsage]），而这里原来只清音频缓存：
+     * 用户看到「已用 300MB」点一下只掉几十 MB（下载目录占大头时几乎不动），看着像没生效。
+     * 这个坑不好发现 —— 不报错、数字也确实变了一点。
+     */
+    fun clearCaches() {
         viewModelScope.launch(Dispatchers.IO) {
             audioCache.clear()
+            downloader.clearCache()
             _cacheUsage.value = audioCache.totalBytes() + downloader.directorySizeBytes()
         }
     }
@@ -106,6 +114,7 @@ class SettingsViewModel @Inject constructor(
 
     val startupIndex: StateFlow<Int> = appearance.startupIndex
     val monetEnabled: StateFlow<Boolean> = appearance.monetEnabled
+    val frostedBgEnabled: StateFlow<Boolean> = appearance.frostedBgEnabled
     val hasCustomBackground: StateFlow<Boolean> = appearance.customBgPath
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.Eagerly, appearance.customBgPath.value != null)
@@ -113,6 +122,8 @@ class SettingsViewModel @Inject constructor(
     fun setStartupIndex(value: Int) = appearance.setStartupIndex(value)
 
     fun setMonetEnabled(value: Boolean) = appearance.setMonetEnabled(value)
+
+    fun setFrostedBgEnabled(value: Boolean) = appearance.setFrostedBgEnabled(value)
 
     /**
      * 把选中的图复制进应用私有的 backgrounds 目录，文件名固定 `custom_bg.<ext>` 覆盖上一张 ——

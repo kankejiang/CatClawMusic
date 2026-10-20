@@ -9,6 +9,7 @@ import androidx.room.Upsert
 import com.catclaw.music.kt.data.db.entity.AlbumEntity
 import com.catclaw.music.kt.data.db.entity.ArtistEntity
 import com.catclaw.music.kt.data.db.entity.CachedSongEntity
+import com.catclaw.music.kt.core.library.SongStat
 import com.catclaw.music.kt.core.stats.PlayStatRules
 import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.data.db.entity.FavoriteEntity
@@ -65,6 +66,49 @@ interface LibraryDao {
     )
     fun observeLocalSongs(): Flow<List<SongListItem>>
 
+    /**
+     * 单曲按 id 取一行 —— 歌曲详情页的「播放此曲」用。
+     *
+     * 投影与列表页逐列一致（含 source / protocol）：远程曲也要能正常入队，
+     * 取流方式靠这两列挑，少一列就会拿本地文件那条路去播一个 URL。
+     */
+    @Query(
+        """
+        SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
+               IFNULL(al.Title, '') AS album, s.Duration AS durationSeconds,
+               s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
+        FROM Songs s
+        LEFT JOIN Artists a ON a.Id = s.ArtistId
+        LEFT JOIN Albums al ON al.Id = s.AlbumId
+        WHERE s.Id = :id
+        """,
+    )
+    suspend fun songListItemById(id: Int): SongListItem?
+
+    /**
+     * **全部来源**的歌曲（本地 + WebDAV / SMB / 已缓存）。
+     *
+     * 「全部歌曲」页的「网络」那一档需要它：底座若是只读 `Source = 0` 的那条，
+     * 网络曲在这张页面上永远选不出来 —— 从远程来源页导进来的歌只能回那一页找。
+     *
+     * 投影必须与 [observeLocalSongs] 逐列一致（差别只在没有 WHERE）：两处一旦漂移，
+     * 同一首歌在两个视图里就会长得不一样。
+     */
+    @Query(
+        """
+        SELECT s.Id AS id, s.Title AS title, IFNULL(a.Name, '') AS artist,
+               IFNULL(al.Title, '') AS album, s.Duration AS durationSeconds,
+               s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
+               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
+        FROM Songs s
+        LEFT JOIN Artists a ON a.Id = s.ArtistId
+        LEFT JOIN Albums al ON al.Id = s.AlbumId
+        ORDER BY s.Title COLLATE NOCASE ASC
+        """,
+    )
+    fun observeAllSongs(): Flow<List<SongListItem>>
+
     @Query("SELECT * FROM Songs WHERE Id = :id")
     suspend fun songById(id: Int): SongEntity?
 
@@ -81,6 +125,24 @@ interface LibraryDao {
      */
     @Query("SELECT IFNULL(SUM(FileSize), 0) FROM Songs WHERE Source = 0")
     suspend fun localBytesTotal(): Long
+
+    /**
+     * 「存储占用 / 数据洞察」两张卡的原料：本地曲库的四列。
+     *
+     * 只取四列、也不在 SQL 里分组 —— 分组规则在 :core（SongStat / sizeBuckets），
+     * 放 SQL 里既算不出"按比特率分档"那种判据，也没法在 JVM 上单测。
+     * 艺人名走 LEFT JOIN 而不是让调用方再查一次：这几张卡都是一次读完就画。
+     */
+    @Query(
+        """
+        SELECT s.FilePath AS filePath, IFNULL(s.FileSize, 0) AS fileSize,
+               IFNULL(s.Bitrate, 0) AS bitrateKbps, IFNULL(a.Name, '') AS artist
+        FROM Songs s
+        LEFT JOIN Artists a ON a.Id = s.ArtistId
+        WHERE s.Source = 0
+        """,
+    )
+    suspend fun localSongStats(): List<SongStat>
 
     /** FilePath 上有唯一索引，重复入库走替换 */
     @Upsert
@@ -465,22 +527,13 @@ interface LibraryDao {
     )
     suspend fun topPlayed(limit: Int): List<PlayCountRow>
 
-    /** 新曲：按入库时间倒序 */
-    @Query(
-        """
-        SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
-               COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
-               s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
-               s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
-        FROM Songs s
-        LEFT JOIN Artists a ON a.Id = s.ArtistId
-        LEFT JOIN Albums al ON al.Id = s.AlbumId
-        WHERE s.Source = 0
-        ORDER BY s.DateAdded DESC, s.Id DESC
-        LIMIT :limit
-        """,
-    )
+    /** 新曲：按入库时间倒序（一次性取，发现页的「新曲」段用） */
+    @Query(SQL_NEW_ARRIVALS)
     suspend fun newArrivals(limit: Int): List<SongListItem>
+
+    /** 同一份 SQL 的流式版本：资料库首页那张「最近添加」卡要跟着库变化自己刷新 */
+    @Query(SQL_NEW_ARRIVALS)
+    fun observeNewArrivals(limit: Int): Flow<List<SongListItem>>
 
     /** 每日推荐：C# 侧是「随机抽一批」，这里同样随机，只是限定本地曲且限量 */
     @Query(
@@ -505,17 +558,19 @@ interface LibraryDao {
 
     // ── 歌手 / 专辑浏览 ──
 
-    @Query(
-        """
-        SELECT a.Id AS id, a.Name AS name, a.Cover AS cover,
-               (SELECT COUNT(*) FROM Songs s WHERE s.ArtistId = a.Id) AS songCount
-        FROM Artists a ORDER BY a.Name COLLATE NOCASE ASC
-        """,
-    )
+    @Query(SQL_ARTISTS)
     fun observeArtists(): Flow<List<ArtistListItem>>
+
+    /** 同一份 SQL 的一次性版本：AI 快照要现算各艺人的歌曲数，不需要订阅变化 */
+    @Query(SQL_ARTISTS)
+    suspend fun artistsOnce(): List<ArtistListItem>
 
     @Query(SQL_ALBUMS)
     fun observeAlbums(): Flow<List<AlbumListItem>>
+
+    /** 同上：AI 快照用的一次性版本 */
+    @Query(SQL_ALBUMS)
+    suspend fun albumsOnce(): List<AlbumListItem>
 
     /** 艺人下钻页的歌（主歌手 + 合作歌手） */
     @Query(SQL_SONGS_OF_ARTIST)
@@ -524,6 +579,14 @@ interface LibraryDao {
     /** 专辑下钻页的歌，按曲目号排 */
     @Query(SQL_SONGS_OF_ALBUM)
     suspend fun songsOfAlbum(albumId: Int): List<SongListItem>
+
+    /** 专辑下钻页的头卡（封面 / 歌手 / 年份） */
+    @Query(SQL_ALBUM_BY_ID)
+    suspend fun albumHeader(albumId: Int): AlbumHeader?
+
+    /** 艺人页「专辑」Tab：成员判据与 [songsOfArtist] 同源，见 [SQL_ALBUMS_OF_ARTIST] */
+    @Query(SQL_ALBUMS_OF_ARTIST)
+    suspend fun albumsOfArtist(artistId: Int): List<AlbumListItem>
 
     companion object {
         /** 会话只保留最近 N 条（与 C# `TrimPlaySessionAsync(2000)` 同值） */
@@ -577,7 +640,26 @@ data class NameId(val id: Int, val name: String)
 
 data class AlbumKey(val id: Int, val title: String, val artistId: Int)
 
-data class ArtistListItem(val id: Int, val name: String, val cover: String?, val songCount: Int)
+data class ArtistListItem(
+    val id: Int,
+    val name: String,
+    val cover: String?,
+    val songCount: Int,
+    /** 歌手头像的兜底来源：本地曲歌手没有 Cover 时借任一歌曲的内嵌图（同专辑卡的做法） */
+    val sampleFilePath: String? = null,
+)
+
+/** 单张专辑的头卡（见 [SQL_ALBUM_BY_ID]）：比 [AlbumListItem] 多一个年份 */
+data class AlbumHeader(
+    val id: Int,
+    val title: String,
+    val artist: String,
+    val coverArtPath: String?,
+    val songCount: Int,
+    /** 0 = 库里没有年份（`Year` 为 NULL），UI 据此不画那一行 */
+    val year: Int,
+    val sampleFilePath: String? = null,
+)
 
 data class AlbumListItem(
     val id: Int,

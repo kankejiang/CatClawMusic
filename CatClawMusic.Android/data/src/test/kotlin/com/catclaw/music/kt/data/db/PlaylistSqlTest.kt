@@ -189,6 +189,72 @@ class PlaylistSqlTest {
     }
 
     @Test
+    fun playlistCoverComesFromTheFirstSongByPositionNotByInsertion() {
+        insertPlaylist(1, "自建单", isSystem = 0)
+        insertPlaylist(2, "空歌单", isSystem = 0)
+        insertSong(11, "A", "/m/a.mp3", "/c/a.jpg")
+        insertSong(12, "B", "/m/b.mp3", "/c/b.jpg")
+        insertSong(13, "C", "/m/c.mp3", null)
+        // 先插的排在后面：封面必须按 Position 取，不能按插入顺序
+        insertItem(1, 11, 3)
+        insertItem(1, 12, 0)
+        insertItem(1, 13, 1)
+
+        val covers = db.prepareStatement(SQL_PLAYLIST_COVERS).executeQuery().let { rs ->
+            generateSequence {
+                if (rs.next()) Triple(rs.getInt("playlistId"), rs.getString("coverArtPath"), rs.getString("filePath")) else null
+            }.toList()
+        }
+
+        assertEquals(
+            "封面取自 Position 最小的那首；封面列为空时 filePath 仍要带回（本端靠它现读内嵌封面）",
+            listOf(Triple(1, "/c/b.jpg", "/m/b.mp3")),
+            covers,
+        )
+        assertTrue("空歌单不出现在封面表里，卡片据此退回首字/系统图标", covers.none { it.first == 2 })
+    }
+
+    private fun insertSong(id: Int, title: String, filePath: String, coverArtPath: String?) {
+        db.prepareStatement("INSERT INTO Songs (Id, Title, FilePath, CoverArtPath) VALUES (?,?,?,?)").apply {
+            setInt(1, id); setString(2, title); setString(3, filePath); setString(4, coverArtPath)
+        }.executeUpdate()
+    }
+
+    @Test
+    fun reorderWritesDenseOrderAndLeavesSystemPlaylistsAlone() {
+        insertPlaylist(1, "我喜欢的音乐", isSystem = 1)
+        insertPlaylist(2, "甲", isSystem = 0)
+        insertPlaylist(3, "乙", isSystem = 0)
+        insertPlaylist(4, "丙", isSystem = 0)
+
+        // 拖拽后的顺序：丙 → 甲 → 乙（提交集合里只有自建单）
+        listOf(4, 2, 3).forEachIndexed { index, id ->
+            db.prepareStatement(jdbc(SQL_UPDATE_SORT_ORDER)).apply {
+                setInt(1, index + 1); setInt(2, id)
+            }.executeUpdate()
+        }
+
+        assertEquals(1, sortOrderOf(4))
+        assertEquals(2, sortOrderOf(2))
+        assertEquals(3, sortOrderOf(3))
+        assertEquals(
+            "系统歌单的序号不能被拖拽搅动：它在列表里按 IsSystem DESC 恒在最前",
+            0, sortOrderOf(1),
+        )
+        assertEquals(
+            "改到系统歌单头上必须 0 行 —— 这条保护在 SQL 里，不靠 UI 自觉",
+            0,
+            db.prepareStatement(jdbc(SQL_UPDATE_SORT_ORDER)).apply {
+                setInt(1, 9); setInt(2, 1)
+            }.executeUpdate(),
+        )
+    }
+
+    private fun sortOrderOf(id: Int): Int =
+        db.prepareStatement("SELECT SortOrder FROM Playlists WHERE Id = ?").apply { setInt(1, id) }
+            .executeQuery().let { rs -> if (rs.next()) rs.getInt(1) else -1 }
+
+    @Test
     fun emptyPlaylistHasNullMaxPosition() {
         insertPlaylist(7, "Road", isSystem = 0)
         val rs = db.prepareStatement("SELECT MAX(Position) FROM PlaylistSongs WHERE PlaylistId = ?")

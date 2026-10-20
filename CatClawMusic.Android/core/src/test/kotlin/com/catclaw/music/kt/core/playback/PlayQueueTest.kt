@@ -114,6 +114,30 @@ class PlayQueueTest {
     }
 
     @Test
+    fun removingTheCurrentTailSongWrapsToTheHead() {
+        // 删的是队尾那首（队列还有别的歌）：索引回卷到第一首，不能停在越界位置
+        val q = PlayQueue().apply { setSongs(songs(3)) }
+        q.selectSong(3)
+        q.removeSong(3)
+        assertEquals(1, q.currentSong?.id)
+    }
+
+    @Test
+    fun removingTheLastRemainingCurrentSongEmptiesTheQueue() {
+        // 删到一首不剩时 currentSong 必须是 null：PlayerController.removeFromQueue 靠它区分
+        // 「收播放器」与「从头起播下一首」（C# 对应 LoadCurrentSongAsync 的无歌可播分支，
+        // 那边会停播并撤掉前台通知）。这条不成立，删空队列就会去播一首已经不存在的歌。
+        val q = PlayQueue().apply { setSongs(songs(1)) }
+        // setSongs 只灌列表、不给当前曲（currentIndex = -1），要先把当前曲点上 ——
+        // 应用里的队列任何时候都有一首在放，这是那条分支的真实前提
+        q.selectSong(1)
+        assertEquals(1, q.currentSong?.id)
+        q.removeSong(1)
+        assertNull("删空之后不能还指着一首已经被移除的歌", q.currentSong)
+        assertNull(q.next())
+    }
+
+    @Test
     fun restorePersistedKeepsSavedOrderAndIndex() {
         val saved = songs(5).shuffled()
         val q = PlayQueue()

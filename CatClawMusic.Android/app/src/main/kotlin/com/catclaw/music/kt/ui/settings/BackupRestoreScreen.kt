@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material3.LinearProgressIndicator
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.backup.BackupItems
 import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.GlassSwitch
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
@@ -55,6 +57,10 @@ fun BackupRestoreScreen(
     // 每次回到这页都重新数一遍：备份是页外也会变的磁盘状态，缓存进 StateFlow 就会看到过期列表
     val files = remember(state.message, state.busy) { viewModel.backups() }
     var pending by remember { mutableStateOf<File?>(null) }
+    // 勾选的备份内容（位掩码）。一项都没勾时两颗执行按钮都变灰 ——
+    // 让按钮点得动却是空跑，比灰着不说原因更让人困惑
+    val items by viewModel.items.collectAsState()
+    val noneSelected = items == BackupItems.NONE
 
     Column(
         modifier = Modifier
@@ -96,7 +102,11 @@ fun BackupRestoreScreen(
                 Text(it, fontSize = 12.sp, color = Color(palette.textSecondary), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
             }
             Box(modifier = Modifier.padding(top = 12.dp)) {
-                PillLabel(text = stringResource(R.string.CreateBackup), onClick = viewModel::createBackup, enabled = !state.busy)
+                PillLabel(
+                    text = stringResource(R.string.CreateBackup),
+                    onClick = viewModel::createBackup,
+                    enabled = !state.busy && !noneSelected,
+                )
             }
             Text(
                 viewModel.backupRoot().absolutePath,
@@ -104,6 +114,54 @@ fun BackupRestoreScreen(
                 color = Color(palette.textSecondary),
                 modifier = Modifier.padding(top = 10.dp),
             )
+        }
+
+        // 备份内容勾选：每一项对应服务层 BackupItems 的一个位，备份与恢复共用这份勾选。
+        // 服务层一直支持这八类（backup/restore 都收 items），此前界面没接，于是只能整包进出
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp)
+                .glassCard(palette = palette, corner = 22)
+                .padding(16.dp),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.backup_items_title),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(palette.textPrimary),
+                    )
+                    Text(
+                        stringResource(R.string.backup_items_sub),
+                        fontSize = 12.sp,
+                        color = Color(palette.textSecondary),
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                PillLabel(
+                    text = stringResource(R.string.select_all),
+                    onClick = viewModel::selectAllItems,
+                    filled = false,
+                    enabled = items != BackupItems.ALL && !state.busy,
+                )
+            }
+            BACKUP_ITEM_OPTIONS.forEach { option ->
+                GlassSwitch(
+                    label = stringResource(option.labelRes),
+                    checked = items and option.flag != 0,
+                    onChange = { viewModel.toggleItem(option.flag) },
+                )
+            }
+            if (noneSelected) {
+                Text(
+                    text = stringResource(R.string.backup_none_selected),
+                    fontSize = 12.sp,
+                    color = Color(highlightOnGlassCard(palette)),
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
 
         Column(
@@ -136,7 +194,7 @@ fun BackupRestoreScreen(
                             text = stringResource(R.string.RestoreData),
                             onClick = { pending = file },
                             filled = false,
-                            enabled = !state.busy,
+                            enabled = !state.busy && !noneSelected,
                         )
                     }
                 }

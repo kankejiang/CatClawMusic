@@ -13,6 +13,19 @@ package com.catclaw.music.kt.core.library
  * 而摆一颗排不动的 chip 比少摆一档更糟。
  */
 enum class SongSortKey { Title, Artist, Album, Duration, DateAdded }
+
+/**
+ * 每一档的默认方向 —— 对应 C# `AllSongsViewModel.ToggleSort` 那句
+ * `SortAscending = key != "added" && key != "plays"`（时间/次数默认降序）。
+ *
+ * 与 C# 的唯一差异是 `Duration`：它那边默认升序，本端一直是「长的在前」。
+ * 这一档现在可以按方向键翻过来，所以保留本端的默认值、不去对齐一个用户随时能改的初值。
+ */
+val SongSortKey.defaultDescending: Boolean
+    get() = when (this) {
+        SongSortKey.Duration, SongSortKey.DateAdded -> true
+        else -> false
+    }
 /**
  * 参与比较的那几列。各页面的行类型不同（`:data` 的 `SongListItem`、歌单页的同一类型），
  * 而 `:core` 不依赖 `:data`，所以这里只声明字段、不认行类型 —— 由调用方给投影函数。
@@ -38,6 +51,8 @@ fun <T> filterAndSortSongs(
     rows: List<T>,
     key: SongSortKey,
     query: String,
+    /** 方向。默认取该档自己的默认方向；点同一颗 chip 就是把它翻过来 */
+    descending: Boolean = key.defaultDescending,
     fieldsOf: (T) -> SongSortFields,
 ): List<T> {
     val q = query.trim()
@@ -51,26 +66,40 @@ fun <T> filterAndSortSongs(
                 f.album.contains(q, ignoreCase = true)
         }
     }
-    return when (key) {
-        SongSortKey.Title -> filtered.sortedWith(
-            compareBy<T>({ fieldsOf(it).title.lowercase() }, { fieldsOf(it).id }),
-        )
-
-        SongSortKey.Artist -> filtered.sortedWith(
-            compareBy<T>({ fieldsOf(it).artist.lowercase() }, { fieldsOf(it).title.lowercase() }),
-        )
-
-        SongSortKey.Album -> filtered.sortedWith(
-            compareBy<T>({ fieldsOf(it).album.lowercase() }, { fieldsOf(it).title.lowercase() }),
-        )
-
-        // 长的在前 / 新的在前，第二键一律取 id 倒序：并列时给一个不会随回读顺序漂移的定序
-        SongSortKey.Duration -> filtered.sortedWith(
-            compareByDescending<T> { fieldsOf(it).durationSeconds }.thenByDescending { fieldsOf(it).id },
-        )
-
-        SongSortKey.DateAdded -> filtered.sortedWith(
-            compareByDescending<T> { fieldsOf(it).dateAdded }.thenByDescending { fieldsOf(it).id },
-        )
+    // 先按「升序」写一条比较器，再整体翻面 —— 这样每档都天然支持方向，
+    // 也不会出现「只翻了主键、并列的那几条还用旧方向」的半截结果。
+    // 每档都带第二键：只按标题排，同名歌的相对顺序就取决于数据库给的回读顺序；
+    // 「入库时间」更是如此 —— 一次扫描入库的歌 DateAdded 完全相同，没有第二键等于每次看都可能换个样。
+    val ascending: Comparator<T> = when (key) {
+        SongSortKey.Title -> compareBy({ fieldsOf(it).title.lowercase() }, { fieldsOf(it).id })
+        SongSortKey.Artist ->
+            compareBy({ fieldsOf(it).artist.lowercase() }, { fieldsOf(it).title.lowercase() })
+        SongSortKey.Album ->
+            compareBy({ fieldsOf(it).album.lowercase() }, { fieldsOf(it).title.lowercase() })
+        SongSortKey.Duration ->
+            compareBy({ fieldsOf(it).durationSeconds }, { fieldsOf(it).id })
+        SongSortKey.DateAdded ->
+            compareBy({ fieldsOf(it).dateAdded }, { fieldsOf(it).id })
     }
+    return filtered.sortedWith(if (descending) ascending.reversed() else ascending)
 }
+
+/** 「全部 / 本地 / 网络」来源筛选三档 —— 与 MAUI `AllSongsViewModel.FilterMode` 同集合、同语义 */
+enum class SongSourceFilter { All, Local, Network }
+
+/**
+ * 判据只看 `Source` 的 ordinal 契约：Local=0、WebDAV=1、SMB=2、Cache=3
+ * （由 `SourceOrdinalParityTest` 钉住）。
+ *
+ * 「网络」写成 `!= 0` 而不是枚举某个来源：以后再加一种远程协议（URL 直下之类）不用回来改这里，
+ * 反过来写成 `source == 1 || source == 2` 就会让新来源静默落进"本地"那一档。
+ */
+fun SongSourceFilter.accepts(source: Int): Boolean = when (this) {
+    SongSourceFilter.All -> true
+    SongSourceFilter.Local -> source == 0
+    SongSourceFilter.Network -> source != 0
+}
+
+/** 泛型与 [filterAndSortSongs] 同理：`:core` 不认 `:data` 的行类型，由调用方给投影 */
+fun <T> filterBySource(rows: List<T>, filter: SongSourceFilter, sourceOf: (T) -> Int): List<T> =
+    if (filter == SongSourceFilter.All) rows else rows.filter { filter.accepts(sourceOf(it)) }

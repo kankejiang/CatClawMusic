@@ -33,12 +33,12 @@
     <string name="disc_cat_album">专辑</string>
     <string name="disc_cat_stats">统计</string>
     <string name="disc_tag_ai">AI 助手</string>
-    <string name="disc_hero_ai_title">🐾 和 Yuki 聊聊</string>
-    <string name="disc_hero_ai_desc">找歌、推荐、聊天都可以</string>
     <string name="disc_tag_daily">每日推荐</string>
     <string name="disc_tag_top">最多播放</string>
-    <string name="disc_tag_fav">我的最爱</string>
     <string name="disc_tag_shuffle">随机播放</string>
+    <string name="disc_hero_refresh">换一批</string>
+    <string name="disc_hero_by_taste">根据口味生成</string>
+    <string name="disc_daily_by_taste">根据口味生成</string>
     <string name="disc_albums_rec">推荐专辑</string>
     <string name="disc_artists_rec">推荐艺人</string>
     <string name="disc_search_hint">搜索歌曲、歌手、专辑，或在线音乐…</string>
@@ -62,11 +62,11 @@
     <string name="sort_date_added">入库时间</string>
     <string name="search_none">没找到与「%1$s」相关的歌</string>
     <string name="library_none">暂无内容</string>
-    <string name="lyric_close">收起</string>
     <string name="player_collapse">收起播放页</string>
     <string name="lyric_none">暂无歌词</string>
     <string name="lyric_loading">歌词加载中…</string>
     <string name="lyric_mode_line">逐行</string>
+    <string name="lyric_mode">歌词模式</string>
     <string name="lyric_mode_word">逐字</string>
     <string name="appearance_system">跟随系统</string>
     <string name="appearance_light">浅色</string>
@@ -116,7 +116,8 @@
     <string name="lyric_align_center">中</string>
     <string name="lyric_align_right">右</string>
     <string name="lyric_remove_empty">智能删除空行</string>
-    <string name="lyric_show_translation">显示译文</string>
+    <string name="lyric_remove_empty_desc">紧凑显示，移除歌词中的空行</string>
+<string name="lyric_show_translation">显示译文</string>
     <string name="lyric_show_roma">显示罗马音</string>
     <string name="lyric_font">歌词字号</string>
     <string name="cache_used">已用 %1$s / 上限 %2$d MB</string>
@@ -130,7 +131,8 @@
     <string name="custom_bg_change">更换</string>
     <string name="custom_bg_clear">清除</string>
     <string name="custom_bg_none">未设置</string>
-    <string name="monet_bg">莫奈取色背景</string>
+    <string name="frosted_bg">雾面动态背景</string>
+<string name="monet_bg">莫奈取色背景</string>
     <string name="chat_title">Yuki</string>
     <string name="chat_yuki_desc">和你一起找歌、控播放、建歌单</string>
     <string name="chat_placeholder">问问 Yuki：播放谁、找什么、建什么歌单…</string>
@@ -418,4 +420,69 @@
     <string name="StatsDeltaFlat">持平</string>
     <string name="StatsDeltaUp">▲ %1$d%%</string>
     <string name="StatsDeltaDown">▼ %1$d%%</string>
+
+    <!-- 全部歌曲页的来源筛选（MAUI AllSongsPage 的 SourceFilterControl） -->
+    <string name="song_source_all">全部</string>
+    <string name="song_source_local">本地</string>
+    <string name="song_source_network">网络</string>
+
+    <!-- 备份内容勾选（MAUI 的选项对话框只摆了其中四项） -->
+    <string name="backup_items_title">选择备份内容</string>
+    <string name="backup_items_sub">勾选需要备份或恢复的数据</string>
+    <string name="backup_item_playlists">歌单</string>
+    <string name="backup_item_history">播放记录</string>
+    <string name="backup_item_favorites">收藏</string>
+    <string name="backup_item_artists">艺术家资料</string>
+    <string name="backup_item_covers">艺术家照片</string>
+    <string name="backup_item_llm">已保存的模型</string>
+    <string name="backup_item_chat">AI 聊天记录</string>
+    <string name="backup_item_memory">记忆内容</string>
+    <string name="select_all">全选</string>
+    <string name="backup_none_selected">一项都没勾选</string>
+
+    <!-- 诊断日志：关键词搜索与复制（MAUI LogPage 的两颗能力） -->
+    <string name="diagnostic_search_hint">搜索日志内容</string>
+    <string name="diagnostic_copy">复制</string>
+    <string name="diagnostic_copied">已复制 %1$d 条日志</string>
+    <string name="diagnostic_search_none">没有匹配「%1$s」的日志</string>
+
+    <!-- 存储占用卡（MAUI LibraryPage 的 StorageCard；格式分布改成按比特率档位，见 LibraryInsightRules 的说明） -->
+    <string name="storage_total_unit">音乐文件总大小</string>
+    <string name="storage_free_space">设备剩余空间</string>
+    <string name="quality_unknown">未知</string>
+    <string name="quality_other">其他</string>
+    <string name="storage_buckets_title">占用分布</string>
+    <string name="storage_buckets_hint">按音质档位统计（本地曲的路径不带后缀，取不到容器格式）</string>
+    <string name="quality_320">320 kbps</string>
+    <string name="quality_256">256 kbps</string>
+    <string name="quality_192">192 kbps</string>
+    <string name="quality_128">128 kbps</string>
+
+    <!-- 数据洞察卡（MAUI LibraryPage 的 DataInsightCard；「音频格式」那一组见 LibraryInsightRules 的说明） -->
+    <string name="insight_title">数据洞察</string>
+    <string name="insight_quality">音频音质</string>
+    <string name="insight_artist">歌曲艺人</string>
+    <string name="insight_unknown_artist">未知艺人</string>
+    <string name="insight_hint">只统计本地曲：按音质与艺人分布。本地曲路径不带后缀，容器格式取不到</string>
+    <string name="detail_file_path">文件路径</string>
+    <string name="detail_lyrics_scroll">可滚动</string>
+    <string name="detail_play_this">播放此曲</string>
+    <string name="detail_copy_path">复制文件路径</string>
+    <string name="detail_path_copied">路径已复制</string>
+    <string name="lib_recent_added">最近添加</string>
+    <string name="lib_recent_added_week">本周</string>
+    <string name="view_grid">宫格</string>
+    <string name="playing_rotate">横竖屏切换</string>
+    <string name="browser_preview_title">Agent 正在浏览</string>
+    <string name="browser_preview_close">关闭预览</string>
+    <string name="downloads_speed_limit">下载限速</string>
+        <string name="downloads_state_queued">排队中</string>
+    <string name="downloads_concurrency">并发下载数</string>
+    <string name="downloads_speed_unlimited">不限</string>
+    <string name="song_menu_section_song">歌曲</string>
+    <string name="song_menu_section_play">播放</string>
+    <string name="song_menu_section_about">关于这首歌</string>
+    <string name="menu_timer_remaining_short">剩余 %1$s</string>
+    <string name="menu_landscape_on">横屏中</string>
+    <string name="view_list">列表</string>
 </resources>

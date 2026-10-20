@@ -35,6 +35,7 @@ import com.catclaw.music.kt.data.download.DownloadTask
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import androidx.compose.foundation.clickable
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
 
@@ -49,6 +50,8 @@ fun DownloadsScreen(onBack: () -> Unit, viewModel: DownloadsViewModel = hiltView
     val palette = LocalCatClawPalette.current
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
+    val speedKbps by viewModel.speedKbps.collectAsStateWithLifecycle()
+    val concurrent by viewModel.concurrent.collectAsStateWithLifecycle()
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -112,6 +115,46 @@ fun DownloadsScreen(onBack: () -> Unit, viewModel: DownloadsViewModel = hiltView
                 fontSize = 12.sp,
                 color = secondary,
             )
+            // 限速（对应 C# `DownloadsPage` 设置面板里那一档）：点一下切下一档。
+            // 用循环档位而不是滑杆：档位是离散的几档，滑杆在 0 与 256 之间会滑出无穷多个没人要的值
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+                    .clickable { viewModel.cycleSpeedLimit() },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.downloads_speed_limit),
+                    fontSize = 12.sp,
+                    color = secondary,
+                    modifier = Modifier.weight(1f),
+                )
+                PillLabel(
+                    text = if (speedKbps > 0) "$speedKbps KB/s" else stringResource(R.string.downloads_speed_unlimited),
+                    onClick = { viewModel.cycleSpeedLimit() },
+                    filled = false,
+                )
+            }
+            // 并发数：与 C# `DownloadsPage` 设置面板里那一档同义（默认 2、可调 1..5）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.cycleConcurrent() },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.downloads_concurrency),
+                    fontSize = 12.sp,
+                    color = secondary,
+                    modifier = Modifier.weight(1f),
+                )
+                PillLabel(
+                    text = concurrent.toString(),
+                    onClick = { viewModel.cycleConcurrent() },
+                    filled = false,
+                )
+            }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -170,6 +213,9 @@ private fun TaskCard(task: DownloadTask, viewModel: DownloadsViewModel) {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when (task.state) {
+                // 排队中的任务与正在下的给同一组动作：暂停/取消对它一样有效
+                // （取消会把还在等名额的协程一起收掉）
+                DownloadState.Queued,
                 DownloadState.Running -> {
                     PillLabel(text = stringResource(R.string.downloads_pause), onClick = { viewModel.pause(task.songId) }, filled = false)
                     PillLabel(text = stringResource(R.string.download_cancel), onClick = { viewModel.cancel(task.songId) }, filled = false)
@@ -213,6 +259,7 @@ private fun TaskCard(task: DownloadTask, viewModel: DownloadsViewModel) {
 @Composable
 private fun statusText(state: DownloadState): String = stringResource(
     when (state) {
+        DownloadState.Queued -> R.string.downloads_state_queued
         DownloadState.Running -> R.string.downloads_state_running
         DownloadState.Paused -> R.string.downloads_state_paused
         DownloadState.Done -> R.string.download_done

@@ -362,7 +362,12 @@ class PlayerController(
         save()
     }
 
-    /** 上一曲走历史栈；播放超 3 秒时先回到本曲开头（播放器惯例，MAUI 同行为） */
+    /**
+     * 上一曲走历史栈；播放超 3 秒时先回到本曲开头。
+     * 注意这条「>3 秒回开头」是**本端有意加的**：C# 的 PlayPreviousAsync 直接 _queue.Previous()
+     * 再 LoadCurrentSongAsync()，没有这个判断（旧注释写成「MAUI 同行为」与代码不符）。
+     * 保留它是因为主流播放器都这么做，但别再声称和 MAUI 一致。
+     */
     override fun previous() {
         if (player.currentPosition > 3_000) {
             player.seekTo(0)
@@ -397,11 +402,27 @@ class PlayerController(
     }
 
     fun removeFromQueue(songId: Int) {
-        if (queue.removeSong(songId)) {
+        // 删的是不是**正在放的那一首**，处理方式完全不同（对齐 C# RemoveSongFromQueueAsync：
+        // 只有 wasCurrent 才 LoadCurrentSongAsync，否则根本不碰播放器）
+        val wasCurrent = queue.currentSong?.id == songId
+        if (!queue.removeSong(songId)) return
+
+        if (wasCurrent) {
+            // 队列被删空了：C# 侧走到「无歌可播」分支会停播并撤掉前台通知，这里同一条出路
+            if (queue.currentSong == null) {
+                clearQueue()
+                return
+            }
+            // 队列已推进到下一首，必须**从头**起播。原先这里无条件传 resumeAtMs = player.currentPosition，
+            // 于是下一首接着上一首的进度开始放（用户听到一首歌从中间起头）；playWhenReady 也不会被重置，
+            // 所以它是真的在放——这是唯一一处会直接毁掉一首歌听感的缺陷
+            syncPlayerList(resumeAtMs = 0, autoplay = true)
+        } else {
+            // 删别的歌：位置一动不能动，只把新列表灌回去（否则媒体会话与队列页还留着那一行）
             syncPlayerList(resumeAtMs = player.currentPosition)
-            publish()
-            save()
         }
+        publish()
+        save()
     }
 
     override fun clearQueue() {
@@ -413,13 +434,22 @@ class PlayerController(
         save()
     }
 
-    /** 冷流：仅在前台 collect 期间轮询进度，不留常驻定时器 */
-    fun positionMsFlow(intervalMs: Long = 250): Flow<Long> = flow {
-        while (true) {
-            emit(player.currentPosition.coerceAtLeast(0))
-            delay(intervalMs)
-        }
-    }
+    /**
+     * 冷流：仅在前台 collect 期间轮询进度，不留常驻定时器。
+     *
+     * **2026-10-18 修「逐字歌词卡、滚动却流畅」**：`player.currentPosition` 只在音频缓冲边界更新
+     * （真机实测约 45ms 一跳 ≈22 次/秒），而这条流的下游是 `StateFlow` —— 相同值会被去重，
+     * 所以即使把 intervalMs 设成 16ms，下游每秒也只收到 20 来次：逐字着色就是一格一格跳。
+     * 滚动是帧驱动的（每个 vsync 都动），体感差异就是这么来的。
+     *
+     * 加一层 [PositionInterpolator] 之后，每个 tick 的值都在前进（锚点只在播放器给新值时重设），
+     * 去重不再吃掉帧；播放器报来新值时立刻对齐，不累积漂移。
+     */
+    fun positionMsFlow(intervalMs: Long = 250): Flow<Long> = interpolatedPositionFlow(
+        intervalMs = intervalMs,
+        nowMs = { System.nanoTime() / 1_000_000 },
+        sample = { player.currentPosition.coerceAtLeast(0) to player.isPlaying },
+    )
 
     fun release() {
         if (!started) return

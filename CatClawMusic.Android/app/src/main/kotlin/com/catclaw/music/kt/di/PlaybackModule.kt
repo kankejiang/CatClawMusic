@@ -8,8 +8,10 @@ import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.core.playback.SessionLauncher
 import com.catclaw.music.kt.data.equalizer.AndroidAudioFx
 import com.catclaw.music.kt.data.equalizer.AudioFxPreferences
+import com.catclaw.music.kt.data.service.NotificationIcons
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.Module
+import com.catclaw.music.kt.R
 import dagger.Provides
 import dagger.hilt.InstallIn
 import com.catclaw.music.kt.data.settings.CacheSettings
@@ -94,4 +96,21 @@ object PlaybackModule {
     @Provides
     @Singleton
     fun sessionLauncher(starter: PlaybackSessionStarter): SessionLauncher = starter
+
+    /**
+     * 通知栏那两颗自定义按钮的图标。
+     *
+     * 服务在 `:data`，而 `:data` 一个 drawable 都没有 —— 由 app 这边把资源 id 交过去，
+     * 两边用的永远是同一份图标（见 `NotificationIcons` 的注释：同名资源跨模块会互相覆盖）。
+     */
+    @Provides
+    @Singleton
+    fun notificationIcons(): NotificationIcons = NotificationIcons(
+        // 开/关各一张：SystemUI 会给图标统一染色，形态差异只能靠**形状**表达（实心 vs 空心）
+        desktopLyricOn = R.drawable.ic_notif_lyric_on,
+        desktopLyricOff = R.drawable.ic_notif_lyric_off,
+        // 通知栏用自己那套 24dp 心形，不借界面的大图标：要和 media3 的细线按钮同一种重量
+        favoriteOn = R.drawable.ic_notif_favorite,
+        favoriteOff = R.drawable.ic_notif_favorite_border,
+    )
 }

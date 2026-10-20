@@ -18,6 +18,9 @@ import com.catclaw.music.kt.core.theme.CatClawTheme
 val LocalCatClawPalette: ProvidableCompositionLocal<CatClawPalette> =
     staticCompositionLocalOf { CatClawTheme.light }
 
+/** 解析后的深浅色（App 内外观设置优先于系统设置）。默认封面等绘制用它。 */
+val LocalIsDarkTheme = staticCompositionLocalOf { true }
+
 @Composable
 fun CatClawTheme(
     themeViewModel: ThemeViewModel = hiltViewModel(),
@@ -53,7 +56,13 @@ fun CatClawTheme(
             onBackground = Color(palette.textPrimary),
         ),
         content = {
-            CompositionLocalProvider(LocalCatClawPalette provides palette, content = content)
+            CompositionLocalProvider(
+                LocalCatClawPalette provides palette,
+                // 解析后的深浅色：默认封面这类「跟随主题」的绘制要用它。
+                // 这里不能用 isSystemInDarkTheme()，那是系统设置，会和 App 内的外观设置打架。
+                LocalIsDarkTheme provides isDark,
+                content = content,
+            )
         },
     )
 }

@@ -33,12 +33,12 @@
     <string name="disc_cat_album">Albums</string>
     <string name="disc_cat_stats">Stats</string>
     <string name="disc_tag_ai">AI</string>
-    <string name="disc_hero_ai_title">🐾 Chat with Yuki</string>
-    <string name="disc_hero_ai_desc">Find songs, get recommendations, just talk</string>
     <string name="disc_tag_daily">Daily Mix</string>
     <string name="disc_tag_top">Most Played</string>
-    <string name="disc_tag_fav">Loved</string>
     <string name="disc_tag_shuffle">Shuffle</string>
+    <string name="disc_hero_refresh">Shuffle</string>
+    <string name="disc_hero_by_taste">Based on your taste</string>
+    <string name="disc_daily_by_taste">Based on your taste</string>
     <string name="disc_albums_rec">Albums for you</string>
     <string name="disc_artists_rec">Artists for you</string>
     <string name="disc_search_hint">Search songs, artists, albums, or online…</string>
@@ -62,11 +62,11 @@
     <string name="sort_date_added">Added</string>
     <string name="search_none">No songs match \"%1$s\"</string>
     <string name="library_none">Nothing here yet</string>
-    <string name="lyric_close">Close</string>
     <string name="player_collapse">Collapse player</string>
     <string name="lyric_none">No lyrics</string>
     <string name="lyric_loading">Loading lyrics…</string>
     <string name="lyric_mode_line">Per line</string>
+    <string name="lyric_mode">Lyric mode</string>
     <string name="lyric_mode_word">Karaoke</string>
     <string name="appearance_system">Follow system</string>
     <string name="appearance_light">Light</string>
@@ -116,7 +116,8 @@
     <string name="lyric_align_center">Center</string>
     <string name="lyric_align_right">Right</string>
     <string name="lyric_remove_empty">Remove empty lines</string>
-    <string name="lyric_show_translation">Show translation</string>
+    <string name="lyric_remove_empty_desc">Compact view, removes empty lyric lines</string>
+<string name="lyric_show_translation">Show translation</string>
     <string name="lyric_show_roma">Show romaji</string>
     <string name="lyric_font">Lyric font size</string>
     <string name="cache_used">Used %1$s of %2$d MB</string>
@@ -130,7 +131,8 @@
     <string name="custom_bg_change">Change</string>
     <string name="custom_bg_clear">Clear</string>
     <string name="custom_bg_none">Not set</string>
-    <string name="monet_bg">Wallpaper palette</string>
+    <string name="frosted_bg">Frosted background</string>
+<string name="monet_bg">Wallpaper palette</string>
     <string name="chat_title">Yuki</string>
     <string name="chat_yuki_desc">Find songs, control playback, build playlists with you</string>
     <string name="chat_placeholder">Ask Yuki: play something, find something, make a playlist…</string>
@@ -418,4 +420,69 @@ Download it from GitHub.</string>
     <string name="StatsDeltaFlat">Unchanged</string>
     <string name="StatsDeltaUp">▲ %1$d%%</string>
     <string name="StatsDeltaDown">▼ %1$d%%</string>
+
+    <!-- 全部歌曲页的来源筛选（MAUI AllSongsPage 的 SourceFilterControl） -->
+    <string name="song_source_all">All</string>
+    <string name="song_source_local">Local</string>
+    <string name="song_source_network">Network</string>
+
+    <!-- 备份内容勾选（MAUI 的选项对话框只摆了其中四项） -->
+    <string name="backup_items_title">Choose backup content</string>
+    <string name="backup_items_sub">Pick what to back up or restore</string>
+    <string name="backup_item_playlists">Playlists</string>
+    <string name="backup_item_history">Play history</string>
+    <string name="backup_item_favorites">Favorites</string>
+    <string name="backup_item_artists">Artist info</string>
+    <string name="backup_item_covers">Artist photos</string>
+    <string name="backup_item_llm">Saved models</string>
+    <string name="backup_item_chat">AI chat history</string>
+    <string name="backup_item_memory">Memory items</string>
+    <string name="select_all">Select all</string>
+    <string name="backup_none_selected">Nothing selected</string>
+
+    <!-- 诊断日志：关键词搜索与复制（MAUI LogPage 的两颗能力） -->
+    <string name="diagnostic_search_hint">Search log text</string>
+    <string name="diagnostic_copy">Copy</string>
+    <string name="diagnostic_copied">Copied %1$d log entries</string>
+    <string name="diagnostic_search_none">No log entries match "%1$s"</string>
+
+    <!-- 存储占用卡（MAUI LibraryPage 的 StorageCard；格式分布改成按比特率档位，见 LibraryInsightRules 的说明） -->
+    <string name="storage_total_unit">total in music files</string>
+    <string name="storage_free_space">Free space</string>
+    <string name="quality_unknown">Unknown</string>
+    <string name="quality_other">Other</string>
+    <string name="storage_buckets_title">Size by quality</string>
+    <string name="storage_buckets_hint">Grouped by bitrate tier (local paths carry no extension, so container format is unavailable)</string>
+    <string name="quality_320">320 kbps</string>
+    <string name="quality_256">256 kbps</string>
+    <string name="quality_192">192 kbps</string>
+    <string name="quality_128">128 kbps</string>
+
+    <!-- 数据洞察卡（MAUI LibraryPage 的 DataInsightCard；「音频格式」那一组见 LibraryInsightRules 的说明） -->
+    <string name="insight_title">Insights</string>
+    <string name="insight_quality">Audio quality</string>
+    <string name="insight_artist">Songs by artist</string>
+    <string name="insight_unknown_artist">Unknown artist</string>
+    <string name="insight_hint">Local songs only, grouped by quality and artist. Local paths carry no extension, so container format is unavailable</string>
+    <string name="detail_file_path">File path</string>
+    <string name="detail_lyrics_scroll">Scrollable</string>
+    <string name="detail_play_this">Play this song</string>
+    <string name="detail_copy_path">Copy file path</string>
+    <string name="detail_path_copied">Path copied</string>
+    <string name="lib_recent_added">Recently added</string>
+    <string name="lib_recent_added_week">This week</string>
+    <string name="view_grid">Grid</string>
+    <string name="playing_rotate">Toggle orientation</string>
+    <string name="browser_preview_title">Agent is browsing</string>
+    <string name="browser_preview_close">Close preview</string>
+    <string name="downloads_speed_limit">Download speed limit</string>
+        <string name="downloads_state_queued">Queued</string>
+    <string name="downloads_concurrency">Concurrent downloads</string>
+    <string name="downloads_speed_unlimited">Unlimited</string>
+    <string name="song_menu_section_song">Song</string>
+    <string name="song_menu_section_play">Playback</string>
+    <string name="song_menu_section_about">About this song</string>
+    <string name="menu_timer_remaining_short">%1$s left</string>
+    <string name="menu_landscape_on">Landscape</string>
+    <string name="view_list">List</string>
 </resources>

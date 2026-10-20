@@ -19,6 +19,8 @@ class SongListRulesTest {
         val album: String,
         val duration: Int,
         val added: Long,
+        /** Source ordinal：0=本地，非 0 都是网络来源（见 SongSourceFilter.accepts） */
+        val source: Int = 0,
     )
 
     private fun fields(row: Row) = SongSortFields(
@@ -30,8 +32,8 @@ class SongListRulesTest {
         id = row.id,
     )
 
-    private fun run(rows: List<Row>, key: SongSortKey, query: String) =
-        filterAndSortSongs(rows, key, query, ::fields).map { it.title }
+    private fun run(rows: List<Row>, key: SongSortKey, query: String, descending: Boolean = key.defaultDescending) =
+        filterAndSortSongs(rows, key, query, descending = descending, fieldsOf = ::fields).map { it.title }
 
     private val rows = listOf(
         Row(1, "call Me", "A-Huge", "Zed", 100, 500),
@@ -85,5 +87,70 @@ class SongListRulesTest {
         val sameSecond = (1..6).map { Row(it, "s$it", "a", "b", 10, 42L) }
         assertEquals(listOf("s6", "s5", "s4", "s3", "s2", "s1"), run(sameSecond, SongSortKey.DateAdded, ""))
         assertEquals(listOf("s1", "s2", "s3", "s4", "s5", "s6"), run(sameSecond.shuffled(), SongSortKey.Title, ""))
+    }
+
+    // ── 来源筛选（全部 / 本地 / 网络）────────────────────────────
+
+    private fun sources(rows: List<Row>, filter: SongSourceFilter) =
+        filterBySource(rows, filter) { it.source }
+
+    private val mixed = listOf(
+        Row(1, "本地的一首", "a", "b", 10, 1L, source = 0),
+        Row(2, "WebDAV 的一首", "a", "b", 10, 2L, source = 1),
+        Row(3, "SMB 的一首", "a", "b", 10, 3L, source = 2),
+        Row(4, "缓存的一首", "a", "b", 10, 4L, source = 3),
+    )
+
+    @Test
+    fun sourceFilterSplitsLocalFromEverythingElse() {
+        assertEquals("「全部」不该动任何一行", listOf(1, 2, 3, 4), sources(mixed, SongSourceFilter.All).map { it.id })
+        assertEquals("「本地」只看 Source = 0", listOf(1), sources(mixed, SongSourceFilter.Local).map { it.id })
+        assertEquals(
+            "「网络」是 != 0 —— 新增的远程协议必须自动落进这一档，而不是被算成本地",
+            listOf(2, 3, 4), sources(mixed, SongSourceFilter.Network).map { it.id },
+        )
+    }
+
+    @Test
+    fun eachKeyHasItsOwnDefaultDirection() {
+        // 与 C# `ToggleSort` 那句 `key != "added"` 同源：时间默认降序；
+        // 时长本端一直是「长的在前」（C# 那边默认升序，但用户一拍就能翻，不值得为初值对齐）
+        assertEquals(false, SongSortKey.Title.defaultDescending)
+        assertEquals(false, SongSortKey.Artist.defaultDescending)
+        assertEquals(false, SongSortKey.Album.defaultDescending)
+        assertEquals(true, SongSortKey.Duration.defaultDescending)
+        assertEquals(true, SongSortKey.DateAdded.defaultDescending)
+    }
+
+    @Test
+    fun flippingTheDirectionReversesTheWholeOrder() {
+        val up = run(rows, SongSortKey.Title, query = "", descending = false)
+        val down = run(rows, SongSortKey.Title, query = "", descending = true)
+        assertEquals("降序就是升序的整条倒过来 —— 并列那几条也要跟着倒，不能只翻主键", up.reversed(), down)
+    }
+
+    @Test
+    fun theSameDirectionTwiceGivesTheSameList() {
+        // 界面上的「点两次回到原样」全靠这条：排序不能带随机性
+        assertEquals(
+            run(rows, SongSortKey.Duration, query = "", descending = false),
+            run(rows, SongSortKey.Duration, query = "", descending = false),
+        )
+    }
+
+    @Test
+    fun directionAlsoAppliesWhenAQueryIsActive() {
+        val filtered = run(rows, SongSortKey.Title, query = "call", descending = true)
+        assertEquals("过滤与方向是两件事：过滤结果同样要按方向排", listOf("Call You", "call Me"), filtered)
+    }
+
+    @Test
+    fun sourceFilterAgreesWithTheSourceOrdinalContract() {
+        // SourceOrdinalParityTest 钉住 Local=0 / WebDAV=1 / SMB=2 / Cache=3；
+        // 这里只用 ordinal 的"是不是 0"这一条，避免和那边的枚举值重复声明
+        assertEquals(true, SongSourceFilter.Local.accepts(0))
+        assertEquals(false, SongSourceFilter.Local.accepts(1))
+        assertEquals(true, SongSourceFilter.Network.accepts(99))
+        assertEquals(true, SongSourceFilter.All.accepts(-1))
     }
 }

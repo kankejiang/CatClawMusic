@@ -42,6 +42,17 @@ import kotlin.math.pow
  * 填充 `CardBackgroundColor #1AFFFFFF`（= 前景墨 α.10）、圆角 26、描边 `GlassStrokeColor #28FFFFFF`（= α.16）。
  * 之前有一版用 primaryLight 35% 当填充，在深色底上会糊成一片浅紫，已经否定。
  */
+/**
+ * 玻璃卡。
+ *
+ * ⚠ **不要再把它接到 [liquidGlass] 上**（2026-10-18 真机踩过）：`backdropSource` 录的是**整页内容**，
+ * 而卡片就在这层里面 —— 卡片去采样这一层等于**采样到自己**（递归反馈），真机直接
+ * `Fatal signal 11 (SIGSEGV) in RenderThread`，应用起不来。
+ * 库的注释里写着消费者「必须是宿主的兄弟，不能是祖先」，而卡片天然是内容的一部分。
+ *
+ * 所以卡片保持「着色 + 描边」的实心玻璃；真玻璃只给**与录制层同级**的表面（迷你条 / 底栏 / 覆盖层）。
+ * 真要让卡片也透，得先把录制层改成"只录背景"（见 `CatClawRoot` 的结构注释），那是另一件事。
+ */
 @Composable
 fun Modifier.glassCard(palette: CatClawPalette = LocalCatClawPalette.current, corner: Int = 26, selected: Boolean = false): Modifier {
     val shape = RoundedCornerShape(corner.dp)
@@ -371,7 +382,7 @@ fun BackTile(onBack: () -> Unit, description: String? = null) {
             painter = painterResource(R.drawable.ic_arrow_back),
             contentDescription = description,
             tint = Color(palette.textPrimary),
-            modifier = Modifier.size(19.dp),
+            modifier = Modifier.size(24.dp),
         )
     }
 }

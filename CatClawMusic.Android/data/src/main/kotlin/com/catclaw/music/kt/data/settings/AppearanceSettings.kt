@@ -17,13 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 外观页的持久项，键与默认值对齐 MAUI `ThemeService.cs:20-31,787-791`：
- * 启动页索引默认 **2（播放）**、自定义背景图路径、背景透明度默认 0.5、莫奈取色默认关。
- *
- * MAUI 还有两项**没有搬过来**：`frosted_bg_enabled`（雾面动态背景）与
- * `cover_bg_enabled`（动态封面背景）。前者在 C# 侧是一整套背景渲染引擎，
- * 后者在 C# 里连渲染都没有（只存不画）。本端此前只留了"存"的那一半——
- * 没有页面写它、也没有任何地方读它，一条谁都不消费的开关留着只会让人以为有这功能，
- * 所以删掉。要接动态背景时连同渲染一起做，不先留空壳。
+ * 启动页索引默认 **2（播放）**、自定义背景图路径、背景透明度默认 0.5、莫奈取色默认关、
+ * 雾面动态背景默认 **开**（2026-10-07 随流光引擎移植一起恢复——渲染已在本端落地，
+ * 消费者是全屏歌词页的 FrostedFlowBackground；`cover_bg_enabled` 仍无渲染，继续不搬）。
  */
 @Singleton
 class AppearanceSettings @Inject constructor(
@@ -42,6 +38,9 @@ class AppearanceSettings @Inject constructor(
 
     private val _monet = MutableStateFlow(prefs.getBoolean(KEY_MONET, false))
     val monetEnabled: StateFlow<Boolean> = _monet.asStateFlow()
+
+    private val _frostedBg = MutableStateFlow(prefs.getBoolean(KEY_FROSTED_BG, DEFAULT_FROSTED_BG))
+    val frostedBgEnabled: StateFlow<Boolean> = _frostedBg.asStateFlow()
 
     fun setStartupIndex(value: Int) {
         val v = value.coerceIn(0, 2)
@@ -62,6 +61,11 @@ class AppearanceSettings @Inject constructor(
     fun setMonetEnabled(value: Boolean) {
         _monet.value = value
         prefs.edit().putBoolean(KEY_MONET, value).apply()
+    }
+
+    fun setFrostedBgEnabled(value: Boolean) {
+        _frostedBg.value = value
+        prefs.edit().putBoolean(KEY_FROSTED_BG, value).apply()
     }
 
     /**
@@ -109,6 +113,9 @@ class AppearanceSettings @Inject constructor(
         const val DEFAULT_STARTUP = 2
         const val DEFAULT_BG_OPACITY = 0.5f
 
+        /** MAUI ThemeService.cs:28：_frostedBackgroundEnabled 默认开 */
+        const val DEFAULT_FROSTED_BG = true
+
         /** 启动页选项 → ViewPager 页号；0 音乐库→4、1 探索→2、2 播放→1（歌单一档在 C# 里到不了） */
         fun startupToPagerPage(index: Int): Int = when (index) {
             0 -> 4
@@ -122,5 +129,8 @@ class AppearanceSettings @Inject constructor(
         private const val KEY_BG_PATH = "custom_bg_path"
         private const val KEY_BG_OPACITY = "custom_bg_opacity"
         private const val KEY_MONET = "monet_bg_enabled"
+
+        /** 键名对齐 MAUI ThemeService.cs:21 的 KeyFrostedBg */
+        private const val KEY_FROSTED_BG = "frosted_bg_enabled"
     }
 }

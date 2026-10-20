@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 左侧三个方块 + 右侧三条线：Material view_list 的几何 -->
+    <path
+        android:pathData="M3 5h4v4H3V5zM9 5h12v4H9V5zM3 10h4v4H3v-4zM9 10h12v4H9v-4zM3 15h4v4H3v-4zM9 15h12v4H9v-4z"
+        android:fillColor="#FFffffff" />
+</vector>

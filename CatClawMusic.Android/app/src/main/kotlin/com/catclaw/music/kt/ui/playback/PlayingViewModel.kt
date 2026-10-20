@@ -16,7 +16,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,7 +64,17 @@ class PlayingViewModel @Inject constructor(
         initialValue = emptyList(),
     )
 
-    val positionMs: StateFlow<Long> = controller.positionMsFlow()
+    /** 播放页可见性（2026-10-18）：原来这个流用默认 250ms，进度条每秒只动 4 下；
+     *  可见时提到 16ms（进度条与横屏歌词都用它），不可见时让出主线程。 */
+    private val playingSurfaceVisible = MutableStateFlow(false)
+
+    fun setPlayingSurfaceVisible(visible: Boolean) {
+        playingSurfaceVisible.value = visible
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val positionMs: StateFlow<Long> = playingSurfaceVisible
+        .flatMapLatest { visible -> controller.positionMsFlow(if (visible) 16L else 250L) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(2_000), 0L)
 
     private val _busy = MutableStateFlow(false)

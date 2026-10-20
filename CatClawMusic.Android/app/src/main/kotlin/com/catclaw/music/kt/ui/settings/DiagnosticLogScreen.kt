@@ -1,5 +1,8 @@
 package com.catclaw.music.kt.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -50,6 +54,7 @@ import com.catclaw.music.kt.ui.screen.SwitchRow
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.GlassChip
+import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
@@ -98,10 +103,22 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
     var tick by remember { mutableStateOf(0) }
     var level by remember { mutableStateOf<LogLevel?>(null) }
     var tag by remember { mutableStateOf<String?>(null) }
-    val all = produceState<List<LogEntry>>(initialValue = emptyList(), tick, level, tag) {
+    // 关键词筛选。规则层一直支持它（`DiagnosticLogRules.filter` 的 query 参数），只是界面没接 ——
+    // 于是"复现了却在几百行里肉眼翻"成了这页唯一的用法
+    var query by remember { mutableStateOf("") }
+    // 刚复制了几条：给一句会自己消失的回执，否则点完没有任何反馈，用户会以为按钮坏了
+    var copied by remember { mutableStateOf(0) }
+    LaunchedEffect(copied) {
+        if (copied > 0) {
+            kotlinx.coroutines.delay(1800)
+            copied = 0
+        }
+    }
+    // 只有 tick 变化才重读文件：level/tag/query 都是在内存里筛，跟日志文件无关
+    val all = produceState<List<LogEntry>>(initialValue = emptyList(), tick) {
         value = viewModel.entries()
     }
-    val entries = DiagnosticLogRules.filter(all.value, level = level, tag = tag)
+    val entries = DiagnosticLogRules.filter(all.value, level = level, tag = tag, query = query)
     val tags = remember(all.value) { DiagnosticLogRules.tagsOf(all.value).take(6) }
 
     Column(
@@ -172,6 +189,13 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
             }
         }
         Spacer(Modifier.height(8.dp))
+        GlassSearchField(
+            query = query,
+            onChange = { query = it },
+            placeholder = stringResource(R.string.diagnostic_search_hint),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PillLabel(
                 text = stringResource(R.string.diagnostic_clear),
@@ -201,6 +225,29 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
                 },
                 filled = false,
             )
+            // 复制的是**屏幕上这几条**（跟着级别/标签/关键词筛过的），不是整个文件 ——
+            // 排障时要把哪一段发给别人，看到的和复制到的一致才不用再解释一遍
+            PillLabel(
+                text = stringResource(R.string.diagnostic_copy),
+                onClick = {
+                    val text = entries.joinToString("\n") {
+                        DiagnosticLogRules.format(it.timestamp, it.level, it.tag, it.message)
+                    }
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("catclaw-log", text))
+                    copied = entries.size
+                },
+                filled = false,
+                enabled = entries.isNotEmpty(),
+            )
+        }
+        if (copied > 0) {
+            Text(
+                text = stringResource(R.string.diagnostic_copied, copied),
+                fontSize = 11.sp,
+                color = Color(palette.textSecondary),
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
         Spacer(Modifier.height(8.dp))
 
@@ -208,9 +255,13 @@ fun DiagnosticLogScreen(onBack: () -> Unit, viewModel: DiagnosticLogViewModel = 
             // weight(1f) 而不是 fillMaxSize：在 Column 里 fillMaxSize 会把底下那行文件路径顶出屏幕
             Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
                 EmptyState(
-                    hint = stringResource(
-                        if (viewModel.loggingEnabled) R.string.diagnostic_empty else R.string.diagnostic_disabled_hint,
-                    ),
+                    // 用日志自己的文案，不复用歌曲搜索的 `search_none`——那句写的是"没找到相关的歌"，
+                    // 摆在日志页上等于答非所问
+                    hint = when {
+                        query.isNotBlank() -> stringResource(R.string.diagnostic_search_none, query.trim())
+                        !viewModel.loggingEnabled -> stringResource(R.string.diagnostic_disabled_hint)
+                        else -> stringResource(R.string.diagnostic_empty)
+                    },
                     iconRes = R.drawable.ic_info,
                 )
             }

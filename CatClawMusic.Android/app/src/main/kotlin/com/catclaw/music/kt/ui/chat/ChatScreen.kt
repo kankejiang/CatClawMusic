@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
@@ -33,16 +35,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import com.catclaw.music.kt.core.ai.ChatPaging
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,30 +71,51 @@ import com.catclaw.music.kt.ui.theme.inkOn
  * 新消息到达不会把用户正在读的旧消息顶走；加载更多历史因此是尾部追加（视觉上向上长）。
  */
 @Composable
-fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
+fun ChatScreen(
+    onBack: () -> Unit,
+    /** 外壳那条迷你播放条压在这一层底下时要让出的高度（聊天模式下它仍然显示） */
+    bottomReserve: Dp = 0.dp,
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
     val palette = LocalCatClawPalette.current
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val thinking by viewModel.thinking.collectAsStateWithLifecycle()
     val title by viewModel.title.collectAsStateWithLifecycle()
     var text by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
+    // agent 抓网页时顶部会出现的小窗（可手动关）；宿主登记在 AgentBrowserPreview 里做
+    val browserPreview = remember { AgentBrowserPreviewController() }
 
     LaunchedEffect(Unit) { viewModel.open() }
 
-    // 滚到列表末端（= 最旧的一侧）时翻下一页
-    LaunchedEffect(messages.size) {
-        val lastIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-        if (lastIndex >= messages.size - 3) viewModel.loadMore()
+    // 滚到列表末端（= 最旧的一侧）时翻下一页。
+    // 判据挂在**可见项**上而不是 `messages.size` 上：挂消息数的话只有来新消息才顺带判一次，
+    // 用户往上滚到顶什么都等不到（会话层的 `loadMore` 自带 loadingMore / hasMoreHistory 守卫，
+    // 这里可以放心地每变化一次就调）
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                // 首帧 layoutInfo 还是空的：lastVisible 为 null，与规则里的 -1 同一含义
+                if (lastVisible != null && ChatPaging.shouldLoadOlder(lastVisible, total)) viewModel.loadMore()
+            }
     }
 
+    // 键盘弹起时外壳那条迷你条自己在键盘背后，这里再让出高度就变成输入行上方一块死白。
+    // 读一次 IME 高度：把内容顶上去是 `imePadding` 的活，这里只负责别叠着让位
+    val density = LocalDensity.current
+    val imeOpen = WindowInsets.ime.getBottom(density) > 0
     Column(
         modifier = Modifier
             .fillMaxSize()
             // 原来铺的是底色纯色：既吞掉了主题渐变与两层光晕，也让用户自定义背景图在这页失效
             .catClawBackground()
+            .padding(bottom = if (imeOpen) 0.dp else bottomReserve)
             .imePadding(),
     ) {
         ChatHeader(title = title, onBack = onBack)
+
+        AgentBrowserPreview(controller = browserPreview)
 
         LazyColumn(
             state = listState,

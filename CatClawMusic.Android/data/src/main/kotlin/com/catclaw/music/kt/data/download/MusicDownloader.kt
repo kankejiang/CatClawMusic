@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.data.download
 
 import android.content.Context
+import com.catclaw.music.kt.core.download.DownloadGate
 import com.catclaw.music.kt.core.download.RangeDownloader
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.data.db.CatClawDatabase
@@ -16,7 +17,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-enum class DownloadState { Running, Paused, Done, Failed }
+/** 与 C# `DownloadStatus` 对齐的几档（`Canceled` 本端不落行：取消即从列表移除） */
+enum class DownloadState { Queued, Running, Paused, Done, Failed }
 
 data class DownloadTask(
     val songId: Int,
@@ -36,6 +38,7 @@ data class DownloadTask(
 class MusicDownloader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val db: CatClawDatabase,
+    private val settings: DownloadSettings,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 收尾只摘自己那一份，理由见 [JobTable] */
@@ -44,7 +47,17 @@ class MusicDownloader @Inject constructor(
     private val directory: File
         get() = File(context.getExternalFilesDir(null), "downloads").apply { if (!exists()) mkdirs() }
 
-    private val downloader = RangeDownloader(directory)
+    // 限速走 provider：设置页改完，正在下的任务下一个数据块就按新速率走（与 C# 同一条语义）
+    private val downloader = RangeDownloader(directory, bytesPerSecond = settings::speedBytesPerSecond)
+
+    /** 并发闸门：每首歌一个 job，所以每个 job 开工前先在闸门这儿取名额（上限见 `DownloadGate`） */
+    private val gate = DownloadGate(settings.concurrent)
+
+    /** 设置页改并发上限：立刻生效（调高会唤醒排队中的任务，见 `DownloadGate.setLimit`） */
+    fun setConcurrent(value: Int) {
+        settings.concurrent = value
+        gate.setLimit(settings.concurrent)
+    }
 
     /** 下载目录的绝对路径，供设置页展示 */
     fun directoryPath(): String = directory.absolutePath
@@ -77,9 +90,17 @@ class MusicDownloader @Inject constructor(
         val fileName = fileNameFor(song)
         songsById[song.id] = song
         clearCancelled(song.id)
-        replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Running))
+        // 先记「排队中」而不是「下载中」：并发上限之外的任务会在这儿等名额，
+        // 记成下载中的话界面显示进度 0 却写着正在下载，看着像卡住了
+        replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Queued))
         val job = scope.launch {
+            var holding = false
             try {
+                gate.acquire()
+                holding = true
+                // 排队期间可能已经被暂停或取消：拿到名额后先看一眼，别白开一次请求
+                if (isPaused(song.id) || songIdIn(cancelled, song.id)) return@launch
+                replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Running))
                 val result = downloader.download(fileName, urlOf(song)!!) { done, total ->
                     // cancel 是异步的：pause 写下 Paused 之后最后一批进度回调还可能到达，
                     // 这里再写 Running 会让页面上的「已暂停」闪回「下载中」
@@ -95,6 +116,8 @@ class MusicDownloader @Inject constructor(
             } catch (e: Exception) {
                 replace(DownloadTask(song.id, song.title, fileName, 0, 0, DownloadState.Failed))
             } finally {
+                // 只有真拿到名额才交还：排队时被暂停/取消的，名额根本没占上
+                if (holding) gate.release()
                 // 认货再摘：这一格可能已经被 pause→resume 换成新任务了
                 coroutineContext[Job]?.let { jobs.release(song.id, it) }
             }

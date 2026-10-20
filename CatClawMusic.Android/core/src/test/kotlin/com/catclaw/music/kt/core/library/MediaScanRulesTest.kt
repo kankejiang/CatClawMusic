@@ -28,9 +28,8 @@ class MediaScanRulesTest {
     }
 
     @Test
-    fun sidecarLyricsAndTitleFallback() {
-        assertEquals("/m/a.lrc", Rules.sidecarLyricsPath("/m/a.flac"))
-        assertNull(Rules.sidecarLyricsPath("/m/noext"))
+    fun titleFallback() {
+        // 侧车规则搬去了 SidecarRulesTest（原来这里测的那条只认 .lrc，已删）
         assertEquals("Track 01", Rules.titleFromPath("/storage/emulated/0/Music/Track 01.mp3"))
     }
 

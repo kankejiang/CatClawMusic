@@ -2,6 +2,7 @@ package com.catclaw.music.kt.data.remote
 
 import android.os.SystemClock
 import com.catclaw.music.kt.core.library.MediaScanRules
+import com.catclaw.music.kt.core.library.SidecarRules
 import com.catclaw.music.kt.core.model.ConnectionProfile
 import com.catclaw.music.kt.core.model.ProtocolType
 import com.catclaw.music.kt.core.model.SongSource
@@ -73,7 +74,12 @@ class WebDavImporter @Inject constructor(
                         fileSize = file.size,
                         dateAdded = prev?.dateAdded ?: now,
                         dateModified = now,
-                        coverArtPath = file.path,
+                        // 封面列存的是 **URL**，不是远端路径 —— 与 Subsonic / 猫爪服务器两个导入器一致
+                        // （`SubsonicImporter` 写 `track.coverArtUrl`、`CatClawServerImporter` 写 `assetUrl(...)`）。
+                        // 这条以前写的是 `file.path`（音频自己的远端路径）：`CoverTile` 只认 http(s) 直链或本地文件，
+                        // 于是 WebDAV 曲目的封面永远显示首字母。`remoteCoverPath` 那列仍存远端路径，两者分工不变
+                        coverArtPath = (covers["$parent/$nameNoExt"]?.path ?: dirCovers[parent])
+                            ?.let { client.streamUrlFor(it) },
                         lyricsPath = lyrics["$parent/$nameNoExt"]?.let { client.streamUrlFor(it.path) },
                         source = SongSource.WebDAV.ordinal,
                         protocol = profile.protocol.ordinal,
@@ -94,12 +100,12 @@ class WebDavImporter @Inject constructor(
         )
     }
 
-    private fun isLyricsSidecar(name: String): Boolean =
-        name.substringAfterLast('.', "").lowercase() in setOf("lrc", "ttml")
+    // 侧车判定搬去 `:core` 的 SidecarRules（同一份规则将来 SMB 也要用）——
+    // 留在这里的话，`:core` 里那个只认 .lrc 的窄规则就会被下一个人接错
+    private fun isLyricsSidecar(name: String): Boolean = SidecarRules.isLyricsSidecar(name)
 
-    private fun isImageSidecar(name: String): Boolean =
-        name.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg", "png", "webp", "bmp")
+    private fun isImageSidecar(name: String): Boolean = SidecarRules.isImageSidecar(name)
 
     private fun sidecarKey(file: RemoteFile): String =
-        MediaScanRules.parentDir(file.path) + "/" + MediaScanRules.titleFromFileName(file.name)
+        SidecarRules.sidecarKey(MediaScanRules.parentDir(file.path), file.name)
 }

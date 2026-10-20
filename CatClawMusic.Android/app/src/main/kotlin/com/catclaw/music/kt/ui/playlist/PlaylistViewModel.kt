@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.library.SongSortFields
 import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.core.library.defaultDescending
 import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.playback.PlayerController
+import com.catclaw.music.kt.data.db.PlaylistCover
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.data.db.toSong
@@ -15,10 +17,12 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +40,14 @@ class PlaylistViewModel @Inject constructor(
         initialValue = emptyList(),
     )
 
+    /**
+     * 歌单封面来源表（SQL 见 `PlaylistDao.SQL_PLAYLIST_COVERS`）。
+     * 没曲的歌单不在表里，卡片自然退回首字 / 系统图标——不需要在 UI 里再判一次空。
+     */
+    val covers: StateFlow<Map<Int, PlaylistCover>> = playlistDao.observePlaylistCovers()
+        .map { rows -> rows.associateBy { it.playlistId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     private val _openId = MutableStateFlow<Int?>(null)
     val openId = _openId
 
@@ -47,12 +59,15 @@ class PlaylistViewModel @Inject constructor(
     private val _itemSort = MutableStateFlow(SongSortKey.Title)
     val itemSort = _itemSort.asStateFlow()
 
+    private val _itemSortDescending = MutableStateFlow(SongSortKey.Title.defaultDescending)
+    val itemSortDescending = _itemSortDescending.asStateFlow()
+
     private val _itemQuery = MutableStateFlow("")
     val itemQuery = _itemQuery.asStateFlow()
 
     /** 屏幕上那份歌单列表。规则与全部歌曲页同一条（core/library/SongListRules.kt），这里只接线 */
-    val displayItems = combine(items, _itemSort, _itemQuery) { list, sort, query ->
-        filterAndSortSongs(list, sort, query) {
+    val displayItems = combine(items, _itemSort, _itemQuery, _itemSortDescending) { list, sort, query, desc ->
+        filterAndSortSongs(list, sort, query, descending = desc) {
             SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -63,8 +78,14 @@ class PlaylistViewModel @Inject constructor(
         _openId.value = id
     }
 
+    /** 与全部歌曲页同一条规则：换档取该档默认方向，点同一档翻方向（见 `LibraryViewModel.setSongSort`） */
     fun setItemSort(sort: SongSortKey) {
-        _itemSort.value = sort
+        if (_itemSort.value == sort) {
+            _itemSortDescending.value = !_itemSortDescending.value
+        } else {
+            _itemSort.value = sort
+            _itemSortDescending.value = sort.defaultDescending
+        }
     }
 
     fun setItemQuery(query: String) {
@@ -117,6 +138,19 @@ class PlaylistViewModel @Inject constructor(
         val playlistId = _openId.value ?: return
         val song = controller.state.value.currentSong ?: return
         viewModelScope.launch { playlistDao.appendAll(playlistId, listOf(song.id)) }
+    }
+
+    /**
+     * 提交拖拽后的歌单顺序（MAUI `CommitPlaylistOrderAsync` 的对应物）。
+     *
+     * 只提交自建歌单：系统歌单在列表里恒在最前，重写它们的序号也不会改变显示顺序
+     * （DAO 那条 SQL 里另有 `IsSystem = 0` 兜底）。写库失败不影响本次会话内的显示，
+     * 与 C# 同规则：落库失败只是下次进页恢复旧顺序。
+     */
+    fun commitPlaylistOrder(orderedIds: List<Int>) {
+        val ids = orderedIds.filter { id -> playlists.value.any { it.id == id && !it.isSystem } }
+        if (ids.isEmpty()) return
+        viewModelScope.launch { playlistDao.reorderPlaylists(ids) }
     }
 
     /**

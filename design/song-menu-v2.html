@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>猫爪音乐 · 歌曲菜单 视觉稿 v2</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  :root{
+    --pink:#FF8FB8;
+    --pink-deep:#F06B9B;
+    --ink:#F5F4F8;
+    --ink-2:rgba(245,244,248,.62);
+    --ink-3:rgba(245,244,248,.34);
+    --hair:rgba(255,255,255,.07);
+    --pill:rgba(255,255,255,.065);
+    --sheet:rgba(26,24,30,.86);
+  }
+  body{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; gap:64px;
+    background:radial-gradient(1200px 600px at 20% -10%, #3a2b36 0%, #171419 55%, #0c0b0f 100%);
+    font-family:-apple-system,BlinkMacSystemFont,"HarmonyOS Sans SC","PingFang SC","MiSans",system-ui,sans-serif;
+    color:var(--ink); padding:56px 32px; flex-wrap:wrap;
+  }
+  /* ── 手机框 ── */
+  .phone{
+    position:relative; width:390px; height:844px; border-radius:52px;
+    background:#000; padding:10px;
+    box-shadow:0 60px 120px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.08), inset 0 0 0 2px #1b1a1f;
+  }
+  .screen{
+    position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden;
+    background:#141218;
+  }
+  /* 播放页背景（示意：封面模糊 + 雾化） */
+  .backdrop{
+    position:absolute; inset:0;
+    background:
+      radial-gradient(120% 80% at 50% 32%, rgba(228,150,140,.9) 0%, rgba(150,90,120,.65) 38%, rgba(38,30,44,.98) 78%),
+      linear-gradient(#2a2030,#120f16);
+  }
+  .backdrop::after{ /* 伪封面 */
+    content:""; position:absolute; left:50%; top:26%; width:250px; height:250px; transform:translateX(-50%);
+    border-radius:18px;
+    background:
+      radial-gradient(circle at 38% 30%, #f7d9c4 0%, #e7a48f 30%, #8b4b52 62%, #2c1a24 100%);
+    box-shadow:0 24px 60px -12px rgba(0,0,0,.6);
+    opacity:.55; filter:blur(1px);
+  }
+  .backdrop-veil{ position:absolute; inset:0; background:linear-gradient(#0b0a0e 0%, rgba(11,10,14,.25) 34%, rgba(11,10,14,.92) 100%); }
+  .page-ui{ position:absolute; inset:0; padding:58px 22px 0; display:flex; flex-direction:column; gap:6px; }
+  .page-title{ font-size:19px; font-weight:650; letter-spacing:.2px; color:rgba(245,244,248,.92); }
+  .page-artist{ font-size:13px; color:var(--ink-2); }
+  .page-bottom{ margin-top:auto; padding-bottom:34px; display:flex; flex-direction:column; gap:18px; }
+  .page-lyric{ font-size:15px; color:rgba(245,244,248,.9); }
+  .page-lyric b{ color:#fff; }
+  .page-bar{ height:3px; border-radius:3px; background:rgba(255,255,255,.22); position:relative; }
+  .page-bar i{ position:absolute; left:0; top:0; bottom:0; width:38%; border-radius:3px; background:#fff; }
+  /* ── 底部面板 ── */
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0;
+    background:var(--sheet);
+    backdrop-filter:blur(28px) saturate(140%);
+    -webkit-backdrop-filter:blur(28px) saturate(140%);
+    border-radius:30px 30px 0 0;
+    border-top:1px solid rgba(255,255,255,.10);
+    box-shadow:0 -30px 80px -20px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06);
+    padding:8px 18px 14px;
+    animation:rise .42s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes rise{ from{ transform:translateY(26px); opacity:0 } to{ transform:none; opacity:1 } }
+  .grabber{ width:38px; height:4px; border-radius:4px; margin:2px auto 12px; background:rgba(255,255,255,.22); }
+
+  /* 头部 */
+  .head{ display:flex; align-items:center; gap:12px; padding:0 2px 14px; }
+  .cover{
+    width:56px; height:56px; border-radius:14px; flex:none;
+    background:radial-gradient(circle at 34% 28%, #ffe2cc 0%, #e7a48f 34%, #8b4b52 68%, #2b1a23 100%);
+    box-shadow:0 10px 24px -8px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.10);
+  }
+  .head-text{ min-width:0; flex:1; }
+  .head-title{ font-size:16.5px; font-weight:650; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .head-sub{ margin-top:3px; font-size:12.5px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .badge{
+    display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding:2px 7px; border-radius:99px;
+    font-size:10.5px; font-weight:600; color:var(--pink); background:rgba(255,143,184,.14); vertical-align:1px;
+  }
+  .badge::before{ content:""; width:4px; height:4px; border-radius:50%; background:var(--pink); }
+  .close{
+    width:30px; height:30px; flex:none; border-radius:50%; background:rgba(255,255,255,.08);
+    display:grid; place-items:center; color:rgba(255,255,255,.72); font-size:13px;
+    border:0; cursor:pointer; transition:.18s;
+  }
+  .close:hover{ background:rgba(255,255,255,.14); color:#fff; }
+
+  /* 快捷胶囊 */
+  .quick{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding-bottom:14px; }
+  .pill{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
+    height:58px; border-radius:15px; background:var(--pill); border:1px solid rgba(255,255,255,.05);
+    font-size:12px; font-weight:560; color:var(--ink); cursor:pointer; transition:.18s;
+  }
+  .pill:hover{ background:rgba(255,255,255,.10); transform:translateY(-1px); }
+  .pill svg{ width:21px; height:21px; stroke:rgba(255,255,255,.86); }
+  .pill.on{ background:rgba(255,143,184,.16); border-color:rgba(255,143,184,.34); color:#FFD3E3; }
+  .pill.on svg{ stroke:var(--pink); fill:var(--pink); }
+
+  /* 分区 */
+  .sec{ padding:2px 2px 4px; display:flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.10em; color:var(--ink-3); font-weight:600; }
+  .sec i{ width:4px; height:4px; border-radius:50%; background:var(--pink); display:block; }
+
+  /* 列表 */
+  .list{ list-style:none; }
+  .row{
+    display:flex; align-items:center; gap:12px; min-height:46px; padding:7px 2px; cursor:pointer;
+    border-radius:12px; transition:.16s; position:relative;
+  }
+  .row:hover{ background:rgba(255,255,255,.045); }
+  .row + .row::before{
+    content:""; position:absolute; left:45px; right:2px; top:0; height:1px; background:var(--hair);
+  }
+  .ic{
+    width:30px; height:30px; flex:none; border-radius:9px; background:rgba(255,255,255,.07);
+    display:grid; place-items:center;
+  }
+  .ic svg{ width:17px; height:17px; stroke:rgba(255,255,255,.8); }
+  .row-main{ flex:1; min-width:0; }
+  .row-label{ display:block; font-size:14.5px; font-weight:520; line-height:1.25; }
+  .row-hint{ display:block; margin-top:3px; font-size:11.5px; color:var(--ink-3); line-height:1.2; }
+  .row-end{ font-size:12.5px; color:var(--ink-3); display:flex; align-items:center; gap:8px; }
+  .chev{ color:rgba(255,255,255,.22); font-size:15px; }
+
+  /* 开关 */
+  .switch{ width:42px; height:25px; border-radius:99px; background:rgba(255,255,255,.14); position:relative; flex:none; transition:.2s; }
+  .switch::after{ content:""; position:absolute; top:3px; left:3px; width:19px; height:19px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.4); transition:.2s; }
+  .switch.on{ background:linear-gradient(180deg,#FF9CC1,#F06B9B); }
+  .switch.on::after{ left:20px; }
+
+  .divider{ height:1px; background:var(--hair); margin:9px 2px; }
+  .caption{ text-align:center; font-size:11px; color:rgba(245,244,248,.24); padding:10px 0 2px; letter-spacing:.02em; }
+
+  /* 说明 */
+  .notes{ width:330px; color:rgba(255,255,255,.62); font-size:13.5px; line-height:1.75; }
+  .notes h1{ font-size:17px; color:#fff; margin-bottom:14px; font-weight:650; letter-spacing:.2px; }
+  .notes h2{ font-size:12px; letter-spacing:.12em; color:var(--pink); margin:20px 0 8px; font-weight:650; }
+  .notes ul{ padding-left:16px; }
+  .notes li{ margin:5px 0; }
+  .notes code{ background:rgba(255,255,255,.08); padding:1px 5px; border-radius:5px; font-size:12px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ 手机预览 ═══ -->
+<div class="phone">
+  <div class="screen">
+    <div class="backdrop"></div>
+    <div class="backdrop-veil"></div>
+
+    <div class="page-ui">
+      <div class="page-title">Martynas</div>
+      <div class="page-artist">David Garrett</div>
+      <div class="page-bottom">
+        <div class="page-lyric">作曲：Carlos Gardel/<b>Alfredo Le Pera</b></div>
+        <div class="page-bar"><i></i></div>
+      </div>
+    </div>
+
+    <!-- ─── 新设计：歌曲面板 ─── -->
+    <div class="sheet">
+      <div class="grabber"></div>
+
+      <div class="head">
+        <div class="cover"></div>
+        <div class="head-text">
+          <div class="head-title">Martynas<span class="badge">正在播放</span></div>
+          <div class="head-sub">David Garrett · Martynas</div>
+        </div>
+        <button class="close">✕</button>
+      </div>
+
+      <div class="quick">
+        <div class="pill on">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M12 20s-7-4.35-7-9a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 4.65-7 9-7 9z"/></svg>
+          已收藏
+        </div>
+        <div class="pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="12" r="8.2"/><path d="M12 10.6v6"/><circle cx="12" cy="7.8" r=".9" fill="currentColor" stroke="none"/></svg>
+          歌曲信息
+        </div>
+        <div class="pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M8.2 10.9 15.8 6.6M8.2 13.1l7.6 4.3"/></svg>
+          分享
+        </div>
+      </div>
+
+      <div class="sec"><i></i>歌曲</div>
+      <ul class="list">
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6M20 17h-6"/></svg></span>
+          <span class="row-main"><span class="row-label">添加到歌单</span></span>
+          <span class="row-end">3 个歌单</span><span class="chev">›</span>
+        </li>
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c.9-3.6 3.9-5.6 7.5-5.6s6.6 2 7.5 5.6"/></svg></span>
+          <span class="row-main"><span class="row-label">查看歌手</span></span>
+          <span class="row-end">David Garrett</span><span class="chev">›</span>
+        </li>
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="2.2"/></svg></span>
+          <span class="row-main"><span class="row-label">查看专辑</span></span>
+          <span class="row-end">Martynas</span><span class="chev">›</span>
+        </li>
+      </ul>
+
+      <div class="divider"></div>
+
+      <div class="sec"><i></i>播放</div>
+      <ul class="list">
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><circle cx="12" cy="13" r="7.4"/><path d="M12 9.6V13l2.4 1.6"/><path d="M9 3.2h6"/></svg></span>
+          <span class="row-main"><span class="row-label">定时停止播放</span></span>
+          <span class="row-end">关闭</span><span class="chev">›</span>
+        </li>
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M4 15v-2M8 18V10M12 20V7M16 18V10M20 15v-2"/></svg></span>
+          <span class="row-main"><span class="row-label">音效</span></span>
+          <span class="chev">›</span>
+        </li>
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="3"/><path d="M7 10.4h6M7 13.6h9"/></svg></span>
+          <span class="row-main"><span class="row-label">桌面歌词</span></span>
+          <span class="switch" role="switch" aria-checked="false"></span>
+        </li>
+        <li class="row">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><rect x="3.2" y="6.6" width="17.6" height="10.8" rx="2.6"/><path d="M9.6 11h4.8"/></svg></span>
+          <span class="row-main"><span class="row-label">横竖屏切换</span></span>
+          <span class="chev">›</span>
+        </li>
+      </ul>
+
+      <div class="caption">下拉关闭 · 长按歌曲可拖到歌单</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 设计说明 ═══ -->
+<div class="notes">
+  <h1>歌曲菜单 · 设计稿 v2</h1>
+  <p>旧版的问题：所有操作都是<b>同样的圆角彩块 + 文字</b>，一眼看过去全是"同款格子"，没有主次，也没有状态感。</p>
+
+  <h2>这版改了什么</h2>
+  <ul>
+    <li><b>三级层次</b>：头部（这是哪首）→ 快捷胶囊（最常做的三件事）→ 分组列表（其余）。旧版把 11 行平铺，没有"主次"。</li>
+    <li><b>胶囊承载主操作</b>：收藏 / 歌曲信息 / 分享做成大按钮，收藏态用粉色高亮 + 实心心，一眼可见。</li>
+    <li><b>去掉了「下一首播放」</b>：正在播放的这首再点它没有意义（那是<b>队列里其它曲</b>的动作），这个位置换成了<b>歌曲信息</b> —— 播着歌最常想确认的就是码率/格式/来源。</li>
+    <li><b>状态改用控件</b>：桌面歌词用真正的开关，其它行用尾部文字（<code>关闭</code> / <code>3 个歌单</code>），不再靠"关"这个孤零零的字。</li>
+    <li><b>信息前移</b>：查看歌手/专辑把<b>目标名</b>直接写在行尾（David Garrett / Martynas），点之前就知道会去哪。</li>
+    <li><b>更轻的质感</b>：30dp 圆角、发丝分隔线（7% 白）、图标底色 7% 白、毛玻璃面板 —— 和播放页的雾化背景是一套语言。</li>
+    <li><b>撤销"图标彩块"</b>：旧版每行一块高饱和色，颜色互相打架；这版只有<b>一处</b>强调色（粉），其余全是中性灰白。</li>
+  </ul>
+
+  <h2>落地到 Compose</h2>
+  <ul>
+    <li>所有尺寸/颜色都能直接映射成 <code>dp</code> 与 palette 字段（粉 = <code>palette.primary</code>）。</li>
+    <li>开关、胶囊、列表行都是独立 composable，可复用到歌单/专辑菜单。</li>
+    <li>动效：面板 <code>tween(420, easing = CubicBezierEasing(.22,1,.36,1))</code> 上滑，胶囊 hover/press 位移 1dp。</li>
+  </ul>
+</div>
+
+</body>
+</html>

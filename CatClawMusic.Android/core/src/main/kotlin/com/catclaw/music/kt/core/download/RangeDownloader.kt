@@ -11,6 +11,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 
 /** 一次取流的结果：状态码、总字节数（未知为 -1）、响应体 */
 data class DownloadStream(val statusCode: Int, val totalBytes: Long, val body: InputStream)
@@ -60,6 +61,8 @@ class RangeDownloader(
     private val directory: File,
     private val transport: DownloadTransport = UrlRangeTransport,
     private val concurrentLimit: Int = DEFAULT_CONCURRENT,
+    /** 每任务限速，字节/秒，0 = 不限。给的是 provider 而不是值：设置页改完要立刻生效 */
+    private val bytesPerSecond: () -> Long = { 0L },
 ) {
     data class Outcome(val file: File, val totalBytes: Long, val resumedFrom: Long)
 
@@ -117,6 +120,9 @@ class RangeDownloader(
         }
 
         var written = if (resumed) resumeFrom else 0L
+        // 限速只算「本次会话下了多少」：续传时 resumeFrom 那部分不是这两秒下的
+        val sessionBase = if (resumed) resumeFrom else 0L
+        val sessionStart = System.currentTimeMillis()
         try {
         // 续传时必须以追加方式打开：用 outputStream()（截断模式）会把已下的段落覆盖掉
         java.io.FileOutputStream(part, resumed).use { out ->
@@ -129,6 +135,15 @@ class RangeDownloader(
                     if (read <= 0) break
                     out.write(buffer, 0, read)
                     written += read
+                    val limit = bytesPerSecond()
+                    if (limit > 0) {
+                        val wait = DownloadLimits.throttleDelayMs(
+                            sessionBytes = written - sessionBase,
+                            elapsedMs = System.currentTimeMillis() - sessionStart,
+                            bytesPerSecond = limit,
+                        )
+                        if (wait > 0) delay(wait)
+                    }
                     val now = System.currentTimeMillis()
                     if (now - lastReportAt >= PROGRESS_INTERVAL_MS) {
                         lastReportAt = now

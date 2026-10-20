@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.catclaw.music.kt.core.net.UrlCredentials
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -60,10 +61,15 @@ private fun decodeFile(file: File, maxPx: Int): Bitmap? {
 }
 
 private fun fetchUrl(url: String): ByteArray? = runCatching {
-    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+    // WebDAV / OpenList 的封面 URL 形如 `http://user:pass@host/dav/cover.jpg`，而 `HttpURLConnection`
+    // **不会**把 userinfo 变成 Authorization 头（真机表现：每次都 401，封面永远出不来）。
+    // 取流与下载两条路早就统一走 `UrlCredentials.split`，封面这条一直漏在外面
+    val (cleanUrl, authorization) = UrlCredentials.split(url)
+    val connection = (URL(cleanUrl).openConnection() as HttpURLConnection).apply {
         connectTimeout = 8_000
         readTimeout = 8_000
         instanceFollowRedirects = true
+        if (authorization != null) setRequestProperty("Authorization", authorization)
     }
     try {
         if (connection.responseCode !in 200..299) return null

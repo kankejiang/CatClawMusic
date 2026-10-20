@@ -14,6 +14,18 @@ import kotlinx.coroutines.flow.Flow
  * 条目去重靠参考 schema 里的唯一索引 `ux_playlist_songs_playlist_song(PlaylistId, SongId)`
  * 配合 `INSERT OR IGNORE`，所以顺序完全由 `Position` 决定。
  */
+/**
+ * 歌单封面的来源：歌单内**第一首**（Position 最小）那首歌的封面列与音频路径。
+ *
+ * `coverArtPath` 是本端库里那一列（多半是空的），`filePath` 才是真正出图的入口 ——
+ * 本端没有 C# 那台落盘的封面缓存，取图靠 `CoverTile` 现读内嵌封面。
+ */
+data class PlaylistCover(
+    val playlistId: Int,
+    val coverArtPath: String?,
+    val filePath: String,
+)
+
 @Dao
 interface PlaylistDao {
 
@@ -35,6 +47,31 @@ interface PlaylistDao {
     /** 重命名。返回被改的行数：0 表示那是内置单或 id 不存在，调用方据此决定要不要关编辑框 */
     @Query(SQL_RENAME_PLAYLIST)
     suspend fun rename(id: Int, name: String, now: Long): Int
+
+    /**
+     * 每个歌单的封面来源。
+     *
+     * 一条 SQL 出全部歌单，而不是"每个歌单查一次"（C# 那边是 N 次查询 + `Task.WhenAll` 并行兜着，
+     * 见 `PlaylistViewModel.cs:101-122`）：歌单一多，省下的是 N 次数据库往返。
+     */
+    @Query(SQL_PLAYLIST_COVERS)
+    fun observePlaylistCovers(): Flow<List<PlaylistCover>>
+
+    /**
+     * 拖拽排序后的落库：按目标顺序逐行覆写 `SortOrder`（一个事务内完成）。
+     *
+     * 传入的必须**只含自建歌单**（`IsSystem = 0`）：本端的列表次序是
+     * `IsSystem DESC, SortOrder ASC, CreatedAt ASC`，系统歌单恒在最前 ——
+     * 把它们的序号一起重写既改变不了显示顺序，又会把它们的序号搅乱。
+     * （C# 的 `UpdatePlaylistsOrderAsync` 收的是全部歌单，那是因为它的排序里没有 IsSystem 优先这一条。）
+     */
+    @Transaction
+    suspend fun reorderPlaylists(orderedIds: List<Int>) {
+        orderedIds.forEachIndexed { index, id -> updateSortOrder(id, index + 1) }
+    }
+
+    @Query(SQL_UPDATE_SORT_ORDER)
+    suspend fun updateSortOrder(id: Int, order: Int)
 
     @Query("DELETE FROM PlaylistSongs WHERE PlaylistId = :id")
     suspend fun clearItems(id: Int)
@@ -127,5 +164,27 @@ internal const val SQL_REMOVE_ITEM =
     "DELETE FROM PlaylistSongs WHERE PlaylistId = :playlistId AND SongId = :songId"
 internal const val SQL_SONG_IDS_IN_ORDER =
     "SELECT SongId FROM PlaylistSongs WHERE PlaylistId = :playlistId ORDER BY Position ASC"
+/**
+ * 覆写自建歌单的 `SortOrder`。`IsSystem = 0` 与删除 / 改名是同一条保护：
+ * 系统歌单（收藏 / 最近播放）的序号不该被拖拽搅动，而调用方是 UI，忘了判就是静默写坏排序。
+ */
+/**
+ * 每个歌单第一首（Position 最小）的封面来源。
+ *
+ * 用相关子查询取 `MIN(Position)`，而不是 `GROUP BY` + `MIN`：后者拿不到"最小那一行"的其它列
+ * ——SQLite 会随便给一行。同一歌单若出现重复 Position（正常不会：`reorder` 写的是密集序列），
+ * 这里会各出一行，调用方按歌单 id 归并即可。
+ */
+internal const val SQL_PLAYLIST_COVERS =
+    """
+    SELECT ps.PlaylistId AS playlistId, s.CoverArtPath AS coverArtPath, s.FilePath AS filePath
+    FROM PlaylistSongs ps
+    JOIN Songs s ON s.Id = ps.SongId
+    WHERE ps.Position = (
+        SELECT MIN(ps2.Position) FROM PlaylistSongs ps2 WHERE ps2.PlaylistId = ps.PlaylistId
+    )
+    """
+internal const val SQL_UPDATE_SORT_ORDER =
+    "UPDATE Playlists SET SortOrder = :order WHERE Id = :id AND IsSystem = 0"
 internal const val SQL_UPDATE_POSITION =
     "UPDATE PlaylistSongs SET Position = :position WHERE PlaylistId = :playlistId AND SongId = :songId"

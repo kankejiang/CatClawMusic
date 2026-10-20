@@ -85,7 +85,7 @@ interface PluginTransport {
 class PluginRpcClient(
     private val transport: PluginTransport,
     private val timeoutMs: Int = PluginManifest.DEFAULT_TIMEOUT_MS,
-) {
+) : PluginChannel {
     private val mutex = Mutex()
     private var nextId = 0
 
@@ -103,5 +103,8 @@ class PluginRpcClient(
             ?: RpcResponse(id.first, null, PluginProtocol.ERR_PARSE, "插件返回的不是合法报文", retryable = false)
     }
 
-    suspend fun close() = transport.close()
+    /** 对 [PluginChannel] 的实现：接口收 `JsonElement`，内部走同一条 [call]（信封与超时只此一处） */
+    override suspend fun request(method: String, params: JsonElement): RpcResponse = call(method, params)
+
+    override suspend fun close() = transport.close()
 }

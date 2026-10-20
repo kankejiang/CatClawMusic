@@ -77,17 +77,24 @@ import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 
 /** MAUI `SettingsPage` 是枢纽 + push 子页；这里用同一份状态在整屏之间切换 */
-private enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About, LocalMusic, Downloads }
+/**
+ * 设置子页。可见性放开：外层壳层要能指定「一进来就落在哪一页」
+ * （音乐库的资料库卡 → 下载管理）。Kotlin 不许 public 函数暴露 internal 参数类型，
+ * 而 SettingsScreen 是 public 的，所以这里不能用 internal。
+ */
+enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About, LocalMusic, Downloads }
 
 /** M4 壳层：设置枢纽页。语言切换以自己的 SharedPreferences 为事实来源（那台 MIUI 没有 locale_manager 服务），51 个语言全在包里。 */
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenRemote: () -> Unit = {},
+    /** 进来时落在哪个子页。默认还是枢纽 —— 只有从别处直接跳某个子页时才传 */
+    initialDest: SettingsDest = SettingsDest.Hub,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
-    var dest by remember { mutableStateOf(SettingsDest.Hub) }
+    var dest by remember { mutableStateOf(initialDest) }
 
     when (dest) {
         SettingsDest.Appearance -> AppearanceSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
@@ -146,7 +153,7 @@ fun SettingsScreen(
                     painter = painterResource(R.drawable.ic_arrow_back),
                     contentDescription = stringResource(R.string.GoBack),
                     tint = primary,
-                    modifier = Modifier.size(19.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -310,6 +317,7 @@ private fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsView
             val startupIndex by viewModel.startupIndex.collectAsStateWithLifecycle()
             val hasCustomBg by viewModel.hasCustomBackground.collectAsStateWithLifecycle()
             val monet by viewModel.monetEnabled.collectAsStateWithLifecycle()
+            val frosted by viewModel.frostedBgEnabled.collectAsStateWithLifecycle()
             val picker = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
             ) { uri -> uri?.let { viewModel.importCustomBackground(it) } }
@@ -351,9 +359,16 @@ private fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsView
                 }
             }
 
+            // 雾面动态背景（MAUI frosted_bg_enabled，默认开）：驱动全屏歌词页的流光引擎
+            // FrostedFlowBackground（2026-10-07 移植）。播放页仍走静态封面洗色（MAUI 的共享背景层未移植）。
+            SwitchRow(
+                title = stringResource(R.string.frosted_bg),
+                subtitle = "",
+                checked = frosted,
+                onChecked = { viewModel.setFrostedBgEnabled(it) },
+            )
             // 只有莫奈取色在本端有真实消费者（AppearancePalette.resolve 会读它）。
-            // MAUI 的「雾面动态背景 / 动态封面背景」两档靠 FrostedBackground 引擎与封面取色驱动，
-            // 本端还没移植那套渲染 —— 开关留着只会「拨了没反应还记住你的选择」，所以不放上来。
+            // MAUI 的「动态封面背景」一档在 C# 里连渲染都没有（只存不画），开关继续不放上来。
             SwitchRow(
                 title = stringResource(R.string.monet_bg),
                 subtitle = "",
@@ -421,7 +436,7 @@ private fun GeneralSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewMod
                 title = stringResource(R.string.ClearCache),
                 value = "",
                 hint = stringResource(R.string.cache_dir, viewModel.downloadDirectory()),
-                onClick = { viewModel.clearAudioCache() },
+                onClick = { viewModel.clearCaches() },
             )
         }
 

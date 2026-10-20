@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.download
 
 import androidx.lifecycle.ViewModel
+import com.catclaw.music.kt.data.download.DownloadSettings
 import com.catclaw.music.kt.data.download.DownloadTask
 import com.catclaw.music.kt.data.download.MusicDownloader
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,9 +19,29 @@ import kotlinx.coroutines.flow.asStateFlow
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
     private val downloader: MusicDownloader,
+    private val settings: DownloadSettings,
 ) : ViewModel() {
 
     data class Snapshot(val directoryPath: String = "", val directoryBytes: Long = 0L)
+
+    /** 每任务限速档位（KB/s），0 = 不限。取于偏好、写在偏好，下载器每次读它 */
+    private val _speedKbps = MutableStateFlow(settings.speedKbps)
+    val speedKbps: StateFlow<Int> = _speedKbps.asStateFlow()
+
+    /** 点一下切到下一档（档位表见 `DownloadLimits.SPEED_STEPS_KBPS`） */
+    fun cycleSpeedLimit() {
+        _speedKbps.value = settings.nextSpeedKbps()
+    }
+
+    /** 同时下载几首（1..5）。默认 2，与 C# `DefaultConcurrent` 同值 */
+    private val _concurrent = MutableStateFlow(settings.concurrent)
+    val concurrent: StateFlow<Int> = _concurrent.asStateFlow()
+
+    /** 点一下调到下一档；调高会立刻唤醒排队中的任务 */
+    fun cycleConcurrent() {
+        _concurrent.value = settings.nextConcurrent()
+        downloader.setConcurrent(_concurrent.value)
+    }
 
     val tasks: StateFlow<List<DownloadTask>> = downloader.tasks
 

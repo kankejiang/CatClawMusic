@@ -11,13 +11,17 @@ import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.lyrics.LyricsReader
 import com.catclaw.music.kt.data.lyrics.LyricsSettings
 import com.catclaw.music.kt.data.lyrics.LyricsSourceMode
+import com.catclaw.music.kt.data.settings.AppearanceSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,10 +31,46 @@ class LyricsViewModel @Inject constructor(
     private val controller: PlayerController,
     private val reader: LyricsReader,
     private val settings: LyricsSettings,
+    appearance: AppearanceSettings,
 ) : ViewModel() {
 
-    val positionMs: StateFlow<Long> = controller.positionMsFlow(120)
+    /** 全屏歌词页可见性 */
+    private val lyricsSurfaceVisible = MutableStateFlow(false)
+
+    /**
+     * 播放页那一行的可见性。
+     *
+     * **2026-10-18 修「逐字歌词卡」**：原来只有全屏歌词页会置位这个开关，站在播放页时
+     * 位置轮询停在 120ms —— 每秒只有 **8 次** 逐字着色，看着就是一格一格跳。
+     * 而滚动是帧驱动的（每个 vsync 都动），所以用户看到的是「滚动流畅、逐字歌词卡」——
+     * 那不是画面太重，是**数据 120ms 才来一发**。播放页现在也要置位。
+     */
+    private val playingLyricVisible = MutableStateFlow(false)
+
+    fun setLyricsSurfaceVisible(visible: Boolean) {
+        lyricsSurfaceVisible.value = visible
+    }
+
+    fun setPlayingLyricVisible(visible: Boolean) {
+        playingLyricVisible.value = visible
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val positionMs: StateFlow<Long> = combine(playingLyricVisible, lyricsSurfaceVisible) { a, b -> a || b }
+        .distinctUntilChanged()
+        .flatMapLatest { visible ->
+            controller.positionMsFlow(if (visible) 16L else 120L)
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(3_000), 0L)
+
+    /** 流光背景的 IsActive gate（MAUI：IsActive 绑 IsPlaying，暂停即停动画保留最后一帧） */
+    val isPlaying: StateFlow<Boolean> = controller.state
+        .map { it.isPlaying }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(3_000), false)
+
+    /** 雾面动态背景开关（MAUI FrostedBackgroundEnabled 动态资源同源，AppearanceSettings 持久化） */
+    val frostedBgEnabled: StateFlow<Boolean> = appearance.frostedBgEnabled
 
     private val _lyrics = MutableStateFlow<Lyrics?>(null)
     val lyrics: StateFlow<Lyrics?> = _lyrics

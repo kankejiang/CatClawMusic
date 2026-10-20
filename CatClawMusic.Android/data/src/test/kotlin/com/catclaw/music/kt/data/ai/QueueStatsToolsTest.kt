@@ -6,6 +6,8 @@ import com.catclaw.music.kt.core.playback.PlayerApi
 import com.catclaw.music.kt.core.playback.SessionLauncher
 import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.db.PlayCountRow
+import com.catclaw.music.kt.data.db.PlaylistCover
+import com.catclaw.music.kt.data.db.FakePlaylistDao
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
@@ -83,26 +85,11 @@ class QueueStatsToolsTest {
         fun tool(name: String) = tools.all.first { it.name == name }
     }
 
-    /** 队列/统计工具都不碰歌单表，给一个"被调到就抛"的占位实现 */
-    private object UnusedPlaylists : PlaylistDao {
-        private fun nope(): Nothing = throw UnsupportedOperationException("这两个工具不该查歌单")
-        override suspend fun byId(id: Int) = nope()
-        override suspend fun byName(name: String) = nope()
-        override suspend fun upsert(playlist: PlaylistEntity) = nope()
-        override suspend fun delete(id: Int) = nope()
-        override suspend fun rename(id: Int, name: String, now: Long) = nope()
-        override suspend fun clearItems(id: Int) = nope()
-        override suspend fun insertItem(playlistId: Int, songId: Int, position: Int) = nope()
-        override suspend fun removeItem(playlistId: Int, songId: Int) = nope()
-        override suspend fun songIdsInOrder(playlistId: Int) = nope()
-        override fun observePlaylists(): Flow<List<PlaylistEntity>> = nope()
-        override fun observeItems(playlistId: Int): Flow<List<SongListItem>> = nope()
-        override suspend fun touch(id: Int, count: Int, now: Long) = nope()
-        override suspend fun reorder(playlistId: Int, orderedSongIds: List<Int>) = nope()
-        override suspend fun updatePosition(playlistId: Int, songId: Int, position: Int) = nope()
-        override suspend fun appendAll(playlistId: Int, songIds: List<Int>) = nope()
-        override suspend fun maxPosition(playlistId: Int) = nope()
-    }
+    /**
+     * 队列/统计工具都不碰歌单表 —— 共享替身的每个成员默认就抛，这里连覆写都不用写。
+     * 以前这里是一份手抄的完整实现，`PlaylistDao` 每加一个方法就要来补一处。
+     */
+    private object UnusedPlaylists : FakePlaylistDao()
 
     @Test
     fun queueToolContractMatchesCSharp() {

@@ -20,9 +20,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +37,7 @@ import com.catclaw.music.kt.ui.theme.BackdropState
 import com.catclaw.music.kt.ui.theme.BarGlass
 import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.VinylCover
 import com.catclaw.music.kt.ui.theme.inkOn
 
 /**
@@ -53,18 +56,25 @@ import com.catclaw.music.kt.ui.theme.inkOn
 fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
-    progress: Float,
+    /**
+     * 播放进度，**必须是 lambda**：这是全 app 频率最高的一份状态（每 16ms 一变）。
+     * 传值时读发生在**组合期** —— 外壳（`CatClawRoot`）会跟着每帧重组，
+     * 而壳里还挂着 backdrop 录制层，于是每帧重录一整屏（2026-10-18 实测的卡顿来源之一）。
+     * 改成绘制期读之后，位置变化只让这条 2dp 的线重画。
+     */
+    progress: () -> Float,
     backdrop: BackdropState,
     modifier: Modifier = Modifier,
+    /** 动画进行中传 false（玻璃切实心）——理由见 `BarGlass` 的注释 */
+    glassOn: Boolean = true,
     onOpen: () -> Unit,
     onToggle: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
-    val fraction = progress.coerceIn(0f, 1f)
 
-    BarGlass(state = backdrop, modifier = modifier) {
+    BarGlass(state = backdrop, modifier = modifier, glassOn = glassOn) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -98,12 +108,10 @@ fun MiniPlayer(
                             modifier = Modifier.matchParentSize(),
                         )
                     } else {
-                        Text(
-                            text = song.title.take(1),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(inkOn(palette.primary)),
-                        )
+                        // 没封面：与播放页同一张唱片碟占位（原来是「首字」方块，两处风格不一致）。
+                        // 这枚只有 36dp，碟心那两行字实际读不出来，但作为纹理正合适 —— MAUI 也是
+                        // 720px 渲染后降采样用，观感一致。
+                        VinylCover(modifier = Modifier.matchParentSize(), primary = Color(palette.primary))
                     }
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -160,15 +168,21 @@ fun MiniPlayer(
                     // 与播放页那条进度线同一档：细、白、未走到的部分留一层淡痕。
                     // 原来是 3dp 实心品牌粉——页面已经改成纯白字形之后，这条粉线就是页面上唯一
                     // 还在喊主色的地方，两栏之间看着像两套东西
-                    .background(Color(palette.textPrimary).copy(alpha = 0.22f)),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(fraction)
-                        .background(Color(palette.textPrimary)),
-                )
-            }
+                    .background(Color(palette.textPrimary).copy(alpha = 0.22f))
+                    // 独立图层：这条线每帧都在动，不隔离的话整屏（含玻璃）都会跟着重录
+                    .graphicsLayer()
+                    // 已走过的部分在**绘制期**按当前进度画：不参与重组，也不产生新的布局节点
+                    .drawWithContent {
+                        drawContent()
+                        val fraction = progress().coerceIn(0f, 1f)
+                        if (fraction > 0f) {
+                            drawRect(
+                                color = Color(palette.textPrimary),
+                                size = androidx.compose.ui.geometry.Size(size.width * fraction, size.height),
+                            )
+                        }
+                    },
+            )
         }
     }
 }

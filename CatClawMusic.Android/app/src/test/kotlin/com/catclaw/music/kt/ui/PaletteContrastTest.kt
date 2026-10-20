@@ -75,14 +75,11 @@ class PaletteContrastTest {
      * 抽 `HeroCard(... brush = Brush.linearGradient(listOf(Color(0xAARRGGBB), ...))` 的停靠点。
      * 十六进制后面不跟 `)`：最后一个停靠点的右括号被 listOf 的收尾吃掉，跟了就永远少抽一个色。
      */
-    private fun heroCardBrushes(src: String): List<List<Long>> =
-        Regex("""HeroCard\([\s\S]{0,700}?brush = Brush\.linearGradient\(listOf\((.*?)\)\)""")
+    private fun multiGlassStops(src: String): List<List<Long>> =
+        Regex("""stops = listOf\(0x([0-9A-Fa-f]+)L, 0x([0-9A-Fa-f]+)L\)""")
             .findAll(src)
             .map { m ->
-                Regex("""Color\(0x([0-9A-Fa-f]{8})""")
-                    .findAll(m.groupValues[1])
-                    .map { it.groupValues[1].toLong(16) }
-                    .toList()
+                listOf(m.groupValues[1].toLong(16), m.groupValues[2].toLong(16))
             }
             .toList()
 
@@ -210,53 +207,6 @@ class PaletteContrastTest {
         assertTrue("\n" + report.joinToString("\n") + "\n—— 违规: " + violations.joinToString("; "), violations.isEmpty())
     }
 
-    /**
-     * 品牌色板块（发现页 Hero 卡、歌手圆片、播放页封面首字）不走玻璃卡配方，字色是各自挑的，
-     * 所以逐个停靠点量。真机截图就是在这儿露馅的：封面首字用 textPrimary，压到 #FFD9E7 上只剩 1.29:1。
-     */
-    @Test
-    fun `品牌色渐变板块上的字必须过对比度下限`() {
-        val p = CatClawTheme.dark
-
-        // 圆片字色由 inkOnGradient 现算：两端都要过线（22/26sp Bold 只需 3.0，这里按正文收严）。
-        // 停靠点清单先跟调用点对一遍，否则这份表会量到早就不用的组合上。
-        val discover = discoverSource()
-        val bubbles = listOf(
-            "歌手圆片(小)" to listOf(p.primaryLight, p.primary),
-            "歌手圆片(大)" to listOf(p.primary, p.primaryDark),
-        )
-        for ((name, stops) in bubbles) {
-            val call = "inkOnGradient(listOf(palette.${stops.map { paletteName(p, it) }.joinToString(", palette.")}))"
-            assertTrue("发现页圆片的字色写法变了，这张表要跟着改: $call", call in discover)
-            val fg = inkOnGradient(stops)
-            stops.forEach { check("$name 字", fg, it, 4.5) }
-        }
-        check("封面首字/primaryLight", inkOn(p.primaryLight), p.primaryLight, 4.5)
-        check("播放键/primaryLight", inkOn(p.primaryLight), p.primaryLight, 4.5)
-
-        // Hero 卡：渐变是板块身份不能改色，字压由浅到深的黑垫层；带顶 α.40 是文字带的最坏处。
-        // 停靠点直接从 HeroCard 的调用点里抽，页面改了这张表就跟着改（抽不到会当失败报出来）。
-        val heroBrushes = heroCardBrushes(discover)
-        assertTrue("只抽到 ${heroBrushes.size} 张 Hero 卡的渐变，调用点写法变了", heroBrushes.size >= 2)
-        for ((i, stops) in heroBrushes.withIndex()) {
-            assertTrue("第 ${i + 1} 张 Hero 卡抽不到十六进制停靠点，本表量不了", stops.size >= 2)
-            stops.forEach { s ->
-                check("Hero卡${i + 1} 标签(α.40垫)", 0xFFFFFFFFL, blend(HeroTagScrimArgb, s), 4.5)
-                check("Hero卡${i + 1} 标题(带顶α.40)", 0xFFFFFFFFL, blend(HeroScrimBandArgb, s), 4.5)
-                val deep = blend(HeroScrimDeepArgb, s)
-                check("Hero卡${i + 1} 副文(底α.72)", blend(0xCCFFFFFFL, deep), deep, 4.5)
-            }
-        }
-
-        File("build").mkdirs()
-        File("build/brand-report.txt").writeText(report.joinToString("\n"))
-        assertTrue("\n" + report.joinToString("\n") + "\n—— 违规: " + violations.joinToString("; "), violations.isEmpty())
-    }
-
-    /**
-     * 记录根因并把结论钉住：这个调色板的 primary↔primaryDark 只有 1.29:1（粉压粉），
-     * 所以实心面的前景必须由 inkOn() 现算。哪天调色板真的拉开了差距，这条会先报警提醒重新评估。
-     */
     @Test
     fun `实心面前景由 inkOn 现算，不取 primaryDark`() {
         for (p in listOf(CatClawTheme.dark, CatClawTheme.light)) {

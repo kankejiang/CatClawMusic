@@ -38,12 +38,9 @@ object MediaScanRules {
     /** 去重键：FilePath 唯一（线上库上就是 UQ(FilePath)） */
     fun dedupKey(filePath: String): String = filePath.trim()
 
-    /** 侧车歌词判定：同目录同名 .lrc */
-    fun sidecarLyricsPath(audioPath: String): String? {
-        val dot = audioPath.lastIndexOf('.')
-        if (dot <= 0) return null
-        return audioPath.substring(0, dot) + ".lrc"
-    }
+    // 这里原来有一个只认 .lrc 的 `sidecarLyricsPath`，没有任何调用方（只有测试在调）。
+    // 删掉而不是留着：远程侧车配对在 [SidecarRules]，本地找词在 `LyricsFileLocator`（集合更宽），
+    // 三者并存时最容易被接错的是这个最窄的 —— 接错的症状是「.ttml 歌词不显示」，很难往这上面想。
 
     /**
      * 音频扩展名白名单，逐条抄自 C# `MusicUtility.AudioExtensions`（26 项）；

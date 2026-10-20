@@ -48,7 +48,8 @@ class AgentService(
     private val maxToolRounds: () -> Int = { AgentRunSettings.DEFAULT_MAX_TOOL_ROUNDS },
     private val personalityKnowledge: suspend () -> String = { "" },
     private val memoryProvider: () -> String = { "" },
-    private val librarySnapshotProvider: () -> String = { "" },
+    /** 音乐库快照。必须是 suspend：本端是现查库拼的（C# 读的是提前写好的文件，所以能同步读） */
+    private val librarySnapshotProvider: suspend () -> String = { "" },
     /** 未配置模型时的本地搜索（C# 直接调 IMusicLibraryService.SearchAsync） */
     private val searchSongs: suspend (keyword: String) -> List<Song> = { emptyList() },
     /** 当前音量百分比，本地音量命令要在它基础上 ±10 */

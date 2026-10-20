@@ -272,6 +272,48 @@ class LibraryDaoSqlTest {
     }
 
     @Test
+    fun albumHeaderCarriesArtistYearAndCoverSource() {
+        addArtist(11, "某歌手")
+        addAlbum(21, "一张专辑"); addAlbum(22, "没有年份的专辑")
+        db.createStatement().execute(
+            "UPDATE Albums SET Year = 2004, ArtistId = 11, CoverArtPath = '/c/21.jpg' WHERE Id = 21",
+        )
+        addSong(1, "第三轨", artistId = 11, albumId = 21)
+        addSong(2, "第一轨", artistId = 11, albumId = 21)
+        track(1, 3); track(2, 1)
+
+        assertEquals(
+            "头卡要同时拿到歌手、年份、封面与代表曲（代表曲的判据与专辑列表同一条）",
+            listOf<Any?>("一张专辑", "某歌手", 2004, "/c/21.jpg", "/m/2.mp3"),
+            albumHeaderRow(21),
+        )
+        assertEquals(
+            "没有年份时 IFNULL 给 0：UI 据 0 不画那一行，而不是显示 1970",
+            0,
+            albumHeaderRow(22)?.get(2), // 第 3 列就是 year（末列是代表曲路径，别拿 last）
+        )
+        assertNull("id 不存在时是 null，调用方据此不画头卡", albumHeaderRow(999))
+    }
+
+    /** [SQL_ALBUM_BY_ID] 的一行：title / artist / year / coverArtPath / sampleFilePath */
+    private fun albumHeaderRow(albumId: Int): List<Any?>? {
+        val prepared = SQL_ALBUM_BY_ID.replace(Regex(":(\\w+)"), "?")
+        return db.prepareStatement(prepared).apply { setInt(1, albumId) }.executeQuery().let { rs ->
+            if (!rs.next()) {
+                null
+            } else {
+                listOf(
+                    rs.getString("title"),
+                    rs.getString("artist"),
+                    rs.getInt("year"),
+                    rs.getString("coverArtPath"),
+                    rs.getString("sampleFilePath"),
+                )
+            }
+        }
+    }
+
+    @Test
     fun playStatsCountsSongsOnceAndSumsThePlays() {
         recordPlay(7, 100L); recordPlay(7, 200L); recordPlay(8, 300L)
         val rs = db.createStatement().executeQuery(SQL_PLAY_STATS)
@@ -312,6 +354,36 @@ class LibraryDaoSqlTest {
         assertEquals(0, orphan.getInt("playCount"))
         assertEquals("无归属时 id 给 0，菜单据此不画「查看歌手」", 0, orphan.getInt("artistId"))
         assertEquals(0, orphan.getInt("albumId"))
+    }
+
+    // ── albumsOfArtist（艺人页「专辑」Tab）──────────────────────
+
+    @Test
+    fun artistAlbumsFollowTheSameMembershipRuleAsArtistSongs() {
+        addArtist(11, "主唱"); addArtist(12, "嘉宾"); addArtist(13, "别人")
+        addAlbum(21, "他自己的专辑"); addAlbum(22, "挂名合作的专辑"); addAlbum(23, "别人的专辑")
+        addSong(1, "A", artistId = 11, albumId = 21)
+        addSong(2, "B", artistId = 13, albumId = 22)
+        link(2, 11); link(2, 13) // 歌 2 的主歌手是 13，合作名单里有 11
+        addSong(3, "C", artistId = 12, albumId = 23)
+
+        assertEquals(
+            "专辑 Tab 的成员判据必须与歌曲列表一致：挂名合作的专辑不能在这边凭空消失",
+            listOf(21, 22), idsOf(SQL_ALBUMS_OF_ARTIST, 11),
+        )
+        assertEquals(listOf(23), idsOf(SQL_ALBUMS_OF_ARTIST, 12))
+    }
+
+    @Test
+    fun artistAlbumsSkipSongsWithNoAlbumAndUnknownArtists() {
+        addArtist(11, "主唱")
+        addSong(1, "没有专辑的歌", artistId = 11) // AlbumId 为 NULL
+        addSong(2, "完全没有归属的歌")
+        assertEquals(
+            "AlbumId 为空时不该落进 IN 子查询，更不该把 0 当成一张专辑",
+            emptyList<Int>(), idsOf(SQL_ALBUMS_OF_ARTIST, 11),
+        )
+        assertEquals(emptyList<Int>(), idsOf(SQL_ALBUMS_OF_ARTIST, 999))
     }
 
     @Test

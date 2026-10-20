@@ -2,4 +2,9 @@
 <resources>
     <string name="playback_channel_name">播放控制</string>
     <string name="playback_channel_description">猫爪音乐播放控制</string>
+    <!-- 通知栏两个自定义按钮的文案（对应 MAUI `ForegroundPlayerService` 那两个 CustomAction） -->
+    <string name="notif_desktop_lyric_on">桌面歌词</string>
+    <string name="notif_desktop_lyric_off">关闭桌面歌词</string>
+    <string name="notif_favorite_add">收藏</string>
+    <string name="notif_favorite_remove">取消收藏</string>
 </resources>

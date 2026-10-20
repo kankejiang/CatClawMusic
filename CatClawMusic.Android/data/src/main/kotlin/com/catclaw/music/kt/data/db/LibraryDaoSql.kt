@@ -179,6 +179,39 @@ internal const val SQL_SONGS_OF_ALBUM = """
  * （本端没有 MAUI 那台 CoverHelper 抽图引擎），所以卡片要出图只能借代表曲的内嵌图。
  * 代表曲取「最小曲目号的那首」，与专辑页里第一行的歌一致。
  */
+/**
+ * 艺人列表：带一首代表曲的文件路径与歌曲数。
+ *
+ * 提成常量是因为它现在有两个消费者（列表页的流、AI 快照的一次性取），
+ * 快照里的「N 艺人」与页面上看到的必须是同一批人。
+ */
+internal const val SQL_ARTISTS = """
+    SELECT a.Id AS id, a.Name AS name, a.Cover AS cover,
+           (SELECT s.FilePath FROM Songs s WHERE s.ArtistId = a.Id
+            ORDER BY (s.CoverArtPath IS NULL), s.Id LIMIT 1) AS sampleFilePath,
+           (SELECT COUNT(*) FROM Songs s WHERE s.ArtistId = a.Id) AS songCount
+    FROM Artists a ORDER BY a.Name COLLATE NOCASE ASC
+"""
+
+/**
+ * 新曲：按入库时间倒序，只算本地曲（远程曲的 DateAdded 是导入那一刻，混进来会把本地新曲挤掉）。
+ *
+ * 一次性取与流式取共用这一份字符串：资料库首页那张「最近添加」卡与发现页的「新曲」段
+ * 必须是同一批判据，抄两份迟早会分叉。
+ */
+internal const val SQL_NEW_ARRIVALS = """
+    SELECT s.Id AS id, s.Title AS title, COALESCE(a.Name, '') AS artist,
+           COALESCE(al.Title, al.Name, '') AS album, s.Duration AS durationSeconds,
+           s.FilePath AS filePath, s.CoverArtPath AS coverArtPath, s.MediaStoreId AS mediaStoreId,
+           s.Source AS source, s.Protocol AS protocol, IFNULL(s.DateAdded, 0) AS dateAdded
+    FROM Songs s
+    LEFT JOIN Artists a ON a.Id = s.ArtistId
+    LEFT JOIN Albums al ON al.Id = s.AlbumId
+    WHERE s.Source = 0
+    ORDER BY s.DateAdded DESC, s.Id DESC
+    LIMIT :limit
+"""
+
 internal const val SQL_ALBUMS = """
     SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
            al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
@@ -186,6 +219,51 @@ internal const val SQL_ALBUMS = """
              ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
              LIMIT 1) AS sampleFilePath
     FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
+    ORDER BY al.Title COLLATE NOCASE ASC
+"""
+
+/**
+ * 单张专辑的头卡信息（对应 C# `AlbumDetailPage` 那张 HeroCard）：封面、歌手、年份 + 代表曲路径。
+ *
+ * 年份取 `al.Year`，不合并 `ReleaseYear`：这两组历史列线上库都在，
+ * 本端既有的做法是照抄不合并（见 `LibraryEntities.kt:61` 的注释）。
+ * 没有年份的行 `Year` 为 NULL/0，UI 那一行就不画，而不是显示一个 0。
+ */
+internal const val SQL_ALBUM_BY_ID = """
+    SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
+           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           IFNULL(al.Year, 0) AS year,
+           (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
+             ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
+             LIMIT 1) AS sampleFilePath
+    FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
+    WHERE al.Id = :albumId
+"""
+
+/**
+ * 某个艺人的全部专辑 —— 艺人二级页「专辑」Tab（对应 C# `ArtistDetailPage` 的专辑投影）。
+ *
+ * 成员判据必须与 [SQL_SONGS_OF_ARTIST] **完全一致**：那边把「挂名合作」也算在这位艺人名下，
+ * 这里若只按 `al.ArtistId` 过滤，合作专辑就会在专辑 Tab 里凭空消失 —— 同一张页的两个 Tab
+ * 对"这是不是他的专辑"给出两个答案，是最难被发现的一类不一致（数据库里没有报错可言）。
+ * Albums 表本身没有"合作艺人"列，所以成员只能从歌反推。
+ *
+ * `AlbumId <> 0` 那一句防的是"0 被当成一张专辑"：本端未归属专辑的歌 AlbumId 为 NULL
+ * （NULL 在 IN 里永远不成立，本来也进不来），但 0 是显式值，不排掉就会凭空多出一张空专辑。
+ */
+internal const val SQL_ALBUMS_OF_ARTIST = """
+    SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
+           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
+             ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
+             LIMIT 1) AS sampleFilePath
+    FROM Albums al LEFT JOIN Artists a ON a.Id = al.ArtistId
+    WHERE al.Id IN (
+        SELECT s.AlbumId FROM Songs s
+        WHERE s.AlbumId IS NOT NULL AND s.AlbumId <> 0
+          AND (s.ArtistId = :artistId
+               OR s.Id IN (SELECT sa.SongId FROM SongArtists sa WHERE sa.ArtistId = :artistId))
+    )
     ORDER BY al.Title COLLATE NOCASE ASC
 """
 

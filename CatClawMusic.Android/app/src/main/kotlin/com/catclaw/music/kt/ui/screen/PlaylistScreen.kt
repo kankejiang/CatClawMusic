@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -30,6 +33,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -37,6 +41,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +64,7 @@ import com.catclaw.music.kt.ui.song.SongMenuFor
 import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
+import com.catclaw.music.kt.data.db.PlaylistCover
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.ui.playlist.PlaylistViewModel
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
@@ -78,8 +87,10 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val shown by viewModel.displayItems.collectAsStateWithLifecycle()
     val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
+    val itemSortDescending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
     val itemQuery by viewModel.itemQuery.collectAsStateWithLifecycle()
     val openId by viewModel.openId.collectAsStateWithLifecycle()
+    val covers by viewModel.covers.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
     /** 正在改名的歌单 id；同一时刻只有一行在编辑 */
@@ -114,7 +125,13 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     // 早退结构里**先命中的那一块才是看得见的那一层**：歌曲信息必须排在歌手/专辑层之前判。
     // 之前是 belongsDetail 在前，于是在歌手页点「歌曲信息」把 id 存好了却仍然画歌手页——纹丝不动
     songDetailId?.let { id ->
-        SongDetailScreen(songId = id, load = { libraryViewModel.songDetail(it) }, onBack = { songDetailId = null })
+        SongDetailScreen(
+            songId = id,
+            load = { libraryViewModel.songDetail(it) },
+            loadLyrics = { libraryViewModel.lyricsFor(it) },
+            onPlay = { libraryViewModel.playSongById(it) },
+            onBack = { songDetailId = null },
+        )
         return
     }
     belongsDetail?.let { d ->
@@ -248,8 +265,23 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             if (playlists.isEmpty() && !creating) {
                 EmptyState(hint = stringResource(R.string.playlist_none), iconRes = R.drawable.ic_playlist)
             }
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                items(playlists, key = { it.id }) { playlist ->
+            // 拖拽排序（MAUI `PlaylistDragDropHelper` 的 Compose 对应物）：长按自建歌单进拖拽、
+            // 上下拖动实时让位、松手按最终顺序落库。
+            // 系统歌单不参与：列表按 `IsSystem DESC` 恒在最前，拖也拖不动（DAO 里另有 IsSystem = 0 兜底）。
+            // 拖拽期间只改本地顺序，不每帧写库 —— 每帧一条 UPDATE 会把主线程拖垮
+            val listState = rememberLazyListState()
+            val haptics = LocalHapticFeedback.current
+            var draggingId by remember { mutableStateOf<Int?>(null) }
+            var dragOffset by remember { mutableFloatStateOf(0f) }
+            var dragOrder by remember { mutableStateOf<List<PlaylistEntity>?>(null) }
+            val shownPlaylists = dragOrder ?: playlists
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 96.dp),
+            ) {
+                itemsIndexed(shownPlaylists, key = { _, p -> p.id }) { _, playlist ->
                     if (editing == playlist.id) {
                         RenameRow(
                             draft = draftName,
@@ -262,8 +294,67 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                             },
                         )
                     } else {
+                        val isDragging = draggingId == playlist.id
                         PlaylistCard(
                             playlist = playlist,
+                            cover = covers[playlist.id],
+                            // 手势的键里**不能**放列表本身：拖拽中每次换位都会重组，
+                            // 键一变 pointerInput 就重启，手势当场断掉。要读的东西都在回调里现读（State 是活的）
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    if (isDragging) {
+                                        translationY = dragOffset
+                                        // 抬起来的观感：轻微放大 + 压暗（MAUI ItemTouchHelper 那张卡的 1.02 / 0.94）
+                                        scaleX = 1.02f
+                                        scaleY = 1.02f
+                                        alpha = 0.94f
+                                    }
+                                }
+                                .pointerInput(playlist.id, playlist.isSystem) {
+                                    if (playlist.isSystem) return@pointerInput
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            draggingId = playlist.id
+                                            dragOrder = playlists
+                                            dragOffset = 0f
+                                        },
+                                        onDrag = { change, delta ->
+                                            change.consume()
+                                            dragOffset += delta.y
+                                            val list = dragOrder
+                                            val from = list?.indexOfFirst { it.id == draggingId } ?: -1
+                                            val rowHeight = if (from >= 0) {
+                                                listState.layoutInfo.visibleItemsInfo
+                                                    .firstOrNull { it.index == from }?.size ?: 0
+                                            } else {
+                                                0
+                                            }
+                                            if (list != null && from >= 0 && rowHeight > 0) {
+                                                // 越过半行就与邻居换位，并把累计位移减掉一行 —— 位置看起来才是连续的
+                                                if (dragOffset > rowHeight / 2f && from < list.lastIndex && !list[from + 1].isSystem) {
+                                                    dragOrder = list.toMutableList().apply { add(from + 1, removeAt(from)) }
+                                                    dragOffset -= rowHeight
+                                                } else if (dragOffset < -rowHeight / 2f && from > 0 && !list[from - 1].isSystem) {
+                                                    dragOrder = list.toMutableList().apply { add(from - 1, removeAt(from)) }
+                                                    dragOffset += rowHeight
+                                                }
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            // 松手按最终顺序一次性落库；没换过位也提交一次，代价一条事务
+                                            dragOrder?.let { viewModel.commitPlaylistOrder(it.map { p -> p.id }) }
+                                            draggingId = null
+                                            dragOrder = null
+                                            dragOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingId = null
+                                            dragOrder = null
+                                            dragOffset = 0f
+                                        },
+                                    )
+                                },
                             onOpen = { viewModel.open(playlist.id) },
                             onDelete = { viewModel.delete(playlist.id) },
                             onRename = {
@@ -276,9 +367,21 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 }
             }
         } else {
-            // 详情层：返回块 + 标题 + 计数
+            // 详情层：返回块 + 封面 + 标题 + 计数（头图对应 MAUI `PlaylistDetailPage.xaml:117`）
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BackTile(onBack = { viewModel.close() }, description = stringResource(R.string.GoBack))
+                val openCover = covers[open.id]
+                CoverTile(
+                    coverArtPath = openCover?.coverArtPath,
+                    audioPath = openCover?.filePath,
+                    maxPx = 128,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(palette.primary).copy(alpha = 0.22f)),
+                ) {
+                    Text(text = open.name.take(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
+                }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = open.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(text = stringResource(R.string.playlist_count, shown.size), fontSize = 12.sp, color = secondary)
@@ -345,7 +448,9 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             ) {
                 SongSortKey.entries.forEach { mode ->
                     GlassChip(
-                        label = stringResource(sortLabelRes(mode)),
+                        // 活动那档带方向箭头：点它就是翻方向（与全部歌曲页同一套交互）
+                        label = stringResource(sortLabelRes(mode)) +
+                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
                         selected = itemSort == mode,
                         onClick = { viewModel.setItemSort(mode) },
                     )
@@ -417,15 +522,19 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
 @Composable
 private fun PlaylistCard(
     playlist: PlaylistEntity,
+    /** 歌单内第一首的封面来源（没有曲就是 null），MAUI `PlaylistPage.xaml:132-144` 那张缩略图 */
+    cover: PlaylistCover?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
+    /** 拖拽排序要在这张卡最外层挂手势与位移（见调用处），所以由调用方给 */
+    modifier: Modifier = Modifier,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp)
             .glassCard(palette = palette, corner = 22)
@@ -434,7 +543,11 @@ private fun PlaylistCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
+        // 取不到图就退回原来的首字 / 系统图标方块（CoverTile 的 fallback）
+        CoverTile(
+            coverArtPath = cover?.coverArtPath,
+            audioPath = cover?.filePath,
+            maxPx = 128,
             modifier = Modifier
                 .size(46.dp)
                 .clip(RoundedCornerShape(14.dp))
@@ -442,7 +555,6 @@ private fun PlaylistCard(
                     if (playlist.isSystem) Color(palette.primary).copy(alpha = 0.22f)
                     else Color(palette.textPrimary).copy(alpha = 0.12f),
                 ),
-            contentAlignment = Alignment.Center,
         ) {
             if (playlist.isSystem) {
                 Icon(

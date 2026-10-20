@@ -53,12 +53,36 @@ object AppLog {
     private fun withError(message: String, error: Throwable?): String =
         if (error == null) message else "$message: ${error.javaClass.simpleName} ${error.message}"
 
+    /**
+     * 最近若干条日志的内存环形缓冲 —— 对应 C# 的「崩溃前日志轨迹」。
+     *
+     * **不受落盘开关影响**：落盘默认是关的，而崩溃恰恰最需要「崩溃前那几行」；
+     * 只占内存、不写盘，所以可以一直开着。崩溃报告由 [CrashReportRules] 取它。
+     */
+    private val ring = ArrayDeque<String>()
+
+    /** 缓冲上限。200 行足够覆盖一次崩溃前的上下文，又不至于让每次日志都复制一大段 */
+    const val RING_CAPACITY = 200
+
+    /** 取缓冲里的最近 [limit] 条（旧→新）。崩溃处理器可能在任意线程调用，所以这里加锁取快照 */
+    fun recentLines(limit: Int = RING_CAPACITY): List<String> = synchronized(ring) {
+        if (limit >= ring.size) ring.toList() else ring.toList().takeLast(limit)
+    }
+
     private fun emit(level: LogLevel, tag: String, message: String) {
-        val target = sink ?: return
-        if (!target.enabled) return
         // 时间戳在门面这里生成：一条日志的时间是"它被写出的那一刻"，
         // 落到哪个 sink、被谁格式化都不该改变它
-        runCatching { target.write(level, clock(), tag, DiagnosticLogRules.redact(message)) }
+        val stamp = runCatching { clock() }.getOrDefault("")
+        val safe = runCatching { DiagnosticLogRules.redact(message) }.getOrDefault(message)
+        runCatching { DiagnosticLogRules.format(stamp, level, tag, safe) }.getOrNull()?.let { line ->
+            synchronized(ring) {
+                ring.addLast(line)
+                while (ring.size > RING_CAPACITY) ring.removeFirst()
+            }
+        }
+        val target = sink ?: return
+        if (!target.enabled) return
+        runCatching { target.write(level, stamp, tag, safe) }
     }
 
     /** 测试里换掉它就不用依赖真实时钟 */
