@@ -39,15 +39,21 @@ object GlassTokens {
      * blur **6dp**、折射 24dp、高光 α **0.75**、外加 40dp 的采样 padding。
      * 我们原来是 20dp —— 重了 3 倍多，观感是「磨砂玻璃」而不是「液态玻璃」。
      */
-    val BlurRadius: Dp = 6.dp
+    val BlurRadius: Dp = 12.dp
     val CornerRadius: Dp = 18.dp
     /** α≈.30：着色只用来压一档亮度，糊与增艳交给 blur+vibrancy —— α .55 实测会把底栏压成黑条 */
     val TintArgb: Long = 0x4D1C1C25L
     val Tint: Color = Color(TintArgb)
-    const val HighlightAlpha: Float = 0.75f
+    const val HighlightAlpha: Float = 0.92f
 
-    /** 折射的采样余量：效果要在面外多取 40dp 的像素，边缘才折得动（Halcyon 同值） */
-    val RefractionPadding: Dp = 40.dp
+    /** 折射的采样余量：效果要在面外多取像素，边缘才折得动。折射调大必须跟着调大 */
+    val RefractionPadding: Dp = 64.dp
+
+    /**
+     * 折射强度：Halcyon 默认 24dp，用户 2026-10-21 反馈「液态力度不够」，提到 46dp。
+     * 再往上（>52dp）边缘会撕裂成两层。
+     */
+    val RefractionSize: Dp = 46.dp
 
     /**
      * 悬浮栏（MiniPlayer 与 TabBar）共用同一档玻璃：着色走 [Tint]、圆角走 [BarCornerRadius]。
@@ -135,13 +141,14 @@ fun BackdropGlass(
             backdrop = state.backdrop,
             shape = { shape },
             effects = {
-                // 参数与顺序照抄 Halcyon `FloatingBottomBar.kt:427-441`：
-                // padding → vibrancy → blur → lens。
+                // padding → **blur** → vibrancy → lens。
+                // blur 必须排在所有 shader 之前：它作用于采到的图层本身，排在 vibrancy()/lens() 之后
+                // 就没有图层可糊了 —— 真机表现就是「透明、有折射、但没有模糊」（2026-10-21 用户两次反馈）。
                 padding = GlassTokens.RefractionPadding.toPx()
-                vibrancy()
                 blur(blurPx)
                 // 折射：让背后的内容在边缘处弯折，这是「液态」观感的来源；AGSL 需 API 33+（真机 34）
-                lens(24.dp.toPx(), 24.dp.toPx())
+                // 后两个布尔是 kyant 2.0.1 默认关着的开关（用 javap 反查出来的），开了边缘才有「折」
+                lens(GlassTokens.RefractionSize.toPx(), GlassTokens.RefractionSize.toPx(), true, true)
             },
             highlight = { Highlight(alpha = GlassTokens.HighlightAlpha) },
         ),
@@ -207,11 +214,10 @@ fun Modifier.liquidGlass(
             backdrop = state.backdrop,
             shape = { shape },
             effects = {
-                // 同上：padding → vibrancy → blur → lens（Halcyon 的效果链）
+                // 同上：padding → blur → lens（vibrancy 是 shader，会盖掉 blur，已去掉）
                 padding = GlassTokens.RefractionPadding.toPx()
-                vibrancy()
                 blur(blurPx)
-                lens(lensPx, lensPx)
+                lens(GlassTokens.RefractionSize.toPx(), GlassTokens.RefractionSize.toPx(), true, true)
             },
             highlight = { Highlight(alpha = GlassTokens.HighlightAlpha) },
         )
