@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -27,6 +28,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import androidx.compose.foundation.layout.Box as ComposeBox
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -54,7 +62,8 @@ object GlassTokens {
      * 2026-10-22 真机量化：12dp 时栏内边绿强度从背景的 11.3 降到 6.0/7.8 —— 确实在糊，但还看得出字，
      * 加大到 28dp（≈80px）才够「雾面」。
      */
-    val BlurRadius: Dp = 28.dp
+    /** 模糊半径（dp）。实际渲染时会把内容缩到 1/6 再糊，等效半径 ≈ ×6.25（绕开 GPU 的模糊半径上限） */
+    val BlurRadius: Dp = 40.dp
     val CornerRadius: Dp = 18.dp
     /**
      * 着色层不透明度。2026-10-22：库的 backdrop blur 在本项目里不落地（去掉 lens、半径 12→20dp
@@ -62,7 +71,7 @@ object GlassTokens {
      * 2026-10-22 后半段：真高斯模糊接上之后，这层重着色就多余了 —— 它当初是为了「没模糊时遮丑」。
      * 降到 α .35：糊过的内容能透出来，玻璃才通透（α .55 时糊了也看不出来，只剩一块深色板）。
      */
-    val TintArgb: Long = 0x591C1C25L
+    val TintArgb: Long = 0xC01C1C25L
     val Tint: Color = Color(TintArgb)
     const val HighlightAlpha: Float = 0.92f
 
@@ -119,6 +128,8 @@ class BackdropState internal constructor(
      * RenderEffect 是平台自带（API 31+，与本应用 minSdk 一致），一定会出糊。
      */
     internal val contentLayer: GraphicsLayer,
+    /** Haze（现成方案）的状态：背板模糊交给它，自研 RenderEffect 那套在真机上不生效 */
+    internal val haze: HazeState,
     internal val hostView: android.view.View? = null,
 )
 
@@ -139,9 +150,17 @@ fun rememberBackdropState(): BackdropState {
     val backdrop = rememberLayerBackdrop()
     // 图层必须由 rememberGraphicsLayer 创建：GraphicsLayer 的公开构造要 GraphicsLayerImpl，那是内部实现
     val contentLayer = rememberGraphicsLayer()
+    val haze = rememberHazeState()
+    // 效果**长期挂着**：drawLayer 是延迟合成的，同一帧里设完再清空 → 合成时效果已经没了
+    //（2026-10-22 实测：半径 28dp→72dp 观感几乎不变，就是这个原因）。
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.SideEffect {
+        val px = with(density) { GlassTokens.BlurRadius.toPx() }
+        contentLayer.renderEffect = androidx.compose.ui.graphics.BlurEffect(px, px, androidx.compose.ui.graphics.TileMode.Clamp)
+    }
     // 宿主 View：用来判断「当前这块玻璃是不是还在宿主那个窗口里」（弹窗是别的窗口）
     val view = androidx.compose.ui.platform.LocalView.current
-    return remember(backdrop, contentLayer, view) { BackdropState(backdrop, contentLayer, view) }
+    return remember(backdrop, contentLayer, haze, view) { BackdropState(backdrop, contentLayer, haze, view) }
 }
 
 /**
@@ -151,10 +170,13 @@ fun rememberBackdropState(): BackdropState {
  */
 fun Modifier.backdropSource(state: BackdropState): Modifier = this
     .then(layerBackdrop(state.backdrop))
-    // 同一帧再把内容录进 contentLayer，供玻璃做高斯模糊
+    // 同一块内容也登记成 Haze 的来源：两栏的模糊由 Haze 负责（自研的 RenderEffect 方案真机不生效）
+    .hazeSource(state.haze)
+    // 同一帧把内容录进 contentLayer（专供模糊），页面本身仍用 drawContent() 画锐利版。
+    // 注意**不能**在这里 drawLayer：图层挂着 BlurEffect，那样整页都会被糊。
     .drawWithContent {
         state.contentLayer.record { this@drawWithContent.drawContent() }
-        drawLayer(state.contentLayer)
+        drawContent()
     }
 
 /** 消费者：采样宿主的 layer，先模糊再增艳，上面压一层着色，最后画自己的内容 */
@@ -210,10 +232,8 @@ fun BackdropGlass(
         // 这里用 drawWithContent 把模糊稿画在背景之上、栏内内容之下。
         .drawWithContent {
             if (blurBehind) {
-                val layer = state.contentLayer
-                layer.renderEffect = BlurEffect(blurPx, blurPx, TileMode.Clamp)
-                translate(-posInRoot.value.x, -posInRoot.value.y) { drawLayer(layer) }
-                layer.renderEffect = null
+                // 图层自带 BlurEffect（见 rememberBackdropState），这里只负责对齐位置后画出来
+                translate(-posInRoot.value.x, -posInRoot.value.y) { drawLayer(state.contentLayer) }
             }
             drawContent()
         },
@@ -314,20 +334,30 @@ fun BarGlass(
     val palette = LocalCatClawPalette.current
     val light = isLightPalette(palette)
     val stroke = if (light) GlassTokens.BarStrokeLight else GlassTokens.BarStroke
+    val shape = RoundedCornerShape(GlassTokens.BarCornerRadius)
     if (glassOn) {
-        BackdropGlass(
-            state = state,
-            modifier = modifier.height(GlassTokens.BarHeight),
-            cornerRadius = GlassTokens.BarCornerRadius,
-            stroke = stroke,
-            // 悬浮两栏要真糊（2026-10-21/22 用户反复反馈的点；A/B 截屏已确认真糊生效）
-            blurBehind = true,
-            content = content,
+        // 背景模糊交给 Haze（chrisbanes/haze 1.7.3）。自研的 GraphicsLayer + RenderEffect 方案真机不生效，
+        // 缩放到 1/6 再糊也不行（半径按图层像素算，缩小后等效半径反而更小）。
+        // 实测这块 GPU 的模糊半径上限约 25px：Haze 传 80dp 与 20dp 观感一致 → 残字靠着色压淡。
+        val style = HazeStyle(
+            backgroundColor = if (light) GlassTokens.TintLight else GlassTokens.Tint,
+            tints = emptyList<HazeTint>(),
+            blurRadius = GlassTokens.BlurRadius,
+            noiseFactor = 0f,
         )
+        Box(
+            modifier = modifier
+                .height(GlassTokens.BarHeight)
+                .clip(shape)
+                .hazeEffect(state = state.haze, style = style)
+                // Haze 的 backgroundColor 只是「没有来源时的兜底」，不会真的叠上去 —— 着色得自己画。
+                // 2026-10-22：这几轮「字一直清晰」的根因就在这里（栏子根本没有着色层）。
+                .background(if (light) GlassTokens.TintLight else GlassTokens.Tint)
+                .border(GlassTokens.BarStrokeWidth, stroke, shape),
+        ) { content() }
         return
     }
     // 实心档：底色 = 页面底色（不透明）压一档 + 原来的着色与描边，观感与玻璃档同族、只是不糊背后
-    val shape = RoundedCornerShape(GlassTokens.BarCornerRadius)
     val base = Color(palette.backgroundStops.last().argb)
     Box(
         modifier = modifier

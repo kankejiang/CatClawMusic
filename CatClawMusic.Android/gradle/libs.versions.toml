@@ -16,6 +16,8 @@ junit = "4.13.2"
 room = "2.8.5"
 okhttp = "5.5.0"
 smbj = "0.14.0"
+# 背景模糊的现成方案（chrisbanes/haze）。1.7.3 是经典 hazeSource/hazeEffect API 的最后一版
+haze = "1.7.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +42,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
 # 液态玻璃（定档=推荐档）：宿主 layerBackdrop 录内容、消费者 drawBackdrop 采样，帧同步由库负责
 backdrop = "io.github.kyant0:backdrop:2.0.1"
+haze-android = { group = "dev.chrisbanes.haze", name = "haze-android", version.ref = "haze" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
