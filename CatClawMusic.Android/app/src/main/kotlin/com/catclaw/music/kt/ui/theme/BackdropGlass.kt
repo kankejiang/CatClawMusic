@@ -41,8 +41,13 @@ object GlassTokens {
      */
     val BlurRadius: Dp = 12.dp
     val CornerRadius: Dp = 18.dp
-    /** α≈.30：着色只用来压一档亮度，糊与增艳交给 blur+vibrancy —— α .55 实测会把底栏压成黑条 */
-    val TintArgb: Long = 0x4D1C1C25L
+    /**
+     * 着色层不透明度。2026-10-22：库的 backdrop blur 在本项目里不落地（去掉 lens、半径 12→20dp
+     * 都实测完全不糊；这版 Compose 又没有 rememberGraphicsLayer 可供手工高斯模糊），
+     * 于是「雾面」只能由着色来承担 —— 取回 MAUI `BlurConsumerView.TintColor` 的 α .55。
+     * 观感是半透墨蓝雾面：背后内容看得见但被压住，是「雾面玻璃」而非「透明玻璃」。
+     */
+    val TintArgb: Long = 0x8C1C1C25L
     val Tint: Color = Color(TintArgb)
     const val HighlightAlpha: Float = 0.92f
 
