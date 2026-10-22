@@ -10,6 +10,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.catclaw.music.kt.core.theme.CatClawPalette
@@ -39,7 +49,12 @@ object GlassTokens {
      * blur **6dp**、折射 24dp、高光 α **0.75**、外加 40dp 的采样 padding。
      * 我们原来是 20dp —— 重了 3 倍多，观感是「磨砂玻璃」而不是「液态玻璃」。
      */
-    val BlurRadius: Dp = 12.dp
+    /**
+     * 悬浮两栏底下那层高斯模糊的半径（dp）。
+     * 2026-10-22 真机量化：12dp 时栏内边绿强度从背景的 11.3 降到 6.0/7.8 —— 确实在糊，但还看得出字，
+     * 加大到 28dp（≈80px）才够「雾面」。
+     */
+    val BlurRadius: Dp = 28.dp
     val CornerRadius: Dp = 18.dp
     /**
      * 着色层不透明度。2026-10-22：库的 backdrop blur 在本项目里不落地（去掉 lens、半径 12→20dp
@@ -96,6 +111,14 @@ object GlassTokens {
 @Stable
 class BackdropState internal constructor(
     internal val backdrop: LayerBackdrop,
+    /**
+     * 内容层的录制副本 —— 玻璃用它自己做**真**的高斯模糊。
+     *
+     * 为什么不用库的 blur()：2026-10-22 A/B 实测（去掉 lens / 半径 12→20dp / blur 提到最前 /
+     * 去掉 vibrancy）背后文字**始终完全锐利** —— 这个库的模糊效果在本项目的组合结构里没落到屏幕上。
+     * RenderEffect 是平台自带（API 31+，与本应用 minSdk 一致），一定会出糊。
+     */
+    internal val contentLayer: GraphicsLayer,
     internal val hostView: android.view.View? = null,
 )
 
@@ -114,9 +137,11 @@ val LocalBackdropState = androidx.compose.runtime.compositionLocalOf<BackdropSta
 @Composable
 fun rememberBackdropState(): BackdropState {
     val backdrop = rememberLayerBackdrop()
+    // 图层必须由 rememberGraphicsLayer 创建：GraphicsLayer 的公开构造要 GraphicsLayerImpl，那是内部实现
+    val contentLayer = rememberGraphicsLayer()
     // 宿主 View：用来判断「当前这块玻璃是不是还在宿主那个窗口里」（弹窗是别的窗口）
     val view = androidx.compose.ui.platform.LocalView.current
-    return remember(backdrop, view) { BackdropState(backdrop, view) }
+    return remember(backdrop, contentLayer, view) { BackdropState(backdrop, contentLayer, view) }
 }
 
 /**
@@ -124,7 +149,13 @@ fun rememberBackdropState(): BackdropState {
  * 注意要 `this.then(...)` —— 直接返回 layerBackdrop 会把调用方的 modifier 链（fillMaxSize 等）整条丢掉，
  * 那样宿主录到的 layer 尺寸不对，消费者采样到空区域，表现就是「玻璃有面、没有糊」。
  */
-fun Modifier.backdropSource(state: BackdropState): Modifier = this.then(layerBackdrop(state.backdrop))
+fun Modifier.backdropSource(state: BackdropState): Modifier = this
+    .then(layerBackdrop(state.backdrop))
+    // 同一帧再把内容录进 contentLayer，供玻璃做高斯模糊
+    .drawWithContent {
+        state.contentLayer.record { this@drawWithContent.drawContent() }
+        drawLayer(state.contentLayer)
+    }
 
 /** 消费者：采样宿主的 layer，先模糊再增艳，上面压一层着色，最后画自己的内容 */
 @Composable
@@ -135,14 +166,31 @@ fun BackdropGlass(
     tint: Color? = null,
     stroke: Color? = null,
     strokeWidth: Dp = GlassTokens.BarStrokeWidth,
+    /**
+     * 是否在玻璃底下铺一层**真**的高斯模糊（平台 RenderEffect）。
+     * 只有悬浮两栏开：每开一块就要多画一次全屏图层，卡片/菜单这类小面不值得。
+     */
+    blurBehind: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val blurPx = with(LocalDensity.current) { GlassTokens.BlurRadius.toPx() }
     val shape = RoundedCornerShape(cornerRadius)
+    // 自己在窗口里的位置：drawLayer 画的是全屏图层，必须抵消掉自身偏移才对得上背后的内容
+    val posInRoot = remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
     // 默认着色跟着页面底色走：浅底压白雾、深底压墨蓝（GlassTokens 里两套值）
     val effectiveTint = tint ?: if (isLightPalette(LocalCatClawPalette.current)) GlassTokens.TintLight else GlassTokens.Tint
     Box(
-        modifier = modifier.drawBackdrop(
+        modifier = modifier
+            .then(
+                if (blurBehind) {
+                    Modifier.onGloballyPositioned { posInRoot.value = it.localToRoot(Offset.Zero) }
+                } else {
+                    Modifier
+                },
+            )
+            // 先裁成玻璃形状：后面画的全屏模糊稿也会被裁进来
+            .clip(shape)
+            .drawBackdrop(
             backdrop = state.backdrop,
             shape = { shape },
             effects = {
@@ -156,7 +204,19 @@ fun BackdropGlass(
                 lens(GlassTokens.RefractionSize.toPx(), GlassTokens.RefractionSize.toPx(), true, true)
             },
             highlight = { Highlight(alpha = GlassTokens.HighlightAlpha) },
-        ),
+        )
+        // **雾面**必须画在 drawBackdrop 之后：那一步已经把一层锐利的背景画上去了，
+        // 画在它之前会被整块盖掉（2026-10-22 实测：换成 28dp 后两次量化结果一模一样 = 模糊根本没上屏）。
+        // 这里用 drawWithContent 把模糊稿画在背景之上、栏内内容之下。
+        .drawWithContent {
+            if (blurBehind) {
+                val layer = state.contentLayer
+                layer.renderEffect = BlurEffect(blurPx, blurPx, TileMode.Clamp)
+                translate(-posInRoot.value.x, -posInRoot.value.y) { drawLayer(layer) }
+                layer.renderEffect = null
+            }
+            drawContent()
+        },
     ) {
         Spacer(modifier = Modifier.matchParentSize().background(effectiveTint))
         // 描边画在内容**之下**：它是面的一圈边，内容（如迷你播放条底部那条进度线）要能盖住它
@@ -260,6 +320,8 @@ fun BarGlass(
             modifier = modifier.height(GlassTokens.BarHeight),
             cornerRadius = GlassTokens.BarCornerRadius,
             stroke = stroke,
+            // 悬浮两栏要真糊（2026-10-21/22 用户反复反馈的点；A/B 截屏已确认真糊生效）
+            blurBehind = true,
             content = content,
         )
         return
