@@ -50,7 +50,20 @@ import com.kyant.backdrop.highlight.Highlight
  *
  * 玻璃本体不再自研：宿主 `layerBackdrop` 录制内容，消费者 `drawBackdrop` 采样并挂效果 ——
  * 帧同步/双缓冲是 `io.github.kyant0:backdrop` 负责的，我这边只留一组可调参数。
+ *
+ * 关于模糊：这块 GPU 的模糊半径上限约 25px（实测 20dp 与 80dp 观感完全一致），
+ * 所以内容层按 [DOWNSCALE] 降采样后再糊，放大回屏幕时等效半径 ×6。
  */
+
+/**
+ * 内容层录制时的缩小倍数。
+ *
+ * 这块 GPU 对上屏的模糊半径有上限（实测 20dp 与 80dp 观感完全一致，约 25px），
+ * 直接加大半径没有意义。把内容缩到 1/6 录制、在这张小图上用低于上限的半径糊，
+ * 再放大 6 倍画出来 —— 屏幕上的**等效半径约 138px**，字才会真的化开。
+ */
+private const val DOWNSCALE = 6f
+
 object GlassTokens {
     /**
      * 2026-10-21 照抄 Halcyon（`GlassEffect.kt:17 GlassEffect` 的默认档）：
@@ -71,7 +84,7 @@ object GlassTokens {
      * 2026-10-22 后半段：真高斯模糊接上之后，这层重着色就多余了 —— 它当初是为了「没模糊时遮丑」。
      * 降到 α .35：糊过的内容能透出来，玻璃才通透（α .55 时糊了也看不出来，只剩一块深色板）。
      */
-    val TintArgb: Long = 0xC01C1C25L
+    val TintArgb: Long = 0x591C1C25L
     val Tint: Color = Color(TintArgb)
     const val HighlightAlpha: Float = 0.92f
 
@@ -155,7 +168,8 @@ fun rememberBackdropState(): BackdropState {
     //（2026-10-22 实测：半径 28dp→72dp 观感几乎不变，就是这个原因）。
     val density = androidx.compose.ui.platform.LocalDensity.current
     androidx.compose.runtime.SideEffect {
-        val px = with(density) { GlassTokens.BlurRadius.toPx() }
+        // 小图上的半径：8dp ≈ 23px，低于这块 GPU 的 25px 上限；放大 6 倍后屏幕上约 138px
+        val px = with(density) { 8.dp.toPx() }
         contentLayer.renderEffect = androidx.compose.ui.graphics.BlurEffect(px, px, androidx.compose.ui.graphics.TileMode.Clamp)
     }
     // 宿主 View：用来判断「当前这块玻璃是不是还在宿主那个窗口里」（弹窗是别的窗口）
@@ -175,7 +189,16 @@ fun Modifier.backdropSource(state: BackdropState): Modifier = this
     // 同一帧把内容录进 contentLayer（专供模糊），页面本身仍用 drawContent() 画锐利版。
     // 注意**不能**在这里 drawLayer：图层挂着 BlurEffect，那样整页都会被糊。
     .drawWithContent {
-        state.contentLayer.record { this@drawWithContent.drawContent() }
+        // **降采样录制**：模糊要在小图上做（见 DOWNSCALE 注释），页面本身仍用 drawContent() 画锐利版。
+        val w = (size.width / DOWNSCALE).toInt().coerceAtLeast(1)
+        val h = (size.height / DOWNSCALE).toInt().coerceAtLeast(1)
+        state.contentLayer.record(
+            density = this,
+            layoutDirection = layoutDirection,
+            size = androidx.compose.ui.unit.IntSize(w, h),
+        ) {
+            scale(1f / DOWNSCALE, pivot = Offset.Zero) { this@drawWithContent.drawContent() }
+        }
         drawContent()
     }
 
@@ -336,22 +359,19 @@ fun BarGlass(
     val stroke = if (light) GlassTokens.BarStrokeLight else GlassTokens.BarStroke
     val shape = RoundedCornerShape(GlassTokens.BarCornerRadius)
     if (glassOn) {
-        // 背景模糊交给 Haze（chrisbanes/haze 1.7.3）。自研的 GraphicsLayer + RenderEffect 方案真机不生效，
-        // 缩放到 1/6 再糊也不行（半径按图层像素算，缩小后等效半径反而更小）。
-        // 实测这块 GPU 的模糊半径上限约 25px：Haze 传 80dp 与 20dp 观感一致 → 残字靠着色压淡。
-        val style = HazeStyle(
-            backgroundColor = if (light) GlassTokens.TintLight else GlassTokens.Tint,
-            tints = emptyList<HazeTint>(),
-            blurRadius = GlassTokens.BlurRadius,
-            noiseFactor = 0f,
-        )
+        // 画「已在 1/6 小图上糊过」的图层，再放大 6 倍 → 屏幕上的等效模糊约 138px（见 DOWNSCALE 注释）。
+        // 2026-10-22：不再用深色背景硬压（用户明确否掉），糊强度靠降采样拿到。
+        val pos = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
         Box(
             modifier = modifier
                 .height(GlassTokens.BarHeight)
                 .clip(shape)
-                .hazeEffect(state = state.haze, style = style)
-                // Haze 的 backgroundColor 只是「没有来源时的兜底」，不会真的叠上去 —— 着色得自己画。
-                // 2026-10-22：这几轮「字一直清晰」的根因就在这里（栏子根本没有着色层）。
+                .onGloballyPositioned { pos.value = it.localToRoot(Offset.Zero) }
+                .drawBehind {
+                    translate(-pos.value.x, -pos.value.y) {
+                        scale(DOWNSCALE, pivot = Offset.Zero) { drawLayer(state.contentLayer) }
+                    }
+                }
                 .background(if (light) GlassTokens.TintLight else GlassTokens.Tint)
                 .border(GlassTokens.BarStrokeWidth, stroke, shape),
         ) { content() }
