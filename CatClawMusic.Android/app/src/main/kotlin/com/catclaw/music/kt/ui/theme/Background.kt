@@ -100,6 +100,39 @@ fun Modifier.artworkWash(cover: Bitmap?): Modifier {
 }
 
 /**
+ * 发现 / 歌单 / 音乐库 三页的「动态封面背景」（2026-10-23 用户要求）。
+ *
+ * 做法：当前播放封面 AspectFill 铺满整屏 + 一层自上而下加深的主题色压暗。
+ * **故意不解大图、也不挂 blur**：封面按 160px 解码后放大到整屏，天然就是柔的，
+ * 既得到「封面虚化成背景」的观感，又省掉一次全屏 RenderEffect（这块 GPU 上很贵）。
+ * 压暗必须用主题底色而不是纯黑：浅色主题下纯黑压暗会把整页压成脏灰。
+ */
+@Composable
+fun Modifier.coverAuraBackground(cover: Bitmap?): Modifier {
+    if (cover == null) return this
+    val palette = LocalCatClawPalette.current
+    val scrim = Color(palette.backgroundStops.last().argb)
+    return drawBehind {
+        val scale = maxOf(size.width / cover.width, size.height / cover.height)
+        val w = cover.width * scale
+        val h = cover.height * scale
+        drawImage(
+            image = cover.asImageBitmap(),
+            dstOffset = IntOffset(((size.width - w) / 2f).roundToInt(), ((size.height - h) / 2f).roundToInt()),
+            dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+        )
+        // 压暗：顶部留一点封面颜色，越往下越实，保证列表文字可读
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to scrim.copy(alpha = 0.42f),
+                0.45f to scrim.copy(alpha = 0.72f),
+                1f to scrim.copy(alpha = 0.90f),
+            ),
+        )
+    }
+}
+
+/**
  * 网易云「一起听」那套：封面原图**全宽、清晰**地占满上半屏（顶对齐 AspectFill），
  * 下缘一段雾化渐隐融进取自封面均色的底色，下半屏就是这块干净的纯色——没有方块、没有毛玻璃。
  * 取不到封面时调用方应退回 [artworkWash]。
