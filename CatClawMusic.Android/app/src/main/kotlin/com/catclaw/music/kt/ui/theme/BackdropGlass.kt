@@ -110,7 +110,11 @@ object GlassTokens {
      * MAUI 原值是 `BlurConsumerView.TintColor Dark=#8C1C1C25`（α .55），2026-09-28 用户要求两栏观感一致，
      * 所以播放条不再单独压深 —— 保留 token 位置，想回到 MAUI 那档只改这一处。
      */
-    val BarCornerRadius: Dp = 16.dp
+    /**
+     * 两栏的大圆角（2026-10-23 用户要求「加上大圆角」）：16dp 太方正，提到 30dp ——
+     * 栏高 64dp，30dp 已经接近胶囊，但还留一点「方」的感觉，不是纯药丸。
+     */
+    val BarCornerRadius: Dp = 30.dp
 
     /** 两栏共用同一档尺寸：迷你播放条不再比底栏高（2026-09-28 用户要求大小完全一致） */
     val BarHeight: Dp = 64.dp

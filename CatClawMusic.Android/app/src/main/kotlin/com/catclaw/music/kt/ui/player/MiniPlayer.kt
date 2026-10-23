@@ -86,7 +86,8 @@ fun MiniPlayer(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(GlassTokens.BarCornerRadius))
                     .clickable(onClickLabel = stringResource(R.string.mini_player_open), onClick = onOpen)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    // 18dp：圆角从 16 提到 30 之后，12dp 的内边距会让封面被圆角切到
+                    .padding(start = 18.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
