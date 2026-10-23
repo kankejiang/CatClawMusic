@@ -1,6 +1,13 @@
 package com.catclaw.music.kt.ui.player
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.Image
@@ -85,6 +92,23 @@ fun MiniPlayer(
 ) {
     val palette = LocalCatClawPalette.current
 
+    // 封面当唱片转：播放时匀速旋转，暂停时**停在当前角度**（不是归零，否则会有跳回感）。
+    // 12 秒一圈 —— 比真唱片慢一点，浏览时不抢注意力。
+    val spin = remember { Animatable(0f) }
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            spin.animateTo(
+                targetValue = spin.value + 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 12000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart,
+                ),
+            )
+        } else {
+            spin.stop()
+        }
+    }
+
     BarGlass(state = backdrop, modifier = modifier, glassOn = glassOn) {
         Column(
             modifier = Modifier
@@ -105,9 +129,9 @@ fun MiniPlayer(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        // 10dp 圆角压在 36dp 的块上已经接近圆角胶囊，和播放页那颗「小圆角 + 重投影」的封面
-                        // 不是一种形状；按同一形状语言收到 7dp（等比换算是 1.7dp，小到读不出来，取能看圆的下限）
-                        .clip(RoundedCornerShape(7.dp))
+                        // 圆形 + 旋转（2026-10-23 用户要求）：当成一张转动的唱片，播放时随音乐转
+                        .graphicsLayer { rotationZ = spin.value }
+                        .clip(CircleShape)
                         .background(Color(palette.primary)),
                     contentAlignment = Alignment.Center,
                 ) {
