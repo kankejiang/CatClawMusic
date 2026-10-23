@@ -82,6 +82,15 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.LocalCustomBackground
 import com.catclaw.music.kt.ui.theme.ThemeViewModel
 import com.catclaw.music.kt.ui.theme.catClawBackground
+import com.catclaw.music.kt.ui.theme.FrostedFlowBackground
+import com.catclaw.music.kt.ui.theme.rememberArtworkTint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.catclaw.music.kt.ui.theme.isLightPalette
+import com.catclaw.music.kt.core.theme.CoverFlowProcessor
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.toArgb
+import android.graphics.Bitmap
 import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.theme.coverAuraBackground
 import kotlinx.coroutines.launch
@@ -300,24 +309,47 @@ private fun TabsHost(
                 // 原来这一层录的是整页内容，而滑动 / 歌词逐字动画每帧都在变 → 每帧重录一整屏：
                 // A/B 摘掉录制层实测 470→589 帧/20s、jank 48%→27%。背景是静的（渐变 + 光晕 + 自定义图），
                 // 录一次就够；内容层改当它的**兄弟**（下面那个 Box）画在上面，图层不再随动画重录。
-                // 发现 / 歌单 / 音乐库（pageIndex >= 2）铺当前封面当动态背景；播放页与歌词页不用（它们有自己的）
+                // 发现 / 歌单 / 音乐库（pageIndex >= 2）直接用**全屏歌词页那套动态背景**
+                // （FrostedFlowBackground：流光 + 封面流模式）。播放页与歌词页不用，它们各自已有。
                 val coverAura = rememberCover(
                     coverArtPath = playState.currentSong?.coverArtPath,
                     audioPath = playState.currentSong?.filePath,
-                    maxPx = 160,
+                    maxPx = 256,
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .catClawBackground()
-                        .then(
-                            if (pagerState.settledPage >= 2) {
-                                Modifier.coverAuraBackground(coverAura)
+                val coverFlowSource by produceState<CoverFlowProcessor.CoverSource?>(null, coverAura) {
+                    value = withContext(Dispatchers.Default) {
+                        coverAura?.let { bmp ->
+                            val side = maxOf(bmp.width, bmp.height)
+                            val scaled = if (side > CoverFlowProcessor.SOURCE_MAX_DIM) {
+                                val k = CoverFlowProcessor.SOURCE_MAX_DIM.toFloat() / side
+                                Bitmap.createScaledBitmap(
+                                    bmp,
+                                    (bmp.width * k).toInt().coerceAtLeast(1),
+                                    (bmp.height * k).toInt().coerceAtLeast(1),
+                                    true,
+                                )
                             } else {
-                                Modifier
-                            },
-                        ),
-                )
+                                bmp
+                            }
+                            val px = IntArray(scaled.width * scaled.height)
+                            scaled.getPixels(px, 0, scaled.width, 0, 0, scaled.width, scaled.height)
+                            CoverFlowProcessor.scaleSource(px, scaled.width, scaled.height)
+                        }
+                    }
+                }
+                Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
+                    if (pagerState.settledPage >= 2) {
+                        FrostedFlowBackground(
+                            isActive = playState.isPlaying,
+                            isScrolling = false,
+                            tint = rememberArtworkTint(coverAura),
+                            modifier = Modifier.fillMaxSize(),
+                            isDark = !isLightPalette(palette),
+                            coverSource = coverFlowSource,
+                            accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
+                        )
+                    }
+                }
             }
             // 内容层 = **录制层**。这正是 Halcyon 的挂法：`EllaAppScreen.kt:1012` 把
             // `Modifier.layerMiuixBackdrop(backdrop)` 挂在**包住内容**的 Box 上，
