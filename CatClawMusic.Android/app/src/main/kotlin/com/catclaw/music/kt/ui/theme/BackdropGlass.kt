@@ -92,7 +92,7 @@ object GlassTokens {
      * 2026-10-22 后半段：真高斯模糊接上之后，这层重着色就多余了 —— 它当初是为了「没模糊时遮丑」。
      * 降到 α .35：糊过的内容能透出来，玻璃才通透（α .55 时糊了也看不出来，只剩一块深色板）。
      */
-    val TintArgb: Long = 0x591C1C25L
+    val TintArgb: Long = 0x731C1C25L
     val Tint: Color = Color(TintArgb)
     const val HighlightAlpha: Float = 0.92f
 
@@ -382,7 +382,7 @@ fun BarGlass(
                     shape = { shape },
                     effects = {
                         padding = GlassTokens.RefractionPadding.toPx()
-                        halcyonVibrancy()
+                        // vibrancy 是「提亮 + 增艳」：Halcyon 用在小药丸上没事，我们用整条宽栏会大面积泛白
                         miuixBlur(4.dp.toPx(), 4.dp.toPx())
                         halcyonLens(
                             refractionHeight = 24.dp.toPx(),
@@ -391,7 +391,8 @@ fun BarGlass(
                             chromaticAberration = 0.2f,
                         )
                     },
-                    highlight = { MiuixHighlight(alpha = 0.75f) },
+                    // 高光同样按「宽栏」下调：Halcyon 0.75 是给窄药丸的，整条栏上会糊成一片白
+                    highlight = { MiuixHighlight(alpha = 0.35f) },
                     // 没有它 = 黑板（上次的坑）。着色由它画，别再额外 background()
                     onDrawSurface = { drawRect(container) },
                 )
