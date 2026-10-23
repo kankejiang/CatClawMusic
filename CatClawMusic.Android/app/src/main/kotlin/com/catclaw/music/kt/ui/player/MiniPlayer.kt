@@ -127,22 +127,22 @@ fun MiniPlayer(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(GlassTokens.BarCornerRadius))
                     .clickable(onClickLabel = stringResource(R.string.mini_player_open), onClick = onOpen)
-                    // 18dp：圆角从 16 提到 30 之后，12dp 的内边距会让封面被圆角切到
-                    .padding(start = 18.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    // 10dp：用户要求「尽量靠左」。封面是圆形，最左侧落在垂直中线上，不会被 30dp 圆角切到
+                    .padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
-                        // 36 → 42dp（2026-10-23 用户觉得太小）：栏高 64dp，42 是还能留出内边距的上限
-                        .size(42.dp)
+                        // 36 → 42 → 52dp（2026-10-23 用户连续两次嫌小）：栏高 64dp，52 时上下各留 6dp 刚好
+                        .size(52.dp)
                         // 圆形 + 旋转（2026-10-23 用户要求）：当成一张转动的唱片，播放时随音乐转
                         .graphicsLayer { rotationZ = spin.value }
                         .clip(CircleShape)
                         .background(Color(palette.primary)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 128)
+                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 192)
                     if (cover != null) {
                         Image(
                             bitmap = cover.asImageBitmap(),
