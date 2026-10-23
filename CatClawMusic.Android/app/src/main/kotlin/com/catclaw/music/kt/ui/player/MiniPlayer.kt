@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +65,12 @@ fun MiniPlayer(
      */
     progress: () -> Float,
     backdrop: BackdropState,
+    /**
+     * 当前演唱到的那句歌词（空串 = 没歌词，显示区域自然收窄）。
+     *
+     * 2026-10-23 用户要求在「标题右侧的空白」显示歌词 —— 那里正好是 Row 里 weight 剩下的空间。
+     */
+    lyric: String = "",
     modifier: Modifier = Modifier,
     /** 动画进行中传 false（玻璃切实心）——理由见 `BarGlass` 的注释 */
     glassOn: Boolean = true,
@@ -115,7 +122,11 @@ fun MiniPlayer(
                         VinylCover(modifier = Modifier.matchParentSize(), primary = Color(palette.primary))
                     }
                 }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                // fill = false：只在需要时占位，剩下的宽度让给歌词
+                Column(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
                     Text(
                         text = song.title,
                         fontSize = 13.sp,
@@ -130,6 +141,17 @@ fun MiniPlayer(
                         color = Color(palette.textSecondary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (lyric.isNotEmpty()) {
+                    Text(
+                        text = lyric,
+                        fontSize = 11.sp,
+                        color = Color(palette.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1f).padding(start = 10.dp),
                     )
                 }
                 Icon(

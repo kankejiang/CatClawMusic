@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -386,6 +387,12 @@ private fun TabsHost(
                     lyricsViewModel.setPlayingLyricVisible(onPlayer || onLyrics)
                 }
             }
+            // 迷你条右侧的「当前句」：derivedStateOf 让重组只发生在**这一句变了**的时候，
+            // 而不是每帧（positionMs 每 16ms 一变，直接在组合期读会让整个外壳跟着重组）。
+            val lyricsState by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
+            val lyricLine by remember(lyricsState) {
+                derivedStateOf { lyricsState?.currentLineAt(positionMs) ?: "" }
+            }
             val glassOn = true
             val chromeVisible = !immersivePage && !chatOpen
             // 聊天模式下底栏让位（否则输入行被 TabBar 盖住），但**迷你条要留下** ——
@@ -425,6 +432,7 @@ private fun TabsHost(
                             ) {
                                 MiniPlayer(
                                     song = song,
+                                    lyric = lyricLine,
                                     isPlaying = playState.isPlaying,
                                     backdrop = backdrop,
                                     glassOn = glassOn,
@@ -504,3 +512,26 @@ private fun TabsHost(
     }
 }
 
+
+
+/**
+ * 当前该显示哪一句歌词：二分找「最后一个 startMs <= position 的行」。
+ * 返回空串 = 还没到第一句 / 没歌词（UI 那边据此把这块收窄，不占位）。
+ */
+private fun com.catclaw.music.kt.core.lyrics.Lyrics.currentLineAt(positionMs: Long): String {
+    val list = lines
+    if (list.isEmpty()) return ""
+    var lo = 0
+    var hi = list.lastIndex
+    var hit = -1
+    while (lo <= hi) {
+        val mid = (lo + hi) ushr 1
+        if (list[mid].startMs <= positionMs) {
+            hit = mid
+            lo = mid + 1
+        } else {
+            hi = mid - 1
+        }
+    }
+    return if (hit >= 0) list[hit].text.trim() else ""
+}
