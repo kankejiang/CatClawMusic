@@ -21,6 +21,14 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.onGloballyPositioned
+import top.yukonga.miuix.kmp.blur.LayerBackdrop as MiuixLayerBackdrop
+import top.yukonga.miuix.kmp.blur.blur as miuixBlur
+import top.yukonga.miuix.kmp.blur.drawBackdrop as miuixDrawBackdrop
+import top.yukonga.miuix.kmp.blur.highlight.Highlight as MiuixHighlight
+import top.yukonga.miuix.kmp.blur.layerBackdrop as miuixLayerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop as rememberMiuixLayerBackdrop
+import com.catclaw.music.kt.ui.theme.liquid.lens as halcyonLens
+import com.catclaw.music.kt.ui.theme.liquid.vibrancy as halcyonVibrancy
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.catclaw.music.kt.core.theme.CatClawPalette
@@ -143,6 +151,8 @@ class BackdropState internal constructor(
     internal val contentLayer: GraphicsLayer,
     /** Haze（现成方案）的状态：背板模糊交给它，自研 RenderEffect 那套在真机上不生效 */
     internal val haze: HazeState,
+    /** miuix 的录制层：两栏用 Halcyon 那套 drawBackdrop + liquid 效果（真机上唯一真的糊得动的方案） */
+    internal val miuixBackdrop: MiuixLayerBackdrop,
     internal val hostView: android.view.View? = null,
 )
 
@@ -164,17 +174,13 @@ fun rememberBackdropState(): BackdropState {
     // 图层必须由 rememberGraphicsLayer 创建：GraphicsLayer 的公开构造要 GraphicsLayerImpl，那是内部实现
     val contentLayer = rememberGraphicsLayer()
     val haze = rememberHazeState()
-    // 效果**长期挂着**：drawLayer 是延迟合成的，同一帧里设完再清空 → 合成时效果已经没了
-    //（2026-10-22 实测：半径 28dp→72dp 观感几乎不变，就是这个原因）。
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    androidx.compose.runtime.SideEffect {
-        // 小图上的半径：8dp ≈ 23px，低于这块 GPU 的 25px 上限；放大 6 倍后屏幕上约 138px
-        val px = with(density) { 8.dp.toPx() }
-        contentLayer.renderEffect = androidx.compose.ui.graphics.BlurEffect(px, px, androidx.compose.ui.graphics.TileMode.Clamp)
-    }
+    // miuix 的录制层：两栏走 Halcyon 那套（drawBackdrop + liquid 效果），这是真机唯一糊得动的路径
+    val miuixBackdrop = rememberMiuixLayerBackdrop()
     // 宿主 View：用来判断「当前这块玻璃是不是还在宿主那个窗口里」（弹窗是别的窗口）
     val view = androidx.compose.ui.platform.LocalView.current
-    return remember(backdrop, contentLayer, haze, view) { BackdropState(backdrop, contentLayer, haze, view) }
+    return remember(backdrop, contentLayer, haze, miuixBackdrop, view) {
+        BackdropState(backdrop, contentLayer, haze, miuixBackdrop, view)
+    }
 }
 
 /**
@@ -184,6 +190,8 @@ fun rememberBackdropState(): BackdropState {
  */
 fun Modifier.backdropSource(state: BackdropState): Modifier = this
     .then(layerBackdrop(state.backdrop))
+    // miuix 的录制（两栏用）：与 kyant 那份并行，互不影响
+    .then(miuixLayerBackdrop(state.miuixBackdrop))
     // 同一块内容也登记成 Haze 的来源：两栏的模糊由 Haze 负责（自研的 RenderEffect 方案真机不生效）
     .hazeSource(state.haze)
     // 同一帧把内容录进 contentLayer（专供模糊），页面本身仍用 drawContent() 画锐利版。
@@ -359,20 +367,34 @@ fun BarGlass(
     val stroke = if (light) GlassTokens.BarStrokeLight else GlassTokens.BarStroke
     val shape = RoundedCornerShape(GlassTokens.BarCornerRadius)
     if (glassOn) {
-        // 画「已在 1/6 小图上糊过」的图层，再放大 6 倍 → 屏幕上的等效模糊约 138px（见 DOWNSCALE 注释）。
-        // 2026-10-22：不再用深色背景硬压（用户明确否掉），糊强度靠降采样拿到。
-        val pos = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
+        // Halcyon `FloatingBottomBar.kt:424-500` 的挂法：miuix 的 drawBackdrop + 它自己那套 liquid 效果
+        // （vibrancy / blur / 带色散的 lens），参数照抄它的默认档。
+        //
+        // **2026-10-23 的关键修正**：上次接这套渲染成「黑板 + 一块绿」，原因是**没传 onDrawSurface** ——
+        // 那样 backdrop 什么都不画，只剩底部内容。这次按 Halcyon 的做法传 `onDrawSurface = { drawRect(着色) }`。
+        val container = if (light) GlassTokens.TintLight else GlassTokens.Tint
         Box(
             modifier = modifier
                 .height(GlassTokens.BarHeight)
                 .clip(shape)
-                .onGloballyPositioned { pos.value = it.localToRoot(Offset.Zero) }
-                .drawBehind {
-                    translate(-pos.value.x, -pos.value.y) {
-                        scale(DOWNSCALE, pivot = Offset.Zero) { drawLayer(state.contentLayer) }
-                    }
-                }
-                .background(if (light) GlassTokens.TintLight else GlassTokens.Tint)
+                .miuixDrawBackdrop(
+                    backdrop = state.miuixBackdrop,
+                    shape = { shape },
+                    effects = {
+                        padding = GlassTokens.RefractionPadding.toPx()
+                        halcyonVibrancy()
+                        miuixBlur(4.dp.toPx(), 4.dp.toPx())
+                        halcyonLens(
+                            refractionHeight = 24.dp.toPx(),
+                            refractionAmount = 24.dp.toPx(),
+                            depthEffect = true,
+                            chromaticAberration = 0.2f,
+                        )
+                    },
+                    highlight = { MiuixHighlight(alpha = 0.75f) },
+                    // 没有它 = 黑板（上次的坑）。着色由它画，别再额外 background()
+                    onDrawSurface = { drawRect(container) },
+                )
                 .border(GlassTokens.BarStrokeWidth, stroke, shape),
         ) { content() }
         return

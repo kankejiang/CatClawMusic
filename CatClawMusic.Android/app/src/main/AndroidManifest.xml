@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        miuix-blur（Halcyon 那套液态玻璃）自身声明 minSdk 33，而本应用要保 minSdk 31（Android 12）。
+        它内部有 isRuntimeShaderSupported() 兜底：低版本没有 AGSL 时退回普通模糊，不会崩。
+        所以放行合并，不跟着抬 minSdk。
+    -->
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur,top.yukonga.miuix.kmp.shader,top.yukonga.miuix.kmp.utils" />
 
     <!-- Android 13+ 音频权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:minSdkVersion="33" />

@@ -72,6 +72,8 @@ dependencies {
     implementation(libs.backdrop)
     // 背景模糊现成方案：替代自研的 RenderEffect 图层方案（后者真机不生效）
     implementation(libs.haze.android)
+    // Halcyon 的液态玻璃：miuix-blur + 搬来的 liquid 效果包
+    implementation(libs.miuix.blur.android)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
