@@ -1,6 +1,8 @@
 package com.catclaw.music.kt.ui.player
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +56,7 @@ import com.catclaw.music.kt.ui.theme.inkOn
  * [backdrop] 必须由外壳把宿主那一层传进来：`layerBackdrop` 只录宿主自己的子节点，
  * 自己 `rememberBackdropState()` 会拿到一个从没被写入的空 layer —— 表现就是「只剩着色、完全不糊」。
  */
+@OptIn(ExperimentalFoundationApi::class) // basicMarquee
 @Composable
 fun MiniPlayer(
     song: Song,
@@ -122,9 +126,9 @@ fun MiniPlayer(
                         VinylCover(modifier = Modifier.matchParentSize(), primary = Color(palette.primary))
                     }
                 }
-                // fill = false：只在需要时占位，剩下的宽度让给歌词
+                // 给一个固定上限：标题再长也不会把控件顶走，剩余宽度全部归歌词
                 Column(
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.widthIn(max = 140.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     Text(
@@ -149,9 +153,18 @@ fun MiniPlayer(
                         fontSize = 11.sp,
                         color = Color(palette.textSecondary),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.weight(1f).padding(start = 10.dp),
+                        softWrap = false,
+                        // 长句向左缓慢滚 —— 与播放页「长歌词向左移动」同一套观感。
+                        // 短语时 marquee 不动（内容不溢出就不会滚），所以不需要额外判断。
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp)
+                            .basicMarquee(
+                                iterations = Int.MAX_VALUE,
+                                velocity = 26.dp,
+                                initialDelayMillis = 900,
+                                repeatDelayMillis = 2600,
+                            ),
                     )
                 }
                 Icon(
