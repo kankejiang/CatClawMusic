@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -158,8 +159,9 @@ fun MiniPlayer(
                 }
                 // 播放时收起歌名/歌手，把宽度让给歌词（用户 2026-10-23 要求）；暂停时再展开。
                 // 用 expand/shrink 而不是 if：否则宽度突变，歌词会跟着「跳」一下。
+                // 暂停时显示；另外**纯音乐/无歌词**时也显示（那时没有歌词可让位，歌名歌手就是唯一信息）
                 AnimatedVisibility(
-                    visible = !isPlaying,
+                    visible = !isPlaying || lyric.isEmpty(),
                     enter = fadeIn(tween(160)) + expandHorizontally(tween(220), expandFrom = Alignment.Start),
                     exit = fadeOut(tween(120)) + shrinkHorizontally(tween(180), shrinkTowards = Alignment.Start),
                 ) {
@@ -203,6 +205,10 @@ fun MiniPlayer(
                                 repeatDelayMillis = 2600,
                             ),
                     )
+                } else {
+                    // 没有歌词时也必须有一个 weight(1f) 撑满，否则播放控件会被左边内容顶到中间
+                    // —— 2026-10-23 用户截图指出的正是这个（控件没钉在最右）。
+                    Spacer(Modifier.weight(1f))
                 }
                 Icon(
                     imageVector = PlayerIcons.Previous,
