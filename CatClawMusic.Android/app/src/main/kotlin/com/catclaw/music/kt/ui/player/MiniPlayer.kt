@@ -1,6 +1,11 @@
 package com.catclaw.music.kt.ui.player
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -128,7 +133,8 @@ fun MiniPlayer(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        // 36 → 42dp（2026-10-23 用户觉得太小）：栏高 64dp，42 是还能留出内边距的上限
+                        .size(42.dp)
                         // 圆形 + 旋转（2026-10-23 用户要求）：当成一张转动的唱片，播放时随音乐转
                         .graphicsLayer { rotationZ = spin.value }
                         .clip(CircleShape)
@@ -150,11 +156,17 @@ fun MiniPlayer(
                         VinylCover(modifier = Modifier.matchParentSize(), primary = Color(palette.primary))
                     }
                 }
-                // 给一个固定上限：标题再长也不会把控件顶走，剩余宽度全部归歌词
-                Column(
-                    modifier = Modifier.widthIn(max = 140.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                // 播放时收起歌名/歌手，把宽度让给歌词（用户 2026-10-23 要求）；暂停时再展开。
+                // 用 expand/shrink 而不是 if：否则宽度突变，歌词会跟着「跳」一下。
+                AnimatedVisibility(
+                    visible = !isPlaying,
+                    enter = fadeIn(tween(160)) + expandHorizontally(tween(220), expandFrom = Alignment.Start),
+                    exit = fadeOut(tween(120)) + shrinkHorizontally(tween(180), shrinkTowards = Alignment.Start),
                 ) {
+                    Column(
+                        modifier = Modifier.widthIn(max = 140.dp),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
                     Text(
                         text = song.title,
                         fontSize = 13.sp,
@@ -170,11 +182,12 @@ fun MiniPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    }
                 }
                 if (lyric.isNotEmpty()) {
                     Text(
                         text = lyric,
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = Color(palette.textSecondary),
                         maxLines = 1,
                         softWrap = false,
