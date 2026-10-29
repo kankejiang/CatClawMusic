@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 using CatClawMusic.WinUI.Infrastructure;
 
 namespace CatClawMusic.WinUI.Services;
@@ -16,13 +17,19 @@ public sealed class PlaybackService
 
     private readonly IAudioPlayerService _player;
     private readonly IMusicLibraryService _library;
+    private readonly MusicDatabase _db;
     private readonly JsonSettingsStore _settings;
     private readonly PlayQueue _queue = new();
 
-    public PlaybackService(IAudioPlayerService player, IMusicLibraryService library, JsonSettingsStore settings)
+    public PlaybackService(
+        IAudioPlayerService player,
+        IMusicLibraryService library,
+        MusicDatabase db,
+        JsonSettingsStore settings)
     {
         _player = player;
         _library = library;
+        _db = db;
         _settings = settings;
 
         // 队列模式跨重启恢复（对照 MAUI 的 RecordPlayMode / 启动恢复）。
@@ -182,6 +189,21 @@ public sealed class PlaybackService
 
         await _player.PlayAsync(song.FilePath);
         RaiseState();
+
+        // 播放历史（系统歌单「最近播放」与统计的数据源）。
+        _ = RecordPlayAsync(song.Id);
+    }
+
+    private async Task RecordPlayAsync(int songId)
+    {
+        try
+        {
+            await _db.RecordPlayAsync(songId);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("playback", $"记录播放历史失败：{ex.Message}");
+        }
     }
 
     private async void HandleCompleted()

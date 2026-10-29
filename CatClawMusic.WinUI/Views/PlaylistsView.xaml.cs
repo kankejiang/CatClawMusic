@@ -123,9 +123,13 @@ public sealed partial class PlaylistsView : UserControl
         play.Click += (_, _) => ViewModel.PlaySongCommand.Execute(row);
         flyout.Items.Add(play);
 
-        var remove = new MenuFlyoutItem { Text = "从歌单移除" };
-        remove.Click += async (_, _) => await ViewModel.RemoveSongAsync(row);
-        flyout.Items.Add(remove);
+        // 系统歌单（收藏 / 最近播放）不允许移除，收藏状态在音乐库右键里切换。
+        if (ViewModel.CanEditSelection)
+        {
+            var remove = new MenuFlyoutItem { Text = "从歌单移除" };
+            remove.Click += async (_, _) => await ViewModel.RemoveSongAsync(row);
+            flyout.Items.Add(remove);
+        }
 
         flyout.ShowAt(source, e.GetPosition(source));
     }

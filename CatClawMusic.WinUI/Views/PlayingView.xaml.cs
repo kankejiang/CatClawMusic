@@ -41,6 +41,9 @@ public sealed partial class PlayingView : UserControl
 
     private async void OnBackClick(object sender, RoutedEventArgs e) => await _navigation.GoBackAsync();
 
+    private async void OnToggleFavoriteClick(object sender, RoutedEventArgs e) =>
+        await ViewModel.ToggleFavoriteCommand.ExecuteAsync(null);
+
     private void OnDesktopLyricsClick(object sender, RoutedEventArgs e) =>
         ViewModel.ToggleDesktopLyricsCommand.Execute(null);
 

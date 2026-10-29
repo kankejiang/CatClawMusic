@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
 using CatClawMusic.Core.Services;
+using CatClawMusic.Data;
 using CatClawMusic.WinUI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +22,7 @@ public sealed partial class NowPlayingViewModel : ObservableObject
     private readonly ILyricsService _lyrics;
     private readonly CoverService _covers;
     private readonly IDesktopLyricService _desktopLyrics;
+    private readonly MusicDatabase _db;
 
     private LrcLyrics? _currentLyrics;
     private int _lyricRequestId;
@@ -31,12 +33,14 @@ public sealed partial class NowPlayingViewModel : ObservableObject
         PlaybackService playback,
         ILyricsService lyrics,
         CoverService covers,
-        IDesktopLyricService desktopLyrics)
+        IDesktopLyricService desktopLyrics,
+        MusicDatabase db)
     {
         _playback = playback;
         _lyrics = lyrics;
         _covers = covers;
         _desktopLyrics = desktopLyrics;
+        _db = db;
 
         _playback.StateChanged += (_, _) => RefreshFromPlayback();
         _playback.PositionChanged += (_, position) => OnPositionChanged(position);
@@ -99,6 +103,37 @@ public sealed partial class NowPlayingViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool IsDesktopLyricsOn { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsFavorite { get; set; }
+
+    public string FavoriteGlyph => IsFavorite ? "\uEB52" : "\uEB51";
+
+    public string FavoriteTooltip => IsFavorite ? "取消收藏" : "收藏";
+
+    partial void OnIsFavoriteChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FavoriteGlyph));
+        OnPropertyChanged(nameof(FavoriteTooltip));
+    }
+
+    [RelayCommand]
+    private async Task ToggleFavoriteAsync()
+    {
+        if (_loadedSong is null)
+            return;
+
+        var target = !IsFavorite;
+        try
+        {
+            await _db.SetFavoriteAsync(_loadedSong.Id, target);
+            IsFavorite = target;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("favorite", $"切换收藏失败：{ex.Message}");
+        }
+    }
 
     [RelayCommand]
     private Task TogglePlayAsync() => _playback.TogglePlayPauseAsync();
@@ -186,6 +221,15 @@ public sealed partial class NowPlayingViewModel : ObservableObject
 
         if (song is null)
             return;
+
+        try
+        {
+            IsFavorite = await _db.IsFavoriteAsync(song.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("favorite", $"读取收藏状态失败：{ex.Message}");
+        }
 
         var coverPath = await _covers.GetCoverPathAsync(song);
         if (requestId != _lyricRequestId)

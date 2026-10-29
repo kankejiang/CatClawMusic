@@ -13,6 +13,12 @@ namespace CatClawMusic.WinUI.ViewModels;
 /// </summary>
 public sealed partial class PlaylistsViewModel : ObservableObject
 {
+    /// <summary>系统歌单「收藏」的虚拟 id（仅为 UI 区分，不落库）</summary>
+    private const int FavoritePlaylistId = -1;
+
+    /// <summary>系统歌单「最近播放」的虚拟 id</summary>
+    private const int RecentPlaylistId = -2;
+
     private readonly IMusicLibraryService _library;
     private readonly PlaybackService _playback;
 
@@ -46,8 +52,23 @@ public sealed partial class PlaylistsViewModel : ObservableObject
 
         var playlists = await _library.GetAllPlaylistsAsync();
         Playlists.Clear();
-        // 系统歌单（收藏 / 最近播放）的数据源与 PlaylistSong 表不同（P2 单独接），
-        // 因此歌单页先只列自建歌单，避免点进去是空的。
+
+        // 系统歌单：数据来自 Favorites / PlayHistory，不是 PlaylistSong 表，所以用虚拟 id 合成。
+        Playlists.Add(new PlaylistRow(new Playlist
+        {
+            Id = FavoritePlaylistId,
+            Name = "收藏",
+            IsSystem = true,
+            SongCount = await _library.GetFavoriteSongCountAsync(),
+        }));
+        Playlists.Add(new PlaylistRow(new Playlist
+        {
+            Id = RecentPlaylistId,
+            Name = "最近播放",
+            IsSystem = true,
+            SongCount = await _library.GetRecentSongCountAsync(),
+        }));
+
         foreach (var playlist in playlists.Where(p => !p.IsSystem))
             Playlists.Add(new PlaylistRow(playlist));
 
@@ -155,7 +176,12 @@ public sealed partial class PlaylistsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var songs = await _library.GetPlaylistSongsAsync(row.Playlist.Id);
+            var songs = row.Playlist.Id switch
+            {
+                FavoritePlaylistId => await _library.GetFavoriteSongsAsync(),
+                RecentPlaylistId => await _library.GetRecentSongsAsync(),
+                _ => await _library.GetPlaylistSongsAsync(row.Playlist.Id),
+            };
 
             // 选中项在 await 期间被换掉：丢弃过期结果。
             if (SelectedPlaylist?.Playlist.Id != row.Playlist.Id)

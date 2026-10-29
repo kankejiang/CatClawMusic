@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Core.Models;
+using CatClawMusic.Data;
 using CatClawMusic.WinUI.Infrastructure;
 using CatClawMusic.WinUI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -20,6 +21,7 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly PlaybackService _playback;
     private readonly FolderPickerService _folderPicker;
     private readonly JsonSettingsStore _settings;
+    private readonly MusicDatabase _db;
 
     private List<Song> _allSongs = [];
     private string _searchText = string.Empty;
@@ -30,12 +32,14 @@ public sealed partial class LibraryViewModel : ObservableObject
         IMusicLibraryService library,
         PlaybackService playback,
         FolderPickerService folderPicker,
-        JsonSettingsStore settings)
+        JsonSettingsStore settings,
+        MusicDatabase db)
     {
         _library = library;
         _playback = playback;
         _folderPicker = folderPicker;
         _settings = settings;
+        _db = db;
         StatusText = "还没有扫描音乐";
     }
 
@@ -150,6 +154,34 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         if (row is not null)
             _playback.AddNext(row.Song);
+    }
+
+    /// <summary>右键菜单用：当前歌曲是否已收藏</summary>
+    public async Task<bool> IsFavoriteAsync(SongRow row)
+    {
+        try
+        {
+            return await _db.IsFavoriteAsync(row.Song.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("favorite", $"读取收藏状态失败：{ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>右键菜单用：收藏 / 取消收藏</summary>
+    public async Task ToggleFavoriteAsync(SongRow row)
+    {
+        try
+        {
+            var favorite = await _db.IsFavoriteAsync(row.Song.Id);
+            await _db.SetFavoriteAsync(row.Song.Id, !favorite);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("favorite", $"切换收藏失败：{ex.Message}");
+        }
     }
 
     [RelayCommand]

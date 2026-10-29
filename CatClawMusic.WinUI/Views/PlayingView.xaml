@@ -16,6 +16,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <Button Style="{StaticResource IconButtonStyle}" Click="OnBackClick" ToolTipService.ToolTip="返回">
@@ -27,7 +28,14 @@
                        Style="{StaticResource SectionTitleTextStyle}"
                        VerticalAlignment="Center" />
 
-            <Button Grid.Column="2" Content="桌面歌词" Click="OnDesktopLyricsClick" />
+            <Button Grid.Column="2"
+                    Style="{StaticResource IconButtonStyle}"
+                    Click="OnToggleFavoriteClick"
+                    ToolTipService.ToolTip="{x:Bind ViewModel.FavoriteTooltip, Mode=OneWay}">
+                <FontIcon Glyph="{x:Bind ViewModel.FavoriteGlyph, Mode=OneWay}" FontSize="16" />
+            </Button>
+
+            <Button Grid.Column="3" Content="桌面歌词" Click="OnDesktopLyricsClick" />
         </Grid>
 
         <Grid Grid.Row="1" ColumnSpacing="32">

@@ -106,6 +106,11 @@ public sealed partial class LibraryView : UserControl
         playNext.Click += (_, _) => ViewModel.PlayNextCommand.Execute(row);
         flyout.Items.Add(playNext);
 
+        var favorite = await ViewModel.IsFavoriteAsync(row);
+        var favoriteItem = new MenuFlyoutItem { Text = favorite ? "取消收藏" : "收藏" };
+        favoriteItem.Click += async (_, _) => await ViewModel.ToggleFavoriteAsync(row);
+        flyout.Items.Add(favoriteItem);
+
         var addTo = new MenuFlyoutSubItem { Text = "添加到歌单" };
         var playlists = await _playlists.GetEditablePlaylistsAsync();
         if (playlists.Count == 0)
