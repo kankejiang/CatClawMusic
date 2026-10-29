@@ -1,10 +1,12 @@
 using CatClawMusic.WinUI.Infrastructure;
 using CatClawMusic.WinUI.Services;
+using CatClawMusic.WinUI.ViewModels;
 using CatClawMusic.WinUI.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 
@@ -22,8 +24,14 @@ public sealed partial class MainWindow : Window, INavigationHost
     /// <summary>代码里同步 NavigationView 选中项时，抑制一次 SelectionChanged 回调，避免递归。</summary>
     private bool _syncingSelection;
 
+    /// <summary>用户正在拖进度条：此期间不回写滑块位置，松手才真正 seek。</summary>
+    private bool _seeking;
+
     public MainWindow()
     {
+        // x:Bind 在 InitializeComponent 里求值，ViewModel 必须先就位。
+        ViewModel = App.Services.GetRequiredService<ShellViewModel>();
+
         InitializeComponent();
 
         Title = "猫爪音乐";
@@ -36,12 +44,23 @@ public sealed partial class MainWindow : Window, INavigationHost
 
         _navigation.Attach(this);
         App.Services.GetRequiredService<WinUiDialogService>().Attach(() => RootGrid.XamlRoot);
+        App.Services.GetRequiredService<FolderPickerService>()
+            .Initialize(WinRT.Interop.WindowNative.GetWindowHandle(this));
 
         _theme.Applied += ApplyTitleBarTheme;
         _theme.Attach(RootGrid);
 
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ShellViewModel.PositionSeconds) or nameof(ShellViewModel.DurationSeconds))
+                SyncProgress();
+        };
+
         ShowRoute(AppRoutes.Discover);
+        SyncProgress();
     }
+
+    public ShellViewModel ViewModel { get; }
 
     public void ShowRoute(string route)
     {
@@ -111,6 +130,39 @@ public sealed partial class MainWindow : Window, INavigationHost
         }
 
         return null;
+    }
+
+    // ─── 底部播放条 ───
+
+    private async void OnTogglePlayClick(object sender, RoutedEventArgs e)
+        => await ViewModel.TogglePlayCommand.ExecuteAsync(null);
+
+    private async void OnNextClick(object sender, RoutedEventArgs e)
+        => await ViewModel.NextCommand.ExecuteAsync(null);
+
+    private async void OnPreviousClick(object sender, RoutedEventArgs e)
+        => await ViewModel.PreviousCommand.ExecuteAsync(null);
+
+    private void OnCyclePlayModeClick(object sender, RoutedEventArgs e)
+        => ViewModel.CyclePlayModeCommand.Execute(null);
+
+    private void OnProgressPointerPressed(object sender, PointerRoutedEventArgs e) => _seeking = true;
+
+    private async void OnProgressPointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        _seeking = false;
+        await ViewModel.SeekAsync(ProgressSlider.Value);
+    }
+
+    /// <summary>把播放进度回写到滑块（拖动期间不覆盖用户的手）。</summary>
+    private void SyncProgress()
+    {
+        if (_seeking)
+            return;
+
+        var duration = ViewModel.DurationSeconds;
+        ProgressSlider.Maximum = duration > 0 ? duration : 1;
+        ProgressSlider.Value = Math.Clamp(ViewModel.PositionSeconds, 0, ProgressSlider.Maximum);
     }
 
     /// <summary>系统窗口按钮在深色背景下要换成浅色前景，否则几乎看不见。</summary>

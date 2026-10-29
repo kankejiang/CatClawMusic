@@ -77,47 +77,99 @@
                                 VerticalContentAlignment="Stretch" />
 
                 <Border Grid.Row="1" Margin="12,0,12,12" Style="{StaticResource MiniPlayerBarStyle}">
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <Grid RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <Border Width="48" Height="48" CornerRadius="12" Background="{StaticResource AccentSoftBrush}">
-                            <TextBlock Text="♪"
-                                       FontSize="20"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Border>
+                        <!-- 进度 -->
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="未在播放"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" />
-                            <TextBlock Text="从音乐库选一首歌开始"
-                                       FontSize="12"
-                                       Foreground="{StaticResource TextTertiaryBrush}" />
-                        </StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.PositionText, Mode=OneWay}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center"
+                                       Width="44" />
 
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="上一首">
-                                <FontIcon Glyph="&#xE892;" FontSize="16" />
-                            </Button>
-                            <Button Width="40" Height="40"
-                                    CornerRadius="20"
-                                    Padding="0"
-                                    BorderThickness="0"
-                                    Background="{StaticResource AccentBrush}"
-                                    ToolTipService.ToolTip="播放">
-                                <FontIcon Glyph="&#xE768;" FontSize="16" Foreground="White" />
-                            </Button>
-                            <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="下一首">
-                                <FontIcon Glyph="&#xE893;" FontSize="16" />
-                            </Button>
-                        </StackPanel>
+                            <Slider x:Name="ProgressSlider"
+                                    Grid.Column="1"
+                                    Minimum="0"
+                                    Maximum="1"
+                                    StepFrequency="0.01"
+                                    VerticalAlignment="Center"
+                                    PointerPressed="OnProgressPointerPressed"
+                                    PointerReleased="OnProgressPointerReleased" />
+
+                            <TextBlock Grid.Column="2"
+                                       Text="{x:Bind ViewModel.DurationText, Mode=OneWay}"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center"
+                                       Width="44" />
+                        </Grid>
+
+                        <!-- 信息 + 控制 -->
+                        <Grid Grid.Row="1" ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Width="44" Height="44" CornerRadius="12" Background="{StaticResource AccentSoftBrush}">
+                                <TextBlock Text="♪"
+                                           FontSize="18"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextTertiaryBrush}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Button Style="{StaticResource IconButtonStyle}"
+                                        Click="OnPreviousClick"
+                                        ToolTipService.ToolTip="上一首">
+                                    <FontIcon Glyph="&#xE892;" FontSize="16" />
+                                </Button>
+
+                                <Button Width="40" Height="40"
+                                        CornerRadius="20"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Background="{StaticResource AccentBrush}"
+                                        Click="OnTogglePlayClick"
+                                        ToolTipService.ToolTip="{x:Bind ViewModel.PlayTooltip, Mode=OneWay}">
+                                    <FontIcon Glyph="{x:Bind ViewModel.PlayGlyph, Mode=OneWay}" FontSize="16" Foreground="White" />
+                                </Button>
+
+                                <Button Style="{StaticResource IconButtonStyle}"
+                                        Click="OnNextClick"
+                                        ToolTipService.ToolTip="下一首">
+                                    <FontIcon Glyph="&#xE893;" FontSize="16" />
+                                </Button>
+
+                                <Button Style="{StaticResource IconButtonStyle}"
+                                        Click="OnCyclePlayModeClick"
+                                        ToolTipService.ToolTip="{x:Bind ViewModel.PlayModeTooltip, Mode=OneWay}">
+                                    <FontIcon Glyph="{x:Bind ViewModel.PlayModeGlyph, Mode=OneWay}" FontSize="14" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>

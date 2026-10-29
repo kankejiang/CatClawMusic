@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.WinUI.Services;
+using CatClawMusic.WinUI.ViewModels;
 using CatClawMusic.WinUI.Views;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,10 +33,21 @@ public static class ServiceRegistration
         services.AddSingleton<WinUiNavigationService>();
         services.AddSingleton<INavigationService>(sp => sp.GetRequiredService<WinUiNavigationService>());
 
+        services.AddSingleton<FolderPickerService>();
+
+        // ── 播放 ──
+        services.AddSingleton<IAudioPlayerService, MediaPlayerAudioService>();
+        services.AddSingleton<PlaybackService>();
+
         // ── 数据层（复用 CatClawMusic.Data）──
         services.AddSingleton(_ => new MusicDatabase(AppPaths.DatabasePath));
         services.AddSingleton<IMusicLibraryService>(sp =>
             new MusicLibraryService(sp.GetRequiredService<MusicDatabase>()));
+
+        // ── ViewModel ──
+        services.AddSingleton<ShellViewModel>();
+        services.AddSingleton<LibraryViewModel>();
+        services.AddSingleton<PlaylistsViewModel>();
 
         // ── 页面 ──
         services.AddSingleton<DiscoverView>();

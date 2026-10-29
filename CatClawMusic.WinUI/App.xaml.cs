@@ -1,6 +1,7 @@
 using CatClawMusic.Core.Interfaces;
 using CatClawMusic.Data;
 using CatClawMusic.WinUI.Infrastructure;
+using CatClawMusic.WinUI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 
@@ -45,6 +46,9 @@ public partial class App : Application
             var db = Services.GetRequiredService<MusicDatabase>();
             await db.EnsureInitializedAsync();
             Log.Info("db", $"数据库就绪：{AppPaths.DatabasePath}");
+
+            // 恢复上次的队列与当前曲（不自动开播）。
+            await Services.GetRequiredService<PlaybackService>().RestoreAsync();
         }
         catch (Exception ex)
         {

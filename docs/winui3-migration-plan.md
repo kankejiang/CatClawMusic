@@ -95,3 +95,17 @@ CatClawMusic.WinUI/
   - 踩坑：`NavigationView` 的 **PaneFooter 里的 `NavigationViewItem` 不参与选中模型**，
     把它赋给 `SelectedItem` 会抛 `ArgumentOutOfRangeException`（invalid vector subscript）——
     设置入口因此改成普通 `Button` + 自行高亮
+
+- **2026-10-29 P1 完成**：本地曲库与播放链路
+  - 播放内核 `MediaPlayerAudioService`：WinRT `MediaPlayer` + 300ms 位置定时器；
+    SMTC 仍按 MAUI 的结论禁用（`CommandManager.IsEnabled=false`）
+  - 播放编排 `PlaybackService`：复用 Core `PlayQueue`；模式循环「列表循环 → 单曲循环 → 随机」；
+    当前曲/模式写入 settings，启动 `RestoreAsync()` 只恢复不自动开播；播完自动下一首（单曲循环回到曲首）
+  - 底部播放条：真实标题/艺术家/时长/进度、播放暂停、上下一曲、播放模式；拖动进度松手才 seek
+  - 音乐库页：`FolderPicker`（HWND interop）选目录 → `ScanLocalAsync` 入库 → 歌曲/歌手/专辑三视图、
+    关键字搜索、歌手/专辑下钻筛选、右键菜单（播放 / 下一首播放 / 添加到歌单）、空状态
+  - 歌单页：自建歌单的列表 / 新建 / 重命名 / 删除 / 播放全部 / 从歌单移除
+  - 实测（生成 2 个 WAV 作测试素材）：自动扫描入库 2 首 → 点歌起播、进度推进 → 右键加入歌单成功
+  - 已知缺口（后续阶段）：扫描走 Data 的快扫策略（`readDuration:false`），列表时长显示 `--:--`，
+    播放时由 MediaPlayer 回填；系统歌单（收藏 / 最近播放）数据源不同，P2 接；封面抽取、EQ、
+    交叉淡变、网络音频落盘缓存留到 P2
