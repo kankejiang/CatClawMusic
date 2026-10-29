@@ -22,6 +22,16 @@ _Modern cross-platform music player built with .NET MAUI._
 - 猫爪音乐是基于 .NET MAUI 的跨平台音乐播放器（Windows 桌面 / Android）
   - A modern cross-platform music player built with .NET MAUI
 
+## 平台状态（2026-10 起）
+
+| 平台 | 状态 | 说明 |
+| --- | --- | --- |
+| Android | **弃用 MAUI 实现** | 改由原生 Kotlin / Compose 工程 [`CatClawMusic.Android`](CatClawMusic.Android) 负责（应用 ID `com.catclaw.music.kt`）。`CatClawMusic.Maui` 的 `net11.0-android` 目标仅作参考实现保留，不再迭代、不再出包 |
+| Windows | **迁移 WinUI 3** | 桌面端后续改用 WinUI 3 开发。`CatClawMusic.Maui` 的 Windows 目标为过渡期实现，新功能不再往 MAUI 桌面壳里加 |
+
+> 两套实现的差异与移植口径见 `docs/android-port-progress.md`、`docs/android-port-decisions.md`、
+> `docs/android-port-page-parity.md`。下文「构建与发布」中的 MAUI Android 命令仅用于维护旧的参考实现。
+
 ## Feature
 
 - **插件化架构**
@@ -168,7 +178,7 @@ _Modern cross-platform music player built with .NET MAUI._
 | --- | --- |
 | 版本 | **1.8.13**（Android versionCode 70） |
 | 应用 ID | `com.catclaw.music`（Debug 为 `com.catclaw.music.debug`，可与 Release 共存） |
-| 平台 | Windows `net11.0-windows10.0.19041.0`（最低 10.0.17763.0）、Android `net11.0-android`（最低 API 31、目标 API 36，arm64 / x64） |
+| 平台 | MAUI 目标：Windows `net11.0-windows10.0.19041.0`（最低 10.0.17763.0）、Android `net11.0-android`（最低 API 31、目标 API 36，arm64 / x64）——**Android 已弃用、Windows 将迁移 WinUI 3**（见「平台状态」）；当前 Android 正式实现为 `CatClawMusic.Android`（Kotlin/Compose，minSdk 31、targetSdk 37） |
 | 运行时 | **.NET 11 RC1**：SDK `11.0.100-rc.1.26425.128`（见 `global.json`），C# 15 |
 | UI / MVVM | .NET MAUI（`Microsoft.Maui.Controls` 由 .NET 11 RC1 工作负载提供 `$(MauiVersion)`，当前为 11.0.0-rc.1.26451.6）、CommunityToolkit.Mvvm 8.4.2 |
 | 本地化 | 51 种界面语言（50 个本地化 `.resx` + `zh-CN` 中性资源） |

@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+	<!--
+	  平台状态（2026-10 起，见仓库根 README「平台状态」）：
+	  · Android 目标（net11.0-android）已弃用 —— 改由原生 Kotlin/Compose 工程 CatClawMusic.Android
+	    （applicationId com.catclaw.music.kt）负责，这里仅作参考实现保留，不再迭代、不再出包；
+	  · Windows 目标后续迁移 WinUI 3 —— 本工程 net11.0-windows10.0.19041.0 为过渡期实现，
+	    新功能不再加进 MAUI 桌面壳。
+	  改平台相关逻辑前先确认改的是哪一侧，避免把已弃用的 Android 补丁当成正式实现。
+	-->
+
 	<PropertyGroup>
 		<TargetFrameworks>net11.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
