@@ -1,3 +1,4 @@
+using CatClawMusic.Core.Interfaces;
 using CatClawMusic.WinUI.Infrastructure;
 using CatClawMusic.WinUI.Services;
 using CatClawMusic.WinUI.ViewModels;
@@ -50,19 +51,36 @@ public sealed partial class MainWindow : Window, INavigationHost
         _theme.Applied += ApplyTitleBarTheme;
         _theme.Attach(RootGrid);
 
+        // 桌面歌词是独立窗口：主窗关闭时必须一起收掉，否则进程不会退出。
+        Closed += (_, _) => App.Services.GetRequiredService<IDesktopLyricService>().Hide();
+
         ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(ShellViewModel.PositionSeconds) or nameof(ShellViewModel.DurationSeconds))
                 SyncProgress();
         };
 
-        ShowRoute(AppRoutes.Discover);
+        Navigate(AppRoutes.Discover);
         SyncProgress();
     }
 
     public ShellViewModel ViewModel { get; }
 
+    private readonly Stack<string> _history = new();
+    private string _currentRoute = AppRoutes.Discover;
+
     public void ShowRoute(string route)
+    {
+        if (route == _currentRoute)
+            return;
+
+        _history.Push(_currentRoute);
+        Navigate(route);
+    }
+
+    public void GoBack() => Navigate(_history.Count > 0 ? _history.Pop() : AppRoutes.Discover);
+
+    private void Navigate(string route)
     {
         UserControl? view = route switch
         {
@@ -70,6 +88,7 @@ public sealed partial class MainWindow : Window, INavigationHost
             AppRoutes.Playlists => App.Services.GetRequiredService<PlaylistsView>(),
             AppRoutes.Library => App.Services.GetRequiredService<LibraryView>(),
             AppRoutes.Settings => App.Services.GetRequiredService<SettingsView>(),
+            AppRoutes.Playing => App.Services.GetRequiredService<PlayingView>(),
             _ => null,
         };
 
@@ -77,6 +96,7 @@ public sealed partial class MainWindow : Window, INavigationHost
             return;
 
         ContentHost.Content = view;
+        _currentRoute = route;
         UpdateNavSelection(route);
     }
 
@@ -133,6 +153,8 @@ public sealed partial class MainWindow : Window, INavigationHost
     }
 
     // ─── 底部播放条 ───
+
+    private void OnMiniPlayerTapped(object sender, TappedRoutedEventArgs e) => ShowRoute(AppRoutes.Playing);
 
     private async void OnTogglePlayClick(object sender, RoutedEventArgs e)
         => await ViewModel.TogglePlayCommand.ExecuteAsync(null);

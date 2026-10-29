@@ -24,6 +24,9 @@ public static class AppPaths
     /// <summary>插件目录（.ccp）</summary>
     public static string PluginDirectory => EnsureDirectory(Path.Combine(Root, "Plugin"));
 
+    /// <summary>封面缓存目录（从音频内嵌图抽出后的落盘位置）</summary>
+    public static string CoversDirectory => EnsureDirectory(Path.Combine(CacheDirectory, "covers"));
+
     /// <summary>SQLite 数据库</summary>
     public static string DatabasePath => Path.Combine(DataDirectory, "catclaw.db");
 

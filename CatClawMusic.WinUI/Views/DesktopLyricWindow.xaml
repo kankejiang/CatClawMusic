@@ -1,0 +1,24 @@
+<Window
+    x:Class="CatClawMusic.WinUI.Views.DesktopLyricWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 亚克力只提供模糊底：无论系统深/浅色，都压一层半透明深色保证白字可读 -->
+    <Grid x:Name="RootGrid" Padding="28,14" Background="#B311141D">
+        <StackPanel VerticalAlignment="Center" Spacing="6">
+            <TextBlock x:Name="CurrentText"
+                       Text="猫爪音乐 · 桌面歌词"
+                       FontSize="26"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="NextText"
+                       FontSize="14"
+                       Foreground="#B3FFFFFF"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+        </StackPanel>
+    </Grid>
+</Window>

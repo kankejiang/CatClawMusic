@@ -120,25 +120,35 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Width="44" Height="44" CornerRadius="12" Background="{StaticResource AccentSoftBrush}">
-                                <TextBlock Text="♪"
-                                           FontSize="18"
-                                           Foreground="{StaticResource AccentBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Border>
+                            <Grid Grid.Column="0" Grid.ColumnSpan="2"
+                                  ColumnSpacing="14"
+                                  Background="Transparent"
+                                  Tapped="OnMiniPlayerTapped">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{StaticResource TextTertiaryBrush}" />
-                            </StackPanel>
+                                <Border Width="44" Height="44" CornerRadius="12" Background="{StaticResource AccentSoftBrush}">
+                                    <TextBlock Text="♪"
+                                               FontSize="18"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextTertiaryBrush}" />
+                                </StackPanel>
+                            </Grid>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <Button Style="{StaticResource IconButtonStyle}"

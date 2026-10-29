@@ -11,4 +11,7 @@ public interface INavigationHost
 
     /// <summary>切换底部/侧栏标签（0 发现，1 歌单，2 音乐库）</summary>
     void SwitchTab(int tabIndex);
+
+    /// <summary>返回上一页（详情页用；没有历史时回到发现页）</summary>
+    void GoBack();
 }

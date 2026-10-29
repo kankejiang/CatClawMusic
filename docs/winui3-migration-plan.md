@@ -109,3 +109,20 @@ CatClawMusic.WinUI/
   - 已知缺口（后续阶段）：扫描走 Data 的快扫策略（`readDuration:false`），列表时长显示 `--:--`，
     播放时由 MediaPlayer 回填；系统歌单（收藏 / 最近播放）数据源不同，P2 接；封面抽取、EQ、
     交叉淡变、网络音频落盘缓存留到 P2
+
+- **2026-10-30 P2 完成**：播放页 / 歌词 / 桌面歌词
+  - 播放页 `PlayingView`：左侧封面 + 曲名/歌手/专辑 + 进度 + 播放控制 + 音量，
+    右侧滚动歌词；底部播放条点信息区进入，左上角返回（壳层补了路由历史栈 `GoBack`）
+  - 歌词：直接复用 Core `LyricsService`（内嵌 → 外挂 `.lrc` → 插件链路），
+    `NowPlayingViewModel` 按播放位置高亮当前行；列表用「上下半屏留白 + ScrollIntoView(Leading)」实现居中滚动；
+    点歌词行跳转到对应时间戳
+  - 封面：`CoverService` 用 TagLibSharp 抽内嵌图落盘到缓存并把路径回写 Songs 表（网络封面与刮削留到 P3）
+  - 桌面歌词：`DesktopLyricWindow` 第二窗口（`OverlappedPresenter.CreateForContextMenu` + 无边框 + 置顶 +
+    不进任务栏 + 亚克力底 + 半透明深色层 + 按住拖动），实现 Core `IDesktopLyricService`；
+    播放页「桌面歌词」按钮开关，主窗关闭时一并收掉，避免进程不退出
+  - 实测：外挂 LRC 正确加载并逐行高亮；桌面歌词窗口深底白字可读（浅色系统主题下也可读）
+  - 踩坑：`OverlappedPresenter` 在 WinAppSDK 2.x 没有公开无参构造，要用
+    `OverlappedPresenter.CreateForContextMenu()` 再改属性；桌面歌词若只挂亚克力，浅色主题下会白底白字，
+    必须再压一层半透明深色
+  - 已知缺口：逐字卡拉OK填充未做（当前整行高亮）；歌词翻译/罗马音有数据就显示、无设置开关；
+    系统歌单（收藏 / 最近播放）、EQ、交叉淡变、网络音频落盘缓存仍在后续阶段

@@ -21,7 +21,7 @@ public sealed class WinUiNavigationService : INavigationService
 
     public Task GoBackAsync()
     {
-        // P0 还没有详情页栈；详情页接入时在这里补历史栈。
+        _host?.GoBack();
         return Task.CompletedTask;
     }
 

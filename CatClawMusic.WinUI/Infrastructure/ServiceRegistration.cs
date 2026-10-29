@@ -38,6 +38,11 @@ public static class ServiceRegistration
         // ── 播放 ──
         services.AddSingleton<IAudioPlayerService, MediaPlayerAudioService>();
         services.AddSingleton<PlaybackService>();
+        services.AddSingleton<CoverService>();
+        services.AddSingleton<IDesktopLyricService, WinUiDesktopLyricService>();
+
+        // ── 歌词（Core 实现：内嵌 → 外挂 → 插件链路）──
+        services.AddSingleton<ILyricsService, CatClawMusic.Core.Services.LyricsService>();
 
         // ── 数据层（复用 CatClawMusic.Data）──
         services.AddSingleton(_ => new MusicDatabase(AppPaths.DatabasePath));
@@ -48,12 +53,14 @@ public static class ServiceRegistration
         services.AddSingleton<ShellViewModel>();
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<PlaylistsViewModel>();
+        services.AddSingleton<NowPlayingViewModel>();
 
         // ── 页面 ──
         services.AddSingleton<DiscoverView>();
         services.AddSingleton<PlaylistsView>();
         services.AddSingleton<LibraryView>();
         services.AddSingleton<SettingsView>();
+        services.AddSingleton<PlayingView>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {

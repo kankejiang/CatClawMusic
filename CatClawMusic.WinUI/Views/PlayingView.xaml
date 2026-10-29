@@ -1,0 +1,183 @@
+<UserControl
+    x:Class="CatClawMusic.WinUI.Views.PlayingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:CatClawMusic.WinUI.ViewModels">
+
+    <Grid Padding="28,8,32,20" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 顶栏 -->
+        <Grid Grid.Row="0" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Style="{StaticResource IconButtonStyle}" Click="OnBackClick" ToolTipService.ToolTip="返回">
+                <FontIcon Glyph="&#xE72B;" FontSize="16" />
+            </Button>
+
+            <TextBlock Grid.Column="1"
+                       Text="正在播放"
+                       Style="{StaticResource SectionTitleTextStyle}"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="2" Content="桌面歌词" Click="OnDesktopLyricsClick" />
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnSpacing="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="420" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左：封面 / 信息 / 控制 -->
+            <Grid Grid.Column="0" RowSpacing="14">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Width="360" Height="360"
+                        CornerRadius="24"
+                        Background="{StaticResource AccentSoftBrush}"
+                        HorizontalAlignment="Left">
+                    <Grid>
+                        <TextBlock Text="♪"
+                                   FontSize="72"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                        <Image Source="{x:Bind ViewModel.CoverSource, Mode=OneWay}" Stretch="UniformToFill" />
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Row="1" Spacing="4">
+                    <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}"
+                               FontSize="24"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.Artist, Mode=OneWay}" Style="{StaticResource BodyTextStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.Album, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Spacing="2">
+                    <Slider x:Name="ProgressSlider"
+                            Minimum="0"
+                            Maximum="1"
+                            StepFrequency="0.01"
+                            PointerPressed="OnProgressPointerPressed"
+                            PointerReleased="OnProgressPointerReleased" />
+                    <Grid>
+                        <TextBlock Text="{x:Bind ViewModel.PositionText, Mode=OneWay}"
+                                   HorizontalAlignment="Left"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="{x:Bind ViewModel.DurationText, Mode=OneWay}"
+                                   HorizontalAlignment="Right"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Spacing="12" VerticalAlignment="Top">
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left">
+                        <Button Style="{StaticResource IconButtonStyle}"
+                                Click="OnCyclePlayModeClick"
+                                ToolTipService.ToolTip="{x:Bind ViewModel.ModeTooltip, Mode=OneWay}">
+                            <FontIcon Glyph="{x:Bind ViewModel.ModeGlyph, Mode=OneWay}" FontSize="15" />
+                        </Button>
+
+                        <Button Style="{StaticResource IconButtonStyle}" Click="OnPreviousClick" ToolTipService.ToolTip="上一首">
+                            <FontIcon Glyph="&#xE892;" FontSize="18" />
+                        </Button>
+
+                        <Button Width="52" Height="52"
+                                CornerRadius="26"
+                                Padding="0"
+                                BorderThickness="0"
+                                Background="{StaticResource AccentBrush}"
+                                Click="OnTogglePlayClick"
+                                ToolTipService.ToolTip="播放 / 暂停">
+                            <FontIcon Glyph="{x:Bind ViewModel.PlayGlyph, Mode=OneWay}" FontSize="20" Foreground="White" />
+                        </Button>
+
+                        <Button Style="{StaticResource IconButtonStyle}" Click="OnNextClick" ToolTipService.ToolTip="下一首">
+                            <FontIcon Glyph="&#xE893;" FontSize="18" />
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left">
+                        <FontIcon Glyph="&#xE767;" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <Slider Width="180"
+                                Minimum="0"
+                                Maximum="1"
+                                StepFrequency="0.01"
+                                VerticalAlignment="Center"
+                                Value="{x:Bind ViewModel.Volume, Mode=TwoWay}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- 右：滚动歌词 -->
+            <Grid Grid.Column="1">
+                <ListView x:Name="LyricsList"
+                          ItemsSource="{x:Bind ViewModel.LyricLines}"
+                          SelectionMode="None"
+                          IsItemClickEnabled="True"
+                          ItemClick="OnLyricClick">
+                    <ListView.Header>
+                        <Border x:Name="LyricsHeaderSpacer" Height="0" />
+                    </ListView.Header>
+                    <ListView.Footer>
+                        <Border x:Name="LyricsFooterSpacer" Height="0" />
+                    </ListView.Footer>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LyricLineRow">
+                            <StackPanel Padding="0,7" Spacing="2">
+                                <TextBlock Text="{x:Bind Text}"
+                                           FontSize="17"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Left"
+                                           Opacity="{x:Bind LineOpacity, Mode=OneWay}"
+                                           FontWeight="{x:Bind Weight, Mode=OneWay}"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="{x:Bind Translation}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Opacity="0.6"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{x:Bind HasTranslation, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{x:Bind Roma}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Opacity="0.5"
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           Visibility="{x:Bind HasRoma, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <TextBlock Text="{x:Bind ViewModel.LyricsPlaceholder, Mode=OneWay}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource BodyTextStyle}"
+                           Visibility="{x:Bind ViewModel.HasLyrics, Mode=OneWay, Converter={StaticResource InverseBoolToVisibility}}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
