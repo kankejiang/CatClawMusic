@@ -133,3 +133,16 @@ CatClawMusic.WinUI/
   - 歌单页顶部补两个系统歌单「收藏」「最近播放」（虚拟 id -1 / -2，数据来自 Favorites / PlayHistory，
     不可重命名/删除，歌曲右键只留「播放」）
   - 实测：收藏 1 首、最近播放 2 首，列表与详情一致
+
+- **2026-10-30 P3 起步**：插件管理页 + 关键阻塞项
+  - `PluginService` 把 Core 的 `PluginManager` 接到 WinUI：插件目录 `%LOCALAPPDATA%\CatClawMusic\Plugin`、
+    启用状态存 `settings.json`；启动后台 `InitializeAllAsync`；`LyricsService.PluginManager` 已接上
+  - 插件管理页（设置 → 插件管理）：列表、启用/停用、安装 `.ccp`（FileOpenPicker）、卸载、打开插件目录；
+    宿主不内置任何插件实例
+  - **阻塞项（必须先解决才能做聚合搜索）**：现有插件实现 `IViewContributorPlugin` 等接口时引用了
+    `Microsoft.Maui.Controls`（返回 MAUI `Page`）。在 WinUI 宿主里安装 Lrclib 插件时
+    `PluginManager.LoadAndRegisterPluginAsync` 报
+    `InvalidOperationException: 插件程序集中未找到有效的 IPlugin 实现`（内部 `ReflectionTypeLoadException`，
+    因为扫描类型时无法解析 `Microsoft.Maui.Controls`）。
+    结论：**插件仓库需要去掉 MAUI 依赖**（视图贡献类接口在 WinUI 端另立抽象或改用契约数据结构），
+    否则音源 / 歌词插件在 WinUI 端装得上、识别不了。聚合搜索与插件音源播放等插件真正跑通后再做。

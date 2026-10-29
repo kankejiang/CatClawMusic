@@ -49,6 +49,9 @@ public partial class App : Application
 
             // 恢复上次的队列与当前曲（不自动开播）。
             await Services.GetRequiredService<PlaybackService>().RestoreAsync();
+
+            // 插件初始化可能联网，放后台跑，不阻塞首屏。
+            _ = Services.GetRequiredService<PluginService>().InitializeAsync();
         }
         catch (Exception ex)
         {

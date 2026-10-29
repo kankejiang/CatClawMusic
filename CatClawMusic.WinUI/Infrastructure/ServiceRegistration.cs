@@ -34,6 +34,11 @@ public static class ServiceRegistration
         services.AddSingleton<INavigationService>(sp => sp.GetRequiredService<WinUiNavigationService>());
 
         services.AddSingleton<FolderPickerService>();
+        services.AddSingleton<FilePickerService>();
+
+        // ── 插件（宿主不内置插件，能力来自用户安装的 .ccp）──
+        services.AddSingleton<PluginService>();
+        services.AddSingleton<IPluginManager>(sp => sp.GetRequiredService<PluginService>().Manager);
 
         // ── 播放 ──
         services.AddSingleton<IAudioPlayerService, MediaPlayerAudioService>();
@@ -42,7 +47,10 @@ public static class ServiceRegistration
         services.AddSingleton<IDesktopLyricService, WinUiDesktopLyricService>();
 
         // ── 歌词（Core 实现：内嵌 → 外挂 → 插件链路）──
-        services.AddSingleton<ILyricsService, CatClawMusic.Core.Services.LyricsService>();
+        services.AddSingleton<ILyricsService>(sp => new CatClawMusic.Core.Services.LyricsService
+        {
+            PluginManager = sp.GetRequiredService<IPluginManager>(),
+        });
 
         // ── 数据层（复用 CatClawMusic.Data）──
         services.AddSingleton(_ => new MusicDatabase(AppPaths.DatabasePath));
@@ -54,6 +62,7 @@ public static class ServiceRegistration
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<PlaylistsViewModel>();
         services.AddSingleton<NowPlayingViewModel>();
+        services.AddSingleton<PluginViewModel>();
 
         // ── 页面 ──
         services.AddSingleton<DiscoverView>();
@@ -61,6 +70,7 @@ public static class ServiceRegistration
         services.AddSingleton<LibraryView>();
         services.AddSingleton<SettingsView>();
         services.AddSingleton<PlayingView>();
+        services.AddSingleton<PluginsView>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions
         {
