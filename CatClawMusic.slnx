@@ -6,4 +6,5 @@
   <Project Path="CatClawMusic.Maui/CatClawMusic.Maui.csproj">
     <Deploy />
   </Project>
+  <Project Path="CatClawMusic.WinUI/CatClawMusic.WinUI.csproj" />
 </Solution>

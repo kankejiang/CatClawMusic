@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+	  Windows 桌面端（WinUI 3）。平台方向见仓库根 README「平台状态」与
+	  docs/winui3-migration-plan.md：MAUI 的 Windows 目标为过渡期实现，新功能只进本工程。
+	  · 复用 CatClawMusic.Core / CatClawMusic.Data（纯 net11.0，无 UI 框架依赖）
+	  · unpackaged + WindowsAppSDK 自包含，沿用 Inno Setup 出包（与 MAUI 版一致）
+	-->
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net11.0-windows10.0.19041.0</TargetFramework>
+		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+		<SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+
+		<RootNamespace>CatClawMusic.WinUI</RootNamespace>
+		<AssemblyName>CatClawMusic.WinUI</AssemblyName>
+		<Version>0.1.0</Version>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+
+		<Platforms>x64;ARM64</Platforms>
+		<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+		<!-- 开发构建默认 x64：WindowsAppSDKSelfContained 需要确定的 Windows 架构；
+		     出 ARM64 包时显式传 -r win-arm64。 -->
+		<RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+
+		<UseWinUI>true</UseWinUI>
+		<!-- 非打包（免 MSIX）：与现有 Inno Setup 安装包一致，也避免开发期证书/身份依赖 -->
+		<WindowsPackageType>None</WindowsPackageType>
+		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+		<EnableMsixTooling>false</EnableMsixTooling>
+
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>15.0</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
+		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-rc.1.26425.128" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CatClawMusic.Core\CatClawMusic.Core.csproj" />
+		<ProjectReference Include="..\CatClawMusic.Data\CatClawMusic.Data.csproj" />
+	</ItemGroup>
+
+</Project>

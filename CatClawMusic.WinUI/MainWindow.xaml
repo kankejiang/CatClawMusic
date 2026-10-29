@@ -1,0 +1,126 @@
+<Window
+    x:Class="CatClawMusic.WinUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 自绘标题栏：整行是拖动区，右侧 152px 留给系统窗口按钮 -->
+        <Grid x:Name="TitleBarRow" Grid.Row="0" Padding="18,0,152,0" Background="Transparent">
+            <TextBlock Text="🐾 猫爪音乐"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource TextTertiaryBrush}" />
+        </Grid>
+
+        <NavigationView x:Name="Nav"
+                        Grid.Row="1"
+                        PaneDisplayMode="Left"
+                        OpenPaneLength="244"
+                        IsPaneOpen="True"
+                        IsPaneToggleButtonVisible="False"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        Background="Transparent"
+                        SelectionChanged="OnNavSelectionChanged">
+            <NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+            </NavigationView.Resources>
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="发现" Tag="discover">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="歌单" Tag="playlists">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8FD;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="音乐库" Tag="library">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F1;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.PaneFooter>
+                <!-- PaneFooter 里的 NavigationViewItem 不参与 NavigationView 的选中模型，
+                     所以设置页用普通按钮 + 自行高亮，避免 SelectedItem 指向它时抛异常。 -->
+                <Button x:Name="SettingsButton"
+                        Content="⚙  设置"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Padding="12,10"
+                        Margin="0,0,0,8"
+                        Style="{StaticResource IconButtonStyle}"
+                        Click="OnSettingsClick" />
+            </NavigationView.PaneFooter>
+
+            <!-- 内容区 + 底部播放条（对照 MAUI DesktopBlankPage 的 MainArea / PlayerArea） -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <ContentControl x:Name="ContentHost"
+                                Grid.Row="0"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
+
+                <Border Grid.Row="1" Margin="12,0,12,12" Style="{StaticResource MiniPlayerBarStyle}">
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="48" Height="48" CornerRadius="12" Background="{StaticResource AccentSoftBrush}">
+                            <TextBlock Text="♪"
+                                       FontSize="20"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="未在播放"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="从音乐库选一首歌开始"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="上一首">
+                                <FontIcon Glyph="&#xE892;" FontSize="16" />
+                            </Button>
+                            <Button Width="40" Height="40"
+                                    CornerRadius="20"
+                                    Padding="0"
+                                    BorderThickness="0"
+                                    Background="{StaticResource AccentBrush}"
+                                    ToolTipService.ToolTip="播放">
+                                <FontIcon Glyph="&#xE768;" FontSize="16" Foreground="White" />
+                            </Button>
+                            <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="下一首">
+                                <FontIcon Glyph="&#xE893;" FontSize="16" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>

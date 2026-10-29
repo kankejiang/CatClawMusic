@@ -1,0 +1,21 @@
+<UserControl
+    x:Class="CatClawMusic.WinUI.Views.LibraryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer>
+        <StackPanel Padding="36,8,36,36" Spacing="16" MaxWidth="980" HorizontalAlignment="Left">
+            <TextBlock Text="音乐库" Style="{StaticResource PageTitleTextStyle}" />
+            <TextBlock Text="本地文件、远程音乐与网络歌曲统一收录在这里。"
+                       Style="{StaticResource BodyTextStyle}" />
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="音乐库还没有歌" Style="{StaticResource SectionTitleTextStyle}" />
+                    <TextBlock Text="本地目录扫描（含标签与封面）在下一阶段接入；扫描结果会写进同一份 SQLite 曲库。"
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
