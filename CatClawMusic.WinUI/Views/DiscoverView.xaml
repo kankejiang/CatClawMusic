@@ -20,9 +20,9 @@
             <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="6">
                     <TextBlock Text="还没有在线音源" Style="{StaticResource SectionTitleTextStyle}" />
-                    <TextBlock Text="宿主本身不带音源。安装 .ccp 音源插件后，推荐、排行榜与聚合搜索会出现在这里。"
+                    <TextBlock Text="宿主本身不带音源。在线音源会通过脚本插件接入，目前还在开发中。"
                                Style="{StaticResource BodyTextStyle}" />
-                    <TextBlock Text="插件管理与聚合搜索将在后续阶段接入。"
+                    <TextBlock Text="在它到来之前，本地音乐库已经可以扫描、播放、收藏与整理歌单。"
                                Style="{StaticResource CaptionTextStyle}" />
                 </StackPanel>
             </Border>

@@ -39,15 +39,6 @@
             </Border>
 
             <Border Style="{StaticResource CardBorderStyle}">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="插件" Style="{StaticResource SectionTitleTextStyle}" />
-                    <TextBlock Text="宿主不带音源：安装 .ccp 音源插件后，才能搜索与播放在线音乐。"
-                               Style="{StaticResource BodyTextStyle}" />
-                    <Button Content="插件管理" Click="OnOpenPluginsClick" />
-                </StackPanel>
-            </Border>
-
-            <Border Style="{StaticResource CardBorderStyle}">
                 <StackPanel Spacing="6">
                     <TextBlock Text="关于" Style="{StaticResource SectionTitleTextStyle}" />
                     <TextBlock x:Name="VersionText" Style="{StaticResource BodyTextStyle}" />

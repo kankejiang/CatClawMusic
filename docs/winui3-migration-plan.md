@@ -11,14 +11,15 @@
   不含任何 UI 框架依赖（TagLibSharp / sqlite-net / Jint / SMBLibrary），WinUI 3 可直接引用。
 - 只有 **`CatClawMusic.Maui/Services` 与 `Pages`/`ViewModels`/`Controls`** 是需要重写的部分 ——
   它们耦合了 `FileSystem` / `Preferences` / `MainThread` / `Application.Current.MainPage` / MAUI 控件。
-- 插件体系（`.ccp` = 裸 CLR 程序集）**协议不变**：`PluginManager` 在 Core 里用
-  `Assembly.Load(byte[])`，与 UI 框架无关；WinUI 端只需把插件管理页与菜单注入点重画。
+- 插件体系：WinUI 端**不再加载 `.ccp`（CLR 程序集）**。定调（2026-10-30）：以后的插件用
+  **JS / Python** 形式实现 —— JS 可直接用 Core 已内置的 Jint + Acornima；Python 需评估
+  Python.NET 或嵌入式 CPython 的包体与部署成本。`.ccp` 链路只保留给 MAUI 参考实现，不在 WinUI 端接线。
 
 ## 2. 复用什么、重写什么
 
 | 层 | 处理 | 说明 |
 | --- | --- | --- |
-| `Core/Interfaces`（29 个契约）、`Core/Models`、`Core/Services`（LyricsService / PluginManager / OnlineMusicAggregator / PlayQueue / JsRuntimeService / TagReader） | **直接复用** | 纯 C#，无 UI 依赖 |
+| `Core/Interfaces`（29 个契约）、`Core/Models`、`Core/Services`（LyricsService / OnlineMusicAggregator / PlayQueue / JsRuntimeService / TagReader） | **直接复用** | 纯 C#，无 UI 依赖；`PluginManager`（.ccp）在 WinUI 端暂不使用 |
 | `Data/*`（MusicDatabase 17 张表、MusicLibraryService、Subsonic/WebDav/Smb、BackupService、多源刮削） | **直接复用** | 纯 C#；播放器要的流由服务层给 URL |
 | `Maui/Services/AudioPlayerService(.Windows)` | **移植** | `Windows.Media.Playback.MediaPlayer` + `AudioGraph` Biquad EQ 本来就是 WinRT API，可原样搬 |
 | `Maui/Services/ThemeService` | **重写** | 配色表（单一樱粉主题 + 深/浅两套背景）搬过来，输出改为 WinUI `ResourceDictionary` / `FrameworkElement.RequestedTheme` |
@@ -62,7 +63,7 @@ CatClawMusic.WinUI/
 | **P0 骨架（本轮）** | 工程可编译可启动：自定义标题栏、左侧栏（发现/歌单/音乐库/设置）、内容宿主、底部播放条占位；DI；`AppPaths` + `JsonSettingsStore`；主题令牌（樱粉 × 深/浅）；文件日志；空页面 | `dotnet build` 0 错误；启动能看到壳层且四页可切换 |
 | P1 曲库 | 本地扫描 → SQLite → 全部歌曲/歌手/专辑/歌单列表；底部播放条接真播放；歌曲右键菜单；歌单增删改 | 能扫描真实目录、起播、切歌、重启保留 |
 | P2 播放与歌词 | 播放页（封面取色背景、进度/音量/播放模式）、全屏歌词页、逐字/翻译/罗马音、桌面歌词第二窗口 | 歌词逐行/逐字跟手；桌面歌词可拖动 |
-| P3 发现与插件 | 发现页（推荐/排行/歌手/专辑/统计）、聚合搜索、插件管理（安装/启用/删除/配置）、插件菜单注入 | 装一个 `.ccp` 后能搜到歌并播放 |
+| P3 发现与在线源（**暂缓**） | 发现页先做本地能力（最近播放 / 收藏 / 统计）；在线音源等 JS/Py 插件框架落地后再接 | — |
 | P4 AI | Yuki 聊天（流式 + 工具循环 + 记忆/词库）、AI 设置与模型管理 | 工具调用可操作曲库/播放 |
 | P5 收尾 | 设置全量（外观/歌词/本地/远程/AI/插件/备份/日志/关于）、下载/BT、备份恢复、i18n、出包安装程序 | 与 MAUI 版逐页对照表全绿；安装包可覆盖升级 |
 
@@ -77,7 +78,7 @@ CatClawMusic.WinUI/
 | WinAppSDK 2.3.1 与 Win2D / 第三方包兼容性 | P0 只依赖官方包；Win2D 到 P2 背景/可视化时再引，先验证最小样例 |
 | Mica 仅 Win11 可用 | 运行期 `MicaController.IsSupported()` 判断，Win10 回退 `DesktopAcrylicBackdrop` / 纯色 |
 | 两版同时运行争 SQLite | 数据目录分离（见第 3 节）；不做库文件共享 |
-| 插件 ALC/版本漂移 | `PluginManager` 不变；插件必须引用与宿主同一份 Core —— 迁移完成后重编三个插件仓库的引用路径 |
+| 插件体系改向 JS / Python | WinUI 不加载 `.ccp`；JS 走 Core 的 Jint + Acornima，Python 需先评估解释器方案（Python.NET / 嵌入式 CPython）与打包体量；框架落地前不做在线音源 |
 | 51 种语言的 resx 结构 | P1 直接把 `CatClawMusic.Maui/Resources/AppResources*.resx` 链入（`EmbeddedResource` + `LogicalName`），跑通后再决定是否迁到共享工程 |
 
 ## 6. 执行记录
@@ -134,15 +135,10 @@ CatClawMusic.WinUI/
     不可重命名/删除，歌曲右键只留「播放」）
   - 实测：收藏 1 首、最近播放 2 首，列表与详情一致
 
-- **2026-10-30 P3 起步**：插件管理页 + 关键阻塞项
-  - `PluginService` 把 Core 的 `PluginManager` 接到 WinUI：插件目录 `%LOCALAPPDATA%\CatClawMusic\Plugin`、
-    启用状态存 `settings.json`；启动后台 `InitializeAllAsync`；`LyricsService.PluginManager` 已接上
-  - 插件管理页（设置 → 插件管理）：列表、启用/停用、安装 `.ccp`（FileOpenPicker）、卸载、打开插件目录；
-    宿主不内置任何插件实例
-  - **阻塞项（必须先解决才能做聚合搜索）**：现有插件实现 `IViewContributorPlugin` 等接口时引用了
-    `Microsoft.Maui.Controls`（返回 MAUI `Page`）。在 WinUI 宿主里安装 Lrclib 插件时
-    `PluginManager.LoadAndRegisterPluginAsync` 报
-    `InvalidOperationException: 插件程序集中未找到有效的 IPlugin 实现`（内部 `ReflectionTypeLoadException`，
-    因为扫描类型时无法解析 `Microsoft.Maui.Controls`）。
-    结论：**插件仓库需要去掉 MAUI 依赖**（视图贡献类接口在 WinUI 端另立抽象或改用契约数据结构），
-    否则音源 / 歌词插件在 WinUI 端装得上、识别不了。聚合搜索与插件音源播放等插件真正跑通后再做。
+- **2026-10-30 插件方向调整（用户定调）**：**暂不做插件；以后的插件用 JS 或 Python 形式实现**
+  - 因此撤掉昨晚的 `.ccp` 插件管理页与 `PluginService` 接线（不保留隐藏入口，避免指向已废弃方向）；
+    Core 的 `PluginManager` 原样保留，供 MAUI 参考实现使用
+  - 顺带证实的旧结论：`.ccp` 插件（如 Lrclib）引用 `Microsoft.Maui.Controls`，在 WinUI 宿主里扫描类型时
+    报 `ReflectionTypeLoadException` → 「未找到有效的 IPlugin 实现」，这条路本来也走不通
+  - 后续若启动 JS/Py 插件：JS 可直接复用 Core 的 `JsRuntimeService`（Jint + Acornima）；
+    Python 先做解释器选型与包体评估，再定协议（建议沿用「来源适配器 + 能力清单」的模型）

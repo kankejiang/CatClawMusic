@@ -8,5 +8,4 @@ public static class AppRoutes
     public const string Library = "library";
     public const string Settings = "settings";
     public const string Playing = "playing";
-    public const string Plugins = "plugins";
 }

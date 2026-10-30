@@ -18,13 +18,11 @@ public sealed partial class SettingsView : UserControl
     ];
 
     private readonly WinUiThemeService _theme;
-    private readonly INavigationService _navigation;
     private bool _syncingSelection;
 
-    public SettingsView(WinUiThemeService theme, INavigationService navigation)
+    public SettingsView(WinUiThemeService theme)
     {
         _theme = theme;
-        _navigation = navigation;
         InitializeComponent();
 
         DataPathText.Text = AppPaths.DataDirectory;
@@ -52,9 +50,6 @@ public sealed partial class SettingsView : UserControl
 
         _theme.SetDarkModeSetting(DarkModeOrder[index]);
     }
-
-    private async void OnOpenPluginsClick(object sender, RoutedEventArgs e) =>
-        await _navigation.NavigateToAsync(AppRoutes.Plugins);
 
     private void OnOpenDataFolderClick(object sender, RoutedEventArgs e)
     {

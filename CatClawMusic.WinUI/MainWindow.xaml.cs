@@ -48,7 +48,6 @@ public sealed partial class MainWindow : Window, INavigationHost
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         App.Services.GetRequiredService<FolderPickerService>().Initialize(windowHandle);
-        App.Services.GetRequiredService<FilePickerService>().Initialize(windowHandle);
 
         _theme.Applied += ApplyTitleBarTheme;
         _theme.Attach(RootGrid);
@@ -91,7 +90,6 @@ public sealed partial class MainWindow : Window, INavigationHost
             AppRoutes.Library => App.Services.GetRequiredService<LibraryView>(),
             AppRoutes.Settings => App.Services.GetRequiredService<SettingsView>(),
             AppRoutes.Playing => App.Services.GetRequiredService<PlayingView>(),
-            AppRoutes.Plugins => App.Services.GetRequiredService<PluginsView>(),
             _ => null,
         };
 
@@ -127,15 +125,14 @@ public sealed partial class MainWindow : Window, INavigationHost
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => ShowRoute(AppRoutes.Settings);
 
-    /// <summary>同步左侧栏选中态：设置页与插件页不参与 NavigationView 的选中模型，单独高亮。</summary>
+    /// <summary>同步左侧栏选中态：设置页不参与 NavigationView 的选中模型，单独高亮。</summary>
     private void UpdateNavSelection(string route)
     {
         _syncingSelection = true;
-        Nav.SelectedItem = route is AppRoutes.Settings or AppRoutes.Plugins ? null : FindNavItem(route);
+        Nav.SelectedItem = route == AppRoutes.Settings ? null : FindNavItem(route);
         _syncingSelection = false;
 
-        var settingsLike = route is AppRoutes.Settings or AppRoutes.Plugins;
-        SettingsButton.Background = settingsLike
+        SettingsButton.Background = route == AppRoutes.Settings
             ? GetBrush("AccentSoftBrush")
             : new SolidColorBrush(Colors.Transparent);
     }
