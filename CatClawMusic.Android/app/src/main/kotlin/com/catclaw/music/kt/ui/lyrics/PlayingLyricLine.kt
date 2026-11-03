@@ -1,5 +1,17 @@
 package com.catclaw.music.kt.ui.lyrics
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -101,35 +113,19 @@ fun PlayingLyricLine(
     }
 
     val index = currentIndex
-    val line = lines.getOrNull(index) ?: return
+    if (index !in lines.indices) return
+    val line = lines[index]
 
     // 不换行之后，长句必须靠**缩字号**才不会被切掉（成熟实现也是这条：一句一行、长了就缩）。
     // 只在「换句 / 宽度变化」时量一次，不进每帧路径。
     var availWidthPx by remember { mutableIntStateOf(0) }
     val measurer = rememberTextMeasurer()
-    val fittedSize = remember(line.text, availWidthPx) {
-        if (availWidthPx <= 0) PlayingLyricFontSize
-        else {
-            var size = PlayingLyricFontSize
-            while (size > MinPlayingLyricFontSize) {
-                val w = measurer.measure(
-                    text = AnnotatedString(line.text),
-                    style = TextStyle(fontSize = size.sp),
-                    maxLines = 1,
-                    softWrap = false,
-                ).size.width
-                if (w <= availWidthPx) break
-                size -= 0.5f
-            }
-            size
-        }
-    }
-    val style = TextStyle(fontSize = fittedSize.sp)
-
 
     Box(
         modifier = modifier
             .fillMaxWidth()
+            // 换句动画里文字会上下滑动，不裁的话会压到上面那条「作词/收藏/更多」那排
+            .clipToBounds()
             .onSizeChanged { availWidthPx = it.width }
             // 空白处轻击也进全屏歌词页（文本自身的 clickable 会先消费字上的点击）
             .clickable(
@@ -139,27 +135,111 @@ fun PlayingLyricLine(
             ) { open() },
         contentAlignment = Alignment.CenterStart,
     ) {
-        KaraokeText(
-            text = line.text,
-            // 进度在**绘制期**读：位置流每 16ms 一发，写成值就会每帧重组整棵子树
-            // （真机 20fps / 57% janky 的来源）。这样这一页只在换句时重组。
-            progress = {
-                LyricFillCalculator.computeFillProgress(
-                    line = line,
-                    lineIndex = index,
-                    allLines = lines,
-                    positionMs = positionMsState.value,
-                    lineMode = lineMode,
-                ).toFloat()
+        // 2026-11-03 用户要求：换句加动画。样式见 [LyricSwitchAnimation]，改那一行常量就能换风格。
+        // 用 index + 歌词对象当 targetState：换歌时即使行号撞上也会过渡。
+        AnimatedContent(
+            targetState = index to shown,
+            transitionSpec = {
+                val forward = targetState.first >= initialState.first
+                // 基准时长都写「原值」，再由 LyricSwitchSpeed 统一放大 —— 觉得快/慢只改那一个数
+                when (LyricSwitchStyle) {
+                    // 上移淡入：旧句往上飘走、新句从下面浮上来（Apple Music 那一档，最稳）
+                    LyricSwitchAnimation.SlideUp ->
+                        (
+                            fadeIn(tween(lyricMs(220))) +
+                                slideInVertically(tween(lyricMs(320))) { if (forward) it * 2 / 3 else -it * 2 / 3 } +
+                                scaleIn(tween(lyricMs(320)), initialScale = 0.96f)
+                            ).togetherWith(
+                            fadeOut(tween(lyricMs(130))) +
+                                slideOutVertically(tween(lyricMs(320))) { if (forward) -it / 2 else it / 2 },
+                        )
+                    // 纯淡入淡出：最克制，慢歌/R&B 不抢戏
+                    LyricSwitchAnimation.Fade ->
+                        fadeIn(tween(lyricMs(260))).togetherWith(fadeOut(tween(lyricMs(200))))
+                    // 弹出：新句从小放大+淡入，有一点点「砸下来」的力量感，适合快歌
+                    LyricSwitchAnimation.Pop -> (
+                        fadeIn(tween(lyricMs(200))) + scaleIn(tween(lyricMs(280)), initialScale = 0.82f)
+                        ).togetherWith(
+                        fadeOut(tween(lyricMs(140))) + scaleOut(tween(lyricMs(200)), targetScale = 0.94f),
+                    )
+                    // 遮罩上滑：不淡入，纯靠裁切滑动，像翻页机（配合外层 clipToBounds 才有味道）
+                    LyricSwitchAnimation.Wipe ->
+                        slideInVertically(tween(lyricMs(300))) { if (forward) it else -it }
+                            .togetherWith(slideOutVertically(tween(lyricMs(300))) { if (forward) -it else it })
+                }
             },
-            // 高亮 = 正文色（深色主题下即白色），未唱 = 同色降透明度（不靠色相表进度）
-            baseColor = Color(palette.textPrimary).copy(alpha = 0.45f),
-            fillColor = Color(palette.textPrimary),
-            textAlign = TextAlign.Start,
-            style = style,
-            modifier = Modifier.fillMaxWidth(),
-            // 一行就是一行：不换行 + 自动缩字号（上面量好的 fittedSize）
-            singleLine = true,
-        )
+            label = "playingLyricSwitch",
+        ) { target ->
+            val targetIndex = target.first
+            val targetLine = lines.getOrNull(targetIndex) ?: return@AnimatedContent
+            KaraokeText(
+                text = targetLine.text,
+                // 进度在**绘制期**读：位置流每 16ms 一发，写成值就会每帧重组整棵子树
+                // （真机 20fps / 57% janky 的来源）。这样这一页只在换句时重组。
+                progress = {
+                    LyricFillCalculator.computeFillProgress(
+                        line = targetLine,
+                        lineIndex = targetIndex,
+                        allLines = lines,
+                        positionMs = positionMsState.value,
+                        lineMode = lineMode,
+                    ).toFloat()
+                },
+                // 高亮 = 正文色（深色主题下即白色），未唱 = 同色降透明度（不靠色相表进度）
+                baseColor = Color(palette.textPrimary).copy(alpha = 0.45f),
+                fillColor = Color(palette.textPrimary),
+                textAlign = TextAlign.Start,
+                style = TextStyle(fontSize = rememberFittedLyricSize(targetLine.text, availWidthPx, measurer)),
+                modifier = Modifier.fillMaxWidth(),
+                // 一行就是一行：不换行 + 自动缩字号（上面量好的尺寸）
+                singleLine = true,
+            )
+        }
+    }
+}
+
+/**
+ * 播放页换句动画的四种备选 —— 改下面那一行常量就能整体换风格（参数都是实测后可调的经验值）。
+ *
+ * - [SlideUp] 旧句上飘淡出、新句下方浮入：最通用，信息连贯，不会让人眼重新找位置。
+ * - [Fade]    纯交叉淡入淡出：最克制，适合慢歌/纯音乐，几乎不打扰。
+ * - [Pop]     新句缩小→放大弹出：力量感强，快歌/鼓点重时好用，慢歌会显得吵。
+ * - [Wipe]    无淡化、靠裁切滑动：像机械翻页，个性最强，但连续快句时容易晕。
+ */
+private enum class LyricSwitchAnimation { SlideUp, Fade, Pop, Wipe }
+
+/** 当前使用的换句动画 */
+private val LyricSwitchStyle = LyricSwitchAnimation.SlideUp
+
+/**
+ * 换句动画的整体速度倍率：1.0 = 代码里的基准值（当前 SlideUp 约 320ms）。
+ * 2026-11-03 用户反馈「有动画但太快了」，放到 1.7（≈540ms）。
+ * 再快改 1.3，再慢改 2.2。四个样式的时长都走这里，不用逐个改。
+ */
+private const val LyricSwitchSpeed = 1.7f
+
+/** 把基准毫秒按 [LyricSwitchSpeed] 放大 */
+private fun lyricMs(base: Int): Int = (base * LyricSwitchSpeed).toInt()
+
+/** 长句自动缩字号的结果：只在「文本或可用宽度变化」时重算一次。 */
+@Composable
+private fun rememberFittedLyricSize(text: String, availWidthPx: Int, measurer: TextMeasurer): TextUnit {
+    return remember(text, availWidthPx, measurer) {
+        if (availWidthPx <= 0) {
+            PlayingLyricFontSize.sp
+        } else {
+            var size = PlayingLyricFontSize
+            while (size > MinPlayingLyricFontSize) {
+                val w = measurer.measure(
+                    text = AnnotatedString(text),
+                    style = TextStyle(fontSize = size.sp),
+                    maxLines = 1,
+                    softWrap = false,
+                ).size.width
+                if (w <= availWidthPx) break
+                size -= 0.5f
+            }
+            size.sp
+        }
     }
 }
