@@ -28,6 +28,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -671,57 +678,23 @@ private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSee
         // 独立图层：这一行每 16ms 变一次（位置流），不隔离的话整屏都会被拖进重录
         modifier = Modifier.fillMaxWidth().graphicsLayer(),
     ) {
-        // Apple 的进度条是 3dp 细线 + 白色已播 + 小圆点，滑块只在拖动时才明显。
-        // 这里保留 Slider 的语义（拖动期间只显本地值、松手才 seek），只把视觉换成那一档：
-        // 换掉控件会丢回写规则，换 track/thumb 插槽不会。
-        // 2026-11-03 用户要求：时间挪到进度条下方、进度条加长 —— 所以时间不再占左右，滑块吃满整宽。
-        Slider(
-            value = fraction,
-            onValueChange = { dragFraction = it },
-            onValueChangeFinished = {
-                dragFraction.takeIf { it >= 0 }?.let { onSeek((it * durationMs).toLong()) }
+        // 2026-11-03 用户：进度条比时间行短、时间和进度条之间太空。
+        // 两者都是 Material3 Slider 的固有几何造成的：轨道被拇指槽左右各内缩 10dp（短一截），
+        // 控件本身有 48dp 最小高度（把时间推远）。这里换成自绘的一条，几何完全可控。
+        // 语义不变：拖动期间只显本地值（dragFraction），松手才 seek。
+        SeekBar(
+            fraction = fraction,
+            enabled = durationMs > 0,
+            onPreview = { dragFraction = it },
+            onCommit = {
+                val committed = dragFraction
                 dragFraction = -1f
+                if (committed >= 0f && durationMs > 0) onSeek((committed * durationMs).toLong())
             },
-            // 左右各留 2dp：否则两端的圆点会被裁掉一半
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = Color(palette.textPrimary),
-                activeTrackColor = Color(palette.textPrimary),
-                inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.22f),
-            ),
-            track = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(CircleShape)
-                        .background(Color(palette.textPrimary).copy(alpha = 0.22f)),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                            .fillMaxHeight()
-                            .background(Color(palette.textPrimary)),
-                    )
-                }
-            },
-            thumb = {
-                // 槽固定 20dp、圆点 11dp 居中：Material3 是按**槽的测量尺寸**去和轨道对齐的，
-                // 直接把槽做成 11dp 会让圆点偏离轨道中心（2026-11-03 用户截图指出的问题）。
-                Box(
-                    modifier = Modifier.size(20.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(11.dp)
-                            .clip(CircleShape)
-                            .background(Color(palette.textPrimary)),
-                    )
-                }
-            },
+            // 与下面那行时间用同一个 4dp 内边距，两行左右严格对齐
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         )
-        // 时间放在进度条下方：左端当前时间、右端总时长
+        // 时间放在进度条下方：左端当前时间、右端总时长（与进度条同一 4dp 内边距，左右对齐）
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -738,6 +711,89 @@ private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSee
             )
         }
     }
+}
+
+/**
+ * 自绘进度条（2026-11-03 替换 Material3 Slider）。
+ *
+ * 为什么不用 Slider：
+ * - 它的轨道会被拇指槽左右各内缩约 10dp —— 进度条看起来比下面那行时间短一截；
+ * - 控件有 48dp 最小高度 —— 轨道离时间文字被推得太远；
+ * - 拇指槽按测量尺寸和轨道对齐，自定义小圆点很容易偏心。
+ *
+ * 这里：轨道**铺满整宽**与时间行左右对齐，圆点在两端允许溢出半个（视觉上才走得满），
+ * 垂直方向只占 [SeekBarHeight]，轨道中线就在正中，天然与圆点同心。
+ */
+private val SeekBarHeight = 22.dp
+private val SeekBarTrackHeight = 3.dp
+private val SeekBarDotRadius = 5.dp
+
+@Composable
+private fun SeekBar(
+    fraction: Float,
+    enabled: Boolean,
+    onPreview: (Float) -> Unit,
+    onCommit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    val active = Color(palette.textPrimary)
+    val inactive = Color(palette.textPrimary).copy(alpha = 0.22f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(SeekBarHeight)
+            // 轻击直接定位（先预览再提交）
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures { offset ->
+                    onPreview((offset.x / size.width).coerceIn(0f, 1f))
+                    onCommit()
+                }
+            }
+            // 拖动：按当前触点绝对位置换算比例，不做增量累加（更跟手）
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        onPreview((offset.x / size.width).coerceIn(0f, 1f))
+                    },
+                    onDragEnd = { onCommit() },
+                    onDragCancel = { onCommit() },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        onPreview((change.position.x / size.width).coerceIn(0f, 1f))
+                    },
+                )
+            }
+            .drawBehind {
+                val midY = size.height / 2f
+                val trackH = SeekBarTrackHeight.toPx()
+                val dotR = SeekBarDotRadius.toPx()
+                val fullW = size.width
+                val radius = CornerRadius(trackH / 2f, trackH / 2f)
+                // 底轨：整宽
+                drawRoundRect(
+                    color = inactive,
+                    topLeft = Offset(0f, midY - trackH / 2f),
+                    size = Size(fullW, trackH),
+                    cornerRadius = radius,
+                )
+                // 已播
+                val cx = fullW * fraction.coerceIn(0f, 1f)
+                if (cx > 0f) {
+                    drawRoundRect(
+                        color = active,
+                        topLeft = Offset(0f, midY - trackH / 2f),
+                        size = Size(cx, trackH),
+                        cornerRadius = radius,
+                    )
+                }
+                // 圆点：允许在两端各溢出半径，进度条才「走满」
+                drawCircle(color = active, radius = dotR, center = Offset(cx, midY))
+            },
+    )
 }
 
 private fun formatTime(ms: Long): String {
