@@ -106,6 +106,20 @@ private val LyricGapExtra = 6.dp
 private const val LyricScrollMs = 380
 
 /**
+ * 进页飞入：先从「目标行上方 6 行」起滑，再用 [LyricIntroMs] 滑到钉行位。
+ * 用户 2026-11-03 反馈「从播放页切到全屏歌词时歌词跳转有点僵硬」——原来是直接 scrollToItem 硬跳。
+ * 留 6 行是为了让目标行先落在视口内（否则 animateScrollBy 无从计算像素距离），
+ * 同时这 6 行的位移刚好形成「歌词向上滑入就位」的观感。
+ */
+private const val LyricIntroLeadRows = 6
+
+/** 进页飞入时长：比切句的 380ms 更快，是「快速跳转」而不是慢悠悠滚一屏 */
+private const val LyricIntroMs = 320
+
+/** 进页后补钉一次的时长：只做小修正，短一点避免看起来像重新跳了一次 */
+private const val LyricRepinMs = 150
+
+/**
  * 全屏歌词页 —— 完全对齐 MAUI `FullLyricsPage`（2026-10-03 重写，2026-10-07 对齐滚动/视觉细节）：
  * - 竖屏：顶部 HeroCard（40dp 封面点按返回 + 标题/歌手 + LRC 徽标 + ⚙ 设置）+ 全宽歌词
  * - 横屏：左封面（圆角 28 + 亮描边）+ 右歌词，无顶部卡片
@@ -259,16 +273,59 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
         }
     }
 
+    /** 短缓动钉行：用于进页后的补钉（只差几行时用，避免把飞入动画 snap 掉） */
+    suspend fun smoothPinActiveLine(durationMs: Int) {
+        val linesNow = latestLines
+        val idx = latestIndex
+        if (idx < 0 || linesNow.isEmpty()) return
+        val target = idx.coerceAtMost(linesNow.lastIndex)
+        val viewport = listState.layoutInfo.viewportSize.height
+        if (viewport <= 0) return
+        val beforePadding = listState.layoutInfo.beforeContentPadding
+        val estimated = rowContentHeights[target] ?: (viewport / 8)
+        val targetOffset = pinnedScrollOffsetPx(estimated, viewport, beforePadding, pinMarginPx)
+        val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+        if (info != null) {
+            val delta = (info.offset + targetOffset).toFloat()
+            if (abs(delta) > 1f) {
+                listState.animateScrollBy(delta, tween(durationMs, easing = EaseInOutCubic))
+            }
+        } else {
+            // 目标行还不在视口内（布局尚未完成）：这一档只能直接跳，随后补钉会修正
+            pinActiveLineNow()
+        }
+    }
+
+    /**
+     * 进页飞入：列表此时还停在首行，先瞬移到「目标行上方 [LyricIntroLeadRows] 行」
+     * （这一跳发生在本页刚可见的那一帧，用户看不到），再用 [LyricIntroMs] 缓动滑到钉行位。
+     */
+    suspend fun slideInToActiveLine() {
+        val linesNow = latestLines
+        val idx = latestIndex
+        if (idx < 0 || linesNow.isEmpty()) return
+        val target = idx.coerceAtMost(linesNow.lastIndex)
+        val anchor = (target - LyricIntroLeadRows).coerceAtLeast(0)
+        if (anchor > 0 && listState.firstVisibleItemIndex < anchor) {
+            listState.scrollToItem(anchor)
+            withFrameNanos { }
+        }
+        smoothPinActiveLine(LyricIntroMs)
+    }
+
     // 进页 / 回前台 / 歌词表变化：【立即】钉行（无缓动，MAUI OnAppearing ForcePinActiveLine /
     // OnAppResumed），随后 300ms×3 补钉（ScheduleRetriedPinActive(3)）覆盖二次布局晚于进页的场景
     var pinnedOnce by remember { mutableStateOf(false) }
     LaunchedEffect(visible, isResumed, lines) {
         if (!visible || !isResumed || lines.isEmpty()) return@LaunchedEffect
-        pinActiveLineNow()
+        // 首次进页且当前行离得很远（列表还停在首行）：走「飞入」而不是硬跳。
+        // 已经在页内 / 只是回前台：位置基本正确，直接钉（避免出现「先弹回上面再滑下来」）。
+        val introSlide = !pinnedOnce && listState.firstVisibleItemIndex == 0 && latestIndex > LyricIntroLeadRows
+        if (introSlide) slideInToActiveLine() else pinActiveLineNow()
         pinnedOnce = true
         repeat(3) {
             delay(300)
-            pinActiveLineNow()
+            smoothPinActiveLine(LyricRepinMs)
         }
     }
     // 横竖屏切换后立即重钉（MAUI ApplyLayoutForOrientation 的 orientationChanged →
