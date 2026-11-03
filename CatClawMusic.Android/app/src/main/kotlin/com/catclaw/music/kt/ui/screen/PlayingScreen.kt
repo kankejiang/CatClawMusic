@@ -667,19 +667,14 @@ private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSee
     // 沿用会让时间文字拿到浅色方案的黑色，落在深底上直接看不见
     val palette = LocalCatClawPalette.current
 
-    Row(
+    Column(
         // 独立图层：这一行每 16ms 变一次（位置流），不隔离的话整屏都会被拖进重录
         modifier = Modifier.fillMaxWidth().graphicsLayer(),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = formatTime(shownMs.toLong()),
-            fontSize = 11.5.sp,
-            color = Color(palette.textSecondary),
-        )
         // Apple 的进度条是 3dp 细线 + 白色已播 + 小圆点，滑块只在拖动时才明显。
         // 这里保留 Slider 的语义（拖动期间只显本地值、松手才 seek），只把视觉换成那一档：
-        // 换掉控件会丢回写规则，换 track/thumb 插槽不会
+        // 换掉控件会丢回写规则，换 track/thumb 插槽不会。
+        // 2026-11-03 用户要求：时间挪到进度条下方、进度条加长 —— 所以时间不再占左右，滑块吃满整宽。
         Slider(
             value = fraction,
             onValueChange = { dragFraction = it },
@@ -687,7 +682,8 @@ private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSee
                 dragFraction.takeIf { it >= 0 }?.let { onSeek((it * durationMs).toLong()) }
                 dragFraction = -1f
             },
-            modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+            // 左右各留 2dp：否则两端的圆点会被裁掉一半
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
             colors = SliderDefaults.colors(
                 thumbColor = Color(palette.textPrimary),
                 activeTrackColor = Color(palette.textPrimary),
@@ -710,19 +706,37 @@ private fun ProgressRow(positionMsFlow: StateFlow<Long>, durationMs: Long, onSee
                 }
             },
             thumb = {
+                // 槽固定 20dp、圆点 11dp 居中：Material3 是按**槽的测量尺寸**去和轨道对齐的，
+                // 直接把槽做成 11dp 会让圆点偏离轨道中心（2026-11-03 用户截图指出的问题）。
                 Box(
-                    modifier = Modifier
-                        .size(11.dp)
-                        .clip(CircleShape)
-                        .background(Color(palette.textPrimary)),
-                )
+                    modifier = Modifier.size(20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .clip(CircleShape)
+                            .background(Color(palette.textPrimary)),
+                    )
+                }
             },
         )
-        Text(
-            text = formatTime(durationMs),
-            fontSize = 11.5.sp,
-            color = Color(palette.textSecondary),
-        )
+        // 时间放在进度条下方：左端当前时间、右端总时长
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = formatTime(shownMs.toLong()),
+                fontSize = 11.5.sp,
+                color = Color(palette.textSecondary),
+            )
+            Text(
+                text = formatTime(durationMs),
+                fontSize = 11.5.sp,
+                color = Color(palette.textSecondary),
+            )
+        }
     }
 }
 
