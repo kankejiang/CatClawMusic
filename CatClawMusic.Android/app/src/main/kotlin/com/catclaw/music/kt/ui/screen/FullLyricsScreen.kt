@@ -297,16 +297,24 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
     }
 
     /**
-     * 进页飞入：列表此时还停在首行，先瞬移到「目标行上方 [LyricIntroLeadRows] 行」
-     * （这一跳发生在本页刚可见的那一帧，用户看不到），再用 [LyricIntroMs] 缓动滑到钉行位。
+     * 进页飞入：**每次进页都走这条**（用户 2026-11-03 反馈「只有第一次有动画」——
+     * 原来被 pinnedOnce 只放行一次，而这页是 Pager 邻页、常驻组合，标记一直是 true）。
+     *
+     * - 目标行**不在**视口内（隔了很多行，比如刚进来停在首行）：先瞬移到「目标行上方
+     *   [LyricIntroLeadRows] 行」，再用 [LyricIntroMs] 滑完最后一段（瞬移发生在刚可见那一帧，看不见）。
+     * - 目标行**已在**视口内（只是差几行，或位置本来就对）：直接短缓动过去；
+     *   完全对齐时 delta≈0 不会动，所以重复进页不会出现无谓的抖动。
      */
-    suspend fun slideInToActiveLine() {
+    suspend fun flyToActiveLine() {
         val linesNow = latestLines
         val idx = latestIndex
         if (idx < 0 || linesNow.isEmpty()) return
         val target = idx.coerceAtMost(linesNow.lastIndex)
-        val anchor = (target - LyricIntroLeadRows).coerceAtLeast(0)
-        if (anchor > 0 && listState.firstVisibleItemIndex < anchor) {
+        val viewport = listState.layoutInfo.viewportSize.height
+        if (viewport <= 0) return
+        val alreadyVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == target }
+        if (!alreadyVisible) {
+            val anchor = (target - LyricIntroLeadRows).coerceAtLeast(0)
             listState.scrollToItem(anchor)
             withFrameNanos { }
         }
@@ -318,10 +326,8 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
     var pinnedOnce by remember { mutableStateOf(false) }
     LaunchedEffect(visible, isResumed, lines) {
         if (!visible || !isResumed || lines.isEmpty()) return@LaunchedEffect
-        // 首次进页且当前行离得很远（列表还停在首行）：走「飞入」而不是硬跳。
-        // 已经在页内 / 只是回前台：位置基本正确，直接钉（避免出现「先弹回上面再滑下来」）。
-        val introSlide = !pinnedOnce && listState.firstVisibleItemIndex == 0 && latestIndex > LyricIntroLeadRows
-        if (introSlide) slideInToActiveLine() else pinActiveLineNow()
+        // 每次进页都走飞入（内部按「目标行在不在视口内」决定起滑点，已对齐时不会动）
+        flyToActiveLine()
         pinnedOnce = true
         repeat(3) {
             delay(300)
