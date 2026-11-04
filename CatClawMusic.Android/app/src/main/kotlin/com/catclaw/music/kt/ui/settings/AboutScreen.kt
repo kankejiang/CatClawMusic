@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,7 +123,6 @@ fun AboutScreen(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
             BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
@@ -128,59 +130,110 @@ fun AboutScreen(
             Text(stringResource(R.string.About), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
         }
 
+        // ── 主体：**纯排版**，不放头像（2026-11-04 用户要求移除猫爪娘头像）——
+        // 大字号应用名 + 版本号 + 一句标语，靠字重/字号拉层次，不做图形装饰。
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.AppName),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.8).sp,
+                color = Color(palette.textPrimary),
+            )
+            Text(
+                text = viewModel.version,
+                fontSize = 13.sp,
+                letterSpacing = 0.3.sp,
+                color = Color(palette.textSecondary),
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            Text(
+                text = stringResource(R.string.about_tagline),
+                fontSize = 12.5.sp,
+                lineHeight = 19.sp,
+                textAlign = TextAlign.Center,
+                color = Color(palette.textSecondary),
+                modifier = Modifier.padding(top = 16.dp, start = 12.dp, end = 12.dp),
+            )
+        }
+
+        // ── 信息卡：iOS 分组列表那种「左标签 / 右值 / 发丝分隔线」
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .glassCard(palette = palette, corner = 26)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(top = 22.dp)
+                .glassCard(palette = palette, corner = 22),
         ) {
-            Image(
-                painter = painterResource(R.drawable.avatar_yuki),
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
+            AboutInfoRow(
+                label = stringResource(R.string.about_version),
+                value = viewModel.version,
+                palette = palette,
+                first = true,
             )
-            Text(stringResource(R.string.AppName), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary), modifier = Modifier.padding(top = 12.dp))
-            Text(viewModel.version, fontSize = 13.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 2.dp))
-            Text(
-                stringResource(R.string.about_tagline),
-                fontSize = 13.sp,
-                color = Color(palette.textSecondary),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp),
+            AboutInfoRow(
+                label = stringResource(R.string.about_runtime),
+                // 顺便把「Kotlin 原生版」这句带回来（对应 MAUI 的 ".NET MAUI Edition"），
+                // 也避免这条文案变成死资源（LocaleParityTest 会盯着）
+                value = stringResource(R.string.about_edition) + " · Android " +
+                    android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + ")",
+                palette = palette,
             )
-            Text(stringResource(R.string.about_edition), fontSize = 11.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 10.dp))
+            AboutInfoRow(
+                label = stringResource(R.string.about_package),
+                value = context.packageName,
+                palette = palette,
+            )
+            AboutLinkRow(stringResource(R.string.about_license), palette) { viewModel.open(AboutViewModel.LICENSE_URL) }
+            AboutLinkRow(stringResource(R.string.about_group), palette) { viewModel.open(AboutViewModel.GROUP_URL) }
+            AboutLinkRow("GitHub", palette) { viewModel.open(AboutViewModel.REPO_URL) }
+        }
 
+        // ── 更新卡：一行入口 + 一行状态，比原来那颗大粉按钮克制
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .glassCard(palette = palette, corner = 22),
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = update != UpdateUi.Checking) { viewModel.checkUpdate() }
+                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                PillLabel(text = stringResource(R.string.about_license), onClick = { viewModel.open(AboutViewModel.LICENSE_URL) }, filled = false)
-                PillLabel(text = stringResource(R.string.about_group), onClick = { viewModel.open(AboutViewModel.GROUP_URL) }, filled = false)
-                PillLabel(text = "GitHub", onClick = { viewModel.open(AboutViewModel.REPO_URL) }, filled = false)
-            }
-
-            Box(modifier = Modifier.padding(top = 14.dp)) {
-                PillLabel(
+                Text(
                     text = stringResource(R.string.about_check_update),
-                    onClick = viewModel::checkUpdate,
-                    enabled = update != UpdateUi.Checking,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(palette.textPrimary),
                 )
-            }
-            when (val state = update) {
-                UpdateUi.Idle -> Unit
-                UpdateUi.Checking -> Text(stringResource(R.string.about_checking), fontSize = 12.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 10.dp))
-                is UpdateUi.UpToDate -> Text(stringResource(R.string.about_up_to_date, state.current), fontSize = 12.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 10.dp))
-                is UpdateUi.Unreachable -> Text(stringResource(R.string.about_unreachable), fontSize = 12.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(top = 10.dp))
-                is UpdateUi.Available -> {
-                    Text(stringResource(R.string.about_new_version, state.latest), fontSize = 12.sp, color = Color(palette.textPrimary), modifier = Modifier.padding(top = 10.dp))
-                    pendingDialog = state.latest
+                Spacer(Modifier.weight(1f))
+                when (val state = update) {
+                    UpdateUi.Idle -> Text("›", fontSize = 18.sp, color = Color(palette.textSecondary))
+                    UpdateUi.Checking -> Text(stringResource(R.string.about_checking), fontSize = 12.sp, color = Color(palette.textSecondary))
+                    is UpdateUi.UpToDate -> Text(stringResource(R.string.about_up_to_date, state.current), fontSize = 12.sp, color = Color(palette.textSecondary))
+                    is UpdateUi.Unreachable -> Text(stringResource(R.string.about_unreachable), fontSize = 12.sp, color = Color(palette.textSecondary))
+                    is UpdateUi.Available -> Text(
+                        text = stringResource(R.string.about_new_version, state.latest),
+                        fontSize = 12.sp,
+                        // 主色当字色必须先过可读性判据（VisualLanguageTest）
+                        color = Color(com.catclaw.music.kt.ui.theme.highlightOnGlassCard(palette)),
+                    )
                 }
             }
         }
 
-        Text(AboutViewModel.copyright(), fontSize = 11.sp, color = Color(palette.textSecondary), modifier = Modifier.padding(bottom = 24.dp))
+        Text(
+            text = AboutViewModel.copyright(),
+            fontSize = 11.sp,
+            color = Color(palette.textSecondary).copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 28.dp),
+        )
     }
 
     pendingDialog?.let { latest ->
@@ -200,4 +253,64 @@ fun AboutScreen(
             },
         )
     }
+}
+
+/** 信息卡里的一行「左标签 / 右值」，带顶部发丝线（首行不画） */
+@Composable
+private fun AboutInfoRow(
+    label: String,
+    value: String,
+    palette: com.catclaw.music.kt.core.theme.CatClawPalette,
+    first: Boolean = false,
+) {
+    AboutHairline(palette = palette, visible = !first)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, fontSize = 13.sp, color = Color(palette.textSecondary))
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
+}
+
+/** 信息卡里的一行可点项，右侧一个排版箭头 */
+@Composable
+private fun AboutLinkRow(
+    label: String,
+    palette: com.catclaw.music.kt.core.theme.CatClawPalette,
+    onClick: () -> Unit,
+) {
+    AboutHairline(palette = palette, visible = true)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, fontSize = 13.sp, color = Color(palette.textPrimary))
+        Spacer(Modifier.weight(1f))
+        Text("›", fontSize = 17.sp, color = Color(palette.textSecondary))
+    }
+}
+
+/** 0.5dp 发丝线：iOS 那套「用线不用阴影」的分隔方式 */
+@Composable
+private fun AboutHairline(palette: com.catclaw.music.kt.core.theme.CatClawPalette, visible: Boolean) {
+    if (!visible) return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp)
+            .height(0.5.dp)
+            .background(Color(palette.textSecondary).copy(alpha = 0.14f)),
+    )
 }

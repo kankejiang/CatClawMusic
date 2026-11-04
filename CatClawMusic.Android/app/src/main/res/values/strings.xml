@@ -202,6 +202,9 @@
     <string name="about_tagline">一只会放音乐的猫爪喵——本地、私域、在线，都给你安排好啦</string>
     <string name="about_edition">Kotlin 原生版</string>
     <string name="about_license">开源协议</string>
+    <string name="about_version">版本</string>
+    <string name="about_package">包名</string>
+    <string name="about_runtime">运行环境</string>
     <string name="about_group">交流群</string>
     <string name="about_check_update">检查更新</string>
     <string name="about_checking">正在检查更新…</string>

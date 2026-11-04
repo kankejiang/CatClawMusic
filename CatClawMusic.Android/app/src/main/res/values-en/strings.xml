@@ -202,6 +202,9 @@
     <string name="about_tagline">A cat paw that plays music — local, private and online, all sorted for you.</string>
     <string name="about_edition">Kotlin native edition</string>
     <string name="about_license">Licenses</string>
+    <string name="about_version">Version</string>
+    <string name="about_package">Package</string>
+    <string name="about_runtime">Runtime</string>
     <string name="about_group">Community</string>
     <string name="about_check_update">Check for updates</string>
     <string name="about_checking">Checking for updates…</string>
