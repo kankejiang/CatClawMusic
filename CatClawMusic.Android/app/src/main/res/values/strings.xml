@@ -328,11 +328,14 @@
     <string name="remote_sync_listing">正在列出远端目录…</string>
     <string name="downloads_title">下载管理</string>
     <string name="downloads_subtitle">远程曲的本地下载任务与下载位置</string>
-    <string name="downloads_counts">共 %1$d 个任务 · 进行中 %2$d · 已完成 %3$d</string>
     <string name="downloads_dir">下载位置</string>
-    <string name="downloads_size">占用 %1$s</string>
+    <string name="downloads_stat_tasks">任务</string>
+    <string name="downloads_stat_running">进行中</string>
+    <string name="downloads_stat_done">已完成</string>
+    <string name="downloads_used">已占用</string>
+    <string name="downloads_empty_title">还没有下载任务</string>
     <string name="downloads_zero">0 B</string>
-    <string name="downloads_empty">还没有下载任务；在远程音乐列表里点「下载」就会出现在这里</string>
+    <string name="downloads_empty">在远程音乐列表里点「下载」，任务就会出现在这里</string>
     <string name="downloads_bytes">%1$s / %2$s</string>
     <string name="downloads_state_running">下载中</string>
     <string name="downloads_state_paused">已暂停</string>

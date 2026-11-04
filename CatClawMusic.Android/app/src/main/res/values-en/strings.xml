@@ -328,11 +328,14 @@ Download it from GitHub.</string>
     <string name="remote_sync_listing">Listing remote folders…</string>
     <string name="downloads_title">Downloads</string>
     <string name="downloads_subtitle">Local download tasks and where they go</string>
-    <string name="downloads_counts">%1$d tasks · %2$d running · %3$d done</string>
     <string name="downloads_dir">Download location</string>
-    <string name="downloads_size">%1$s used</string>
+    <string name="downloads_stat_tasks">Tasks</string>
+    <string name="downloads_stat_running">Running</string>
+    <string name="downloads_stat_done">Done</string>
+    <string name="downloads_used">Used</string>
+    <string name="downloads_empty_title">No downloads yet</string>
     <string name="downloads_zero">0 B</string>
-    <string name="downloads_empty">No download tasks yet — tap Download in the remote list</string>
+    <string name="downloads_empty">Tap Download in the remote list and the task shows up here</string>
     <string name="downloads_bytes">%1$s / %2$s</string>
     <string name="downloads_state_running">Downloading</string>
     <string name="downloads_state_paused">Paused</string>
