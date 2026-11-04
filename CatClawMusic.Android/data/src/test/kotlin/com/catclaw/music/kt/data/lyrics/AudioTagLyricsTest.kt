@@ -11,6 +11,8 @@ import com.catclaw.music.kt.data.lyrics.TagFixtures.vorbisComment
 import java.io.File
 import java.nio.charset.StandardCharsets
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -29,6 +31,28 @@ class AudioTagLyricsTest {
             val tag = id3v2(3, listOf("USLT" to usltValue(encoding, text, "desc")))
             val parsed = Id3v2Tag.lyrics(tag + ByteArray(64))
             assertEquals("encoding=$encoding", text.lineSequence().first(), parsed?.lineSequence()?.first())
+        }
+    }
+
+    @Test
+    fun `封面超过 64KB 时，排在其后的 USLT 仍读得到`() {
+        // 真实 MP3 的内嵌封面常有 300~600 KB，且惯例排在 USLT 之前。
+        // 旧实现只在开头 64 KB 上走帧，帧长一越界就 break → 歌词整段读不到（2026-11-04 用户反馈）
+        val bigCover = ByteArray(300 * 1024) { 0x11 }
+        val tag = id3v2(
+            3,
+            listOf(
+                "APIC" to bigCover,
+                "TIT2" to byteArrayOf(3) + "标题".toByteArray(StandardCharsets.UTF_8),
+                "USLT" to usltValue(3, lyrics),
+            ),
+        )
+        val file = File.createTempFile("embedded-lyrics", ".mp3")
+        try {
+            file.writeBytes(tag + ByteArray(1024))
+            assertEquals(lyrics, AudioTagLyrics.read(file.absolutePath))
+        } finally {
+            file.delete()
         }
     }
 
@@ -131,4 +155,33 @@ class AudioTagLyricsTest {
 
     private fun tempFile(name: String, bytes: ByteArray): File =
         File(tempDir(), "$name.bin").also { it.writeBytes(bytes) }
+
+    @Test
+    fun `内嵌 TTML（iTunes 风格 USLT）走完整链路能出带时间戳的歌词`() {
+        // 真机样本：`不才 - 化身孤岛的鲸.mp3` 的 USLT 就是这种 iTunes TTML（逐字 span）。
+        // 这条测的是「取标签 → 解析」整条链路，而不是只测其中一段。
+        val xml = javaClass.classLoader!!.getResourceAsStream("lyrics/itunes_ttml_uslt.ttml")!!
+            .bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val tag = id3v2(
+            4,
+            listOf(
+                "TIT2" to byteArrayOf(3) + "化身孤岛的鲸".toByteArray(StandardCharsets.UTF_8),
+                // 封面排在歌词之后、且 300KB：老实现读前 64KB 就停不下来
+                "USLT" to usltValue(3, xml),
+                "APIC" to ByteArray(300 * 1024) { 0x22 },
+            ),
+        )
+        val file = File.createTempFile("embedded-ttml", ".mp3")
+        try {
+            file.writeBytes(tag + ByteArray(512))
+            val text = AudioTagLyrics.read(file.absolutePath)
+            assertTrue("应读到内嵌歌词文本", !text.isNullOrBlank())
+            val lyrics = com.catclaw.music.kt.core.lyrics.LyricsEncoding.parseContent(text)
+            assertNotNull("内嵌 TTML 应解析成歌词", lyrics)
+            assertTrue("行数应大于 10，实际 ${lyrics!!.lines.size}", lyrics.lines.size > 10)
+        } finally {
+            file.delete()
+        }
+    }
+
 }

@@ -171,4 +171,22 @@ class TtmlAmllKrcParserTest {
         assertNull(KrcParser.parse(ByteArray(4)))
         assertNull(KrcParser.parse("YXnotakrcfile".toByteArray()))
     }
+
+    /**
+     * 真机样本回归：iTunes 内嵌歌词（ID3 USLT 里放 TTML，逐字 span）。
+     * 样本取自用户曲库 `不才 - 化身孤岛的鲸.mp3` 的 USLT，原样存进 test resources。
+     * 这类内嵌歌词是「读不到内嵌歌词」那条反馈的主对象：走 TTML 专用路径，解不动就整段不显示。
+     */
+    @Test
+    fun `iTunes 内嵌 TTML（USLT 样本）能解析出带时间戳的行`() {
+        val xml = javaClass.classLoader!!.getResourceAsStream("lyrics/itunes_ttml_uslt.ttml")!!
+            .bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val parsed = TtmlParser.parse(xml)
+        assertNotNull("TTML 解析不应返回 null", parsed)
+        val lines = parsed!!.lines
+        assertTrue("行数应大于 10，实际 ${lines.size}", lines.size > 10)
+        assertTrue("首行应有文本", lines.first().text.isNotBlank())
+        assertTrue("逐字时间戳应存在", lines.any { !it.wordTimestamps.isNullOrEmpty() })
+    }
+
 }

@@ -22,7 +22,8 @@ object AudioTagLyrics {
     private fun extract(raf: RandomAccessFile): String? {
         val length = raf.length()
         val head = TagBytes.readAt(raf, 0, minOf(length, 64L * 1024).toInt())
-        if (TagBytes.startsWith(head, "ID3")) Id3v2Tag.lyrics(head)?.let { return it }
+        // ID3 走**流式**读：歌词帧常排在内嵌封面之后，64 KB 的头窗口装不下整个帧表
+        if (TagBytes.startsWith(head, "ID3")) Id3v2Tag.lyrics(raf, length)?.let { return it }
         if (TagBytes.startsWith(head, "fLaC")) FlacTag.lyrics(raf, length)?.let { return it }
         if (TagBytes.startsWith(head, "OggS")) OggTag.lyrics(head)?.let { return it }
         if (Mp4Tag.looksLikeMp4(head)) Mp4Tag.lyrics(raf, length)?.let { return it }

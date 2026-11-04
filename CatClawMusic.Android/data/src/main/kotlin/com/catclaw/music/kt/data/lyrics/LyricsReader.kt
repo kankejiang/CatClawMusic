@@ -52,8 +52,10 @@ class LyricsReader @Inject constructor(
                 if (sourceMode == LyricsSourceMode.External) return@withContext null
                 parseEmbedded(path)
             } else {
-                val path = song.filePath
-                if (path.startsWith("content://") || path.startsWith("http")) null else parseEmbedded(path)
+                // 「仅内嵌」也要先还原真实路径：本地曲库里 content://（SAF 导入）很常见，
+                // 直接拿 URI 进不了标签解析，表现就是「内嵌歌词永远读不到」。
+                val path = realPathOf(song)
+                if (path == null || path.startsWith("http")) null else parseEmbedded(path)
             }
         }
 

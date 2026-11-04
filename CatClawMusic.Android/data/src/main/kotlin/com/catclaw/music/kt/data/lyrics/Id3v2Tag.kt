@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.data.lyrics
 
+import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import com.catclaw.music.kt.data.lyrics.TagBytes.be32
 import com.catclaw.music.kt.data.lyrics.TagBytes.synchsafe
@@ -29,6 +30,59 @@ internal object Id3v2Tag {
             if (id in LYRIC_IDS) usltText(value)?.let { found += it }
         }
         return found.firstOrNull { it.isNotBlank() }
+    }
+
+    /**
+     * **流式**读 USLT：直接从文件走帧表，只把歌词帧的正文读进内存。
+     *
+     * 为什么不能复用 [lyrics]（字节数组版）：那边只在开头 64 KB 上走帧，
+     * 而真实 MP3 的 APIC（内嵌封面）动辄 300–600 KB、且惯例排在 USLT 之前 ——
+     * 帧长一超出缓冲，帧循环就判越界 break，排在后面的 USLT 整段读不到。
+     * 用户 2026-11-04 反馈的「读不到内嵌歌词」正是这一条。
+     */
+    fun lyrics(raf: RandomAccessFile, fileLength: Long): String? {
+        val head = TagBytes.readAt(raf, 0, 10)
+        if (!TagBytes.startsWith(head, "ID3") || head.size < 10) return null
+        val version = head[3].toInt()
+        if (version < 2 || version > 4) return null
+        val flags = head[5].toInt()
+        val tagEnd = (10L + synchsafe(head, 6)).coerceAtMost(fileLength)
+
+        var cursor = 10L
+        if (version >= 3 && flags and 0x40 != 0) {
+            // 扩展头：v2.3 是「含自身的 4 字节大端」，v2.4 是 synchsafe 且不含自身
+            val ext = TagBytes.readAt(raf, cursor, 6)
+            if (ext.size < 6) return null
+            cursor += (if (version == 3) be32(ext, 0) + 6 else synchsafe(ext, 0)).coerceAtLeast(0)
+        }
+        val idSize = if (version == 2) 3 else 4
+        val sizeField = if (version == 2) 3 else 4
+        val frameHeader = idSize + sizeField + (if (version == 2) 0 else 2)
+        val unsyncTag = flags and 0x80 != 0
+
+        while (cursor + frameHeader <= tagEnd) {
+            val header = TagBytes.readAt(raf, cursor, frameHeader)
+            if (header.size < frameHeader) break
+            val id = String(header, 0, idSize, StandardCharsets.ISO_8859_1)
+            if (id.isBlank() || id.contains(TagBytes.NUL)) break
+            val size = when {
+                version == 2 -> ((header[3].toInt() and 0xFF) shl 16) or
+                    ((header[4].toInt() and 0xFF) shl 8) or (header[5].toInt() and 0xFF)
+                version == 4 -> synchsafe(header, 4)
+                else -> be32(header, 4)
+            }
+            if (size <= 0 || cursor + frameHeader + size > tagEnd) break
+            val bodyAt = cursor + frameHeader
+            if (id in LYRIC_IDS) {
+                val raw = TagBytes.readAt(raf, bodyAt, size)
+                if (raw.size < size) break
+                val frameFlags = if (version >= 3) TagBytes.be16(header, idSize + sizeField) else 0
+                val value = if (unsyncTag || (version == 4 && frameFlags and 0x0002 != 0)) desync(raw) else raw
+                usltText(value)?.takeIf { it.isNotBlank() }?.let { return it }
+            }
+            cursor = bodyAt + size
+        }
+        return null
     }
 
     /** 解出所有文本帧，键是规范里的 4 字节 ID；重复帧保留第一个 */
