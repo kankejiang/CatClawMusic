@@ -19,7 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 歌词读取：先查 DB 缓存，再找侧车文件（.lrc → .ttml → .xml → .krc → .qrc，再同名前缀模糊匹配）。
+ * 歌词读取：先查 DB 缓存，再按来源档取词 ——
+ * **自动**：内嵌标签 → 侧车文件（.lrc → .ttml → .xml → .krc → .qrc，再同名前缀模糊匹配）；
+ * **仅内嵌**：只读音频标签；**仅外挂**：只读侧车。
+ * （2026-11-04 用户要求把「自动」改成内嵌优先，原来与 C# 一样是侧车优先。）
  *
  * content:// 曲目先经 MediaStore 的 DATA 列还原真实路径，找不到就没有侧车可查——
  * 与 MAUI 侧「SAF 歌曲存 content:// URI，用时再解析 _data」的做法一致。
@@ -40,17 +43,20 @@ class LyricsReader @Inject constructor(
 
                 val path = realPathOf(song) ?: return@withContext null
                 if (RemoteLyrics.isRemoteUrl(path)) {
-                    // 远程曲目没有本地目录可枚举，侧车只能走入库时配好的远程地址；
-                    // 它排在内嵌之前，与 C# 同一理由：小文件直读，省一次 2 MB 的头请求。
+                    // 远程曲目没有本地标签可读，只剩远程地址这一条路。
                     return@withContext remoteLyrics.load(song.lyricsPath)
+                }
+                // 自动模式：**内嵌标签优先于外挂侧车**（2026-11-04 用户要求，原来与 C# 一样是侧车优先）。
+                // 理由：内嵌的是跟着文件走的、与整理出的 .lrc 可能不同步；侧车作为兜底。
+                // 「仅外挂」档跳过这一段直接看侧车。
+                if (sourceMode != LyricsSourceMode.External) {
+                    parseEmbedded(path)?.let { return@withContext it }
                 }
                 readSidecar(path)?.also { found ->
                     // 命中后回写 LrcPath，下次免去目录枚举
                     runCatching { dao.setLyricsPath(song.id, found) }
                 }?.let { parseFile(it) }?.let { return@withContext it }
-
-                if (sourceMode == LyricsSourceMode.External) return@withContext null
-                parseEmbedded(path)
+                null
             } else {
                 // 「仅内嵌」也要先还原真实路径：本地曲库里 content://（SAF 导入）很常见，
                 // 直接拿 URI 进不了标签解析，表现就是「内嵌歌词永远读不到」。

@@ -113,8 +113,13 @@ fun PlayingLyricLine(
     }
 
     val index = currentIndex
-    if (index !in lines.indices) return
-    val line = lines[index]
+    if (index !in lines.indices) {
+        // 没有当前句（还没唱到第一句 / 这首歌没词）时**也必须占住这一行的宽度**：
+        // 否则 Row 里就没有 weight(1f) 的子项，右边的收藏/更多会被挤到最左边
+        // （2026-11-04 用户截图反馈的现象）。
+        Box(modifier = modifier.fillMaxWidth())
+        return
+    }
 
     // 不换行之后，长句必须靠**缩字号**才不会被切掉（成熟实现也是这条：一句一行、长了就缩）。
     // 只在「换句 / 宽度变化」时量一次，不进每帧路径。
