@@ -335,7 +335,7 @@ private fun LazyListScope.recommendItems(
     val hero = sections.daily.firstOrNull()
     item("rec_hero") {
         StaggerIn(index = 0) {
-            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+            Column(modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 12.dp)) {
                 if (hero != null) {
                     TodayFocusCard(
                         song = hero,
@@ -358,47 +358,42 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ② 四张多色玻璃卡：入口功能与推荐内容分开
+    // ② 快捷入口：原来是四张彩虹渐变卡（AI/每日/随机/最多），一屏里最吵的就是它，
+    // 而且「每日推荐」在这里、上面 hero、下面列表各出现一次。现在收成一条三格**单色**玻璃快手：
+    // 每日推荐由 hero 卡承担，这里只留三个动作（AI 助手 / 随机 / 最多）。
     item("rec_quick") {
         StaggerIn(index = 1) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                MultiGlassCard(
+                QuickTile(
+                    iconRes = R.drawable.ic_spark,
                     label = stringResource(R.string.disc_tag_ai),
-                    stops = listOf(0xFF7ED8C3L, 0xFF667EEAL),
                     modifier = Modifier.weight(1f),
                     onClick = onAskYuki,
                 )
-                MultiGlassCard(
-                    label = stringResource(R.string.disc_tag_daily),
-                    stops = listOf(0xFFFB8B24L, 0xFFF56FA0L),
-                    modifier = Modifier.weight(1f),
-                    onClick = { if (sections.daily.isNotEmpty()) viewModel.play(sections.daily, 0) },
-                )
-                MultiGlassCard(
+                QuickTile(
+                    iconRes = R.drawable.ic_shuffle,
                     label = stringResource(R.string.disc_tag_shuffle),
-                    stops = listOf(0xFF55D6FFL, 0xFF6250F6L),
                     modifier = Modifier.weight(1f),
                     onClick = { if (sections.daily.isNotEmpty()) viewModel.play(sections.daily, Random.nextInt(sections.daily.size)) },
                 )
-                MultiGlassCard(
+                QuickTile(
+                    iconRes = R.drawable.ic_favorite,
                     label = stringResource(R.string.disc_tag_top),
-                    stops = listOf(0xFFFF7AAEL, 0xFFC06C84L),
                     modifier = Modifier.weight(1f),
                     onClick = { if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0) },
                 )
             }
         }
     }
-
     // ③ 推荐专辑：玻璃容器 + 封面下缘玻璃信息条
     if (albums.isNotEmpty()) item("rec_albums") {
         StaggerIn(index = 2) {
             Column {
                 SectionHead(stringResource(R.string.disc_albums_rec))
-                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Box(modifier = Modifier.padding(horizontal = 18.dp)) {
                     Column(
                         modifier = Modifier
                             .glassCard(palette = LocalCatClawPalette.current, corner = 30)
@@ -420,32 +415,19 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ④ 每日推荐：标题在包裹上方（与推荐专辑同一约定）；卡内只留口味说明和随机播放
+    // ④ 每日推荐：标题在包裹上方（与推荐专辑同一约定）。
+    // 原来卡内还有一行「根据口味生成 + 随机播放胶囊」——口味说明与 hero 重复、随机播放已在快手，都去掉，
+    // 这张卡只负责「一屏能扫到的今日歌单」。
     if (sections.daily.isNotEmpty()) item("rec_daily") {
         StaggerIn(index = 3) {
             Column {
                 SectionHead(stringResource(R.string.disc_tag_daily))
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .glassCard(palette = LocalCatClawPalette.current, corner = 30)
-                        .padding(14.dp),
+                        .padding(horizontal = 18.dp)
+                        .glassCard(palette = LocalCatClawPalette.current, corner = 26)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.disc_daily_by_taste),
-                            fontSize = 11.5.sp,
-                            color = secondary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        PillLabel(
-                            text = stringResource(R.string.disc_tag_shuffle),
-                            onClick = { if (sections.daily.isNotEmpty()) viewModel.play(sections.daily, Random.nextInt(sections.daily.size)) },
-                        )
-                    }
                     sections.daily.take(8).forEachIndexed { index, song ->
                         SongRowItem(song, index, primary, secondary) { viewModel.play(sections.daily, it) }
                     }
@@ -453,7 +435,6 @@ private fun LazyListScope.recommendItems(
             }
         }
     }
-
     // ⑤ 推荐歌手横滑
     if (artists.isNotEmpty()) item("rec_artists") {
         StaggerIn(index = 4) {
@@ -472,6 +453,43 @@ private fun LazyListScope.recommendItems(
                 }
             }
         }
+    }
+}
+
+/**
+ * 快捷入口的一格：单色玻璃行（图标 + 标签），刻意不用渐变。
+ * 一屏里已经有 hero 大卡、两张横滑、一张歌单卡，快手再用彩色就成调色盘了。
+ */
+@Composable
+private fun QuickTile(
+    iconRes: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val secondary = Color(palette.textSecondary)
+    Row(
+        modifier = modifier
+            .glassCard(palette = palette, corner = 20)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = secondary,
+            modifier = Modifier.size(17.dp),
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+        )
     }
 }
 
