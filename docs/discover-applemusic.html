@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>发现页 · 参照 Apple Music 主页（原型）</title>
+<style>
+  :root{ --text:#FAFAFC; --sub:rgba(250,250,252,.55); --faint:rgba(250,250,252,.35);
+         --accent:#FF6E9C; --bg:#08080A; }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{margin:0;background:#050506;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1290px;margin:0 auto;padding:44px 24px 90px}
+  .head h1{font-size:27px;margin:0 0 10px;letter-spacing:-.5px}
+  .head p{color:var(--sub);font-size:14px;margin:0 0 34px;line-height:1.8}
+  .head p b{color:var(--text)}
+  .cols{display:flex;gap:36px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .col{width:390px;flex:0 0 auto}
+  .colhead{margin:0 0 14px;padding-left:4px}
+  .colhead h2{font-size:16px;margin:0 0 6px}
+  .colhead p{margin:0;color:var(--sub);font-size:12.5px;line-height:1.7}
+
+  .phone{width:390px;height:844px;border-radius:46px;overflow:hidden;position:relative;background:var(--bg);
+    box-shadow:0 0 0 1px rgba(255,255,255,.10),0 34px 80px rgba(0,0,0,.6)}
+  .statusbar{height:46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 4px;
+    font-size:12.5px;font-weight:600;position:relative;z-index:20}
+  .content{position:absolute;inset:0;overflow:hidden;padding-bottom:150px}
+  .content::after{content:"";position:absolute;left:0;right:0;bottom:0;height:210px;z-index:6;pointer-events:none;
+    background:linear-gradient(180deg,transparent 0%,rgba(8,8,10,.55) 40%,rgba(8,8,10,.92) 72%,#08080A 92%)}
+
+  /* 封面渐变（占位） */
+  .c1{background-image:radial-gradient(120% 120% at 18% 12%,#ffd9a8,transparent 54%),radial-gradient(100% 100% at 88% 26%,#ff5f8a,transparent 60%),linear-gradient(150deg,#7b3f6b,#1d1024)}
+  .c2{background-image:radial-gradient(120% 110% at 24% 18%,#9fd8ff,transparent 56%),radial-gradient(110% 120% at 82% 82%,#2f56ff,transparent 58%),linear-gradient(160deg,#0f203c,#060a14)}
+  .c3{background-image:radial-gradient(120% 120% at 30% 22%,#ffeab0,transparent 54%),radial-gradient(110% 110% at 76% 80%,#ff9a3c,transparent 58%),linear-gradient(160deg,#43260f,#150c04)}
+  .c4{background-image:radial-gradient(120% 120% at 22% 22%,#c8ffe9,transparent 54%),radial-gradient(110% 110% at 80% 78%,#1fbfa4,transparent 58%),linear-gradient(160deg,#0b2a24,#03100e)}
+  .c5{background-image:radial-gradient(120% 120% at 26% 18%,#e6d9ff,transparent 54%),radial-gradient(110% 110% at 78% 82%,#6640ff,transparent 58%),linear-gradient(160deg,#221741,#0b0618)}
+  .c6{background-image:radial-gradient(120% 120% at 30% 20%,#ffd2c6,transparent 54%),radial-gradient(110% 110% at 74% 80%,#dd3f2b,transparent 58%),linear-gradient(160deg,#38140f,#120604)}
+  .c7{background-image:radial-gradient(120% 120% at 20% 20%,#d8f0ff,transparent 54%),radial-gradient(110% 110% at 80% 76%,#3b8bff,transparent 58%),linear-gradient(160deg,#101c38,#05080f)}
+  .art{position:relative;overflow:hidden;border-radius:8px}
+  .art::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.14),transparent 44%)}
+
+  /* 顶栏 */
+  .masthead{display:flex;align-items:center;padding:2px 20px 0}
+  .masthead h1{font-size:30px;font-weight:750;letter-spacing:-.8px;margin:0}
+  .masthead .avatar{width:34px;height:34px;border-radius:50%;margin-left:auto;
+    background:linear-gradient(160deg,#ffb4c8,#ff6e9c 60%,#7a3dff);box-shadow:0 0 0 1px rgba(255,255,255,.22)}
+  .masthead .gbtn{width:34px;height:34px;border-radius:50%;margin-left:10px;display:flex;align-items:center;justify-content:center;
+    -webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);
+    background:rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  .masthead .gbtn svg{width:16px;height:16px;stroke:rgba(255,255,255,.9);fill:none;stroke-width:1.9;stroke-linecap:round}
+
+  .sec{padding:0 20px}
+  .sechead{display:flex;align-items:center;justify-content:space-between;margin:26px 0 12px}
+  .sechead h2{font-size:21px;font-weight:720;letter-spacing:-.4px;margin:0}
+  .sechead a{font-size:13px;color:var(--accent);text-decoration:none;font-weight:500}
+
+  /* Top Picks：两列大卡 */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+  .pick .art{width:100%;aspect-ratio:1/1;border-radius:10px}
+  .pick .t{font-size:13px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pick .s{font-size:12px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 最近播放 */
+  .recent{display:flex;gap:10px;overflow:hidden;padding:0 20px}
+  .recent .art{width:64px;height:64px;flex:0 0 auto;border-radius:9px}
+
+  /* 横向货架 */
+  .shelf{display:flex;gap:13px;overflow:hidden;padding:0 20px}
+  .shelf .item{width:118px;flex:0 0 auto}
+  .shelf .art{width:118px;height:118px;border-radius:9px}
+  .shelf .t{font-size:12.5px;font-weight:550;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shelf .s{font-size:11.5px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 编辑精选大卡 */
+  .feature{position:relative;height:196px;border-radius:16px;overflow:hidden;margin:0 20px}
+  .feature .bgart{position:absolute;inset:0}
+  .feature .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.06) 30%,rgba(0,0,0,.72) 78%,rgba(0,0,0,.9))}
+  .feature .cap{position:absolute;left:16px;right:16px;bottom:14px}
+  .feature .k{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.72)}
+  .feature .t{font-size:19px;font-weight:720;letter-spacing:-.4px;margin:6px 0 3px}
+  .feature .s{font-size:11.5px;color:rgba(255,255,255,.66)}
+  .feature .play{margin-top:11px;display:inline-flex;align-items:center;gap:7px;padding:8px 15px 8px 11px;border-radius:999px;
+    font-size:12px;font-weight:650;color:#fff;-webkit-backdrop-filter:blur(20px) saturate(200%);backdrop-filter:blur(20px) saturate(200%);
+    background:rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 20px rgba(0,0,0,.35);
+    border:1px solid rgba(255,255,255,.22)}
+  .feature .play svg{width:13px;height:13px;fill:#fff}
+
+  /* 榜单 */
+  .chart{display:flex;flex-direction:column}
+  .chrow{display:flex;align-items:center;gap:12px;padding:8px 20px}
+  .chrow .rank{width:26px;font-size:17px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+  .chrow .art{width:46px;height:46px;border-radius:6px;flex:0 0 auto}
+  .chrow .t{font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chrow .s{font-size:11.5px;color:var(--sub);margin-top:2px}
+
+  /* ══ 液态玻璃：只用在浮层上 ══ */
+  .glass{
+    background:linear-gradient(180deg,rgba(255,255,255,.19),rgba(255,255,255,.07) 46%,rgba(255,255,255,.12));
+    -webkit-backdrop-filter:blur(28px) saturate(190%) brightness(1.16);
+    backdrop-filter:blur(28px) saturate(190%) brightness(1.16);
+    box-shadow:0 18px 40px rgba(0,0,0,.5),
+      inset 0 1.5px 0 rgba(255,255,255,.7),
+      inset 0 -1px 0 rgba(255,255,255,.18),
+      inset 0 0 26px rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.20);
+    position:relative;isolation:isolate}
+  .glass::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1.2px;pointer-events:none;
+    background:linear-gradient(148deg,rgba(255,120,170,.5),rgba(255,255,255,.05) 36%,rgba(255,255,255,.05) 64%,rgba(120,180,255,.5));
+    -webkit-mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);-webkit-mask-composite:xor;mask-composite:exclude}
+  .glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:linear-gradient(112deg,transparent 28%,rgba(255,255,255,.24) 42%,transparent 58%);
+    background-size:220% 100%;animation:sheen 8s ease-in-out infinite}
+  @keyframes sheen{0%{background-position:180% 0}55%,100%{background-position:-60% 0}}
+
+  .mini{position:absolute;left:14px;right:14px;bottom:74px;z-index:30;height:56px;border-radius:999px;
+    display:flex;align-items:center;gap:11px;padding:8px 10px 8px 8px}
+  .mini .art{width:40px;height:40px;border-radius:12px;flex:0 0 auto}
+  .mini .t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .s{font-size:10.5px;color:var(--sub);margin-top:2px}
+  .mini .pb{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  .mini .pb svg{width:14px;height:14px;fill:#fff}
+  .mini .pp{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.92)}
+  .mini .pp svg{width:14px;height:14px;fill:#0b0b0e}
+
+  .tabbar{position:absolute;left:14px;right:14px;bottom:12px;z-index:31;height:58px;border-radius:999px;
+    display:flex;align-items:center;justify-content:space-around;padding:0 8px}
+  .tb{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:rgba(255,255,255,.6)}
+  .tb.on{color:#fff}
+  .tb svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+  .note{margin-top:36px;border-top:1px solid rgba(255,255,255,.09);padding-top:24px}
+  .note h3{font-size:15px;margin:0 0 14px}
+  .note ol{margin:0;padding-left:20px;color:var(--sub);font-size:12.8px;line-height:2}
+  .note li b{color:var(--text)}
+  .note .tip{margin-top:16px;color:var(--sub);font-size:12.8px;line-height:1.85}
+  .note .tip b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>发现页 · 参照 Apple Music 主页</h1>
+    <p>核心不是抄它的卡片长什么样，是抄它的三条规矩：
+      <b>①内容平铺、只有浮层用玻璃</b>（Apple 的玻璃只用在标签栏与播放条，内容卡是实心的）；
+      <b>②两列 Top Picks 而不是一张巨幅 hero</b>（一屏能看到 4 个推荐，而不是 1 个）；
+      <b>③每个区块只有「标题 + 查看全部」，没有分类 chip、没有嵌套卡片</b>（页面靠区块节奏，不靠装饰）。</p>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="colhead">
+        <h2>首屏</h2>
+        <p>沿用 Apple Music 的信息节奏：大标题 → 两列 Top Picks → 最近播放条 → 编辑精选 → 横向货架 → 榜单。</p>
+      </div>
+      <div class="phone">
+        <div class="content">
+          
+      <div class="statusbar"><span>21:50</span><span style="opacity:.9">▮▮ ⏻ 45</span></div>
+      <div class="masthead">
+        <h1>主页</h1>
+        <div class="gbtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+        <div class="avatar"></div>
+      </div>
+          
+      <div class="sec">
+        <div class="grid2" style="margin-top:16px">
+          <div class="pick"><div class="art c1"></div><div class="t">今日精选</div><div class="s">根据你的口味</div></div>
+          <div class="pick"><div class="art c2"></div><div class="t">深夜氛围</div><div class="s">适合听着入睡</div></div>
+          <div class="pick"><div class="art c4"></div><div class="t">常听艺人</div><div class="s">陈奕迅 · 毛不易</div></div>
+          <div class="pick"><div class="art c5"></div><div class="t">本周新发现</div><div class="s">12 首新歌</div></div>
+        </div>
+      </div>
+          
+      <div class="sec"><div class="sechead"><h2>最近播放</h2></div></div>
+          
+      <div class="recent">
+        <div class="art c3"></div><div class="art c6"></div><div class="art c5"></div>
+        <div class="art c2"></div><div class="art c1"></div><div class="art c4"></div>
+      </div>
+          <div style="height:2px"></div>
+          
+      <div class="feature">
+        <div class="bgart c6"></div><div class="veil"></div>
+        <div class="cap">
+          <div class="k">编辑精选</div>
+          <div class="t">十一月的萧邦 · 二十年</div>
+          <div class="s">20 首 · 重制版 · 1 小时 12 分</div>
+          <div class="play"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg><span>播放</span></div>
+        </div>
+      </div>
+          
+              </div>
+        <div class="mini glass" style="border-radius:999px">
+        <div class="art c1"></div>
+        <div style="flex:1;min-width:0"><div class="t">热爱105°C的你</div><div class="s">阿肆 · Single</div></div>
+        <div class="pb"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+        <div class="pp"><svg viewBox="0 0 24 24"><rect x="7" y="5" width="3.4" height="14" rx="1.2"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.2"/></svg></div>
+      </div>
+      <div class="tabbar glass r-pill" style="border-radius:999px">
+        <div class="tb on"><svg viewBox="0 0 24 24"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.4 10v9.2h11.2V10"/></svg>主页</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4v9M9.2 9.6v4.8M14.8 9.6v4.8"/></svg>广播</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9.4h6M9 13.2h6M9 17h3.6"/></svg>歌单</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="16" rx="2"/><rect x="13" y="4" width="7" height="16" rx="2"/></svg>资料库</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"/><path d="M16 16l4.2 4.2"/></svg>搜索</div>
+      </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="colhead">
+        <h2>下滑后 · 榜单与资料库入口</h2>
+        <p>同一个页面往下滑：榜单用大号数字，资料库入口用横向卡片；浮层（播放条 + 标签栏）始终是液态玻璃。</p>
+      </div>
+      <div class="phone">
+        <div class="content">
+          
+      <div class="statusbar"><span>21:50</span><span style="opacity:.9">▮▮ ⏻ 45</span></div>
+      <div class="masthead">
+        <h1>主页</h1>
+        <div class="gbtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+        <div class="avatar"></div>
+      </div>
+          
+      <div class="sec"><div class="sechead"><h2>热门榜单</h2><a href="#">查看全部</a></div></div>
+          
+      <div class="chart">
+        <div class="chrow"><div class="rank">1</div><div class="art c2"></div><div style="min-width:0"><div class="t">爱情转移</div><div class="s">陈奕迅</div></div></div>
+        <div class="chrow"><div class="rank">2</div><div class="art c3"></div><div style="min-width:0"><div class="t">给你给我</div><div class="s">毛不易</div></div></div>
+        <div class="chrow"><div class="rank">3</div><div class="art c4"></div><div style="min-width:0"><div class="t">最初的温柔</div><div class="s">赵乃吉</div></div></div>
+      </div>
+          <div class="sec"><div class="sechead" style="margin-top:22px"><h2>Top 100 · 华语</h2><a href="#">查看全部</a></div></div>
+          <div class="sec" style="margin-top:-4px">
+            <div class="grid2">
+              <div class="pick"><div class="art c1"></div><div class="t">Top 100：华语</div><div class="s">每日更新</div></div>
+              <div class="pick"><div class="art c7"></div><div class="t">Top 100：全球</div><div class="s">每日更新</div></div>
+            </div>
+          </div>
+          
+      <div class="sec"><div class="sechead"><h2>你的资料库</h2><a href="#">查看全部</a></div></div>
+          
+      <div class="shelf">
+        <div class="item"><div class="art c5"></div><div class="t">我喜欢的音乐</div><div class="s">128 首</div></div><div class="item"><div class="art c2"></div><div class="t">本地歌曲</div><div class="s">547 首</div></div><div class="item"><div class="art c6"></div><div class="t">最近添加</div><div class="s">12 首</div></div><div class="item"><div class="art c3"></div><div class="t">我的歌单</div><div class="s">9 个</div></div>
+      </div>
+        </div>
+        
+      <div class="mini glass" style="border-radius:999px">
+        <div class="art c1"></div>
+        <div style="flex:1;min-width:0"><div class="t">热爱105°C的你</div><div class="s">阿肆 · Single</div></div>
+        <div class="pb"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+        <div class="pp"><svg viewBox="0 0 24 24"><rect x="7" y="5" width="3.4" height="14" rx="1.2"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.2"/></svg></div>
+      </div>
+      <div class="tabbar glass r-pill" style="border-radius:999px">
+        <div class="tb on"><svg viewBox="0 0 24 24"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.4 10v9.2h11.2V10"/></svg>主页</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4v9M9.2 9.6v4.8M14.8 9.6v4.8"/></svg>广播</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9.4h6M9 13.2h6M9 17h3.6"/></svg>歌单</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="16" rx="2"/><rect x="13" y="4" width="7" height="16" rx="2"/></svg>资料库</div>
+        <div class="tb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.8"/><path d="M16 16l4.2 4.2"/></svg>搜索</div>
+      </div>
+      </div>
+    </div></div>
+
+  <div class="note">
+    <h3>从 Apple Music 主页学到的六条</h3>
+    <ol>
+      <li><b>玻璃属于「控制层」，不属于「内容层」</b>：标签栏 + 迷你播放条是玻璃，卡片是实心的。我们之前把卡片也做成玻璃，于是整页都是磨砂，反而没有层次。</li>
+      <li><b>两列网格代替单张巨幅</b>：Top Picks 一屏 4 张，信息效率是单张 hero 的 4 倍，且没有「hero 太大、下面全是小字」的失衡。</li>
+      <li><b>封面是唯一的颜色来源</b>：界面本身是中性黑，颜色全部来自专辑图；这样无论换多少封面都不会花。</li>
+      <li><b>文字只有两级</b>：卡片标题（13px semibold）+ 副标（12px 灰）；不在卡里放正文、不放按钮群。</li>
+      <li><b>区块标题字号大、留白足</b>：21px 粗体 + 26px 上间距，靠这个建立节奏，而不是靠分隔线或卡片边界。</li>
+      <li><b>最近播放是一条无文字封面条</b>：只给动作，不解释；这是 Apple 用来「降噪」的手法。</li>
+    </ol>
+    <p class="tip">映射到我们的 App：现有的「推荐 / 排行 / 歌手 / 专辑 / 统计」五颗 chip 去掉，
+      改为区块 + 查看全部（排行 → 榜单区块，歌手/专辑 → 横向货架，统计 → 一个「你的这一年」卡片），
+      标签栏与迷你播放器继续用液态玻璃，其余内容平铺。<br>
+      这样既「像 Apple Music 一样干净」，又保留了液态玻璃唯一正确的用法：<b>浮在内容之上的控制层</b>。</p>
+  </div>
+</div>
+</body>
+</html>
