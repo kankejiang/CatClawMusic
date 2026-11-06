@@ -214,7 +214,10 @@ internal const val SQL_NEW_ARRIVALS = """
 
 internal const val SQL_ALBUMS = """
     SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
-           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           al.CoverArtPath AS coverArtPath,
+           -- 歌曲数现算：Albums.SongCount 这一列扫描器从来没写过（一直是 0），
+           -- 之前专辑列表每行都显示「0 首」。Artists 那条已经是现算的（见 SQL_ARTISTS），这里对齐。
+           (SELECT COUNT(*) FROM Songs s WHERE s.AlbumId = al.Id) AS songCount,
            (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
              ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
              LIMIT 1) AS sampleFilePath
@@ -231,7 +234,10 @@ internal const val SQL_ALBUMS = """
  */
 internal const val SQL_ALBUM_BY_ID = """
     SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
-           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           al.CoverArtPath AS coverArtPath,
+           -- 歌曲数现算：Albums.SongCount 这一列扫描器从来没写过（一直是 0），
+           -- 之前专辑列表每行都显示「0 首」。Artists 那条已经是现算的（见 SQL_ARTISTS），这里对齐。
+           (SELECT COUNT(*) FROM Songs s WHERE s.AlbumId = al.Id) AS songCount,
            IFNULL(al.Year, 0) AS year,
            (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
              ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
@@ -253,7 +259,10 @@ internal const val SQL_ALBUM_BY_ID = """
  */
 internal const val SQL_ALBUMS_OF_ARTIST = """
     SELECT al.Id AS id, al.Title AS title, IFNULL(a.Name, '') AS artist,
-           al.CoverArtPath AS coverArtPath, al.SongCount AS songCount,
+           al.CoverArtPath AS coverArtPath,
+           -- 歌曲数现算：Albums.SongCount 这一列扫描器从来没写过（一直是 0），
+           -- 之前专辑列表每行都显示「0 首」。Artists 那条已经是现算的（见 SQL_ARTISTS），这里对齐。
+           (SELECT COUNT(*) FROM Songs s WHERE s.AlbumId = al.Id) AS songCount,
            (SELECT s.FilePath FROM Songs s WHERE s.AlbumId = al.Id
              ORDER BY CASE WHEN s.TrackNumber > 0 THEN 0 ELSE 1 END, s.TrackNumber ASC, s.Id ASC
              LIMIT 1) AS sampleFilePath

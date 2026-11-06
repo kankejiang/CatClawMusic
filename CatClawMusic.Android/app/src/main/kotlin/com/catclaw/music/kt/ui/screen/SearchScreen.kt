@@ -329,7 +329,7 @@ private fun LazyListScope.recommendItems(
             ) {
                 QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
                 QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
-                QuickTile(R.drawable.ic_equalizer, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
+                QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
                     if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
                 }
                 QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
