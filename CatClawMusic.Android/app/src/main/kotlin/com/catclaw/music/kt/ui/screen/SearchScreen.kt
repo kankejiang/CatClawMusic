@@ -130,15 +130,9 @@ fun SearchScreen(
     LaunchedEffect(active) { if (active) viewModel.activate() }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 环境色斑层：玻璃卡片要透出颜色才像玻璃。径向渐变圆自带软边，不用 RenderEffect 模糊，
-        // 滑动时每帧零额外 GPU 成本（刚把滑动卡顿治好，别再请回来一个）
-        // 这层在之前排查卡顿时被误删过一次——液态玻璃没有它就不成立，恢复后别再动
-        Box(modifier = Modifier.matchParentSize()) {
-            Blob(Color(0xFFFF8FB8), 300.dp, x = (-70).dp, y = (-40).dp)
-            Blob(Color(0xFF55D6FF), 280.dp, x = 250.dp, y = 30.dp)
-            Blob(Color(0xFFB7AEFF), 260.dp, x = 30.dp, y = 420.dp)
-            Blob(Color(0xFF7ED8C3), 300.dp, x = 220.dp, y = 640.dp)
-        }
+        // 2026-11-06 用户要求：发现页那四个**固定的大圆点**（环境色斑层）删掉。
+        // 它们原本是给玻璃卡透色用的，但现在外壳已经铺了雾面动态背景，这几团固定色斑
+        // 反而像背景没洗干净；玻璃卡改由动态背景透色。
         // 整页 LazyColumn：歌手/专辑网格按行虚拟化，滚出视口的照片不解码不绘制——
         // 之前的 verticalScroll Column 全量组装，几十个 84dp 照片一次解码，滚动必卡
         LazyColumn(
@@ -669,42 +663,7 @@ private fun TodayFocusCard(song: SongListItem, onPlay: () -> Unit, onRefresh: ()
 }
 
 /** 多色玻璃卡：玻璃自身带色（半透明渐变 + 亮描边），环境色斑从里面透出来 */
-@Composable
-private fun MultiGlassCard(label: String, stops: List<Long>, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val palette = LocalCatClawPalette.current
-    val shape = RoundedCornerShape(20.dp)
-    // 墨色要对「α0.5 色标压在页底上的实际成色」算，而不是对纯色标算——
-    // 中间调纯色上黑白都到不了 4.5，实际成色暗一档就过了（对齐 PaletteContrastTest 的量法）
-    val pageBg = if (isLightPalette(palette)) 0xFFF2F3FAL else 0xFF15132EL
-    val surface = stops.map { blend((it and 0x00FFFFFFL) or 0x80000000L, pageBg) }
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(Brush.linearGradient(stops.map { Color(it).copy(alpha = 0.5f) }))
-            .border(1.dp, Color(inkOnGradient(surface)).copy(alpha = 0.30f), shape)
-            .clickable(onClick = onClick)
-            .padding(vertical = 19.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(inkOnGradient(surface)),
-        )
-    }
-}
 
-/** 环境色斑：径向渐变圆自带软边，不用 RenderEffect 模糊 */
-@Composable
-private fun Blob(color: Color, sizeDp: androidx.compose.ui.unit.Dp, x: androidx.compose.ui.unit.Dp, y: androidx.compose.ui.unit.Dp) {
-    Box(
-        modifier = Modifier
-            .offset(x = x, y = y)
-            .size(sizeDp)
-            .background(Brush.radialGradient(listOf(color.copy(alpha = 0.5f), Color.Transparent))),
-    )
-}
 
 @Composable
 private fun AlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onClick: () -> Unit) {

@@ -46,10 +46,11 @@ fun Modifier.catClawBackground(): Modifier {
     val stops = LocalCatClawPalette.current.backgroundStops
         .map { it.offset to Color(it.argb) }
         .toTypedArray()
-    val glows = LocalCatClawPalette.current.glows
-        .map { Triple(it.cx, it.cy, it.radius) to Color(it.centerArgb) }
 
     return drawBehind {
+        // 2026-11-06 用户要求：发现 / 歌单 / 音乐库上的「光斑」删掉。
+        // 原来这里还会画调色板里的两层径向光晕（palette.glows），那两团柔光在动态背景之上仍然可见、
+        // 又跟着主题色走，观感像「背景没洗干净」。现在只留三层线性渐变的纯净底。
         drawRect(
             brush = Brush.linearGradient(
                 *stops,
@@ -57,22 +58,6 @@ fun Modifier.catClawBackground(): Modifier {
                 end = Offset(size.width, size.height),
             ),
         )
-
-        val scale = size.maxDimension
-        glows.forEach { (geom, centerColor) ->
-            val (cx, cy, radius) = geom
-            val center = Offset(cx * size.width, cy * size.height)
-            val r = radius * scale
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(centerColor, Color.Transparent),
-                    center = center,
-                    radius = r,
-                ),
-                radius = r,
-                center = center,
-            )
-        }
     }
 }
 
