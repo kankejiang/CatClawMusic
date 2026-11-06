@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>发现页 · 三套设计方向（原型）</title>
+<style>
+  :root{
+    --text:#F5F4F8; --sub:rgba(245,244,248,.56); --faint:rgba(245,244,248,.34);
+    --glass:rgba(255,255,255,.055); --stroke:rgba(255,255,255,.10);
+    --accent:#F27D9D; --page:#17161d;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{margin:0;background:#08080c;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1290px;margin:0 auto;padding:44px 24px 90px}
+  .head h1{font-size:26px;margin:0 0 10px;letter-spacing:-.4px}
+  .head p{color:var(--sub);font-size:14px;margin:0 0 36px;line-height:1.75}
+  .cols{display:flex;gap:34px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .col{width:390px;flex:0 0 auto}
+  .colhead{margin:0 0 14px;padding-left:4px}
+  .colhead h2{font-size:16px;margin:0 0 6px}
+  .colhead h2 b{color:var(--accent);margin-right:7px}
+  .colhead p{margin:0;color:var(--sub);font-size:12.5px;line-height:1.7}
+
+  .phone{width:390px;height:908px;border-radius:44px;overflow:hidden;position:relative;background:var(--page);
+    box-shadow:0 0 0 1px rgba(255,255,255,.09),0 30px 70px rgba(0,0,0,.55);display:flex;flex-direction:column}
+  .scroll{flex:1 1 auto;overflow:hidden;position:relative}
+  .statusbar{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 4px;
+    font-size:12.5px;font-weight:600;position:relative;z-index:30}
+  .statusbar .icons{opacity:.9;letter-spacing:1px}
+
+  .glow{position:absolute;inset:0;z-index:0;
+    background:
+      radial-gradient(420px 320px at 12% 2%, rgba(242,125,157,.30), transparent 62%),
+      radial-gradient(520px 420px at 96% 16%, rgba(90,120,255,.26), transparent 66%),
+      radial-gradient(460px 380px at 60% 96%, rgba(46,190,180,.16), transparent 64%),
+      linear-gradient(180deg,#191722,#0d0d13 46%,#0b0b11 100%)}
+  .scrim{position:absolute;inset:0;z-index:1;
+    background:linear-gradient(180deg,rgba(10,10,14,.2),rgba(10,10,14,.58) 46%,rgba(10,10,14,.95) 86%)}
+  .content{position:relative;z-index:2;padding-bottom:126px}
+  .pad{padding:0 20px}
+  .row{display:flex;align-items:center}
+  .grow{flex:1 1 auto;min-width:0}
+  .iconbtn{width:38px;height:38px;border-radius:50%;background:var(--glass);border:1px solid var(--stroke);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .iconbtn svg{width:17px;height:17px;stroke:rgba(255,255,255,.82);fill:none;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .sec{display:flex;align-items:baseline;justify-content:space-between;margin:20px 0 10px}
+  .sec h3{font-size:16px;margin:0;font-weight:650;letter-spacing:-.2px}
+  .sec a{font-size:12.5px;color:var(--sub);text-decoration:none}
+  .card{background:var(--glass);border:1px solid var(--stroke);border-radius:20px;backdrop-filter:blur(20px)}
+  .cover{border-radius:10px;background-size:cover;position:relative;overflow:hidden}
+  .cover::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.18),transparent 44%)}
+  .c1{background-image:radial-gradient(120% 120% at 20% 15%,#ffd6a5,transparent 55%),radial-gradient(100% 100% at 85% 25%,#ff7b9c,transparent 62%),linear-gradient(150deg,#7a3f6a,#2a1c3c)}
+  .c2{background-image:radial-gradient(120% 110% at 25% 20%,#9fd8ff,transparent 58%),radial-gradient(110% 120% at 80% 80%,#3f6bff,transparent 60%),linear-gradient(160deg,#12213c,#0a1020)}
+  .c3{background-image:radial-gradient(120% 120% at 30% 25%,#ffe9b0,transparent 55%),radial-gradient(110% 110% at 78% 78%,#ffb35c,transparent 58%),linear-gradient(160deg,#4a2c14,#1b1208)}
+  .c4{background-image:radial-gradient(120% 120% at 22% 22%,#c9f7e6,transparent 56%),radial-gradient(110% 110% at 80% 78%,#31b7a6,transparent 60%),linear-gradient(160deg,#0f2b27,#071412)}
+  .c5{background-image:radial-gradient(120% 120% at 26% 18%,#e2d4ff,transparent 56%),radial-gradient(110% 110% at 78% 82%,#7a5bff,transparent 60%),linear-gradient(160deg,#2a1e4a,#120c22)}
+  .c6{background-image:radial-gradient(120% 120% at 30% 22%,#ffd9d0,transparent 56%),radial-gradient(110% 110% at 76% 80%,#e0503f,transparent 60%),linear-gradient(160deg,#3b1613,#170a09)}
+
+  .playbtn{width:50px;height:50px;border-radius:50%;background:var(--accent);display:flex;align-items:center;
+    justify-content:center;box-shadow:0 10px 26px rgba(242,125,157,.42);flex:0 0 auto}
+  .playbtn svg{width:19px;height:19px;fill:#1a0d13;margin-left:2px}
+  .playbtn.small{width:38px;height:38px}
+  .playbtn.small svg{width:14px;height:14px}
+  .ghostbtn{border-radius:999px;border:1px solid var(--stroke);background:rgba(255,255,255,.07);
+    padding:9px 15px;font-size:12.5px;color:var(--text);font-family:inherit}
+
+  .track{display:flex;align-items:center;gap:12px;padding:8px 0}
+  .track .t{font-size:13.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track .a{font-size:11.5px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track .dur{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .track .cover{width:42px;height:42px;border-radius:9px;flex:0 0 auto}
+
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:20;padding:0 12px 10px}
+  .mini{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:22px;
+    background:rgba(30,28,38,.74);border:1px solid var(--stroke);backdrop-filter:blur(24px)}
+  .mini .cover{width:34px;height:34px;border-radius:8px;flex:0 0 auto}
+  .mini .t{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .a{font-size:10.5px;color:var(--sub);margin-top:2px}
+  .mini .btn{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .mini .btn svg{width:15px;height:15px;fill:rgba(255,255,255,.9)}
+  .tabs{display:flex;justify-content:space-around;padding:9px 4px 2px}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:var(--faint)}
+  .tab.on{color:var(--accent)}
+  .tab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  /* A */
+  .A-masthead{font-size:28px;font-weight:700;letter-spacing:-.9px;margin:0}
+  .A-date{font-size:12px;color:var(--sub);margin-top:6px}
+  .A-hero{border-radius:24px;overflow:hidden;position:relative;height:236px;border:1px solid var(--stroke)}
+  .A-hero .art{position:absolute;inset:0}
+  .A-hero .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,8,12,.02) 26%,rgba(8,8,12,.76) 80%,rgba(8,8,12,.95))}
+  .A-hero .meta{position:absolute;left:16px;right:16px;bottom:14px}
+  .kicker{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:7px}
+  .A-title{font-size:24px;font-weight:700;letter-spacing:-.5px;margin:0 0 5px}
+  .A-sub{font-size:12px;color:rgba(255,255,255,.66)}
+  .rail{display:flex;gap:12px;overflow:hidden}
+  .rail .item{width:96px;flex:0 0 auto}
+  .rail .cover{width:96px;height:96px;border-radius:12px;margin-bottom:7px}
+  .rail .n{font-size:11.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rail .s{font-size:10px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* B */
+  .bento{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--stroke);background:var(--glass)}
+  .tile .art{position:absolute;inset:0}
+  .tile .veil{position:absolute;inset:0;background:linear-gradient(180deg,transparent 28%,rgba(6,6,10,.84))}
+  .tile .cap{position:absolute;left:13px;right:13px;bottom:11px}
+  .tile .cap .k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.62)}
+  .tile .cap .n{font-size:14px;font-weight:650;letter-spacing:-.2px;margin-top:5px}
+  .tile .cap .s{font-size:10.5px;color:rgba(255,255,255,.58);margin-top:3px}
+  .tile.big{grid-column:span 2;height:180px}
+  .tile.sq{height:120px}
+  .tile.wide{grid-column:span 2;height:76px;display:flex;align-items:center;gap:12px;padding:12px}
+  .tile.wide .art{position:relative;inset:auto;width:52px;height:52px;border-radius:12px;flex:0 0 auto}
+  .tile.wide .txt{min-width:0}
+  .tile.wide .n{font-size:13.5px;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.wide .k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sub)}
+  .tile.plain{display:flex;flex-direction:column;justify-content:center;padding:13px;height:76px;background:rgba(255,255,255,.05)}
+  .tile.plain .k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sub)}
+  .tile.plain .v{font-size:21px;font-weight:700;letter-spacing:-.6px;margin-top:5px}
+  .tile.plain .s{font-size:10.5px;color:var(--sub);margin-top:3px}
+
+  /* C */
+  .C-art{position:absolute;left:0;right:0;top:0;height:470px}
+  .C-art .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,8,12,.45) 0%,rgba(8,8,12,.06) 36%,rgba(12,12,17,.8) 78%,var(--page) 100%)}
+  .C-coverwrap{padding:16px 24px 0;position:relative;z-index:3}
+  .C-cover{position:relative;width:100%;aspect-ratio:1/1;border-radius:20px;overflow:hidden;
+    box-shadow:0 24px 46px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.10)}
+  .C-cover::after{content:"";position:absolute;inset:0;background:linear-gradient(150deg,rgba(255,255,255,.22),transparent 46%)}
+  .C-titlerow{position:relative;z-index:4;padding:18px 20px 0}
+  .C-title{font-size:26px;font-weight:720;letter-spacing:-.7px;margin:0 0 7px;line-height:1.18}
+  .C-sub{font-size:12.5px;color:rgba(255,255,255,.68)}
+  .C-dots{display:flex;gap:6px;margin-top:14px}
+  .C-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.26)}
+  .C-dots i.on{width:18px;border-radius:3px;background:var(--accent)}
+  .C-sheet{margin-top:16px;border-radius:26px 26px 0 0;padding:16px 20px 0;
+    background:rgba(22,21,28,.8);border:1px solid var(--stroke);border-bottom:none;backdrop-filter:blur(26px)}
+
+  .note{margin-top:34px;border-top:1px solid rgba(255,255,255,.08);padding-top:24px}
+  .note h3{font-size:14px;margin:0 0 14px}
+  .note table{border-collapse:collapse;width:100%;font-size:12.5px}
+  .note th,.note td{text-align:left;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.07);color:var(--sub);vertical-align:top}
+  .note th{color:var(--text);font-weight:600}
+  .note td b{color:var(--text)}
+  .note p{color:var(--sub);font-size:12.5px;line-height:1.8;margin:16px 0 0}
+  .note p b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>发现页 · 三套设计方向</h1>
+    <p>同一份数据（今日焦点 1 首 / 今日歌单 8 首 / 推荐专辑 / 推荐歌手 / 最近添加 / 常听）放在三种不同的信息结构里。<br>
+       灰底为占位封面（真实环境是专辑图）；配色沿用现有主题：深底 + 单一粉色强调，玻璃卡片不变。</p>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="colhead">
+        <h2><b>A</b>杂志式单栏</h2>
+        <p>像一份「今天的歌单日报」：一张超大主角卡 + 一条主线性叙事，其余内容降级为紧凑列表。信息密度最低、气质最贵。</p>
+      </div>
+      <div class="phone">
+        <div class="scroll">
+          <div class="glow"></div><div class="scrim"></div>
+          <div class="content">
+            <div class="statusbar"><span>21:50</span><span class="icons">▮▮ ⏻ 45</span></div>
+            
+            <div class="pad row" style="margin-top:8px">
+              <div class="grow">
+                <div class="A-masthead">发现</div>
+                <div class="A-date">11 月 6 日 · 周四 · 晚上好</div>
+              </div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+              <div style="width:8px"></div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg></div>
+            </div>
+            <div class="pad" style="margin-top:14px">
+              <div class="A-hero">
+                <div class="art c1"></div><div class="veil"></div>
+                <div class="meta">
+                  <div class="kicker">今日焦点</div>
+                  <h2 class="A-title">热爱105°C的你</h2>
+                  <div class="A-sub">阿肆 · Single Collection</div>
+                  <div class="row" style="gap:10px;margin-top:12px">
+                    <div class="playbtn"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+                    <button class="ghostbtn">换一首</button>
+                    <button class="ghostbtn">加入队列</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pad">
+              <div class="sec"><h3>今日歌单 · 12 首</h3><a>全部播放 ›</a></div>
+              <div class="card" style="padding:4px 14px">
+                <div class="track"><div class="cover c2"></div><div class="grow"><div class="t">爱情转移</div><div class="a">陈奕迅 · 认了吧</div></div><div class="dur">4:19</div></div>
+                <div class="track"><div class="cover c3"></div><div class="grow"><div class="t">给你给我</div><div class="a">毛不易 · 平凡的一天</div></div><div class="dur">4:01</div></div>
+                <div class="track"><div class="cover c4"></div><div class="grow"><div class="t">最初的温柔</div><div class="a">赵乃吉</div></div><div class="dur">4:48</div></div>
+              </div>
+            </div>
+            <div class="pad">
+              <div class="sec"><h3>为你挑的专辑</h3><a>查看全部 ›</a></div>
+              <div class="rail">
+                <div class="item"><div class="cover c6"></div><div class="n">11月的萧邦</div><div class="s">周杰伦</div></div>
+                <div class="item"><div class="cover c2"></div><div class="n">认了吧</div><div class="s">陈奕迅</div></div>
+                <div class="item"><div class="cover c4"></div><div class="n">平凡的一天</div><div class="s">毛不易</div></div>
+                <div class="item" style="opacity:.5"><div class="cover c5"></div><div class="n">Secret</div><div class="s">滨崎步</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="bottombar">
+            <div class="mini">
+              <div class="cover c1"></div>
+              <div class="grow"><div class="t">热爱105°C的你</div><div class="a">阿肆</div></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/></svg></div>
+            </div>
+            <div class="tabs">
+              <div class="tab on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M15 9.5 9.5 12l5.5 2.5z"/></svg>发现</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>歌单</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M4 18V8l8-4 8 4v10"/><path d="M9 18v-5h6v5"/></svg>音乐库</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 19.5c1.4-3 3.6-4.4 6.5-4.4s5.1 1.4 6.5 4.4"/></svg>我的</div>
+            </div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="colhead">
+        <h2><b>B</b>拼贴流</h2>
+        <p>把「焦点 / 歌单 / 专辑 / 统计 / 常听 / 新入库」拼成大小不一的磁贴，一屏塞进 6 个入口，不再有横向滚动。</p>
+      </div>
+      <div class="phone">
+        <div class="scroll">
+          <div class="glow"></div><div class="scrim"></div>
+          <div class="content">
+            <div class="statusbar"><span>21:50</span><span class="icons">▮▮ ⏻ 45</span></div>
+            
+            <div class="pad row" style="margin-top:8px">
+              <div class="grow">
+                <div class="A-masthead">发现</div>
+                <div class="A-date">为你更新于 2 分钟前</div>
+              </div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+              <div style="width:8px"></div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg></div>
+            </div>
+            <div class="pad" style="margin-top:16px">
+              <div class="bento">
+                <div class="tile big">
+                  <div class="art c1"></div><div class="veil"></div>
+                  <div class="cap"><div class="k">今日焦点</div>
+                    <div class="n" style="font-size:20px">热爱105°C的你</div>
+                    <div class="s">阿肆 · 根据你最近 30 天的口味</div></div>
+                  <div style="position:absolute;right:12px;bottom:12px" class="playbtn small"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+                </div>
+                <div class="tile sq"><div class="art c3"></div><div class="veil"></div>
+                  <div class="cap"><div class="k">歌单</div><div class="n">今日 12 首</div><div class="s">一屏听完</div></div></div>
+                <div class="tile sq"><div class="art c2"></div><div class="veil"></div>
+                  <div class="cap"><div class="k">专辑</div><div class="n">11月的萧邦</div><div class="s">周杰伦</div></div></div>
+                <div class="tile wide"><div class="art c4"></div>
+                  <div class="txt"><div class="k">因为你常听 毛不易</div><div class="n">平凡的一天</div></div>
+                  <div class="playbtn small" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div></div>
+                <div class="tile plain"><div class="k">本周</div><div class="v">18.4<span style="font-size:12px;font-weight:600;margin-left:3px">小时</span></div><div class="s">听歌统计 ›</div></div>
+                <div class="tile plain"><div class="k">常听</div><div class="v">阿肆</div><div class="s">最常播放 →</div></div>
+                <div class="tile wide"><div class="art c6"></div>
+                  <div class="txt"><div class="k">新入库</div><div class="n">最近添加 12 首</div></div>
+                  <div class="playbtn small" style="margin-left:auto"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="bottombar">
+            <div class="mini">
+              <div class="cover c1"></div>
+              <div class="grow"><div class="t">热爱105°C的你</div><div class="a">阿肆</div></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/></svg></div>
+            </div>
+            <div class="tabs">
+              <div class="tab on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M15 9.5 9.5 12l5.5 2.5z"/></svg>发现</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>歌单</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M4 18V8l8-4 8 4v10"/><path d="M9 18v-5h6v5"/></svg>音乐库</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 19.5c1.4-3 3.6-4.4 6.5-4.4s5.1 1.4 6.5 4.4"/></svg>我的</div>
+            </div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="colhead">
+        <h2><b>C</b>沉浸封面</h2>
+        <p>上半屏一张完整封面（左右滑动换「今日五选」），下半屏玻璃抽屉只放继续听。最像播放器、最不臃肿。</p>
+      </div>
+      <div class="phone" style="background:#0d0d13">
+        <div class="scroll">
+          <div class="C-art c1"><div class="veil"></div></div>
+          <div class="content">
+            <div class="statusbar"><span>21:50</span><span class="icons">▮▮ ⏻ 45</span></div>
+            <div class="pad row" style="margin-top:6px">
+              <div class="grow" style="font-size:15px;font-weight:650">发现</div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div><div style="width:8px"></div><div class="iconbtn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg></div>
+            </div>
+            <div class="C-coverwrap"><div class="C-cover c1"></div></div>
+            <div class="C-titlerow">
+              <div class="kicker">今日焦点 · 每日 5 选</div>
+              <h2 class="C-title">热爱105°C的你</h2>
+              <div class="C-sub">阿肆 · Single Collection</div>
+              <div class="row" style="gap:10px;margin-top:14px">
+                <div class="playbtn"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+                <button class="ghostbtn">加入队列</button>
+                <button class="ghostbtn">不感兴趣</button>
+              </div>
+              <div class="C-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="C-sheet">
+              <div class="sec" style="margin:0 0 2px"><h3 style="font-size:15px">继续听</h3><a>历史 ›</a></div>
+              <div class="track"><div class="cover c2"></div><div class="grow"><div class="t">爱情转移</div><div class="a">陈奕迅 · 3 分钟前</div></div><div class="dur">4:19</div></div>
+              <div class="track"><div class="cover c4"></div><div class="grow"><div class="t">最初的温柔</div><div class="a">赵乃吉 · 1 小时前</div></div><div class="dur">4:48</div></div>
+              <div class="track"><div class="cover c5"></div><div class="grow"><div class="t">Town of Windmill</div><div class="a">a_hisa · 昨天</div></div><div class="dur">2:21</div></div>
+            </div>
+          </div>
+          <div class="bottombar">
+            <div class="mini">
+              <div class="cover c1"></div>
+              <div class="grow"><div class="t">热爱105°C的你</div><div class="a">阿肆</div></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M8 5l12 7-12 7z"/></svg></div>
+              <div class="btn"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7z"/></svg></div>
+            </div>
+            <div class="tabs">
+              <div class="tab on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M15 9.5 9.5 12l5.5 2.5z"/></svg>发现</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>歌单</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><path d="M4 18V8l8-4 8 4v10"/><path d="M9 18v-5h6v5"/></svg>音乐库</div>
+              <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 19.5c1.4-3 3.6-4.4 6.5-4.4s5.1 1.4 6.5 4.4"/></svg>我的</div>
+            </div></div>
+        </div>
+      </div>
+    </div></div>
+
+  <div class="note">
+    <h3>三个方向的差别</h3>
+    <table>
+      <tr><th style="width:86px">方向</th><th>信息密度</th><th>一屏能看到</th><th>代价</th></tr>
+      <tr><td><b>A 杂志</b></td><td>低</td><td>1 首焦点 + 3 首歌 + 4 张专辑</td><td>要找排行/歌手得多翻一屏；分类 chip 需要另找位置</td></tr>
+      <tr><td><b>B 拼贴</b></td><td>高</td><td>焦点 + 歌单 + 专辑 + 统计 + 常听 + 新入库</td><td>每块都小，封面看不清；后续再加内容会挤</td></tr>
+      <tr><td><b>C 沉浸</b></td><td>中</td><td>1 首焦点（可滑 5 张）+ 继续听 3 条</td><td>焦点权重过高，其他推荐要下滑；首屏要加载大图</td></tr>
+    </table>
+    <p>我的建议：<b>主推 A</b>——它把「臃肿」的根因（横向卡片 + 分类 chip + 三个并列区块）一次性收敛成一条竖线，
+       靠字号与留白拉层次，视觉最贵、改动最可控；<b>B</b> 要重做点击模型（点卡=播放、长按=菜单），<b>C</b> 要先解决首屏大图与滑动手势冲突。<br>
+       三个方向都保留了「排行 / 歌手 / 专辑 / 统计」的去处：A 收进顶部「探索」入口，B 摊成磁贴，C 收进抽屉的「更多」。</p>
+  </div>
+</div>
+</body>
+</html>
