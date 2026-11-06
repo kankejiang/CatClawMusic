@@ -85,13 +85,13 @@ import java.util.Calendar
  * 本端已重排成「液态玻璃」语言（docs/discover-page-redesign.html）：环境色斑垫底，
  * 所有板块浮在玻璃上；整页 LazyColumn，歌手/专辑网格按行虚拟化。
  */
-private enum class DiscCat { Rec, Rank, Artist, Album, Stats }
-
 @Composable
 fun SearchScreen(
     active: Boolean,
     onOpenSettings: () -> Unit = {},
     onChatOpen: (Boolean) -> Unit = {},
+    /** 货架右上「查看全部」的去处：切到音乐库并直接打开对应列表 */
+    onOpenLibrary: (LibraryKind) -> Unit = {},
     /** 聊天模式下外壳那条迷你播放条的高度（见 `ChatScreen.bottomReserve`） */
     chatBottomReserve: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp(0f),
     viewModel: SearchViewModel = hiltViewModel(),
@@ -124,7 +124,6 @@ fun SearchScreen(
     // 两层下钻也要逐层退，且歌曲详情在最上：组合在后者优先，所以先写 detail 再写 songDetailId
     BackHandler(enabled = detail != null && active) { detail = null }
     BackHandler(enabled = songDetailId != null && active) { songDetailId = null }
-    var cat by rememberSaveable { mutableIntStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(active) { if (active) viewModel.activate() }
@@ -165,7 +164,7 @@ fun SearchScreen(
                     }
                     GlassIcon(R.drawable.ic_search, "搜索") { searchOpen = !searchOpen }
                     Spacer(Modifier.width(10.dp))
-                    GlassIcon(R.drawable.ic_refresh, "刷新") { viewModel.reload() }
+                    GlassIcon(R.drawable.ic_equalizer, "听歌统计") { statsOpen = true }
                     Spacer(Modifier.width(10.dp))
                     GlassIcon(R.drawable.ic_settings, "设置", onClick = onOpenSettings)
                 }
@@ -198,59 +197,23 @@ fun SearchScreen(
                     }
                 }
             } else {
-                item("tabs") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        val labels = listOf(
-                            stringResource(R.string.disc_cat_rec), stringResource(R.string.disc_cat_rank),
-                            stringResource(R.string.disc_cat_artist), stringResource(R.string.disc_cat_album),
-                            stringResource(R.string.disc_cat_stats),
-                        )
-                        labels.forEachIndexed { i, label ->
-                            CatChip(label, selected = cat == i, modifier = Modifier.weight(1f)) { cat = i }
-                        }
-                    }
-                }
 
-                when (DiscCat.entries[cat]) {
-                    DiscCat.Rec -> recommendItems(
-                        viewModel = viewModel,
-                        sections = sections,
-                        artists = artists,
-                        albums = albums,
-                        primary = primary,
-                        secondary = secondary,
-                        onAskYuki = { chatMode = true },
-                        onOpenDetail = { detail = it },
-                    )
-                    DiscCat.Rank -> {
-                        item("rank_top") {
-                            SongRows(stringResource(R.string.disc_tag_top), sections.frequent, primary, secondary) {
-                                viewModel.play(sections.frequent, it)
-                            }
-                        }
-                        item("rank_fresh") {
-                            SongRows(stringResource(R.string.disc_shelf_recent_added), sections.fresh, primary, secondary) {
-                                viewModel.play(sections.fresh, it)
-                            }
-                        }
-                    }
-                    DiscCat.Artist -> artistItems(artists) { detail = it }
-                    DiscCat.Album -> albumItems(albums) { detail = it }
-                    DiscCat.Stats -> item("stats") {
-                        StatsPanel(
-                            listOf(
-                                artists.size.toString() to stringResource(R.string.lib_stat_artists),
-                                albums.size.toString() to stringResource(R.string.lib_stat_albums),
-                                stats.totalPlays.toString() to stringResource(R.string.disc_stat_total_plays),
-                                stats.songsPlayed.toString() to stringResource(R.string.disc_stat_songs_played),
-                            ),
-                            onOpenFull = { statsOpen = true },
-                        )
-                    }
-                }
+
+                // 2026-11-06 用户定的结构：每日推荐英雄卡 → 四个入口 → 推荐专辑 → 推荐艺人。
+                // 五颗分类 chip 全部取消：歌手/专辑由货架右上「查看全部」承接，统计挪到头部柱状图标，
+                // 「排行」本来就有「最多播放」入口，「每日推荐歌单列表」也不再单列（英雄卡就是它）。
+                recommendItems(
+                    viewModel = viewModel,
+                    sections = sections,
+                    artists = artists,
+                    albums = albums,
+                    primary = primary,
+                    secondary = secondary,
+                    onAskYuki = { chatMode = true },
+                    onOpenDetail = { detail = it },
+                    onOpenAlbums = { onOpenLibrary(LibraryKind.Albums) },
+                    onOpenArtists = { onOpenLibrary(LibraryKind.Artists) },
+                )
             }
         }
 
@@ -330,25 +293,12 @@ private fun LazyListScope.recommendItems(
     secondary: Color,
     onAskYuki: () -> Unit,
     onOpenDetail: (LibraryDetail) -> Unit,
+    onOpenAlbums: () -> Unit,
+    onOpenArtists: () -> Unit,
 ) {
-    // ① 今日焦点：玻璃大卡透出环境色斑
     val hero = sections.daily.firstOrNull()
-    item("rec_hero") {
-        StaggerIn(index = 0) {
-            Column(modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 12.dp)) {
-                if (hero != null) {
-                    TodayFocusCard(
-                        song = hero,
-                        onPlay = { viewModel.play(sections.daily, 0) },
-                        onRefresh = { viewModel.reload() },
-                    )
-                }
-            }
-        }
-    }
 
-    // 曲库为空时其余板块全空，得把「先去扫描」这句显式说出来（AI 卡不依赖曲库仍可用）
-    if (hero == null && albums.isEmpty() && artists.isEmpty() && sections.daily.isEmpty()) {
+    if (hero == null && albums.isEmpty() && artists.isEmpty()) {
         item("rec_empty") {
             EmptyState(
                 hint = stringResource(R.string.disc_empty),
@@ -358,97 +308,63 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ② 快捷入口：原来是四张彩虹渐变卡（AI/每日/随机/最多），一屏里最吵的就是它，
-    // 而且「每日推荐」在这里、上面 hero、下面列表各出现一次。现在收成一条三格**单色**玻璃快手：
-    // 每日推荐由 hero 卡承担，这里只留三个动作（AI 助手 / 随机 / 最多）。
+    // ① 每日推荐英雄卡：封面铺满整卡，字压在底部的渐变遮罩上
+    if (hero != null) item("rec_hero") {
+        StaggerIn(index = 0) {
+            DailyHero(
+                song = hero,
+                onPlay = { viewModel.play(sections.daily, 0) },
+                onRefresh = { viewModel.reload() },
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            )
+        }
+    }
+
+    // ② 四个入口：等宽单色玻璃（不用彩虹渐变）
     item("rec_quick") {
         StaggerIn(index = 1) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                QuickTile(
-                    iconRes = R.drawable.ic_spark,
-                    label = stringResource(R.string.disc_tag_ai),
-                    modifier = Modifier.weight(1f),
-                    onClick = onAskYuki,
-                )
-                QuickTile(
-                    iconRes = R.drawable.ic_shuffle,
-                    label = stringResource(R.string.disc_tag_shuffle),
-                    modifier = Modifier.weight(1f),
-                    onClick = { if (sections.daily.isNotEmpty()) viewModel.play(sections.daily, Random.nextInt(sections.daily.size)) },
-                )
-                QuickTile(
-                    iconRes = R.drawable.ic_favorite,
-                    label = stringResource(R.string.disc_tag_top),
-                    modifier = Modifier.weight(1f),
-                    onClick = { if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0) },
-                )
+                QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
+                QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
+                QuickTile(R.drawable.ic_equalizer, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
+                    if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
+                }
+                QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
             }
         }
     }
-    // ③ 推荐专辑：玻璃容器 + 封面下缘玻璃信息条
+
+    // ③ 推荐专辑：单行 8 张，右侧露出半张暗示可滑
     if (albums.isNotEmpty()) item("rec_albums") {
         StaggerIn(index = 2) {
             Column {
-                SectionHead(stringResource(R.string.disc_albums_rec))
-                Box(modifier = Modifier.padding(horizontal = 18.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .glassCard(palette = LocalCatClawPalette.current, corner = 30)
-                            .padding(vertical = 13.dp),
-                    ) {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(albums.take(12), key = { "a${it.id}" }) { album ->
-                                AlbumCard(album) {
-                                    onOpenDetail(LibraryDetail(LibraryKind.Albums, album.id, album.title))
-                                }
-                            }
-                        }
+                RailHead(stringResource(R.string.disc_albums_rec), onSeeAll = onOpenAlbums, primary = primary, secondary = secondary)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(albums.take(8), key = { "a${it.id}" }) { album ->
+                        RailAlbumCard(album) { onOpenDetail(LibraryDetail(LibraryKind.Albums, album.id, album.title)) }
                     }
                 }
             }
         }
     }
 
-    // ④ 每日推荐：标题在包裹上方（与推荐专辑同一约定）。
-    // 原来卡内还有一行「根据口味生成 + 随机播放胶囊」——口味说明与 hero 重复、随机播放已在快手，都去掉，
-    // 这张卡只负责「一屏能扫到的今日歌单」。
-    if (sections.daily.isNotEmpty()) item("rec_daily") {
+    // ④ 推荐艺人：10 位，横滑
+    if (artists.isNotEmpty()) item("rec_artists") {
         StaggerIn(index = 3) {
             Column {
-                SectionHead(stringResource(R.string.disc_tag_daily))
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 18.dp)
-                        .glassCard(palette = LocalCatClawPalette.current, corner = 26)
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                ) {
-                    sections.daily.take(8).forEachIndexed { index, song ->
-                        SongRowItem(song, index, primary, secondary) { viewModel.play(sections.daily, it) }
-                    }
-                }
-            }
-        }
-    }
-    // ⑤ 推荐歌手横滑
-    if (artists.isNotEmpty()) item("rec_artists") {
-        StaggerIn(index = 4) {
-            Column {
-                SectionHead(stringResource(R.string.disc_artists_rec))
+                RailHead(stringResource(R.string.disc_artists_rec), onSeeAll = onOpenArtists, primary = primary, secondary = secondary)
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
                 ) {
-                    items(artists.take(20), key = { "r${it.id}" }) { artist ->
-                        ArtistBubble(artist) {
-                            onOpenDetail(LibraryDetail(LibraryKind.Artists, artist.id, artist.name))
-                        }
+                    items(artists.take(10), key = { "r${it.id}" }) { artist ->
+                        ArtistBubble(artist) { onOpenDetail(LibraryDetail(LibraryKind.Artists, artist.id, artist.name)) }
                     }
                 }
             }
@@ -456,10 +372,83 @@ private fun LazyListScope.recommendItems(
     }
 }
 
-/**
- * 快捷入口的一格：单色玻璃行（图标 + 标签），刻意不用渐变。
- * 一屏里已经有 hero 大卡、两张横滑、一张歌单卡，快手再用彩色就成调色盘了。
- */
+
+
+/** 每日推荐英雄卡：封面铺满，底部渐变遮罩上压标题/歌手/两个胶囊 */
+@Composable
+private fun DailyHero(
+    song: SongListItem,
+    onPlay: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(268.dp)
+            .clip(RoundedCornerShape(22.dp)),
+    ) {
+        CoverTile(
+            coverArtPath = song.coverArtPath,
+            audioPath = song.filePath,
+            maxPx = 720,
+            modifier = Modifier.fillMaxSize(),
+        ) {}
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.30f), Color.Black.copy(alpha = 0.88f)),
+                ),
+            ),
+        )
+        // 来源徽标（浮在封面上的小玻璃片：液态玻璃唯一该出现在内容里的位置）
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(14.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(LocalCatClawPalette.current.textPrimary).copy(alpha = 0.16f))
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.disc_tag_daily) + " · " + stringResource(R.string.disc_hero_by_taste),
+                fontSize = 11.sp,
+                color = Color(inkOnGradient(listOf(0xFF0A0A0F, 0xFF000000))),
+                maxLines = 1,
+            )
+        }
+        Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp)) {
+            Text(
+                text = song.title,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(inkOnGradient(listOf(0xFF0A0A0F, 0xFF000000))),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = song.artist,
+                fontSize = 12.sp,
+                color = Color(inkOnGradient(listOf(0xFF0A0A0F, 0xFF000000))).copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 5.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PillLabel(text = stringResource(R.string.playlist_play_all), onClick = onPlay)
+                PillLabel(text = stringResource(R.string.disc_hero_refresh), onClick = onRefresh, filled = false)
+            }
+        }
+    }
+}
+
+/** 四个入口的一格：等宽单色玻璃，图标在上、文字在下 */
 @Composable
 private fun QuickTile(
     iconRes: Int,
@@ -468,31 +457,77 @@ private fun QuickTile(
     onClick: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
-    val secondary = Color(palette.textSecondary)
-    Row(
+    Column(
         modifier = modifier
-            .glassCard(palette = palette, corner = 20)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+            .height(64.dp)
+            .glassCard(palette = palette, corner = 18)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
-            tint = secondary,
-            modifier = Modifier.size(17.dp),
+            tint = Color(palette.textSecondary),
+            modifier = Modifier.size(18.dp),
         )
-        Spacer(Modifier.width(7.dp))
         Text(
             text = label,
-            fontSize = 12.sp,
+            fontSize = 10.5.sp,
             color = Color(palette.textPrimary),
             maxLines = 1,
+            modifier = Modifier.padding(top = 6.dp),
         )
     }
 }
 
+/** 货架标题行：左标题、右「查看全部」 */
+@Composable
+private fun RailHead(title: String, onSeeAll: () -> Unit, primary: Color, secondary: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.weight(1f))
+        Text(
+            text = stringResource(R.string.disc_see_all) + " ›",
+            fontSize = 12.sp,
+            color = secondary,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onSeeAll).padding(horizontal = 4.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** 货架上的专辑卡：比网格卡小一号，单行能露 3.5 张 */
+@Composable
+private fun RailAlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onClick: () -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Column(modifier = Modifier.width(104.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+        CoverTile(
+            coverArtPath = album.coverArtPath,
+            audioPath = album.sampleFilePath,
+            maxPx = 320,
+            modifier = Modifier.size(104.dp).clip(RoundedCornerShape(12.dp)),
+        ) {}
+        Text(
+            text = album.title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp),
+        )
+        Text(
+            text = album.artist,
+            fontSize = 10.5.sp,
+            color = Color(palette.textSecondary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
 @Composable
 private fun TodayFocusCard(song: SongListItem, onPlay: () -> Unit, onRefresh: () -> Unit) {
     val palette = LocalCatClawPalette.current

@@ -123,11 +123,21 @@ fun LibraryScreen(
     // 资料库卡里「网络音乐库」「下载管理」两行的去处：它们不是本页的列表，是别处的整页（MAUI 那五张卡也是各自跳页面）
     onOpenRemote: () -> Unit = {},
     onOpenDownloads: () -> Unit = {},
+    /** 发现页货架的「查看全部」：进来直接打开这个列表，消费一次即清空 */
+    initialKind: LibraryKind? = null,
+    onInitialKindConsumed: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     // 统计格 / 资料库行的下钻。MAUI 是 push 独立页（AllSongsPage 等），这里在页内切换：
     // 少一条路由与一次 VM 作用域切换，返回行为一致
     var opened by remember { mutableStateOf<LibraryKind?>(null) }
+    // 从发现页货架跳进来：先把它要的列表打开，再把这个一次性指令清掉
+    LaunchedEffect(initialKind) {
+        if (initialKind != null) {
+            opened = initialKind
+            onInitialKindConsumed()
+        }
+    }
     var detail by remember { mutableStateOf<LibraryDetail?>(null) }
     // 歌曲详情是整页，托管在页面这一层而不是列表里：否则它会叠在列表页头下面，出现两个返回键
     var songDetailId by remember { mutableStateOf<Int?>(null) }

@@ -247,6 +247,8 @@ private fun TabsHost(
     val pagerState = rememberPagerState(
         initialPage = AppearanceSettings.startupToPagerPage(themeViewModel.startupIndex.value),
     ) { PAGE_COUNT }
+    // 发现页货架「查看全部」要跳到的音乐库列表（一次性指令，LibraryScreen 消费后清空）
+    var pendingLibraryKind by remember { mutableStateOf<com.catclaw.music.kt.ui.screen.LibraryKind?>(null) }
     // 按「已停稳」的页决定调色板，避免滑动中途整屏配色乱跳
     val fixedDarkPages = setOf(PAGE_FULL_LYRICS, PAGE_NOW_PLAYING)
     val palette = if (pagerState.settledPage in fixedDarkPages) CatClawTheme.dark else themedPalette
@@ -398,6 +400,11 @@ private fun TabsHost(
                             2 -> Box(Modifier.fillMaxSize().statusBarsPadding()) {
                                 SearchScreen(
                                     active = pagerState.currentPage == 2,
+                                    // 货架右上「查看全部」：切到音乐库页并直接打开对应列表
+                                    onOpenLibrary = { kind ->
+                                        pendingLibraryKind = kind
+                                        scope.launch { pagerState.animateScrollToPage(4) }
+                                    },
                                     onOpenSettings = onOpenSettings,
                                     onChatOpen = { chatOpen = it },
                                     // 聊天模式下这条迷你条浮在输入行上面：高度让出去，
@@ -407,7 +414,12 @@ private fun TabsHost(
                             }
                             3 -> Box(Modifier.fillMaxSize().statusBarsPadding()) { PlaylistScreen() }
                             else -> Box(Modifier.fillMaxSize().statusBarsPadding()) {
-                                LibraryScreen(onOpenRemote = onOpenRemote, onOpenDownloads = onOpenDownloads)
+                                LibraryScreen(
+                                    onOpenRemote = onOpenRemote,
+                                    onOpenDownloads = onOpenDownloads,
+                                    initialKind = pendingLibraryKind,
+                                    onInitialKindConsumed = { pendingLibraryKind = null },
+                                )
                             }
                         }
                     }

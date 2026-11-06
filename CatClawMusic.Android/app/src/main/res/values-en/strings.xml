@@ -27,13 +27,11 @@
     <string name="disc_greeting_afternoon">Good afternoon — picked for your afternoon</string>
     <string name="disc_greeting_evening">Good evening — picked for today</string>
     <string name="disc_greeting_night">Small hours — picked for the night</string>
-    <string name="disc_cat_rec">For You</string>
-    <string name="disc_cat_rank">Charts</string>
-    <string name="disc_cat_artist">Artists</string>
     <string name="disc_cat_album">Albums</string>
-    <string name="disc_cat_stats">Stats</string>
     <string name="disc_tag_ai">AI</string>
     <string name="disc_tag_daily">Daily Mix</string>
+    <string name="disc_favorite">Favorites</string>
+    <string name="disc_see_all">See all</string>
     <string name="disc_tag_top">Most Played</string>
     <string name="disc_tag_shuffle">Shuffle</string>
     <string name="disc_hero_refresh">Shuffle</string>
@@ -237,9 +235,7 @@ Download it from GitHub.</string>
     <string name="diagnostic_clear">Clear</string>
     <string name="diagnostic_export">Export</string>
     <string name="diagnostic_export_title">CatClawMusic diagnostics</string>
-    <string name="disc_shelf_recent_added">Recently added</string>
     <string name="disc_stat_total_plays">Total plays</string>
-    <string name="disc_stat_songs_played">Songs played</string>
     <string name="song_detail_title">Song details</string>
     <string name="detail_loading">Loading…</string>
     <string name="detail_none">None</string>

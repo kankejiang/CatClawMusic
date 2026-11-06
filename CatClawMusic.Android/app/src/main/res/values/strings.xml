@@ -27,13 +27,11 @@
     <string name="disc_greeting_afternoon">下午好，为你精选午后好歌</string>
     <string name="disc_greeting_evening">晚上好，为你精选今日好歌</string>
     <string name="disc_greeting_night">凌晨好，为你精选深夜好歌</string>
-    <string name="disc_cat_rec">推荐</string>
-    <string name="disc_cat_rank">排行</string>
-    <string name="disc_cat_artist">歌手</string>
     <string name="disc_cat_album">专辑</string>
-    <string name="disc_cat_stats">统计</string>
     <string name="disc_tag_ai">AI 助手</string>
     <string name="disc_tag_daily">每日推荐</string>
+    <string name="disc_favorite">我的最爱</string>
+    <string name="disc_see_all">查看全部</string>
     <string name="disc_tag_top">最多播放</string>
     <string name="disc_tag_shuffle">随机播放</string>
     <string name="disc_hero_refresh">换一批</string>
@@ -237,9 +235,7 @@
     <string name="diagnostic_clear">清空</string>
     <string name="diagnostic_export">导出</string>
     <string name="diagnostic_export_title">猫爪音乐诊断包</string>
-    <string name="disc_shelf_recent_added">最近添加</string>
     <string name="disc_stat_total_plays">总播放次数</string>
-    <string name="disc_stat_songs_played">播过的歌</string>
     <string name="song_detail_title">歌曲详情</string>
     <string name="detail_loading">读取中…</string>
     <string name="detail_none">无</string>
