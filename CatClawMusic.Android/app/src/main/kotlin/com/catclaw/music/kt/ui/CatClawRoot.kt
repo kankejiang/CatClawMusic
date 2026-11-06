@@ -340,16 +340,19 @@ private fun TabsHost(
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
-                    if (pagerState.settledPage >= 2) {
-                        FrostedFlowBackground(
-                            isActive = playState.isPlaying,
-                            isScrolling = false,
-                            tint = rememberArtworkTint(coverAura),
-                            modifier = Modifier.fillMaxSize(),
-                            isDark = !isLightPalette(palette),
-                            coverSource = coverFlowSource,
-                            accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
-                        )
+                    // 2026-11-06 用户要求：**除播放页外所有页面**都用雾面动态背景。
+                    // 播放页保持原样（它自己铺满封面底，用户明确要求不要动那一页）；
+                    // 歌词页即便关掉了自己的雾面开关，这里也兜一层，避免出现「一页静态底」。
+                    if (pagerState.settledPage != PAGE_NOW_PLAYING) {
+                    FrostedFlowBackground(
+                        isActive = playState.isPlaying,
+                        isScrolling = false,
+                        tint = rememberArtworkTint(coverAura),
+                        modifier = Modifier.fillMaxSize(),
+                        isDark = !isLightPalette(palette),
+                        coverSource = coverFlowSource,
+                        accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
+                    )
                     }
                 }
             }
