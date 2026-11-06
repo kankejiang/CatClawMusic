@@ -36,6 +36,7 @@
     <string name="disc_tag_shuffle">随机播放</string>
     <string name="disc_hero_refresh">换一批</string>
     <string name="disc_hero_by_taste">根据口味生成</string>
+    <string name="disc_songs_rec">推荐歌曲</string>
     <string name="disc_albums_rec">推荐专辑</string>
     <string name="disc_artists_rec">推荐艺人</string>
     <string name="disc_search_hint">搜索歌曲、歌手、专辑，或在线音乐…</string>

@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -211,6 +212,7 @@ fun SearchScreen(
                     secondary = secondary,
                     onAskYuki = { chatMode = true },
                     onOpenDetail = { detail = it },
+                    onOpenSongs = { onOpenLibrary(LibraryKind.Songs) },
                     onOpenAlbums = { onOpenLibrary(LibraryKind.Albums) },
                     onOpenArtists = { onOpenLibrary(LibraryKind.Artists) },
                 )
@@ -293,6 +295,7 @@ private fun LazyListScope.recommendItems(
     secondary: Color,
     onAskYuki: () -> Unit,
     onOpenDetail: (LibraryDetail) -> Unit,
+    onOpenSongs: () -> Unit,
     onOpenAlbums: () -> Unit,
     onOpenArtists: () -> Unit,
 ) {
@@ -337,7 +340,26 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ③ 推荐专辑：单行 8 张，右侧露出半张暗示可滑
+    // ③ 推荐歌曲：今日推荐 + 最近添加 + 常听 混一遍去重，取 10 首（英雄卡已经代表「今日推荐」整体）
+    // LazyListScope 里不能调 remember（不是 Composable 上下文），直接算：三个列表最多几十首，成本可忽略
+    val recSongs = (sections.daily + sections.fresh + sections.frequent).distinctBy { it.id }.take(10)
+    if (recSongs.isNotEmpty()) item("rec_songs") {
+        StaggerIn(index = 2) {
+            Column {
+                RailHead(stringResource(R.string.disc_songs_rec), onSeeAll = onOpenSongs, primary = primary, secondary = secondary)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    itemsIndexed(recSongs, key = { _, song -> "s${song.id}" }) { index, song ->
+                        SongRailCard(song) { viewModel.play(recSongs, index) }
+                    }
+                }
+            }
+        }
+    }
+
+    // ④ 推荐专辑：单行 8 张，右侧露出半张暗示可滑
     if (albums.isNotEmpty()) item("rec_albums") {
         StaggerIn(index = 2) {
             Column {
@@ -354,7 +376,7 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ④ 推荐艺人：10 位，横滑
+    // ⑤ 推荐艺人：10 位，横滑
     if (artists.isNotEmpty()) item("rec_artists") {
         StaggerIn(index = 3) {
             Column {
@@ -498,6 +520,54 @@ private fun RailHead(title: String, onSeeAll: () -> Unit, primary: Color, second
     }
 }
 
+/** 货架上的歌曲卡：封面 + 标题 + 歌手，右下角一颗小播放点 */
+@Composable
+private fun SongRailCard(song: SongListItem, onClick: () -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Column(modifier = Modifier.width(104.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+        Box(modifier = Modifier.size(104.dp)) {
+            CoverTile(
+                coverArtPath = song.coverArtPath,
+                audioPath = song.filePath,
+                maxPx = 320,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+            ) {}
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color(palette.primaryDark).copy(alpha = 0.72f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_play),
+                    contentDescription = null,
+                    tint = Color(inkOnGradient(listOf(0xFF0A0A0F, 0xFF000000))),
+                    modifier = Modifier.size(11.dp),
+                )
+            }
+        }
+        Text(
+            text = song.title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(palette.textPrimary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp),
+        )
+        Text(
+            text = song.artist,
+            fontSize = 10.5.sp,
+            color = Color(palette.textSecondary),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
 /** 货架上的专辑卡：比网格卡小一号，单行能露 3.5 张 */
 @Composable
 private fun RailAlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onClick: () -> Unit) {

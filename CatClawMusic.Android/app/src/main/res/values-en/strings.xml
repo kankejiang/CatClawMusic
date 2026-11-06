@@ -36,6 +36,7 @@
     <string name="disc_tag_shuffle">Shuffle</string>
     <string name="disc_hero_refresh">Shuffle</string>
     <string name="disc_hero_by_taste">Based on your taste</string>
+    <string name="disc_songs_rec">Recommended songs</string>
     <string name="disc_albums_rec">Albums for you</string>
     <string name="disc_artists_rec">Artists for you</string>
     <string name="disc_search_hint">Search songs, artists, albums, or online…</string>
