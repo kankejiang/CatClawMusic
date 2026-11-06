@@ -94,14 +94,16 @@ fun FrostedFlowBackground(
         // 暂停/拖动时停拍但保留最后一帧（MAUI：非播放不动画但保留最后一帧）
         val shouldAnimate = isActive && !isScrolling
         LaunchedEffect(bufferW, bufferH, preset, shouldAnimate, coverFlow, accentArgb) {
-            if (bufferW <= 0 || bufferH <= 0 || !shouldAnimate) return@LaunchedEffect
+            // 2026-11-06 用户要求：启动就要看到雾面动态背景，而不是等开始播放才出现；
+            // 暂停时也先渲染一帧（下面的循环出完第一帧就 break），只有播放时才继续跑动画。
+            if (bufferW <= 0 || bufferH <= 0) return@LaunchedEffect
             val colors = FloatArray(16)
             var lastNanos = withFrameNanos { it }
             while (true) {
                 val now = withFrameNanos { it }
                 val dt = ((now - lastNanos) / 1e9f).coerceIn(0f, 0.25f)
                 lastNanos = now
-                animator.advance(dt, playing = true)
+                animator.advance(dt, playing = shouldAnimate)
                 val bitmap = withContext(Dispatchers.Default) {
                     // 快照当前阶段/时钟，纯计算放后台（MAUI TryDispatchBackgroundRender 的线程池拆分）
                     val stage = animator.colorStage
@@ -128,6 +130,8 @@ fun FrostedFlowBackground(
                     }
                 }
                 frame = bitmap.asImageBitmap()
+                // 暂停：出完这一帧就停（背景静态可看），不空转
+                if (!shouldAnimate) break
                 delay(125) // ~8fps，雾面背景低帧率省电（MAUI SetDuration(125)）
             }
         }

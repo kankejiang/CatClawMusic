@@ -345,7 +345,9 @@ private fun TabsHost(
                     // 歌词页即便关掉了自己的雾面开关，这里也兜一层，避免出现「一页静态底」。
                     if (pagerState.settledPage != PAGE_NOW_PLAYING) {
                     FrostedFlowBackground(
-                        isActive = playState.isPlaying,
+                        // 2026-11-06 用户要求：启动就要有**动态**雾面背景，不是等播放才动。
+                        // 流动很轻（低分辨率缓冲 + 8fps），且只在页面可见时组合，退后台自然停。
+                        isActive = true,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
                         modifier = Modifier.fillMaxSize(),
