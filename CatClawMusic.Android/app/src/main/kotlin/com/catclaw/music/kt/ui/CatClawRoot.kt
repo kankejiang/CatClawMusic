@@ -340,10 +340,10 @@ private fun TabsHost(
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
-                    // 2026-11-06 用户要求：**除播放页外所有页面**都用雾面动态背景。
-                    // 播放页保持原样（它自己铺满封面底，用户明确要求不要动那一页）；
+                    // 2026-11-06 用户要求：三个页签 + 播放页外的页面都要雾面动态背景。
+                    // 播放页保持原样（自己铺满封面底）；全屏歌词页也有自己的一份（带设置开关），
                     // 歌词页即便关掉了自己的雾面开关，这里也兜一层，避免出现「一页静态底」。
-                    if (pagerState.settledPage != PAGE_NOW_PLAYING) {
+                    if (pagerState.settledPage >= 2) {
                     FrostedFlowBackground(
                         // 2026-11-06 用户要求：启动就要有**动态**雾面背景，不是等播放才动。
                         // 流动很轻（低分辨率缓冲 + 8fps），且只在页面可见时组合，退后台自然停。

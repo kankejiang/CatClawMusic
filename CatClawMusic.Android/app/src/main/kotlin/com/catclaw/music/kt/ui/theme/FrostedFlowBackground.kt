@@ -49,6 +49,18 @@ import kotlin.math.roundToInt
  * MAUI 还有「封面流」模式（CoverFlowProcessor：过饱和封面三层旋转平铺+盒式模糊），本端未移植，
  * 以封面均色染底代替（见交接遗留）。
  */
+/**
+ * 最近一帧雾面背景的缓存。
+ *
+ * 背景帧是**后台线程异步渲染**的（视口 1/16 的低分辨率缓冲，8fps），所以一个刚进入组合的实例
+ * 在拿到第一帧之前只能画个底 —— 换页（发现 ↔ 全屏歌词）时各自是不同实例，就会出现
+ * 「先闪一下纯色、再变成雾面动态背景」。这里把最近渲染出的一帧存下来，新实例直接拿它打底。
+ *
+ * 只存一帧（ImageBitmap 不可变，替换即可），不持有位图以外的资源。
+ */
+internal object FrostedFlowFrameCache {
+    var frame: ImageBitmap? = null
+}
 @Composable
 fun FrostedFlowBackground(
     isActive: Boolean,
@@ -72,7 +84,8 @@ fun FrostedFlowBackground(
     val coverFlow = coverSource?.takeIf { !it.isEmpty }
     val preset = remember(isDark) { FrostedFlowPreset.choose(isDark) }
     val animator = remember(isDark) { FrostedFlowAnimator(preset.colorInterpPeriod) }
-    var frame by remember { mutableStateOf<ImageBitmap?>(null) }
+    // 先用缓存里的上一帧打底：换页时不会出现「空底 → 出图」的闪烁
+    var frame by remember { mutableStateOf(FrostedFlowFrameCache.frame) }
     var bufferW by remember { mutableIntStateOf(0) }
     var bufferH by remember { mutableIntStateOf(0) }
 
@@ -129,7 +142,9 @@ fun FrostedFlowBackground(
                         it.setPixels(argb, 0, bufferW, 0, 0, bufferW, bufferH)
                     }
                 }
-                frame = bitmap.asImageBitmap()
+                val image = bitmap.asImageBitmap()
+                frame = image
+                FrostedFlowFrameCache.frame = image
                 // 暂停：出完这一帧就停（背景静态可看），不空转
                 if (!shouldAnimate) break
                 delay(125) // ~8fps，雾面背景低帧率省电（MAUI SetDuration(125)）
