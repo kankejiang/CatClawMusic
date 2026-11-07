@@ -346,7 +346,9 @@ private fun TabsHost(
                     // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     FrostedFlowBackground(
-                        isActive = pagerState.settledPage >= 2 || pagerState.settledPage == PAGE_FULL_LYRICS,
+                        // 2026-11-07 用户反馈「暂停播放时雾面背景不动」：动画不再跟播放状态或页面绑定，
+                        // 只要这层在画就一直在动（低分辨率 + 8fps，成本很低）。
+                        isActive = true,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
                         modifier = Modifier.fillMaxSize(),
