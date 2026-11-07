@@ -290,7 +290,12 @@ val TouchMin = 44.dp
 @androidx.compose.runtime.Stable
 private val TouchPadV = 13.dp
 
-/** 胶囊按钮：filled = primary 面 + 自动对比墨色；描边款只给边框 */
+/**
+ * 胶囊按钮。**两种都是玻璃，不再有实色主色面**（2026-11-07 用户要求删掉粉色元素、控件改液态玻璃）：
+ * - filled = 「亮玻璃」：半透明墨色底 + 更亮的描边 + 白色文字；
+ * - 非 filled = 「暗玻璃」：只有一圈细描边。
+ * 玻璃卡那套看家本领（透背景、描边、可点）都在，只是不再拿主色填充。
+ */
 @Composable
 fun PillLabel(
     text: String,
@@ -300,7 +305,8 @@ fun PillLabel(
     enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(999.dp)
-    val tint = if (filled) Color(inkOn(palette.primary)) else Color(palette.textPrimary)
+    val ink = Color(palette.textPrimary)
+    val tint = ink
     Text(
         text = text,
         fontSize = 13.sp,
@@ -308,10 +314,13 @@ fun PillLabel(
         color = tint.copy(alpha = if (enabled) 1f else 0.45f),
         modifier = Modifier
             .clip(shape)
-            .background(
-                if (filled) Color(palette.primary).copy(alpha = if (enabled) 1f else 0.18f) else Color.Transparent,
+            // 亮玻璃：墨色半透明面（不是主色实心）——粉/彩色填充已按用户要求去掉
+            .background(if (filled) ink.copy(alpha = if (enabled) 0.16f else 0.06f) else Color.Transparent)
+            .border(
+                width = 1.dp,
+                color = ink.copy(alpha = if (filled) 0.34f else 0.16f),
+                shape = shape,
             )
-            .border(width = if (filled) 0.dp else 1.dp, color = Color(palette.textPrimary).copy(alpha = 0.16f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             // 13sp 文字行高约 17.6dp，上下各 13dp → 触达 ≈ 44dp（用 padding 而不是 heightIn：
             // heightIn 会把文字顶到大框的上沿，胶囊里的字就不居中了）

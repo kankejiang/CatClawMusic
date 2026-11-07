@@ -683,7 +683,7 @@ private fun AlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onClick
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFFFF8FB8), Color(0xFF7ED8C3))))
+                .background(Brush.linearGradient(listOf(Color(0xFF8FA3CC), Color(0xFF7ED8C3))))
                 .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(24.dp)),
         ) {}
         // 玻璃信息条压在封面下缘：歌名/歌手浮在图上

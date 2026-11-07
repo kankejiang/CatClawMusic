@@ -26,9 +26,11 @@ data class CatClawPalette(
 )
 
 object CatClawTheme {
-    const val PINK_PRIMARY = 0xFFFF8FB8L
-    const val PINK_LIGHT = 0xFFFFD9E7L
-    const val PINK_DARK = 0xFFF56FA0L
+    // 2026-11-07 用户要求：删掉所有粉色元素，改用液态玻璃语言。
+    // 主色从粉色换成**冷灰蓝**（玻璃上的一点冷调），浅色主题用同族的深一档。
+    const val PINK_PRIMARY = 0xFF8FA3CCL   // 保留常量名避免大面积改名，值已中性化
+    const val PINK_LIGHT = 0xFFDDE4F2L
+    const val PINK_DARK = 0xFF9FB4D9L
     const val ACCENT_MINT = 0xFF7ED8C3L
 
     val dark = CatClawPalette(
@@ -57,9 +59,9 @@ object CatClawTheme {
         textPrimary = 0xFF4A3A44L,
         textSecondary = 0xFF866B77L,
         backgroundStops = listOf(
-            BgStop(0xFFFFF7FAL, 0f),
-            BgStop(0xFFFFEFF5L, 0.55f),
-            BgStop(0xFFFFE4EEL, 1f),
+            BgStop(0xFFF7F8FCL, 0f),
+            BgStop(0xFFEFF2F9L, 0.55f),
+            BgStop(0xFFE6EAF4L, 1f),
         ),
         glows = listOf(
             BgGlow(0.80f, 0.14f, 0.70f, 0xF2FFFFFFL),

@@ -1485,7 +1485,7 @@ private fun bucketColor(bucket: QualityBucket): Color = when (bucket) {
     QualityBucket.Kbps320 -> Color(0xFF8C7BFF)
     QualityBucket.Kbps256 -> Color(0xFF55D6FF)
     QualityBucket.Kbps192 -> Color(0xFF7ED8C3)
-    QualityBucket.Kbps128 -> Color(0xFFF56FA0)
+    QualityBucket.Kbps128 -> Color(0xFF8FA3CC)
     QualityBucket.Other -> Color(0xFFFFB74D)
     QualityBucket.Unknown -> Color(0xFF8D93B7)
 }
