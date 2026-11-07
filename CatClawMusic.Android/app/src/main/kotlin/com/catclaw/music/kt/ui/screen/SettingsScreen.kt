@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import com.catclaw.music.kt.data.settings.DiscoverBackground
 import androidx.activity.compose.BackHandler
 import android.app.Activity
 import android.content.Context
@@ -316,8 +317,7 @@ private fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsView
         Section(title = stringResource(R.string.appearance_bg_startup), color = secondary) {
             val startupIndex by viewModel.startupIndex.collectAsStateWithLifecycle()
             val hasCustomBg by viewModel.hasCustomBackground.collectAsStateWithLifecycle()
-            val monet by viewModel.monetEnabled.collectAsStateWithLifecycle()
-            val frosted by viewModel.frostedBgEnabled.collectAsStateWithLifecycle()
+            val discoverBg by viewModel.discoverBackground.collectAsStateWithLifecycle()
             val picker = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
             ) { uri -> uri?.let { viewModel.importCustomBackground(it) } }
@@ -333,48 +333,73 @@ private fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsView
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(
-                    text = stringResource(R.string.custom_bg_image),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = primary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = stringResource(R.string.custom_bg_none).let { if (hasCustomBg) "" else it },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondary,
-                )
-                PillLabel(
-                    text = stringResource(R.string.custom_bg_change),
-                    onClick = { picker.launch(arrayOf("image/*")) },
-                    filled = false,
-                )
-                if (hasCustomBg) {
-                    PillLabel(
-                        text = stringResource(R.string.custom_bg_clear),
-                        onClick = { viewModel.clearCustomBackground() },
-                        filled = false,
+            // 发现页背景：三选一（2026-11-07 用户要求：三者互斥、只作用于发现页）。
+            // 以前是三个独立开关，可以同时打开 → 「自定义图上再叠流光、再套莫奈配色」，背景到底是哪一层说不清。
+            Text(
+                text = stringResource(R.string.discover_bg_title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = primary,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Text(
+                text = stringResource(R.string.discover_bg_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = secondary,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple(
+                        DiscoverBackground.CUSTOM,
+                        R.string.discover_bg_custom,
+                        R.string.discover_bg_custom_desc,
+                    ),
+                    Triple(
+                        DiscoverBackground.FROSTED,
+                        R.string.discover_bg_frosted,
+                        R.string.discover_bg_frosted_desc,
+                    ),
+                    Triple(
+                        DiscoverBackground.MONET,
+                        R.string.discover_bg_monet,
+                        R.string.discover_bg_monet_desc,
+                    ),
+                ).forEach { (mode, title, desc) ->
+                    BackgroundOptionRow(
+                        title = stringResource(title),
+                        desc = stringResource(desc),
+                        selected = discoverBg == mode,
+                        onClick = { viewModel.setDiscoverBackground(mode) },
                     )
                 }
             }
-
-            // 雾面动态背景（MAUI frosted_bg_enabled，默认开）：驱动全屏歌词页的流光引擎
-            // FrostedFlowBackground（2026-10-07 移植）。播放页仍走静态封面洗色（MAUI 的共享背景层未移植）。
-            SwitchRow(
-                title = stringResource(R.string.frosted_bg),
-                subtitle = "",
-                checked = frosted,
-                onChecked = { viewModel.setFrostedBgEnabled(it) },
-            )
-            // 只有莫奈取色在本端有真实消费者（AppearancePalette.resolve 会读它）。
-            // MAUI 的「动态封面背景」一档在 C# 里连渲染都没有（只存不画），开关继续不放上来。
-            SwitchRow(
-                title = stringResource(R.string.monet_bg),
-                subtitle = "",
-                checked = monet,
-                onChecked = { viewModel.setMonetEnabled(it) },
-            )
+            // 自定义图只在选到「自定义图片」时才出现图片操作，避免它看起来像常驻开关
+            if (discoverBg == DiscoverBackground.CUSTOM) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    Text(
+                        text = if (hasCustomBg) "" else stringResource(R.string.custom_bg_none),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = secondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PillLabel(
+                        text = stringResource(R.string.custom_bg_change),
+                        onClick = { picker.launch(arrayOf("image/*")) },
+                        filled = false,
+                    )
+                    if (hasCustomBg) {
+                        PillLabel(
+                            text = stringResource(R.string.custom_bg_clear),
+                            onClick = { viewModel.clearCustomBackground() },
+                            filled = false,
+                        )
+                    }
+                }
+            }
         }
 
     }
@@ -971,4 +996,61 @@ private fun currentLanguageLabel(context: Context): String {
     val tag = AppLocale.current(context)
     val system = stringResource(R.string.language_system)
     return if (tag.isEmpty()) system else AppLocale.displayName(tag)
+}
+
+/**
+ * 发现页背景的一个选项：整行可点，选中态用主色描边 + 一个小圆点。
+ *
+ * 用「单选行」而不是开关：2026-11-07 用户要求三者互斥——开关天然允许多开，
+ * 单选把约束写进交互本身，比在代码里互斥更不容易被后来的改动破坏。
+ */
+@Composable
+private fun BackgroundOptionRow(
+    title: String,
+    desc: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .then(
+                if (selected) {
+                    Modifier.border(1.5.dp, Color(palette.primary).copy(alpha = 0.72f), RoundedCornerShape(14.dp))
+                } else {
+                    Modifier.border(1.dp, Color(palette.textPrimary).copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                },
+            )
+            .background(
+                if (selected) Color(palette.primary).copy(alpha = 0.14f)
+                else Color(palette.textPrimary).copy(alpha = 0.05f),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primary)
+            Text(
+                text = desc,
+                style = MaterialTheme.typography.labelSmall,
+                color = secondary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .border(
+                    width = if (selected) 5.dp else 1.5.dp,
+                    color = if (selected) Color(palette.primary) else Color(palette.textSecondary).copy(alpha = 0.55f),
+                    shape = CircleShape,
+                ),
+        )
+    }
 }

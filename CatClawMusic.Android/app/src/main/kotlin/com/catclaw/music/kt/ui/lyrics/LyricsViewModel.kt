@@ -70,7 +70,6 @@ class LyricsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(3_000), false)
 
     /** 雾面动态背景开关（MAUI FrostedBackgroundEnabled 动态资源同源，AppearanceSettings 持久化） */
-    val frostedBgEnabled: StateFlow<Boolean> = appearance.frostedBgEnabled
 
     private val _lyrics = MutableStateFlow<Lyrics?>(null)
     val lyrics: StateFlow<Lyrics?> = _lyrics

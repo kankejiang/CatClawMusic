@@ -19,6 +19,7 @@ import com.catclaw.music.kt.data.lyrics.DesktopLyricStatus
 import com.catclaw.music.kt.data.download.MusicDownloader
 import com.catclaw.music.kt.data.lyrics.OverlayPermission
 import com.catclaw.music.kt.data.settings.AppearanceSettings
+import com.catclaw.music.kt.data.settings.DiscoverBackground
 import com.catclaw.music.kt.data.settings.CacheSettings
 import com.catclaw.music.kt.data.settings.SettingsReset
 import com.catclaw.music.kt.ui.theme.ThemeStore
@@ -120,6 +121,11 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, appearance.customBgPath.value != null)
 
     fun setStartupIndex(value: Int) = appearance.setStartupIndex(value)
+
+    /** 发现页背景（三选一） */
+    val discoverBackground: StateFlow<DiscoverBackground> = appearance.discoverBackground
+
+    fun setDiscoverBackground(mode: DiscoverBackground) = appearance.setDiscoverBackground(mode)
 
     fun setMonetEnabled(value: Boolean) = appearance.setMonetEnabled(value)
 

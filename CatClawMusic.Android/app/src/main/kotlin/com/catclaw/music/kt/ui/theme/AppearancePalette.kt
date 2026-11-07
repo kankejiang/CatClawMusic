@@ -13,14 +13,19 @@ import com.catclaw.music.kt.data.settings.AppearanceSettings
  */
 object AppearancePalette {
 
+    /**
+     * [monet] 显式指定是否套用莫奈取色：外壳只在**发现页**用莫奈档位（用户 2026-11-07 的要求），
+     * 其它页传 false 即可，不必改用户设置。
+     */
     fun resolve(
         mode: AppearanceMode,
         isSystemDark: Boolean,
         appearance: AppearanceSettings,
+        monet: Boolean = appearance.monetEnabled.value,
     ): CatClawPalette {
         val base = CatClawTheme.paletteFor(mode, isSystemDark)
         val dark = mode.darkFor(isSystemDark)
-        if (!appearance.monetEnabled.value) return base
+        if (!monet) return base
         val hues = appearance.wallpaperHues() ?: return base
         return if (dark) {
             MonetPalette.darkPalette(hues.first, hues.second, hues.third)

@@ -104,6 +104,7 @@ import kotlinx.coroutines.launch
  */
 private const val PAGE_FULL_LYRICS = 0
 private const val PAGE_NOW_PLAYING = 1
+private const val PAGE_DISCOVER = 2
 private const val PAGE_COUNT = 5
 
 /** 图标与 MAUI `MainPage.xaml` 的 TabBar 一致：24×24 的 ic_play / ic_home / ic_playlist / ic_library */
@@ -251,7 +252,15 @@ private fun TabsHost(
     var pendingLibraryKind by remember { mutableStateOf<com.catclaw.music.kt.ui.screen.LibraryKind?>(null) }
     // 按「已停稳」的页决定调色板，避免滑动中途整屏配色乱跳
     val fixedDarkPages = setOf(PAGE_FULL_LYRICS, PAGE_NOW_PLAYING)
-    val palette = if (pagerState.settledPage in fixedDarkPages) CatClawTheme.dark else themedPalette
+    // 2026-11-07 用户要求：背景三选一（自定义图 / 雾面动态 / 莫奈取色）**只作用于发现页**，
+    // 且三者互斥（设置页做成单选）。这里按「当前停在发现页」来决定用哪套。
+    val discoverBg by themeViewModel.appearance.discoverBackground.collectAsStateWithLifecycle()
+    val onDiscover = pagerState.settledPage == PAGE_DISCOVER
+    val monetHere = onDiscover && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.MONET
+    val paletteHere = remember(mode, systemDark, monetTick, monetHere) {
+        AppearancePalette.resolve(mode, systemDark, themeViewModel.appearance, monet = monetHere)
+    }
+    val palette = if (pagerState.settledPage in fixedDarkPages) CatClawTheme.dark else paletteHere
     val backdrop = rememberBackdropState()
     // 2026-11-07 用户反馈：底栏与迷你播放器是黑的，没吃到雾面动态背景。
     // 原因是它们接的是**内容层**的录制（layerBackdrop 只录宿主子节点），渐变/雾面背景是兄弟层，不进录制；
@@ -296,7 +305,8 @@ private fun TabsHost(
 
     CompositionLocalProvider(
         LocalCatClawPalette provides palette,
-        LocalCustomBackground provides customBg,
+        // 自定义背景图只在「发现页 + 选中自定义」时提供：其它页拿不到 → 不会串到别的页签
+        LocalCustomBackground provides if (onDiscover && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.CUSTOM) customBg else null,
         // 液玻材质从这里取宿主层：全 app 的卡片/面板都走它，不必层层传参
         LocalBackdropState provides backdrop,
     ) {
@@ -362,7 +372,10 @@ private fun TabsHost(
                     //（发现页「从灰变动态」那一下就是这么来的）。现在实例一直都在，帧缓存也一直是热的；
                     // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
-                    FrostedFlowBackground(
+                    // 2026-11-07：雾面背景只给「发现页 + 选中雾面」与全屏歌词页；其它页只有主题渐变。
+                    val frostedHere = pagerState.settledPage == PAGE_FULL_LYRICS ||
+                        (onDiscover && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.FROSTED)
+                    if (frostedHere) FrostedFlowBackground(
                         // 2026-11-07 用户要求：**暂停就冻结**、播放才流动。
                         // FrostedFlowBackground 在暂停时会先渲染一帧再停（见那里的注释），
                         // 所以启动/暂停态背景仍然可见，只是不再流动。

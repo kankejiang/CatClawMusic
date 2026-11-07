@@ -15,6 +15,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+
+/**
+ * 发现页背景三选一（2026-11-07 用户要求）：自定义图片 / 雾面动态背景 / 莫奈取色。
+ *
+ * 三者**只作用于发现页**，且**互斥**——以前是三组独立开关，可以同时打开，
+ * 结果是「自定义图上又叠一层流光、再套莫奈配色」，谁也说不清背景到底是哪一层。
+ * 现在只有一个枚举值，UI 做成单选，背景栈永远只有一条路径。
+ */
+enum class DiscoverBackground {
+    /** 用户自选的图片（AspectFill 铺满） */
+    CUSTOM,
+    /** 雾面动态背景（流光 + 封面流，随播放流动、暂停冻结） */
+    FROSTED,
+    /** 莫奈取色：按系统壁纸主/副色重新调一套调色板 */
+    MONET,
+}
 /**
  * 外观页的持久项，键与默认值对齐 MAUI `ThemeService.cs:20-31,787-791`：
  * 启动页索引默认 **2（播放）**、自定义背景图路径、背景透明度默认 0.5、莫奈取色默认关、
@@ -41,6 +57,19 @@ class AppearanceSettings @Inject constructor(
 
     private val _frostedBg = MutableStateFlow(prefs.getBoolean(KEY_FROSTED_BG, DEFAULT_FROSTED_BG))
     val frostedBgEnabled: StateFlow<Boolean> = _frostedBg.asStateFlow()
+    /** 发现页背景（三选一，见 [DiscoverBackground]） */
+    private val _discoverBg = MutableStateFlow(
+        DiscoverBackground.entries.getOrElse(prefs.getInt(KEY_DISCOVER_BG, -1)) {
+            // 老版本存的是三个独立布尔值：迁移时按「雾面 > 莫奈 > 自定义图」的优先级收敛成一个
+            when {
+                prefs.getBoolean(KEY_FROSTED_BG, DEFAULT_FROSTED_BG) -> DiscoverBackground.FROSTED
+                prefs.getBoolean(KEY_MONET, false) -> DiscoverBackground.MONET
+                !prefs.getString(KEY_BG_PATH, null).isNullOrEmpty() -> DiscoverBackground.CUSTOM
+                else -> DiscoverBackground.FROSTED
+            }
+        },
+    )
+    val discoverBackground: StateFlow<DiscoverBackground> = _discoverBg.asStateFlow()
 
     fun setStartupIndex(value: Int) {
         val v = value.coerceIn(0, 2)
@@ -56,8 +85,25 @@ class AppearanceSettings @Inject constructor(
             .putString(KEY_BG_PATH, path.orEmpty())
             .putFloat(KEY_BG_OPACITY, v)
             .apply()
+        // 换了图就顺带把「发现页背景」切到自定义（用户点「更换」的意图就是要用它）
+        if (!path.isNullOrEmpty()) setDiscoverBackground(DiscoverBackground.CUSTOM)
     }
 
+
+    /**
+     * 设置发现页背景（三选一）。这是**唯一**入口：旧的两个布尔开关只是镜像，
+     * 由这里统一写，避免出现「雾面和莫奈同时为 true」这种自相矛盾的状态。
+     */
+    fun setDiscoverBackground(mode: DiscoverBackground) {
+        _discoverBg.value = mode
+        _frostedBg.value = mode == DiscoverBackground.FROSTED
+        _monet.value = mode == DiscoverBackground.MONET
+        prefs.edit()
+            .putInt(KEY_DISCOVER_BG, mode.ordinal)
+            .putBoolean(KEY_FROSTED_BG, mode == DiscoverBackground.FROSTED)
+            .putBoolean(KEY_MONET, mode == DiscoverBackground.MONET)
+            .apply()
+    }
     fun setMonetEnabled(value: Boolean) {
         _monet.value = value
         prefs.edit().putBoolean(KEY_MONET, value).apply()
@@ -132,5 +178,6 @@ class AppearanceSettings @Inject constructor(
 
         /** 键名对齐 MAUI ThemeService.cs:21 的 KeyFrostedBg */
         private const val KEY_FROSTED_BG = "frosted_bg_enabled"
+    private const val KEY_DISCOVER_BG = "discover_bg_mode"
     }
 }

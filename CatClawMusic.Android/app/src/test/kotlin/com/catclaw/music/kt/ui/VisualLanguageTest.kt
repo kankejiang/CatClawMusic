@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -436,10 +437,18 @@ class VisualLanguageTest {
         assertTrue("封面染色请统一走 Modifier.artworkWash（取色与三档 alpha 只该有一处定义）: $offenders", offenders.isEmpty())
         // 该被染的两页必须真接上：少了这一句，上面那条零命中就只是空转。
         // 播放页已换成「封面即背景」的 artworkBackdrop，与 artworkWash 同算合格
-        for (rel in listOf("screen/PlayingScreen.kt", "screen/FullLyricsScreen.kt")) {
-            val text = File(uiRoot, rel).readText()
-            assertTrue("$rel 没接封面染色 artworkWash / artworkBackdrop", "artworkWash(" in text || "artworkBackdrop(" in text)
-        }
+        // 2026-11-07：全屏歌词页不再自己铺底（背景统一由外壳提供，见 CatClawRoot），
+        // 所以这里只要求播放页仍接封面染色；歌词页反过来要求它「不许再自己画一层」。
+        val playing = File(uiRoot, "screen/PlayingScreen.kt").readText()
+        assertTrue(
+            "播放页没接封面染色 artworkWash / artworkBackdrop",
+            "artworkWash(" in playing || "artworkBackdrop(" in playing,
+        )
+        val lyrics = File(uiRoot, "screen/FullLyricsScreen.kt").readText()
+        assertFalse(
+            "全屏歌词页不该再自己铺一层雾面背景（会和外壳那层叠加，也白跑一次渲染）",
+            "FrostedFlowBackground(" in lyrics,
+        )
     }
 
     /**

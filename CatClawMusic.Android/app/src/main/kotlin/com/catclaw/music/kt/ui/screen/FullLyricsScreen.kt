@@ -363,13 +363,12 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
     val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256)
     // 流光背景的两个 gate：暂停即停动画（MAUI IsActive 绑 IsPlaying）、雾面开关整体关闭
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val frostedEnabled by viewModel.frostedBgEnabled.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // 雾面动态背景关闭时退回静态底：主题渐变 + 封面均色洗色
-            .then(if (frostedEnabled) Modifier else Modifier.catClawBackground().artworkWash(cover)),
+            // 底由外壳统一提供（雾面动态背景 / 主题渐变），本页不再自己铺一层
+            .then(Modifier),
     ) {
         // 2026-11-06：雾面背景统一由外壳那一层提供（同一实例贯穿，换页不重建也不会闪）；
         // 这里不再自己画一层，「雾面关闭」时上面的 modifier 会退回静态底。
