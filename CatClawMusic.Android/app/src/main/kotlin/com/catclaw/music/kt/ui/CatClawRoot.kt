@@ -255,8 +255,7 @@ private fun TabsHost(
     val backdrop = rememberBackdropState()
     // 2026-11-07 用户反馈：底栏与迷你播放器是黑的，没吃到雾面动态背景。
     // 原因是它们接的是**内容层**的录制（layerBackdrop 只录宿主子节点），渐变/雾面背景是兄弟层，不进录制；
-    // 底栏下方大面积没有内容，采出来就是黑。这里单独给**背景层**开一份录制，供这两条玻璃用。
-    val backgroundBackdrop = rememberBackdropState()
+    // 底栏下方大面积没有内容，采出来就是黑。这里单独给**背景层**开一份录制，供这两条玻璃用。
     // 队列页要读同一条队列，所以 VM 在这里取一次往下传（hiltViewModel 按路由作用域，两边共享同一实例）
     val playingViewModel: PlayingViewModel = hiltViewModel()
     val queueSongs by playingViewModel.queueSongs.collectAsStateWithLifecycle()
@@ -310,13 +309,27 @@ private fun TabsHost(
             // `layerBackdrop` 只录 `drawContent()`，所以写在 backdropSource 之前的 background/padding 不进录制层
             // —— 之前「有玻璃面、内容不糊」就是这个原因（真机：绿块作子节点时底栏立刻读到 (18,187,21)）。
             // 2026-10-03：排查滑动帧率时这行被 A/B 临时摘掉过，忘恢复导致底栏/迷你条玻璃失效——别再摘
-            Box(modifier = Modifier.fillMaxSize().backdropSource(backgroundBackdrop)) {
-                // 背景层：**只画背景**（2026-10-18 改）。
-                // 原来这一层录的是整页内容，而滑动 / 歌词逐字动画每帧都在变 → 每帧重录一整屏：
-                // A/B 摘掉录制层实测 470→589 帧/20s、jank 48%→27%。背景是静的（渐变 + 光晕 + 自定义图），
-                // 录一次就够；内容层改当它的**兄弟**（下面那个 Box）画在上面，图层不再随动画重录。
-                // 发现 / 歌单 / 音乐库（pageIndex >= 2）直接用**全屏歌词页那套动态背景**
-                // （FrostedFlowBackground：流光 + 封面流模式）。播放页与歌词页不用，它们各自已有。
+            // 内容层 = **录制层**。这正是 Halcyon 的挂法：`EllaAppScreen.kt:1012` 把
+            // `Modifier.layerMiuixBackdrop(backdrop)` 挂在**包住内容**的 Box 上，
+            // 而它们的底栏/侧栏是这层的**兄弟** —— 消费者不能落在录制层内部。
+            // 2026-10-20 实测：把录制层提到最外层（连底栏一起包住）→ 玻璃自采样 →
+            // RenderThread SIGSEGV（stack overflow），进程启动即崩。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .backdropSource(backdrop)
+                    // 状态栏留白不再统一加在这里：播放页 / 全屏歌词页要沉浸到状态栏后面
+                    // （封面染色铺满整个状态栏区域），留白由各页自己处理（2026-10-01）
+                    // 整屏覆盖层（队列 / 音效）压住五页时，身后那页仍留在同一棵无障碍树里——
+                    // 真机 dump 量到队列页上「设置」与「返回」两个节点的 bounds 100% 重叠，
+                    // 读屏用户能滑进看不见、也点不到的那一层。覆盖层显示时把身后整棵子树摘掉。
+                    // 条件在组合期算好再进 semantics：写在 lambda 里的话状态读取发生在语义阶段，
+                    // 不会触发重组，覆盖层关掉后那棵子树就再也摘不回来了。
+                    .semantics { if (coverLayersOpen) hideFromAccessibility() },
+            ) {
+                // 2026-11-07：背景挪进**录制层内部**（原来是兄弟层）。
+                // 玻璃要透出的是「背景 + 内容」整体；只录内容时，底栏贴屏幕最下方、那里没内容 →
+                // 采样成黑（用户反馈「底栏和迷你播放器是黑色的」）。现在背景也在这层里，两处玻璃都能透色。
                 val coverAura = rememberCover(
                     coverArtPath = playState.currentSong?.coverArtPath,
                     audioPath = playState.currentSong?.filePath,
@@ -362,25 +375,6 @@ private fun TabsHost(
                         accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
                     )
                 }
-            }
-            // 内容层 = **录制层**。这正是 Halcyon 的挂法：`EllaAppScreen.kt:1012` 把
-            // `Modifier.layerMiuixBackdrop(backdrop)` 挂在**包住内容**的 Box 上，
-            // 而它们的底栏/侧栏是这层的**兄弟** —— 消费者不能落在录制层内部。
-            // 2026-10-20 实测：把录制层提到最外层（连底栏一起包住）→ 玻璃自采样 →
-            // RenderThread SIGSEGV（stack overflow），进程启动即崩。
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .backdropSource(backdrop)
-                    // 状态栏留白不再统一加在这里：播放页 / 全屏歌词页要沉浸到状态栏后面
-                    // （封面染色铺满整个状态栏区域），留白由各页自己处理（2026-10-01）
-                    // 整屏覆盖层（队列 / 音效）压住五页时，身后那页仍留在同一棵无障碍树里——
-                    // 真机 dump 量到队列页上「设置」与「返回」两个节点的 bounds 100% 重叠，
-                    // 读屏用户能滑进看不见、也点不到的那一层。覆盖层显示时把身后整棵子树摘掉。
-                    // 条件在组合期算好再进 semantics：写在 lambda 里的话状态读取发生在语义阶段，
-                    // 不会触发重组，覆盖层关掉后那棵子树就再也摘不回来了。
-                    .semantics { if (coverLayersOpen) hideFromAccessibility() },
-            ) {
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
@@ -507,7 +501,7 @@ private fun TabsHost(
                                     song = song,
                                     lyric = lyricLine,
                                     isPlaying = playState.isPlaying,
-                                    backdrop = backgroundBackdrop,
+                                    backdrop = backdrop,
                                     glassOn = glassOn,
                                     // 传 lambda：让这条线在绘制期读位置（否则整个外壳每帧重组，见 MiniPlayer 的注释）
                                     progress = {
@@ -533,7 +527,7 @@ private fun TabsHost(
                         ) { it } + fadeIn(tween(140, delayMillis = 50)),
                         exit = fadeOut(tween(100)),
                     ) {
-                        BarGlass(state = backgroundBackdrop, modifier = Modifier.fillMaxWidth(), glassOn = glassOn) {
+                        BarGlass(state = backdrop, modifier = Modifier.fillMaxWidth(), glassOn = glassOn) {
                             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
                                 TopTab.entries.forEach { tab ->
                                     TabCell(
