@@ -70,6 +70,22 @@ class OpenAiCompatibleClient(
         }
     }
 
+
+    /**
+     * 各家网关偶尔要额外请求头，而 OpenAI 兼容协议本身没这一栏。
+     *
+     * 目前只有 OpenCode Go 强制要 `x-opencode-session`（缺了直接 400 MissingSessionID），
+     * 值是任意字符串即可，这里用一个**进程内稳定**的随机值：同一场对话复用同一个 session，
+     * 换进程就换新的，避免服务端把不相关的请求并到同一个会话里。
+     */
+    private fun headersFor(config: LlmConfig, json: Boolean): Map<String, String> {
+        val base = mutableMapOf("Authorization" to "Bearer " + config.apiKey)
+        if (json) base["Content-Type"] = "application/json"
+        if (config.provider == "opencodego") {
+            base["x-opencode-session"] = OPENCODE_SESSION_ID
+        }
+        return base
+    }
     private fun call(
         config: LlmConfig,
         messages: List<ChatMessage>,
@@ -81,10 +97,7 @@ class OpenAiCompatibleClient(
         val parser = SseStreamParser()
         val result = transport.post(
             url,
-            mapOf(
-                "Authorization" to "Bearer ${config.apiKey}",
-                "Content-Type" to "application/json",
-            ),
+            headersFor(config, json = true),
             body,
         ) { line ->
             parser.feedLine(line)?.let { delta -> onDelta?.invoke(delta) }
@@ -140,7 +153,7 @@ class OpenAiCompatibleClient(
             config.copy(maxTokens = 1, temperature = 0.0),
             stream = false,
         )
-        transport.post(url, mapOf("Authorization" to "Bearer ${config.apiKey}", "Content-Type" to "application/json"), body) {}.status in 200..299
+        transport.post(url, headersFor(config, json = true), body) {}.status in 200..299
     }.getOrDefault(false)
 
     /** 拉取「当前生效配置」那个账号的模型列表 */
@@ -152,7 +165,7 @@ class OpenAiCompatibleClient(
      */
     fun listModels(config: LlmConfig): List<String> = runCatching {
         if (config.apiUrl.isBlank()) return emptyList()
-        val res = transport.get(modelsUrl(config.apiUrl), mapOf("Authorization" to "Bearer ${config.apiKey}"))
+        val res = transport.get(modelsUrl(config.apiUrl), headersFor(config, json = false))
         if (res.status !in 200..299) return emptyList()
         parseModels(res.body)
     }.getOrDefault(emptyList())
@@ -166,6 +179,8 @@ class OpenAiCompatibleClient(
     }
 
     companion object {
+        /** OpenCode Go 要的会话 id：进程内稳定、随机，避免与服务端别人的会话撞车 */
+        private val OPENCODE_SESSION_ID: String = java.util.UUID.randomUUID().toString()
         private val VERSION_TAIL = Regex("/v\\d+$")
 
         /**
