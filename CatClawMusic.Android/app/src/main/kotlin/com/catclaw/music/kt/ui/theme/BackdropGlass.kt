@@ -119,7 +119,16 @@ object GlassTokens {
     /** 两栏共用同一档尺寸：迷你播放条不再比底栏高（2026-09-28 用户要求大小完全一致） */
     val BarHeight: Dp = 64.dp
 
-    /** MAUI `BottomBarStrokeColor` + `Border StrokeThickness="1.5"`：描边是「有面的胶囊」和「透明」的分界 */
+    /**
+ * 悬浮栏（底栏 / 迷你播放器）专用着色：比卡片用的 [Tint] **淡一档**。
+ *
+ * 2026-11-07 用户反馈「底栏和迷你播放器是黑的，没吃到雾面动态背景」：
+ * 栏体本来就是 45% 的不透明深色压上去，背景再暗一点就整条发黑。这里降到 ~29%，
+ * 让底下的雾面动态背景透得出来（采样源已改成背景层，见 CatClawRoot 的 backgroundBackdrop）。
+ */
+val BarTint: Color = Color(0x4A1C1C25)
+val BarTintLight: Color = Color(0x8CFFFFFF)
+/** MAUI `BottomBarStrokeColor` + `Border StrokeThickness="1.5"`：描边是「有面的胶囊」和「透明」的分界 */
     val BarStroke: Color = Color(0x40FFFFFF)
     val BarStrokeWidth: Dp = 1.5.dp
 
@@ -376,7 +385,7 @@ fun BarGlass(
         //
         // **2026-10-23 的关键修正**：上次接这套渲染成「黑板 + 一块绿」，原因是**没传 onDrawSurface** ——
         // 那样 backdrop 什么都不画，只剩底部内容。这次按 Halcyon 的做法传 `onDrawSurface = { drawRect(着色) }`。
-        val container = if (light) GlassTokens.TintLight else GlassTokens.Tint
+        val container = if (light) GlassTokens.BarTintLight else GlassTokens.BarTint
         Box(
             modifier = modifier
                 .height(GlassTokens.BarHeight)
@@ -411,7 +420,7 @@ fun BarGlass(
             .height(GlassTokens.BarHeight)
             .clip(shape)
             .background(base.copy(alpha = 0.88f))
-            .background(if (light) GlassTokens.TintLight else GlassTokens.Tint)
+            .background(if (light) GlassTokens.BarTintLight else GlassTokens.BarTint)
             .border(GlassTokens.BarStrokeWidth, stroke, shape),
     ) { content() }
 }

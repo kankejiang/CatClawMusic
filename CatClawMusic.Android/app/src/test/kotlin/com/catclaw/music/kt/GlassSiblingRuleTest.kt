@@ -41,10 +41,20 @@ class GlassSiblingRuleTest {
         )
     }
 
+    /**
+     * 录制层现在是**两份**，各有分工（2026-11-07 用户反馈底栏发黑）：
+     * - 内容层：给页内玻璃卡采样（`LocalBackdropState`）；
+     * - 背景层：给底栏 / 迷你播放器采样 —— 它们贴在屏幕最下方，那里没有内容，
+     *   采内容层是黑的；背景层单独录一次（背景 8fps 才更新），两条玻璃采样它就有渐变色。
+     *
+     * 上限仍是 2：再多就说明有人又在别处乱开录制层。
+     */
     @Test
-    fun `录制层仍然存在且只有一处`() {
+    fun `录制层仍然存在且只有两处`() {
         val shell = source("app/src/main/kotlin/com/catclaw/music/kt/ui/CatClawRoot.kt")
         val hits = Regex("backdropSource\\(").findAll(shell).count()
-        assertTrue("外壳里应当有唯一的录制层（被摘掉过，见那里的注释）", hits == 1)
+        assertTrue("外壳里应当有且只有两份录制层（内容 + 背景），实际 $hits 份", hits == 2)
+        assertTrue("内容层那处必须保留（LocalBackdropState 提供给它）", "backdropSource(backdrop)" in shell)
+        assertTrue("背景层那处必须保留（底栏 / 迷你条采样它）", "backdropSource(backgroundBackdrop)" in shell)
     }
 }

@@ -253,6 +253,10 @@ private fun TabsHost(
     val fixedDarkPages = setOf(PAGE_FULL_LYRICS, PAGE_NOW_PLAYING)
     val palette = if (pagerState.settledPage in fixedDarkPages) CatClawTheme.dark else themedPalette
     val backdrop = rememberBackdropState()
+    // 2026-11-07 用户反馈：底栏与迷你播放器是黑的，没吃到雾面动态背景。
+    // 原因是它们接的是**内容层**的录制（layerBackdrop 只录宿主子节点），渐变/雾面背景是兄弟层，不进录制；
+    // 底栏下方大面积没有内容，采出来就是黑。这里单独给**背景层**开一份录制，供这两条玻璃用。
+    val backgroundBackdrop = rememberBackdropState()
     // 队列页要读同一条队列，所以 VM 在这里取一次往下传（hiltViewModel 按路由作用域，两边共享同一实例）
     val playingViewModel: PlayingViewModel = hiltViewModel()
     val queueSongs by playingViewModel.queueSongs.collectAsStateWithLifecycle()
@@ -306,7 +310,7 @@ private fun TabsHost(
             // `layerBackdrop` 只录 `drawContent()`，所以写在 backdropSource 之前的 background/padding 不进录制层
             // —— 之前「有玻璃面、内容不糊」就是这个原因（真机：绿块作子节点时底栏立刻读到 (18,187,21)）。
             // 2026-10-03：排查滑动帧率时这行被 A/B 临时摘掉过，忘恢复导致底栏/迷你条玻璃失效——别再摘
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize().backdropSource(backgroundBackdrop)) {
                 // 背景层：**只画背景**（2026-10-18 改）。
                 // 原来这一层录的是整页内容，而滑动 / 歌词逐字动画每帧都在变 → 每帧重录一整屏：
                 // A/B 摘掉录制层实测 470→589 帧/20s、jank 48%→27%。背景是静的（渐变 + 光晕 + 自定义图），
@@ -346,9 +350,10 @@ private fun TabsHost(
                     // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     FrostedFlowBackground(
-                        // 2026-11-07 用户反馈「暂停播放时雾面背景不动」：动画不再跟播放状态或页面绑定，
-                        // 只要这层在画就一直在动（低分辨率 + 8fps，成本很低）。
-                        isActive = true,
+                        // 2026-11-07 用户要求：**暂停就冻结**、播放才流动。
+                        // FrostedFlowBackground 在暂停时会先渲染一帧再停（见那里的注释），
+                        // 所以启动/暂停态背景仍然可见，只是不再流动。
+                        isActive = playState.isPlaying,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
                         modifier = Modifier.fillMaxSize(),
@@ -502,7 +507,7 @@ private fun TabsHost(
                                     song = song,
                                     lyric = lyricLine,
                                     isPlaying = playState.isPlaying,
-                                    backdrop = backdrop,
+                                    backdrop = backgroundBackdrop,
                                     glassOn = glassOn,
                                     // 传 lambda：让这条线在绘制期读位置（否则整个外壳每帧重组，见 MiniPlayer 的注释）
                                     progress = {
@@ -528,7 +533,7 @@ private fun TabsHost(
                         ) { it } + fadeIn(tween(140, delayMillis = 50)),
                         exit = fadeOut(tween(100)),
                     ) {
-                        BarGlass(state = backdrop, modifier = Modifier.fillMaxWidth(), glassOn = glassOn) {
+                        BarGlass(state = backgroundBackdrop, modifier = Modifier.fillMaxWidth(), glassOn = glassOn) {
                             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
                                 TopTab.entries.forEach { tab ->
                                     TabCell(
