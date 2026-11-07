@@ -144,35 +144,10 @@
     <string name="chat_thinking">Yuki is replying…</string>
     <string name="chat_back">Back</string>
     <string name="ai_settings">AI settings</string>
-    <string name="ai_configs">Model configs</string>
     <string name="ai_no_config">No config yet — tap Add below</string>
-    <string name="ai_edit">Edit</string>
-    <string name="ai_new">Add</string>
-    <string name="ai_new_config_name">New config</string>
-    <string name="ai_on">On</string>
-    <string name="ai_off">Off</string>
-    <string name="ai_editing">Edit config</string>
-    <string name="ai_name">Config name</string>
     <string name="ai_provider">Provider</string>
     <string name="ai_api_key">API Key</string>
     <string name="ai_model">Model</string>
-    <string name="ai_preset_models">Preset models</string>
-    <string name="ai_temperature">Temperature %1$.2f</string>
-    <string name="ai_enabled">Enable this config</string>
-    <string name="ai_fallback">Allow fallback</string>
-    <string name="ai_save">Save</string>
-    <string name="ai_delete">Delete</string>
-    <string name="ai_cancel">Cancel</string>
-    <string name="ai_test">Test connection</string>
-    <string name="ai_fetch_models">Fetch models</string>
-    <string name="ai_models_fetching">Fetching…</string>
-    <string name="ai_models_empty">No models returned — check the API URL and key</string>
-    <string name="ai_models_from_account">Models from this account (%1$d)</string>
-    <string name="ai_test_failed">Connection failed</string>
-    <string name="ai_run">Agent run settings</string>
-    <string name="ai_rounds">Max tool rounds</string>
-    <string name="ai_rounds_unlimited">Unlimited</string>
-    <string name="ai_effort">Reasoning effort</string>
     <string name="plugin_dir_title">Plugin folder</string>
     <string name="plugin_rescan">Rescan</string>
     <string name="plugin_empty">No plugins found. Put a plugin folder containing plugin.json into the location below, then tap Rescan.</string>
@@ -377,9 +352,6 @@ Download it from GitHub.</string>
     <!-- Listening stats page -->
     <string name="StatsTitle">Listening stats</string>
     <string name="ai_memory">Long-term memory</string>
-    <string name="ai_memory_empty">Nothing remembered yet. Chat a bit, or write one yourself.</string>
-    <string name="ai_memory_hint">e.g. likes Jay Chou on rainy days</string>
-    <string name="ai_memory_meta">%1$s · importance %2$d</string>
     <string name="ai_memory_add">Remember</string>
     <string name="ai_memory_clear">Forget all</string>
     <string name="StatsOpenFull">Full statistics</string>
@@ -496,4 +468,10 @@ Download it from GitHub.</string>
     <string name="settings_group_sources">Music sources</string>
     <string name="settings_group_ext">Extensions</string>
     <string name="settings_group_system">System &amp; maintenance</string>
+    <string name="ai_connect_fetch">Connect and fetch models</string>
+    <string name="ai_connected_models">Connected · %1$d models found</string>
+    <string name="ai_connect_failed">Connection failed: bad key or no network</string>
+    <string name="ai_paste">Paste</string>
+    <string name="ai_memory_manage">Manage</string>
+    <string name="ai_memory_none">Nothing remembered yet</string>
 </resources>

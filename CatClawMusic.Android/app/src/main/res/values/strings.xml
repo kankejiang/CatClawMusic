@@ -144,35 +144,10 @@
     <string name="chat_thinking">Yuki 正在回复…</string>
     <string name="chat_back">返回</string>
     <string name="ai_settings">AI 设置</string>
-    <string name="ai_configs">模型配置</string>
     <string name="ai_no_config">还没有配置，点下面「新增」填一个</string>
-    <string name="ai_edit">编辑</string>
-    <string name="ai_new">新增</string>
-    <string name="ai_new_config_name">新配置</string>
-    <string name="ai_on">已启用</string>
-    <string name="ai_off">未启用</string>
-    <string name="ai_editing">编辑配置</string>
-    <string name="ai_name">配置名称</string>
     <string name="ai_provider">服务商</string>
     <string name="ai_api_key">API Key</string>
     <string name="ai_model">模型</string>
-    <string name="ai_preset_models">预设模型</string>
-    <string name="ai_temperature">温度 %1$.2f</string>
-    <string name="ai_enabled">启用该配置</string>
-    <string name="ai_fallback">允许退回</string>
-    <string name="ai_save">保存</string>
-    <string name="ai_delete">删除</string>
-    <string name="ai_cancel">取消</string>
-    <string name="ai_test">测试连接</string>
-    <string name="ai_fetch_models">获取模型列表</string>
-    <string name="ai_models_fetching">拉取中…</string>
-    <string name="ai_models_empty">没拿到模型列表，检查一下 API URL 与 Key 喵</string>
-    <string name="ai_models_from_account">账号里的模型（%1$d 个）</string>
-    <string name="ai_test_failed">连接失败喵</string>
-    <string name="ai_run">Agent 运行参数</string>
-    <string name="ai_rounds">执行轮数上限</string>
-    <string name="ai_rounds_unlimited">不限</string>
-    <string name="ai_effort">推理力度</string>
     <string name="plugin_dir_title">插件目录</string>
     <string name="plugin_rescan">重新扫描</string>
     <string name="plugin_empty">没有发现插件。把带 plugin.json 的插件目录放进下面的位置，再点「重新扫描」。</string>
@@ -377,9 +352,6 @@
     <!-- 听歌统计页 -->
     <string name="StatsTitle">听歌统计</string>
     <string name="ai_memory">长期记忆</string>
-    <string name="ai_memory_empty">还没记住什么。聊几句，或者自己写一条。</string>
-    <string name="ai_memory_hint">例：喜欢下雨天听周杰伦</string>
-    <string name="ai_memory_meta">%1$s · 重要性 %2$d</string>
     <string name="ai_memory_add">记下来</string>
     <string name="ai_memory_clear">全部忘掉</string>
     <string name="StatsOpenFull">查看完整统计</string>
@@ -496,4 +468,10 @@
     <string name="settings_group_sources">音乐来源</string>
     <string name="settings_group_ext">扩展</string>
     <string name="settings_group_system">系统与维护</string>
+    <string name="ai_connect_fetch">连接并获取模型</string>
+    <string name="ai_connected_models">已连接 · 获取到 %1$d 个模型</string>
+    <string name="ai_connect_failed">连接失败：Key 无效或网络不通</string>
+    <string name="ai_paste">粘贴</string>
+    <string name="ai_memory_manage">管理</string>
+    <string name="ai_memory_none">还没记什么</string>
 </resources>
