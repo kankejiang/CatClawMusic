@@ -81,7 +81,6 @@ import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.player.rememberCover
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.core.theme.CoverFlowProcessor
-import com.catclaw.music.kt.ui.theme.FrostedFlowBackground
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.ui.theme.inkOnGradient
@@ -372,43 +371,8 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
             // 雾面动态背景关闭时退回静态底：主题渐变 + 封面均色洗色
             .then(if (frostedEnabled) Modifier else Modifier.catClawBackground().artworkWash(cover)),
     ) {
-        if (frostedEnabled) {
-            // 流光喷发动态背景（MAUI FullLyricsPage.xaml:14-22 的 FrostedBackground）：
-            // IsActive 绑 IsPlaying、歌词列表拖动时暂停省电（IsScrolling 绑 IsUserScrolling）、
-            // 深色预设（IsDark=true）、TintOpacity 0.60、DimAmount 0.12，色调源 = 封面均色
-            // 封面流源：当前封面（≤256 长边的 ARGB）。MAUI 是「封面源非空 → 切封面流模式」
-            // （FrostedBackgroundHandler.cs:378），所以取不到封面时自然退回流光模式。
-            // 取像素放后台线程做一次（封面解码出来是原图，getPixels 在主线会卡一帧）。
-            val coverFlowSource by produceState<CoverFlowProcessor.CoverSource?>(null, cover) {
-                value = withContext(Dispatchers.Default) {
-                    cover?.let { bmp ->
-                        val side = maxOf(bmp.width, bmp.height)
-                        val scaled = if (side > CoverFlowProcessor.SOURCE_MAX_DIM) {
-                            val k = CoverFlowProcessor.SOURCE_MAX_DIM.toFloat() / side
-                            Bitmap.createScaledBitmap(
-                                bmp,
-                                (bmp.width * k).toInt().coerceAtLeast(1),
-                                (bmp.height * k).toInt().coerceAtLeast(1),
-                                true,
-                            )
-                        } else {
-                            bmp
-                        }
-                        val px = IntArray(scaled.width * scaled.height)
-                        scaled.getPixels(px, 0, scaled.width, 0, 0, scaled.width, scaled.height)
-                        CoverFlowProcessor.scaleSource(px, scaled.width, scaled.height)
-                    }
-                }
-            }
-            FrostedFlowBackground(
-                isActive = isPlaying,
-                isScrolling = userScrolling,
-                tint = rememberArtworkTint(cover),
-                modifier = Modifier.fillMaxSize(),
-                coverSource = coverFlowSource,
-                accentArgb = rememberArtworkTint(cover).toArgb() and 0xFFFFFF,
-            )
-        }
+        // 2026-11-06：雾面背景统一由外壳那一层提供（同一实例贯穿，换页不重建也不会闪）；
+        // 这里不再自己画一层，「雾面关闭」时上面的 modifier 会退回静态底。
         BoxWithConstraints(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             val landscape = maxWidth > maxHeight
 

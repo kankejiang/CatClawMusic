@@ -340,14 +340,13 @@ private fun TabsHost(
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize().catClawBackground()) {
-                    // 2026-11-06 用户要求：三个页签 + 播放页外的页面都要雾面动态背景。
-                    // 播放页保持原样（自己铺满封面底）；全屏歌词页也有自己的一份（带设置开关），
-                    // 歌词页即便关掉了自己的雾面开关，这里也兜一层，避免出现「一页静态底」。
-                    if (pagerState.settledPage >= 2) {
+                    // 2026-11-06：雾面背景**常驻组合**，不再按页开关。
+                    // 帧是后台线程异步渲染的：换页时才组合出的实例会先画一次纯色底、再变成动态背景
+                    //（发现页「从灰变动态」那一下就是这么来的）。现在实例一直都在，帧缓存也一直是热的；
+                    // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
+                    // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     FrostedFlowBackground(
-                        // 2026-11-06 用户要求：启动就要有**动态**雾面背景，不是等播放才动。
-                        // 流动很轻（低分辨率缓冲 + 8fps），且只在页面可见时组合，退后台自然停。
-                        isActive = true,
+                        isActive = pagerState.settledPage >= 2 || pagerState.settledPage == PAGE_FULL_LYRICS,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
                         modifier = Modifier.fillMaxSize(),
@@ -355,7 +354,6 @@ private fun TabsHost(
                         coverSource = coverFlowSource,
                         accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
                     )
-                    }
                 }
             }
             // 内容层 = **录制层**。这正是 Halcyon 的挂法：`EllaAppScreen.kt:1012` 把
