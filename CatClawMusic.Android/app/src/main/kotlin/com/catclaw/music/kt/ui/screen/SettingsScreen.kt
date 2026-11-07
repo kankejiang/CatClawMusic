@@ -196,93 +196,89 @@ fun SettingsScreen(
         Spacer(Modifier.height(10.dp))
 
         // 枢纽：MAUI 的每一行自己是一张 GlassCard，上面挂一个 ✦ 分组标题
-        SectionHeader(stringResource(R.string.ContentAndServices))
-        HubRow(
-            iconRes = R.drawable.ic_edit,
-            tileArgb = 0x20C4B5FDL,
-            title = stringResource(R.string.Appearance),
-            desc = stringResource(R.string.AppearanceDesc),
-            onClick = { dest = SettingsDest.Appearance },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_lyrics,
-            tileArgb = 0x2042A5F5L,
-            title = stringResource(R.string.PageTitleDesktopLyric),
-            desc = stringResource(R.string.DesktopLyricDesc),
-            onClick = { dest = SettingsDest.DesktopLyric },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_search,
-            tileArgb = 0x2042A5F5L,
-            title = stringResource(R.string.RemoteMusic),
-            desc = stringResource(R.string.RemoteMusicSubtitle),
-            onClick = onOpenRemote,
-        )
-        HubRow(
-            iconRes = R.drawable.ic_library,
-            tileArgb = 0x207ED8C3L,
-            title = stringResource(R.string.local_music_settings),
-            desc = stringResource(R.string.local_music_subtitle),
-            onClick = { dest = SettingsDest.LocalMusic },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_history,
-            tileArgb = 0x20B79CFFL,
-            title = stringResource(R.string.downloads_title),
-            desc = stringResource(R.string.downloads_subtitle),
-            onClick = { dest = SettingsDest.Downloads },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_equalizer,
-            tileArgb = 0x20FF7043L,
-            title = stringResource(R.string.Plugins),
-            desc = stringResource(R.string.plugin_dir_title),
-            onClick = { dest = SettingsDest.Plugin },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_play,
-            tileArgb = 0x20E84393L,
-            title = stringResource(R.string.ExploreSettings),
-            desc = aiStatus.ifBlank { stringResource(R.string.ai_no_config) },
-            onClick = { dest = SettingsDest.Ai },
-        )
+        SettingsGroup(title = stringResource(R.string.settings_group_look)) {
+            HubRow(
+                iconRes = R.drawable.ic_nav_appearance,
+                title = stringResource(R.string.Appearance),
+                desc = stringResource(R.string.AppearanceDesc),
+                onClick = { dest = SettingsDest.Appearance },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_lyrics,
+                title = stringResource(R.string.PageTitleDesktopLyric),
+                desc = stringResource(R.string.DesktopLyricDesc),
+                onClick = { dest = SettingsDest.DesktopLyric },
+            )
+        }
 
-        SectionHeader(stringResource(R.string.SystemAndMaintenance))
-        HubRow(
-            iconRes = R.drawable.ic_settings,
-            tileArgb = 0x1AFFFFFFL,
-            title = stringResource(R.string.GeneralSettings),
-            desc = stringResource(R.string.GeneralSettingsDesc),
-            onClick = { dest = SettingsDest.General },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_add,
-            tileArgb = 0x207ED8C3L,
-            title = stringResource(R.string.BackupRestore),
-            desc = stringResource(R.string.BackupRestoreDesc),
-            onClick = { dest = SettingsDest.Backup },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_info,
-            tileArgb = 0x20FFB74DL,
-            title = stringResource(R.string.Permissions),
-            desc = stringResource(R.string.PermissionsSubtitle),
-            onClick = { dest = SettingsDest.Permission },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_info,
-            tileArgb = 0x1A7ED8C3L,
-            title = stringResource(R.string.diagnostic_title),
-            desc = stringResource(R.string.diagnostic_subtitle),
-            onClick = { dest = SettingsDest.DiagnosticLog },
-        )
-        HubRow(
-            iconRes = R.drawable.ic_info,
-            tileArgb = 0x2042A5F5L,
-            title = stringResource(R.string.About),
-            desc = stringResource(R.string.AboutDesc),
-            onClick = { dest = SettingsDest.About },
-        )
+        SettingsGroup(title = stringResource(R.string.settings_group_sources)) {
+            HubRow(
+                iconRes = R.drawable.ic_nav_folder,
+                title = stringResource(R.string.local_music_settings),
+                desc = stringResource(R.string.local_music_subtitle),
+                onClick = { dest = SettingsDest.LocalMusic },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_server,
+                title = stringResource(R.string.RemoteMusic),
+                desc = stringResource(R.string.RemoteMusicSubtitle),
+                onClick = onOpenRemote,
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_download,
+                title = stringResource(R.string.downloads_title),
+                desc = stringResource(R.string.downloads_subtitle),
+                onClick = { dest = SettingsDest.Downloads },
+            )
+        }
+
+        SettingsGroup(title = stringResource(R.string.settings_group_ext)) {
+            HubRow(
+                iconRes = R.drawable.ic_nav_plugin,
+                title = stringResource(R.string.Plugins),
+                desc = stringResource(R.string.plugin_dir_title),
+                onClick = { dest = SettingsDest.Plugin },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_ai,
+                title = stringResource(R.string.ExploreSettings),
+                desc = aiStatus.ifBlank { stringResource(R.string.ai_no_config) },
+                onClick = { dest = SettingsDest.Ai },
+            )
+        }
+
+        SettingsGroup(title = stringResource(R.string.settings_group_system)) {
+            HubRow(
+                iconRes = R.drawable.ic_nav_general,
+                title = stringResource(R.string.GeneralSettings),
+                desc = stringResource(R.string.GeneralSettingsDesc),
+                onClick = { dest = SettingsDest.General },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_palette,
+                title = stringResource(R.string.BackupRestore),
+                desc = stringResource(R.string.BackupRestoreDesc),
+                onClick = { dest = SettingsDest.Backup },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_permission,
+                title = stringResource(R.string.Permissions),
+                desc = stringResource(R.string.PermissionsSubtitle),
+                onClick = { dest = SettingsDest.Permission },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_log,
+                title = stringResource(R.string.diagnostic_title),
+                desc = stringResource(R.string.diagnostic_subtitle),
+                onClick = { dest = SettingsDest.DiagnosticLog },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_info,
+                title = stringResource(R.string.About),
+                desc = stringResource(R.string.AboutDesc),
+                onClick = { dest = SettingsDest.About },
+            )
+        }
     }
 }
 
@@ -746,56 +742,92 @@ private fun SectionHeader(title: String) {
 }
 
 /** 枢纽的一行 —— MAUI 每行自己是一张 GlassCard：40×40 圆角 12 图标块（各行自己的主题色 12.5% 底）+ 标题/描述 + 16dp 箭头 */
+/**
+ * 设置页的一行（2026-11-07 重设计）。
+ *
+ * 图标块统一 38dp / 圆角 12 / 冷灰蓝淡底：以前每行自带一个彩色底、图标还是填色资源，
+ * 一页里出现四五种风格。现在整页只有一套线性图标（24 网格 / 1.7px 描边 / 圆头端点）。
+ * 分隔线从图标右侧起（14+38+14），iOS 设置页那种缩进分隔。
+ */
 @Composable
 private fun HubRow(
     iconRes: Int,
-    tileArgb: Long,
     title: String,
     desc: String,
     onClick: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .glassCard(palette = palette, corner = 26)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(tileArgb)),
-            contentAlignment = Alignment.Center,
+    val ink = Color(palette.textPrimary)
+    val sub = Color(palette.textSecondary)
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(palette.primary).copy(alpha = 0.16f))
+                    .border(1.dp, Color(palette.primary).copy(alpha = 0.24f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = Color(palette.primaryLight),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ink)
+                Text(
+                    text = desc,
+                    fontSize = 12.sp,
+                    color = sub.copy(alpha = 0.75f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
             Icon(
-                painter = painterResource(iconRes),
+                painter = painterResource(R.drawable.ic_nav_chevron),
                 contentDescription = null,
-                tint = Color(palette.textPrimary),
-                modifier = Modifier.size(22.dp),
+                tint = sub.copy(alpha = 0.55f),
+                modifier = Modifier.size(16.dp),
             )
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(palette.textPrimary))
-            Text(
-                text = desc,
-                fontSize = 12.sp,
-                color = Color(palette.textSecondary),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Icon(
-            painter = painterResource(R.drawable.ic_arrow_forward),
-            contentDescription = null,
-            tint = Color(palette.textPrimary).copy(alpha = 0.4f),
-            modifier = Modifier.size(16.dp),
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 66.dp)
+                .height(1.dp)
+                .background(ink.copy(alpha = 0.07f)),
         )
     }
+}
+
+/**
+ * 一张分组卡：标题（灰字小标）+ 玻璃底 + 若干 [HubRow]。
+ * 以前每行各是一张卡，四行就是四张剪影叠着；现在一组一张，行间用细线分隔。
+ */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+    val palette = LocalCatClawPalette.current
+    Text(
+        text = title,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 1.4.sp,
+        color = Color(palette.textSecondary).copy(alpha = 0.8f),
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassCard(palette = palette, corner = 22),
+    ) { content() }
 }
 
 /** 子页页头：返回块 + 标题（MAUI 子页是各自 push 出去的整屏） */

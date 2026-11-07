@@ -1,284 +1,168 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>猫爪音乐 · 设置页重设计</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>设置 · 重设计</title>
 <style>
-:root {
-  --bg-base: #12101F;
-  --bg-card: rgba(255,255,255,0.06);
-  --bg-card-hover: rgba(255,255,255,0.10);
-  --bg-section: rgba(155,126,216,0.05);
-  --primary: #9B7DE8;
-  --primary-light: #C4B5FD;
-  --accent: #55D6FF;
-  --text-pri: #F0EEFF;
-  --text-sec: #B8B4D8;
-  --text-hint: #7A7596;
-  --stroke: rgba(255,255,255,0.08);
-  --stroke-strong: rgba(255,255,255,0.14);
-  --radius: 16px;
-  --radius-lg: 22px;
-  --font: "Segoe UI", "PingFang SC", system-ui, sans-serif;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font); background: var(--bg-base); color: var(--text-pri); }
+  :root{
+    --bg0:#11141D; --bg1:#171C2A; --bg2:#1E2536;
+    --ink:#FFFFFF; --ink2:rgba(255,255,255,.66); --ink3:rgba(255,255,255,.42);
+    --glass:rgba(255,255,255,.075); --glass2:rgba(255,255,255,.045);
+    --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+    --accent:#8FA3CC; --accent2:#DDE4F2;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(120% 80% at 82% 6%, rgba(85,214,255,.13), transparent 60%),
+      radial-gradient(120% 90% at 18% 92%, rgba(126,216,195,.10), transparent 62%),
+      linear-gradient(168deg, var(--bg0) 0%, var(--bg1) 55%, var(--bg2) 100%);
+    color:var(--ink);
+    font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .screen{width:100%;max-width:462px;margin:0 auto;padding:0 16px 40px}
+  .statusbar{display:flex;align-items:center;justify-content:space-between;height:44px;font-size:13px;color:var(--ink2);letter-spacing:.2px}
+  .statusbar .right{display:flex;gap:6px;align-items:center;font-size:12px}
 
-.page { max-width: 420px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
-.page::before {
-  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(50% 25% at 80% 8%, rgba(155,126,216,0.18) 0%, transparent 60%),
-              radial-gradient(40% 20% at 15% 30%, rgba(85,214,255,0.08) 0%, transparent 60%);
-}
+  /* 顶栏 */
+  .navbar{display:flex;align-items:center;gap:12px;padding:4px 0 18px}
+  .back{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);
+    background:var(--glass);display:grid;place-items:center;backdrop-filter:blur(18px)}
+  .navbar h1{margin:0;font-size:27px;font-weight:700;letter-spacing:.5px}
+  .navbar .sub{margin-left:auto;font-size:12px;color:var(--ink3)}
 
-/* ═══ Hero Header ═══ */
-.hero {
-  position: relative; z-index: 1;
-  margin: 14px 20px 4px;
-  padding: 22px 24px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg,
-    rgba(155,126,216,0.22) 0%,
-    rgba(85,214,255,0.12) 100%);
-  border: 1px solid rgba(155,126,216,0.18);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.hero-left h1 { font-size: 26px; font-weight: 700; letter-spacing: 1px; line-height: 1.3; }
-.hero-left p { font-size: 13px; color: var(--text-sec); margin-top: 6px; line-height: 1.5; max-width: 260px; }
-.theme-toggle {
-  width: 52px; height: 52px; border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 26px; cursor: pointer;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.15);
-  transition: all 0.25s;
-  flex-shrink: 0;
-}
-.theme-toggle:hover { transform: scale(1.06); background: rgba(255,255,255,0.18); }
+  /* 卡组 */
+  .group{margin-bottom:22px}
+  .grouphead{display:flex;align-items:center;gap:8px;margin:0 4px 10px;font-size:12px;color:var(--ink3);letter-spacing:.6px}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .card{border-radius:22px;border:1px solid var(--line2);
+    background:linear-gradient(180deg,var(--glass),var(--glass2));
+    backdrop-filter:blur(22px) saturate(1.05);overflow:hidden}
 
-/* ═══ Section Panel ═══ */
-.section-panel {
-  position: relative; z-index: 1;
-  margin: 6px 20px 0;
-  padding: 4px 0 16px;
-}
-.section-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 4px 8px;
-}
-.section-icon {
-  width: 28px; height: 28px; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; flex-shrink: 0;
-}
-.section-icon.content { background: linear-gradient(135deg, rgba(155,126,216,0.25), rgba(85,214,255,0.15)); }
-.section-icon.system { background: linear-gradient(135deg, rgba(99,211,158,0.2), rgba(85,214,255,0.12)); }
-.section-header span {
-  font-size: 11px; font-weight: 600; letter-spacing: 2px;
-  text-transform: uppercase; color: var(--text-hint);
-}
+  /* 行 */
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;position:relative}
+  .row+.row::before{content:"";position:absolute;left:62px;right:0;top:0;height:1px;background:var(--line2)}
+  .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+    background:rgba(143,163,204,.14);border:1px solid rgba(143,163,204,.22)}
+  .ico svg{width:20px;height:20px;stroke:var(--accent2);stroke-width:1.7;fill:none;
+    stroke-linecap:round;stroke-linejoin:round}
+  .txt{min-width:0;flex:1}
+  .t1{font-size:15px;font-weight:600;letter-spacing:.2px}
+  .t2{margin-top:3px;font-size:12px;color:var(--ink3);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chev{flex:0 0 auto;opacity:.5}
+  .chev svg{width:16px;height:16px;stroke:var(--ink2);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
 
-/* ═══ Setting Row ═══ */
-.setting-row {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 16px;
-  margin-bottom: 8px;
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  border: 1px solid var(--stroke);
-  cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.22,0.61,0.36,1);
-  position: relative; overflow: hidden;
-}
-.setting-row:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--stroke-strong);
-  transform: translateY(-1px);
-}
-.setting-row:last-child { margin-bottom: 0; }
-
-/* Icon container */
-.row-icon {
-  width: 40px; height: 40px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 19px; flex-shrink: 0;
-  position: relative;
-}
-.row-icon::after {
-  content: ""; position: absolute; inset: 0;
-  border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-}
-.row-icon.purple { background: linear-gradient(145deg, rgba(155,126,216,0.28), rgba(124,93,206,0.15)); }
-.row-icon.blue { background: linear-gradient(145deg, rgba(66,165,245,0.25), rgba(92,107,192,0.15)); }
-.row-icon.teal { background: linear-gradient(145deg, rgba(38,166,154,0.25), rgba(102,187,106,0.12)); }
-.row-icon.orange { background: linear-gradient(145deg, rgba(255,112,67,0.25), rgba(255,202,158,0.12)); }
-.row-icon.pink { background: linear-gradient(145deg, rgba(232,67,147,0.25), rgba(253,121,168,0.12)); }
-.row-icon.red { background: linear-gradient(145deg, rgba(244,67,54,0.25), rgba(239,83,80,0.12)); }
-.row-icon.gray { background: linear-gradient(145deg, rgba(158,158,158,0.18), rgba(97,97,97,0.10)); }
-
-.row-info { flex: 1; min-width: 0; }
-.row-title { font-size: 15px; font-weight: 600; color: var(--text-pri); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-desc { font-size: 12px; color: var(--text-hint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.row-arrow { font-size: 14px; color: var(--text-hint); opacity: 0.5; transition: all 0.2s; }
-.setting-row:hover .row-arrow { opacity: 0.8; transform: translateX(2px); }
-
-/* Badge / dot */
-.badge-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #FF6B6B; flex-shrink: 0;
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-/* Switch toggle */
-.toggle-switch {
-  width: 44px; height: 26px; border-radius: 13px;
-  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.10);
-  position: relative; cursor: pointer; transition: all 0.3s;
-  flex-shrink: 0;
-}
-.toggle-switch.on { background: var(--primary); border-color: transparent; }
-.toggle-knob {
-  width: 20px; height: 20px; border-radius: 50%;
-  background: #fff; position: absolute;
-  top: 2px; left: 2px; transition: all 0.3s cubic-bezier(0.68,-0.55,0.27,1.55);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-}
-.toggle-switch.on .toggle-knob { left: 20px; }
-
-/* Version footer */
-.version-footer {
-  text-align: center; padding: 20px 0 40px;
-  font-size: 11px; color: var(--text-hint);
-  letter-spacing: 0.5px;
-}
-.version-footer .app-name { color: var(--primary-light); font-weight: 600; }
-
-/* Bottom safe area */
-.bottom-safe { height: 12px; }
+  /* 底部说明 */
+  .foot{margin:26px 4px 0;font-size:11.5px;color:var(--ink3);text-align:center;line-height:1.6}
+  .swatch{display:flex;gap:8px;justify-content:center;margin-top:10px}
+  .sw{width:26px;height:26px;border-radius:9px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
+<div class="screen">
+  <div class="statusbar"><span>22:52</span><span class="right">◍ ⚡ 21%</span></div>
 
-<div class="page">
-
-  <!-- Hero Header -->
-  <div class="hero">
-    <div class="hero-left">
-      <h1>设置</h1>
-      <p>切换主题、管理音乐来源与插件，把猫爪音乐打造成你喜欢的样子。</p>
+  <div class="navbar">
+    <div class="back">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path d="M15 5l-7 7 7 7" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
-    <div class="theme-toggle">🌙</div>
+    <h1>设置</h1>
+    <span class="sub">v2.0</span>
   </div>
 
-  <!-- Section: 内容与服务 -->
-  <div class="section-panel">
-    <div class="section-header">
-      <div class="section-icon content">✦</div>
-      <span>内容与服务</span>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon purple">✏️</div>
-      <div class="row-info"><div class="row-title">外观与个性化</div><div class="row-desc">主题配色、启动页设置</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon blue">🎤</div>
-      <div class="row-info"><div class="row-title">桌面歌词设置</div><div class="row-desc">悬浮显示歌词、逐字高亮、拖动定位</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon teal">📁</div>
-      <div class="row-info"><div class="row-title">本地音乐</div><div class="row-desc">已添加音乐 | 共48首歌曲</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon blue">🔍</div>
-      <div class="row-info"><div class="row-title">远程音乐服务</div><div class="row-desc">尚未保存远程音乐</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon orange">🎛️</div>
-      <div class="row-info"><div class="row-title">插件管理</div><div class="row-desc">已启用 1/1 个插件</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon pink">▶️</div>
-      <div class="row-info"><div class="row-title">AI 设置</div><div class="row-desc">AI 助手未配置</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-  </div>
-
-  <!-- Section: 系统与维护 -->
-  <div class="section-panel">
-    <div class="section-header">
-      <div class="section-icon system">⚙️</div>
-      <span>系统与维护</span>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon red">🔒</div>
-      <div class="row-info"><div class="row-title">权限管理</div><div class="row-desc" style="color:#FF8A80;">部分权限待处理</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon gray">⚙️</div>
-      <div class="row-info"><div class="row-title">通用设置</div><div class="row-desc">通用行为、播放偏好与系统选项</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
-    </div>
-
-    <div class="setting-row">
-      <div class="row-icon teal">💾</div>
-      <div class="row-info"><div class="row-title">备份与恢复</div><div class="row-desc">导出或导入应用数据与配置</div></div>
-      <div class="row-right">
-        <div class="badge-dot"></div>
-        <span class="row-arrow">›</span>
+  <div class="group">
+    <div class="grouphead"><i class="dot"></i>外观与体验</div>
+    <div class="card">
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17"/><path d="M12 7.2a4.8 4.8 0 0 1 0 9.6"/></svg></div>
+        <div class="txt"><div class="t1">外观</div><div class="t2">深色 · 跟随系统 · 发现页背景</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg></div>
+        <div class="txt"><div class="t1">桌面歌词</div><div class="t2">悬浮显示 · 逐字高亮 · 拖动定位</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
       </div>
     </div>
+  </div>
 
-    <div class="setting-row">
-      <div class="row-icon gray">📋</div>
-      <div class="row-info"><div class="row-title">诊断日志</div><div class="row-desc">开启后实时记录运行日志</div></div>
-      <div class="row-right">
-        <div class="toggle-switch on"><div class="toggle-knob"></div></div>
-        <span class="row-arrow">›</span>
+  <div class="group">
+    <div class="grouphead"><i class="dot"></i>音乐来源</div>
+    <div class="card">
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 8.5c0-1.4 1.1-2.5 2.5-2.5h4l2 2.5h6.5c1.4 0 2.5 1.1 2.5 2.5v6.5c0 1.4-1.1 2.5-2.5 2.5h-12A2.5 2.5 0 0 1 3 17.5z"/></svg></div>
+        <div class="txt"><div class="t1">本地音乐</div><div class="t2">616 首 · 扫描方式与音乐文件夹</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="6" rx="2"/><rect x="3.5" y="13.5" width="17" height="6" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+        <div class="txt"><div class="t1">远程音乐服务</div><div class="t2">WebDAV · Navidrome · SMB</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4.5 19.5h15"/></svg></div>
+        <div class="txt"><div class="t1">下载管理</div><div class="t2">远程曲下载任务 · 存储位置</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
       </div>
     </div>
+  </div>
 
-    <div class="setting-row">
-      <div class="row-icon purple">ℹ️</div>
-      <div class="row-info"><div class="row-title">关于</div><div class="row-desc">版本信息、开源许可与致谢</div></div>
-      <div class="row-right"><span class="row-arrow">›</span></div>
+  <div class="group">
+    <div class="grouphead"><i class="dot"></i>扩展</div>
+    <div class="card">
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M9.5 4.5a2 2 0 0 1 4 0c0 .9-.5 1.3-.5 2h4v4c0 .7-.5 1-1.2 1a2 2 0 1 0 0 4c.7 0 1.2.4 1.2 1v3.5h-4c-.7 0-1-.5-1-1.2a2 2 0 1 0-4 0c0 .7-.4 1.2-1 1.2H4v-4c0-.6.5-1 1.2-1a2 2 0 1 0 0-4C4.5 12 4 11.6 4 11V7h4c0-.7-.5-1.1-.5-2z"/></svg></div>
+        <div class="txt"><div class="t1">插件管理</div><div class="t2">3 个已启用 · 插件目录</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 4l1.8 4.4L18 10l-4.2 1.6L12 16l-1.8-4.4L6 10l4.2-1.6z"/><path d="M18 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg></div>
+        <div class="txt"><div class="t1">AI 设置</div><div class="t2">默认配置 · 对话模型 · 推荐来源</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <div class="version-footer">
-    <span class="app-name">猫爪音乐</span> v3.2.1 · Made with 🐾
+  <div class="group">
+    <div class="grouphead"><i class="dot"></i>系统与维护</div>
+    <div class="card">
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/><circle cx="8.5" cy="6.5" r="1.6" fill="var(--bg1)"/><circle cx="15" cy="12" r="1.6" fill="var(--bg1)"/><circle cx="10" cy="17.5" r="1.6" fill="var(--bg1)"/></svg></div>
+        <div class="txt"><div class="t1">通用设置</div><div class="t2">启动页 · 通知 · 播放行为</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14 3.5V8h4.5"/><path d="M9 12h7M9 15.5h5"/></svg></div>
+        <div class="txt"><div class="t1">诊断日志</div><div class="t2">最近错误 · 导出报告</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3.5c4.4 0 7 3 7 6.2 0 2.2-1.4 3.5-3 3.5h-1.6c-.9 0-1.4.5-1.4 1.3 0 .7.4 1 .4 1.6 0 1.2-1 2.1-2.3 2.1C7.7 18.2 5 15 5 11.3 5 7 7.9 3.5 12 3.5z"/><circle cx="9" cy="9" r=".9" fill="var(--accent2)"/><circle cx="12.5" cy="7.5" r=".9" fill="var(--accent2)"/><circle cx="15.5" cy="9.5" r=".9" fill="var(--accent2)"/></svg></div>
+        <div class="txt"><div class="t1">备份与恢复</div><div class="t2">歌单 · 设置 · 播放记录</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+      <div class="row">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><path d="M12 7.6h.01"/></svg></div>
+        <div class="txt"><div class="t1">关于猫爪音乐</div><div class="t2">版本 2.0 · 开源许可</div></div>
+        <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+      </div>
+    </div>
   </div>
 
-  <div class="bottom-safe"></div>
-
+  <div class="foot">
+    图标统一为 1.7px 线性图标（24 网格 / 圆头端点），与底栏、发现页同一套<br/>
+    配色只有墨色 + 冷灰蓝强调色，无粉色
+    <div class="swatch">
+      <span class="sw" style="background:#11141D"></span>
+      <span class="sw" style="background:#1E2536"></span>
+      <span class="sw" style="background:#8FA3CC"></span>
+      <span class="sw" style="background:#DDE4F2"></span>
+      <span class="sw" style="background:#7ED8C3"></span>
+    </div>
+  </div>
 </div>
-
-<script>
-// Toggle switch interaction
-document.querySelectorAll('.toggle-switch').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
-// Row click feedback
-document.querySelectorAll('.setting-row').forEach(r => r.addEventListener('click', function() {
-  this.style.transform = 'scale(0.98)';
-  setTimeout(() => this.style.transform = '', 120);
-}));
-</script>
-
 </body>
 </html>

@@ -492,4 +492,8 @@
     <string name="menu_timer_remaining_short">剩余 %1$s</string>
     <string name="menu_landscape_on">横屏中</string>
     <string name="view_list">列表</string>
+    <string name="settings_group_look">外观与体验</string>
+    <string name="settings_group_sources">音乐来源</string>
+    <string name="settings_group_ext">扩展</string>
+    <string name="settings_group_system">系统与维护</string>
 </resources>

@@ -492,4 +492,8 @@ Download it from GitHub.</string>
     <string name="menu_timer_remaining_short">%1$s left</string>
     <string name="menu_landscape_on">Landscape</string>
     <string name="view_list">List</string>
+    <string name="settings_group_look">Appearance</string>
+    <string name="settings_group_sources">Music sources</string>
+    <string name="settings_group_ext">Extensions</string>
+    <string name="settings_group_system">System &amp; maintenance</string>
 </resources>
