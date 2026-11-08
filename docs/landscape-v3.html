@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>横屏 v3 · 封面即界面</title>
+<style>
+  :root{
+    --bg:#0B0E15; --panel:#141926; --panel2:#10141F;
+    --ink:#fff; --sub:rgba(255,255,255,.62); --dim:rgba(255,255,255,.36);
+    --hair:rgba(255,255,255,.10); --hair2:rgba(255,255,255,.055);
+    --accent:#A8BBDE; --accentInk:#E4EBF8; --ok:#8BE0CC; --warm:#E9C49B;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:#06080C;color:var(--ink);
+    font-family:"HarmonyOS Sans SC","PingFang SC","MiSans",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:30px 20px 80px;
+  }
+  .wrap{max-width:1040px;margin:0 auto}
+  h1.page{font-size:22px;margin:0 0 8px;font-weight:700}
+  p.page{margin:0 0 30px;font-size:12.5px;line-height:1.75;color:var(--dim)}
+  p.page b{color:var(--sub)}
+  .cap{display:flex;align-items:baseline;gap:10px;margin:0 0 10px 2px}
+  .cap b{font-size:12.5px;font-weight:600}
+  .cap span{font-size:11px;color:var(--dim)}
+  .frame{border-radius:26px;overflow:hidden;border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 30px 70px rgba(0,0,0,.6);margin-bottom:34px}
+  .screen{width:100%;aspect-ratio:2.28/1;position:relative;overflow:hidden;background:var(--bg)}
+
+  /* 颗粒：让大色块不那么“塑料” */
+  .grain{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:.16;mix-blend-mode:overlay;
+    background-image:radial-gradient(rgba(255,255,255,.5) .5px, transparent .5px);
+    background-size:3px 3px}
+
+  /* 通用排版 */
+  .t-big{font-size:44px;font-weight:750;letter-spacing:-.5px;line-height:1.04}
+  .t-h{font-size:26px;font-weight:700;letter-spacing:-.2px}
+  .t-m{font-size:15px;font-weight:600}
+  .t-s{font-size:12px;color:var(--sub)}
+  .t-xs{font-size:10.5px;color:var(--dim);letter-spacing:.6px}
+  .up{text-transform:uppercase;letter-spacing:1.6px;font-size:9.5px;color:var(--dim);font-weight:700}
+  .hair{border-top:1px solid var(--hair2)}
+  .abs{position:absolute}
+
+  /* 面板：不用卡片，改用“面 + 发丝线”的层级 */
+  .panel{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+    border-top:1px solid rgba(255,255,255,.09);backdrop-filter:blur(26px) saturate(1.1)}
+  .rowline{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--hair2)}
+  .rowline:last-child{border-bottom:0}
+
+  /* 波形进度 */
+  .wave{display:flex;align-items:flex-end;gap:2px;height:26px}
+  .wave i{width:3px;border-radius:2px;background:rgba(255,255,255,.22)}
+  .wave i.on{background:linear-gradient(180deg,#fff,var(--accentInk))}
+
+  /* 播放键 */
+  .playwrap{position:relative;width:56px;height:56px}
+  .playwrap .ring{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(var(--accentInk) 0 41%, rgba(255,255,255,.12) 41% 100%)}
+  .playwrap .core{position:absolute;inset:3px;border-radius:50%;background:#171D2C;
+    display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 10px 26px rgba(0,0,0,.5)}
+  .playwrap .core b{font-size:15px;color:#fff}
+
+  /* 底部悬浮 dock（不贴边） */
+  .dock{position:absolute;left:16px;right:16px;bottom:12px;height:48px;border-radius:15px;
+    display:flex;align-items:center;gap:10px;padding:0 12px;z-index:4;
+    background:rgba(18,23,35,.62);border:1px solid rgba(255,255,255,.10);
+    backdrop-filter:blur(30px) saturate(1.2);box-shadow:0 16px 40px rgba(0,0,0,.5)}
+  .navdots{display:flex;gap:3px;margin-left:auto}
+  .navdots span{font-size:11px;color:var(--dim);padding:8px 12px;border-radius:9px}
+  .navdots span.on{color:#fff;background:rgba(255,255,255,.09)}
+
+  /* 数字 */
+  .num{font-size:30px;font-weight:750;letter-spacing:-.5px;line-height:1}
+  .num small{display:block;font-size:10px;font-weight:600;color:var(--dim);letter-spacing:1.2px;margin-top:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1 class="page">猫爪音乐 · 横屏 v3「封面即界面」</h1>
+<p class="page">
+  v2 的问题是「还是一堆卡片在排队」—— 换汤不换药。<br/>
+  v3 换的是**构图**：① 封面不再是卡里的一张图，而是**整页的底**，文字直接压在它上面（Apple Music / Spotify 平板上的做法）；
+  ② 用**发丝线 + 面**代替卡片，减少 60% 的框；③ 字号差拉到 4 倍（44 / 26 / 15 / 12 / 10）；
+  ④ 控件做成本作品牌件：环形进度包着播放键、波形进度条、悬浮不贴边的 dock。
+</p>
+
+<!-- ① 播放 -->
+<div class="cap"><b>① 播放页</b><span>左方形封面（带光晕）/ 右信息栏与封面同高对齐，控制条收在最底部一行</span></div>
+<div class="frame"><div class="screen">
+  <div class="abs" style="inset:0;background:
+      radial-gradient(46% 90% at 18% 50%, rgba(233,196,155,.16), transparent 66%),
+      linear-gradient(168deg,#0B0E15,#0F1521 62%,#0B0E15)"></div>
+
+  <!-- 封面 + 背后光晕 -->
+  <div class="abs" style="left:34px;top:50%;transform:translateY(-50%);width:286px;height:286px">
+    <div style="position:absolute;inset:-14px;border-radius:22px;filter:blur(30px);opacity:.42;
+      background:radial-gradient(60% 60% at 30% 25%, rgba(255,235,210,.9), transparent 62%),
+        radial-gradient(70% 70% at 78% 80%, rgba(140,162,210,.95), transparent 62%)"></div>
+    <div style="position:relative;width:100%;height:100%;border-radius:10px;overflow:hidden;
+      box-shadow:0 26px 60px rgba(0,0,0,.62), 0 1px 0 rgba(255,255,255,.14) inset;
+      background:linear-gradient(155deg,#2B2118 0%,#1D2130 52%,#151A26 100%)">
+      <!-- 封面图形：一条暖色斜带 + 一条冷色斜带 + 细环 + 字形 -->
+      <div style="position:absolute;left:-30%;top:-10%;width:120%;height:52%;transform:rotate(-18deg);
+        background:linear-gradient(90deg,#E9C49B,rgba(233,196,155,.25))"></div>
+      <div style="position:absolute;left:-20%;bottom:-16%;width:130%;height:46%;transform:rotate(-18deg);
+        background:linear-gradient(90deg,rgba(168,187,222,.18),#A8BBDE)"></div>
+      <div style="position:absolute;left:50%;top:50%;width:132px;height:132px;margin:-66px 0 0 -66px;
+        border-radius:50%;border:1px solid rgba(255,255,255,.30)"></div>
+      <div style="position:absolute;left:50%;top:50%;width:86px;height:86px;margin:-43px 0 0 -43px;
+        border-radius:50%;border:1px solid rgba(255,255,255,.18)"></div>
+      <div style="position:absolute;inset:0;display:grid;place-items:center;
+        font-size:64px;font-weight:700;color:rgba(255,255,255,.92);letter-spacing:-2px;
+        text-shadow:0 8px 30px rgba(0,0,0,.5)">暗</div>
+      <div style="position:absolute;left:14px;bottom:12px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.55)">JIN FEN SHI JIA · 2003</div>
+      <div style="position:absolute;inset:0;background:linear-gradient(200deg,rgba(0,0,0,0) 52%,rgba(0,0,0,.34))"></div>
+    </div>
+  </div>
+
+  <!-- 右栏：与封面同高对齐 -->
+  <div class="abs" style="left:360px;right:34px;top:calc(50% - 143px);height:286px;display:flex;flex-direction:column">
+    <div class="up" style="color:rgba(255,255,255,.45)">正在播放 · 无损 · 44.1 kHz</div>
+    <div style="font-size:40px;font-weight:750;letter-spacing:-.8px;line-height:1.06;margin-top:9px">暗香</div>
+    <div style="font-size:13px;color:var(--sub);margin-top:7px">沙宝亮 · 金粉世家 · 2003</div>
+
+    <div style="height:1px;background:var(--hair2);margin:16px 0 14px"></div>
+
+    <div style="font-size:19px;font-weight:650;line-height:1.45;color:#fff">当花瓣离开花朵 暗香残留</div>
+    <div style="font-size:12px;color:var(--dim);margin-top:6px;line-height:1.7">我会拼到爱尽头 · 心若在灿烂中死去</div>
+
+    <div style="margin-top:auto">
+      <div style="position:relative;height:14px">
+        <div style="position:absolute;left:0;right:0;top:6px;height:2px;border-radius:2px;background:rgba(255,255,255,.16)"></div>
+        <div style="position:absolute;left:0;width:41%;top:6px;height:2px;border-radius:2px;background:#fff"></div>
+        <div style="position:absolute;left:41%;top:2px;width:10px;height:10px;border-radius:50%;background:#fff;
+          box-shadow:0 0 0 3px rgba(255,255,255,.14)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:7px">
+        <span>1:42</span><span>−2:31</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:20px;margin-top:14px">
+        <span style="font-size:13px;color:var(--dim)">⇄</span>
+        <span style="font-size:17px;color:var(--sub);margin-left:6px">◀◀</span>
+        <div style="width:52px;height:52px;border-radius:50%;display:grid;place-items:center;
+          background:#fff;color:#0B0E15;font-size:17px;
+          box-shadow:0 10px 26px rgba(255,255,255,.18)">▶</div>
+        <span style="font-size:17px;color:var(--sub)">▶▶</span>
+        <span style="font-size:13px;color:var(--dim)">↻</span>
+        <div style="margin-left:auto;display:flex;gap:18px;font-size:14px;color:var(--dim)">
+          <span>♡</span><span>⋯</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ② 歌词 -->
+<div class="cap"><b>② 全屏歌词</b><span>同一张封面继续铺底，歌词只走右侧 40% 一列——横屏的“留白”就是沉浸</span></div>
+<div class="frame"><div class="screen">
+  <div class="abs" style="inset:0;background:
+      radial-gradient(80% 110% at 20% 30%, rgba(233,196,155,.35), transparent 60%),
+      linear-gradient(120deg,#0B0E15,#101725 70%,#0D121C)"></div>
+  <div class="abs" style="left:0;top:0;width:52%;height:100%;opacity:.45;filter:blur(2px);
+      background:linear-gradient(150deg,#3A2E22,#243047 70%,#1A2030)"></div>
+
+  <div class="abs" style="left:38px;top:30px;width:40%;bottom:70px;display:flex;flex-direction:column;justify-content:flex-end">
+    <div class="up">歌词</div>
+    <div class="t-h" style="margin-top:10px">暗香</div>
+    <div class="t-s" style="margin-top:4px">沙宝亮 · 金粉世家</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <span style="font-size:10px;color:var(--dim);border:1px solid var(--hair);padding:4px 9px;border-radius:999px">FLAC 44.1kHz</span>
+      <span style="font-size:10px;color:var(--dim);border:1px solid var(--hair);padding:4px 9px;border-radius:999px">38.2 MB</span>
+    </div>
+  </div>
+
+  <!-- 歌词列 + 时间轴 -->
+  <div class="abs" style="right:34px;top:26px;bottom:74px;width:46%;display:flex;gap:14px">
+    <div style="width:1px;background:linear-gradient(180deg,transparent,var(--hair) 12%,var(--hair) 88%,transparent);position:relative">
+      <div style="position:absolute;left:-2px;top:46%;width:5px;height:5px;border-radius:50%;background:var(--accentInk);box-shadow:0 0 12px var(--accentInk)"></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px">
+      <div style="font-size:14px;color:rgba(255,255,255,.22)">香消在风起雨后 无人来嗅</div>
+      <div style="font-size:16px;color:rgba(255,255,255,.38)">如果爱告诉我走下去</div>
+      <div class="t-h" style="font-size:28px;line-height:1.35;color:#fff;text-shadow:0 8px 30px rgba(0,0,0,.6)">当花瓣离开花朵<br/>暗香残留</div>
+      <div style="font-size:16px;color:rgba(255,255,255,.38)">我会拼到爱尽头</div>
+      <div style="font-size:14px;color:rgba(255,255,255,.22)">心若在灿烂中死去</div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <span style="font-size:10px;color:var(--dim)">1:42</span>
+    <div style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.14)">
+      <div style="width:41%;height:100%;background:#fff;border-radius:2px"></div>
+    </div>
+    <span style="font-size:10px;color:var(--dim)">4:13</span>
+    <span style="font-size:15px;color:var(--sub);margin-left:8px">◀◀</span>
+    <span style="font-size:15px;color:#fff">▶</span>
+    <span style="font-size:15px;color:var(--sub)">▶▶</span>
+  </div>
+  <div class="grain"></div>
+</div></div>
+
+<!-- ③ 发现 -->
+<div class="cap"><b>③ 发现页</b><span>一本刊：左侧大图标题压字，右侧编号清单，底部一条出血书架</span></div>
+<div class="frame"><div class="screen">
+  <div class="abs" style="inset:0;background:
+      radial-gradient(70% 100% at 12% 8%, rgba(233,196,155,.22), transparent 60%),
+      linear-gradient(160deg,#0B0E15,#111726)"></div>
+
+  <div class="abs" style="left:34px;top:24px;right:34px;display:flex;align-items:baseline;gap:12px">
+    <div class="t-h" style="font-size:28px">发现</div>
+    <div class="t-xs" style="letter-spacing:.4px">晚上好 · 为你精选 20 首</div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <span style="font-size:10.5px;color:var(--sub);border:1px solid var(--hair);padding:5px 11px;border-radius:999px">✦ AI 助手</span>
+      <span style="font-size:10.5px;color:var(--sub);border:1px solid var(--hair);padding:5px 11px;border-radius:999px">听歌统计</span>
+    </div>
+  </div>
+
+  <!-- 左：刊头 -->
+  <div class="abs" style="left:34px;top:76px;width:47%;height:56%;overflow:hidden;border-radius:4px;
+      background:
+        radial-gradient(80% 80% at 22% 18%, rgba(255,240,220,.95), transparent 58%),
+        radial-gradient(90% 90% at 82% 78%, rgba(140,162,210,.98), transparent 58%),
+        linear-gradient(145deg,#3B2F22,#232F47 68%,#161C2A);
+      box-shadow:0 30px 70px rgba(0,0,0,.6)">
+    <div class="abs" style="inset:0;background:linear-gradient(20deg,rgba(6,8,12,.92) 0%,rgba(6,8,12,.25) 46%,transparent 70%)"></div>
+    <div class="abs" style="left:20px;right:20px;bottom:18px">
+      <div class="up" style="color:rgba(255,255,255,.5)">每日推荐</div>
+      <div style="font-size:32px;font-weight:750;letter-spacing:-.4px;margin-top:6px">像鱼</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">王贰浪 · 单曲 · 3:58</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <span style="font-size:11.5px;font-weight:600;background:#fff;color:#0B0E15;padding:6px 13px;border-radius:999px">播放全部</span>
+        <span style="font-size:11.5px;color:#fff;border:1px solid rgba(255,255,255,.4);padding:6px 13px;border-radius:999px">换一批</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：编号清单 -->
+  <div class="abs" style="right:34px;top:76px;width:44%;height:56%">
+    <div style="display:flex;align-items:baseline"><div class="up">本周精选</div>
+      <div style="margin-left:auto" class="t-xs">全部 ›</div></div>
+    <div style="margin-top:8px">
+      <div class="rowline"><div style="width:26px;font-size:18px;font-weight:750;color:var(--dim)">01</div>
+        <div style="width:30px;height:30px;border-radius:6px;background:linear-gradient(145deg,#3A2E22,#243047)"></div>
+        <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">暗香</div><div class="t-xs" style="letter-spacing:0">沙宝亮</div></div>
+        <div class="t-xs" style="letter-spacing:0">4:13</div></div>
+      <div class="rowline"><div style="width:26px;font-size:18px;font-weight:750;color:var(--dim)">02</div>
+        <div style="width:30px;height:30px;border-radius:6px;background:linear-gradient(145deg,#2F3A56,#3F4B6B)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">像鱼</div><div class="t-xs" style="letter-spacing:0">王贰浪</div></div>
+        <div class="t-xs" style="letter-spacing:0">3:58</div></div>
+      <div class="rowline"><div style="width:26px;font-size:18px;font-weight:750;color:var(--dim)">03</div>
+        <div style="width:30px;height:30px;border-radius:6px;background:linear-gradient(145deg,#3B3348,#2A3350)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">慢冷</div><div class="t-xs" style="letter-spacing:0">梁静茹</div></div>
+        <div class="t-xs" style="letter-spacing:0">4:22</div></div>
+      <div class="rowline"><div style="width:26px;font-size:18px;font-weight:750;color:var(--dim)">04</div>
+        <div style="width:30px;height:30px;border-radius:6px;background:linear-gradient(145deg,#2C3A44,#3A4A58)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">花海</div><div class="t-xs" style="letter-spacing:0">周杰伦</div></div>
+        <div class="t-xs" style="letter-spacing:0">4:19</div></div>
+    </div>
+  </div>
+
+  <!-- 底部出血书架 -->
+  <div class="abs" style="left:0;right:0;bottom:0;height:74px;display:flex;align-items:center;gap:10px;
+      padding:0 34px;background:linear-gradient(180deg,transparent,rgba(6,8,12,.75))">
+    <div class="up" style="width:64px">书架</div>
+    <div style="display:flex;gap:9px;overflow:hidden">
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#3B2F22,#232F47)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#2F3A56,#3F4B6B)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#3B3348,#2A3350)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#2C3A44,#3A4A58)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#33303F,#262C3E)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#2E3A3C,#3B4A50)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#3A3440,#2B3242)"></div>
+      <div style="width:46px;height:46px;border-radius:7px;background:linear-gradient(145deg,#343A4C,#2A3142)"></div>
+    </div>
+    <div class="t-xs" style="margin-left:auto;letter-spacing:0">推荐专辑 ›</div>
+  </div>
+  <div class="grain"></div>
+</div></div>
+
+<!-- ④ 歌单 -->
+<div class="cap"><b>④ 歌单页</b><span>表格化：粘性表头、行 hover、右侧“内页”放封面与统计</span></div>
+<div class="frame"><div class="screen">
+  <div class="abs" style="inset:0;background:
+      radial-gradient(60% 100% at 78% 6%, rgba(168,187,222,.20), transparent 60%),
+      linear-gradient(165deg,#0B0E15,#101623)"></div>
+
+  <div class="abs" style="left:34px;top:24px;right:34px;display:flex;align-items:baseline;gap:12px">
+    <div class="t-h" style="font-size:26px">我喜欢的</div>
+    <div class="t-xs">616 首 · 46.2 小时</div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <span style="font-size:10.5px;font-weight:600;background:#fff;color:#0B0E15;padding:5px 12px;border-radius:999px">播放全部</span>
+      <span style="font-size:10.5px;color:var(--sub);border:1px solid var(--hair);padding:5px 11px;border-radius:999px">排序</span>
+    </div>
+  </div>
+
+  <!-- 左侧歌单栏 -->
+  <div class="abs" style="left:34px;top:74px;bottom:70px;width:150px">
+    <div class="up">歌单</div>
+    <div style="margin-top:8px">
+      <div style="padding:7px 0;font-size:12px;font-weight:700">我喜欢的 <span style="float:right;color:var(--dim);font-weight:400">616</span></div>
+      <div style="padding:7px 0;font-size:12px;color:var(--sub)">雨天粤语 <span style="float:right;color:var(--dim)">12</span></div>
+      <div style="padding:7px 0;font-size:12px;color:var(--sub)">通勤 <span style="float:right;color:var(--dim)">38</span></div>
+      <div style="padding:7px 0;font-size:12px;color:var(--sub)">最近播放 <span style="float:right;color:var(--dim)">100</span></div>
+    </div>
+  </div>
+
+  <!-- 中间表格 -->
+  <div class="abs" style="left:196px;right:200px;top:74px;bottom:70px;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;padding-bottom:6px;border-bottom:1px solid var(--hair)">
+      <div class="up" style="width:24px">#</div><div class="up" style="flex:1">歌曲</div>
+      <div class="up" style="width:74px">专辑</div><div class="up" style="width:38px;text-align:right">时长</div>
+    </div>
+    <div style="flex:1;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--hair2);background:rgba(255,255,255,.03)">
+        <div style="width:24px;font-size:11px;color:var(--accentInk)">♪</div>
+        <div style="width:26px;height:26px;border-radius:5px;background:linear-gradient(145deg,#3A2E22,#243047)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:650">暗香</div><div class="t-xs" style="letter-spacing:0">沙宝亮</div></div>
+        <div class="t-xs" style="width:74px;letter-spacing:0">金粉世家</div>
+        <div class="t-xs" style="width:38px;text-align:right;letter-spacing:0">4:13</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--hair2)">
+        <div style="width:24px;font-size:11px;color:var(--dim)">2</div>
+        <div style="width:26px;height:26px;border-radius:5px;background:linear-gradient(145deg,#2F3A56,#3F4B6B)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">像鱼</div><div class="t-xs" style="letter-spacing:0">王贰浪</div></div>
+        <div class="t-xs" style="width:74px;letter-spacing:0">像鱼</div>
+        <div class="t-xs" style="width:38px;text-align:right;letter-spacing:0">3:58</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--hair2)">
+        <div style="width:24px;font-size:11px;color:var(--dim)">3</div>
+        <div style="width:26px;height:26px;border-radius:5px;background:linear-gradient(145deg,#3B3348,#2A3350)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">慢冷</div><div class="t-xs" style="letter-spacing:0">梁静茹</div></div>
+        <div class="t-xs" style="width:74px;letter-spacing:0">慢冷</div>
+        <div class="t-xs" style="width:38px;text-align:right;letter-spacing:0">4:22</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+        <div style="width:24px;font-size:11px;color:var(--dim)">4</div>
+        <div style="width:26px;height:26px;border-radius:5px;background:linear-gradient(145deg,#2C3A44,#3A4A58)"></div>
+        <div style="flex:1"><div style="font-size:12.5px;font-weight:600">花海</div><div class="t-xs" style="letter-spacing:0">周杰伦</div></div>
+        <div class="t-xs" style="width:74px;letter-spacing:0">魔杰座</div>
+        <div class="t-xs" style="width:38px;text-align:right;letter-spacing:0">4:19</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧内页 -->
+  <div class="abs" style="right:34px;top:74px;bottom:70px;width:150px">
+    <div style="width:150px;height:150px;border-radius:6px;background:
+        radial-gradient(80% 80% at 24% 18%, rgba(255,240,220,.95), transparent 58%),
+        linear-gradient(145deg,#3B2F22,#232F47 70%);
+        box-shadow:0 20px 44px rgba(0,0,0,.55)"></div>
+    <div style="font-size:14px;font-weight:700;margin-top:10px">暗香</div>
+    <div class="t-xs" style="letter-spacing:0;margin-top:3px">沙宝亮 · 金粉世家</div>
+    <div style="margin-top:14px;display:flex;gap:16px">
+      <div><div class="num" style="font-size:22px">42</div><div class="t-xs" style="letter-spacing:0">播放</div></div>
+      <div><div class="num" style="font-size:22px">9</div><div class="t-xs" style="letter-spacing:0">本周</div></div>
+    </div>
+    <div class="t-xs" style="letter-spacing:0;margin-top:12px;line-height:1.6">上次 3 天前<br/>来自专辑《金粉世家》</div>
+  </div>
+
+  <div class="dock">
+    <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(145deg,#E9C49B,#8FA3CC)"></div>
+    <div style="font-size:11.5px;color:var(--sub)">暗香 · 沙宝亮</div>
+    <div style="width:120px;height:3px;border-radius:2px;background:rgba(255,255,255,.14)">
+      <div style="width:41%;height:100%;background:#fff;border-radius:2px"></div>
+    </div>
+    <div class="navdots"><span>播放</span><span>发现</span><span class="on">歌单</span><span>音乐库</span></div>
+  </div>
+  <div class="grain"></div>
+</div></div>
+
+<!-- ⑤ 音乐库 -->
+<div class="cap"><b>⑤ 音乐库</b><span>数据优先：大数字 + 环形占比 + 一条“最近添加”出血带</span></div>
+<div class="frame"><div class="screen">
+  <div class="abs" style="inset:0;background:
+      radial-gradient(60% 100% at 82% 10%, rgba(139,224,204,.16), transparent 60%),
+      linear-gradient(165deg,#0B0E15,#101724)"></div>
+
+  <div class="abs" style="left:34px;top:24px;right:34px;display:flex;align-items:baseline;gap:12px">
+    <div class="t-h" style="font-size:26px">音乐库</div>
+    <div class="t-xs">本地 + 网络 · 1 个资料库 · 12 个文件夹</div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <span style="font-size:10.5px;color:var(--sub);border:1px solid var(--hair);padding:5px 11px;border-radius:999px">听歌统计</span>
+      <span style="font-size:10.5px;color:var(--sub);border:1px solid var(--hair);padding:5px 11px;border-radius:999px">扫描音乐</span>
+    </div>
+  </div>
+
+  <div class="abs" style="left:34px;top:74px;width:44%;bottom:96px;display:flex;gap:26px">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div><div class="num">616</div><div class="t-xs" style="letter-spacing:1px;margin-top:5px">歌曲</div></div>
+      <div><div class="num">359</div><div class="t-xs" style="letter-spacing:1px;margin-top:5px">艺术家</div></div>
+      <div><div class="num">537</div><div class="t-xs" style="letter-spacing:1px;margin-top:5px">专辑</div></div>
+      <div><div class="num">42.8</div><div class="t-xs" style="letter-spacing:1px;margin-top:5px">小时</div></div>
+    </div>
+    <div style="width:1px;background:var(--hair2)"></div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px">
+      <div class="up">存储占用</div>
+      <div style="display:flex;align-items:center;gap:18px">
+        <div style="width:86px;height:86px;border-radius:50%;flex:0 0 auto;
+          background:conic-gradient(#A8BBDE 0 92%, #8BE0CC 92% 97%, #C9B6E4 97% 100%);
+          display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.4)">
+          <div style="width:64px;height:64px;border-radius:50%;background:#0E131F;display:grid;place-items:center">
+            <div style="text-align:center"><div style="font-size:13px;font-weight:700">46.3</div><div class="t-xs" style="letter-spacing:0">GB</div></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:7px;font-size:11px"><i style="width:6px;height:6px;border-radius:2px;background:#A8BBDE"></i>320 kbps<span style="margin-left:auto;color:var(--dim)">603 首</span></div>
+          <div style="display:flex;align-items:center;gap:7px;font-size:11px"><i style="width:6px;height:6px;border-radius:2px;background:#8BE0CC"></i>192 kbps<span style="margin-left:auto;color:var(--dim)">9 首</span></div>
+          <div style="display:flex;align-items:center;gap:7px;font-size:11px"><i style="width:6px;height:6px;border-radius:2px;background:#C9B6E4"></i>128 kbps<span style="margin-left:auto;color:var(--dim)">4 首</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="abs" style="right:34px;top:74px;width:44%;bottom:96px">
+    <div class="up">资料库</div>
+    <div class="rowline"><div style="width:26px;height:26px;border-radius:6px;background:linear-gradient(145deg,#2F3A56,#3F4B6B)"></div>
+      <div style="flex:1"><div style="font-size:12.5px;font-weight:600">本地曲库</div><div class="t-xs" style="letter-spacing:0">/Music · 616 首</div></div>
+      <div class="t-xs" style="color:var(--ok);letter-spacing:0">已同步</div></div>
+    <div class="rowline"><div style="width:26px;height:26px;border-radius:6px;background:linear-gradient(145deg,#3A3348,#2A3350)"></div>
+      <div style="flex:1"><div style="font-size:12.5px;font-weight:600">Navidrome</div><div class="t-xs" style="letter-spacing:0">music.example.com:4533</div></div>
+      <div class="t-xs" style="letter-spacing:0">待连接</div></div>
+    <div class="up" style="margin-top:16px">工具</div>
+    <div class="rowline"><div style="width:26px;height:26px;border-radius:6px;background:linear-gradient(145deg,#33404A,#2A3440)"></div>
+      <div style="flex:1"><div style="font-size:12.5px;font-weight:600">下载管理</div><div class="t-xs" style="letter-spacing:0">12 个任务 · 1.2 GB</div></div>
+      <div class="t-xs" style="letter-spacing:0">›</div></div>
+  </div>
+
+  <!-- 出血带 -->
+  <div class="abs" style="left:0;right:0;bottom:0;height:88px;display:flex;align-items:center;gap:10px;padding:0 34px;
+      background:linear-gradient(180deg,transparent,rgba(6,8,12,.85))">
+    <div class="up" style="width:64px">最近添加</div>
+    <div style="display:flex;gap:9px">
+      <div style="width:52px;height:52px;border-radius:8px;background:linear-gradient(145deg,#3B2F22,#232F47)"></div>
+      <div style="width:52px;height:52px;border-radius:8px;background:linear-gradient(145deg,#2F3A56,#3F4B6B)"></div>
+      <div style="width:52px;height:52px;border-radius:8px;background:linear-gradient(145deg,#3B3348,#2A3350)"></div>
+      <div style="width:52px;height:52px;border-radius:8px;background:linear-gradient(145deg,#2C3A44,#3A4A58)"></div>
+      <div style="width:52px;height:52px;border-radius:8px;background:linear-gradient(145deg,#33303F,#262C3E)"></div>
+    </div>
+    <div class="t-xs" style="margin-left:auto;letter-spacing:0">本周 24 张 ›</div>
+  </div>
+  <div class="grain"></div>
+</div></div>
+
+<p class="page" style="margin-top:6px">
+  v3 的取舍：<b>去掉卡片框</b>（改用面 + 1px 发丝线，每页少 8–10 个圆角矩形）、<b>字号差拉到 4 倍</b>、
+  <b>封面出血</b>（播放/歌词/发现三页都由封面主导构图）、<b>品牌件</b>（环形播放键、波形进度、不贴边 dock）、
+  <b>颗粒叠层</b>（8% 噪点，避免大色块塑料感）。
+</p>
+</div>
+</body>
+</html>

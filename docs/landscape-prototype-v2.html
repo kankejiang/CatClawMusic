@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>横屏重设计 v2 · 五个页面</title>
+<style>
+  :root{
+    --bg0:#0E1118; --bg1:#151A26; --bg2:#1C2333;
+    --ink:#fff; --sub:rgba(255,255,255,.68); --dim:rgba(255,255,255,.42);
+    --glass:rgba(255,255,255,.075); --glass2:rgba(255,255,255,.035);
+    --line:rgba(255,255,255,.14); --line2:rgba(255,255,255,.08);
+    --accent:#8FA3CC; --accentInk:#DDE4F2; --ok:#7ED8C3; --warm:#E8C39E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:#080A0F;color:var(--ink);
+    font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:28px 20px 70px;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+  h1.page{font-size:21px;margin:0 0 6px;font-weight:700;letter-spacing:.3px}
+  p.page{margin:0 0 26px;font-size:12.5px;color:var(--dim);line-height:1.7}
+  .cap{font-size:12px;color:var(--dim);margin:0 0 9px 3px}
+  .frame{border-radius:24px;overflow:hidden;border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 22px 60px rgba(0,0,0,.55);margin-bottom:30px}
+  .screen{width:100%;aspect-ratio:2.28/1;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;padding:14px 18px 12px;
+    background:linear-gradient(158deg,var(--bg0),var(--bg1) 52%,var(--bg2))}
+  /* 环境色：每帧一张"封面"透过来的光 */
+  .amb{position:absolute;inset:0;pointer-events:none;z-index:0}
+  .amb i{position:absolute;border-radius:50%;filter:blur(46px);opacity:.55}
+  .screen>*{position:relative;z-index:1}
+  .row{display:flex;gap:14px;min-height:0}
+  .card{border-radius:16px;border:1px solid var(--line2);
+    background:linear-gradient(180deg,var(--glass),var(--glass2));
+    backdrop-filter:blur(20px) saturate(1.05);
+    box-shadow:0 10px 26px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05)}
+  .t1{font-size:14px;font-weight:600}
+  .t2{font-size:11px;color:var(--dim);margin-top:2px}
+  .lbl{font-size:10px;letter-spacing:1.1px;color:var(--dim);text-transform:uppercase;font-weight:600}
+  .pill{height:26px;padding:0 11px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;
+    border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:11.5px;color:var(--sub)}
+  .pill.on{border-color:rgba(143,163,204,.55);background:rgba(143,163,204,.2);color:#fff;font-weight:600}
+  .pill.sm{height:22px;font-size:10.5px;padding:0 9px}
+  .art{border-radius:14px;border:1px solid var(--line2);position:relative;overflow:hidden;
+    background:
+      radial-gradient(120% 100% at 20% 10%, rgba(232,195,158,.55), transparent 60%),
+      radial-gradient(100% 100% at 80% 90%, rgba(143,163,204,.75), transparent 62%),
+      linear-gradient(145deg,#2B3550,#3D4A6B)}
+  .art::after{content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(115deg,rgba(255,255,255,.05) 0 6px,transparent 6px 14px)}
+  .art .glyph{position:absolute;inset:0;display:grid;place-items:center;font-size:26px;opacity:.35}
+  .bar{height:4px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accentInk),#fff)}
+  .btn-ico{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+    border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--sub);font-size:12px}
+  .btn-ico.primary{width:44px;height:44px;background:linear-gradient(180deg,rgba(143,163,204,.42),rgba(143,163,204,.22));
+    border-color:rgba(143,163,204,.6);color:#fff;font-size:14px;
+    box-shadow:0 8px 22px rgba(143,163,204,.28), inset 0 1px 0 rgba(255,255,255,.25)}
+  .navbar{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .navbar h2{margin:0;font-size:18px;font-weight:700;letter-spacing:.3px}
+  .navbar .sub{font-size:10.5px;color:var(--dim);margin-left:2px}
+  .navbar .right{margin-left:auto;display:flex;gap:7px}
+  .list{display:flex;flex-direction:column;gap:1px;overflow:hidden}
+  .li{display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:9px}
+  .li.on{background:rgba(143,163,204,.14)}
+  .li .n{width:18px;font-size:10.5px;color:var(--dim);text-align:right}
+  .li .c{width:26px;height:26px;border-radius:7px;flex:0 0 auto;
+    background:linear-gradient(145deg,#2B3550,#3F4C6E);border:1px solid var(--line2)}
+  .li .s{flex:1;min-width:0}
+  .li .s b{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .li .s span{font-size:10px;color:var(--dim)}
+  .li .d{font-size:10px;color:var(--dim)}
+  .dock{height:46px;margin-top:10px;display:flex;align-items:center;gap:10px;
+    border-radius:14px;border:1px solid var(--line2);background:rgba(255,255,255,.045);
+    padding:0 12px;backdrop-filter:blur(18px)}
+  .dock .mini{width:28px;height:28px;border-radius:8px;background:linear-gradient(145deg,#2B3550,#3F4C6E);border:1px solid var(--line2)}
+  .nav{display:flex;gap:4px;margin-left:auto}
+  .nav span{font-size:11px;color:var(--dim);padding:9px 13px;border-radius:10px}
+  .nav span.on{color:#fff;background:rgba(143,163,204,.2);border:1px solid rgba(143,163,204,.42)}
+  .kpi{font-size:17px;font-weight:700;letter-spacing:.2px}
+  .kpi span{display:block;font-size:10.5px;font-weight:500;color:var(--dim);margin-top:2px}
+  .rail{display:flex;gap:9px;overflow:hidden}
+  .cov{width:64px;flex:0 0 auto}
+  .cov .a{width:64px;height:64px;border-radius:10px;background:linear-gradient(145deg,#2B3550,#3F4C6E);border:1px solid var(--line2)}
+  .cov .n{margin-top:5px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--sub)}
+  .split3{display:grid;grid-template-columns:1.05fr .95fr .62fr;gap:11px;flex:1;min-height:0}
+  .split2{display:grid;grid-template-columns:1.18fr 1fr;gap:11px;flex:1;min-height:0}
+  .col{display:flex;flex-direction:column;gap:10px;min-height:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1 class="page">猫爪音乐 · 横屏重设计 v2</h1>
+<p class="page">
+  比上一版多了三样东西：<b>环境色</b>（每页背景从当前封面晕一层光）、<b>三栏</b>（主内容 / 辅助 / 队列）、<b>层级</b>（主次字号差 3 档、卡片有内高光与投影）。<br/>
+  横屏宽度是富余的，所以不靠纵向滚动塞内容，而是把「下一步要看的东西」放到右栏。
+</p>
+
+<!-- ① 播放 -->
+<p class="cap">① 播放页 —— 封面 + 环境光 / 中栏歌词三行 / 右栏「接下来播放」</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:280px;height:280px;left:6%;top:10%;background:#E8C39E"></i>
+    <i style="width:320px;height:320px;left:26%;top:36%;background:#8FA3CC"></i></div>
+  <div class="split3">
+    <div class="col" style="justify-content:center">
+      <div class="art" style="width:100%;aspect-ratio:1;box-shadow:0 20px 46px rgba(0,0,0,.55)"><span class="glyph">♪</span></div>
+      <div style="display:flex;gap:7px;margin-top:2px">
+        <span class="pill sm">无损</span><span class="pill sm">本机</span><span class="pill sm">44.1 kHz</span>
+      </div>
+    </div>
+    <div class="col" style="justify-content:center;gap:9px">
+      <div>
+        <div style="font-size:23px;font-weight:700;letter-spacing:.4px">暗香</div>
+        <div style="font-size:11.5px;color:var(--sub);margin-top:3px">沙宝亮 · 金粉世家 · 2003</div>
+      </div>
+      <div style="margin:4px 0 2px">
+        <div style="font-size:11px;color:rgba(255,255,255,.30);line-height:1.9">如果爱告诉我走下去</div>
+        <div style="font-size:19px;font-weight:700;line-height:1.7;color:#fff">当花瓣离开花朵 暗香残留</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.30);line-height:1.9">我会拼到爱尽头</div>
+      </div>
+      <div>
+        <div class="bar"><i style="width:41%"></i></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:5px">
+          <span>1:42</span><span>4:13</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <span class="btn-ico">⇄</span><span class="btn-ico">◀◀</span>
+        <span class="btn-ico primary">▶</span>
+        <span class="btn-ico">▶▶</span><span class="btn-ico">↻</span>
+        <span class="btn-ico" style="margin-left:auto">♡</span><span class="btn-ico">⋯</span>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="flex:1;padding:10px;min-height:0">
+        <div style="display:flex;align-items:center"><span class="lbl">接下来播放</span><span class="pill sm" style="margin-left:auto">12 首</span></div>
+        <div class="list" style="margin-top:7px">
+          <div class="li on"><span class="c"></span><span class="s"><b>像鱼</b><span>王贰浪</span></span><span class="d">3:58</span></div>
+          <div class="li"><span class="c"></span><span class="s"><b>慢冷</b><span>梁静茹</span></span><span class="d">4:22</span></div>
+          <div class="li"><span class="c"></span><span class="s"><b>花海</b><span>周杰伦</span></span><span class="d">4:19</span></div>
+          <div class="li"><span class="c"></span><span class="s"><b>雪落下的声音</b><span>周深</span></span><span class="d">4:02</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ② 歌词 -->
+<p class="cap">② 全屏歌词 —— 左封面 + 中央大字歌词 + 右栏歌曲信息 / 队列</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:300px;height:300px;left:10%;top:8%;background:#8FA3CC"></i>
+    <i style="width:340px;height:340px;left:44%;top:40%;background:#7ED8C3"></i></div>
+  <div class="row" style="flex:1;gap:18px">
+    <div style="width:24%;display:flex;flex-direction:column;justify-content:center;gap:10px">
+      <div class="art" style="width:100%;aspect-ratio:1"><span class="glyph">♪</span></div>
+      <div><div class="t1">暗香</div><div class="t2">沙宝亮</div></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:11px">
+      <div style="font-size:13px;color:rgba(255,255,255,.26)">香消在风起雨后 无人来嗅</div>
+      <div style="font-size:15px;color:rgba(255,255,255,.45)">如果爱告诉我走下去</div>
+      <div style="font-size:24px;font-weight:700;letter-spacing:.5px;text-shadow:0 6px 26px rgba(143,163,204,.45)">当花瓣离开花朵 暗香残留</div>
+      <div style="font-size:15px;color:rgba(255,255,255,.45)">我会拼到爱尽头</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.26)">心若在灿烂中死去</div>
+    </div>
+    <div style="width:22%;display:flex;flex-direction:column;gap:9px">
+      <div class="card" style="padding:10px">
+        <div class="lbl">音质</div>
+        <div style="font-size:12px;margin-top:5px">FLAC · 44.1 kHz</div>
+        <div class="t2">本机文件 · 38.2 MB</div>
+      </div>
+      <div class="card" style="flex:1;padding:10px">
+        <div class="lbl">接下来</div>
+        <div class="list" style="margin-top:6px">
+          <div class="li"><span class="c"></span><span class="s"><b>像鱼</b><span>王贰浪</span></span></div>
+          <div class="li"><span class="c"></span><span class="s"><b>慢冷</b><span>梁静茹</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dock">
+    <div style="flex:1;display:flex;align-items:center;gap:10px">
+      <span style="font-size:10px;color:var(--dim)">1:42</span>
+      <div class="bar" style="flex:1"><i style="width:41%"></i></div>
+      <span style="font-size:10px;color:var(--dim)">4:13</span>
+    </div>
+    <span class="btn-ico">◀◀</span><span class="btn-ico primary">▶</span><span class="btn-ico">▶▶</span>
+  </div>
+</div></div>
+
+<!-- ③ 发现 -->
+<p class="cap">③ 发现页 —— 左英雄卡 + 入口；中栏货架；右栏「为你精选」列表</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:300px;height:300px;left:4%;top:6%;background:#E8C39E"></i></div>
+  <div class="navbar"><h2>发现</h2><span class="sub">晚上好 · 为你精选</span>
+    <div class="right"><span class="pill">✦ AI 助手</span><span class="pill">听歌统计</span></div></div>
+  <div class="split3">
+    <div class="col">
+      <div class="card" style="flex:1;position:relative;overflow:hidden;padding:0">
+        <div class="art" style="position:absolute;inset:0;border-radius:0;border:0"></div>
+        <div style="position:absolute;inset:0;background:linear-gradient(85deg,rgba(0,0,0,.86),rgba(0,0,0,.10))"></div>
+        <div style="position:absolute;left:14px;right:14px;bottom:12px">
+          <span class="pill sm" style="background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.26)">每日推荐 · 根据口味生成</span>
+          <div style="font-size:21px;font-weight:700;margin-top:7px">像鱼</div>
+          <div style="font-size:11px;color:var(--sub)">王贰浪 · 单曲</div>
+          <div style="display:flex;gap:7px;margin-top:10px"><span class="pill on">播放全部</span><span class="pill">换一批</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">
+        <div class="card" style="padding:9px;text-align:center"><div style="font-size:13px">✦</div><div class="t2">AI 助手</div></div>
+        <div class="card" style="padding:9px;text-align:center"><div style="font-size:13px">⤨</div><div class="t2">随机</div></div>
+        <div class="card" style="padding:9px;text-align:center"><div style="font-size:13px">▮▮</div><div class="t2">最多</div></div>
+        <div class="card" style="padding:9px;text-align:center"><div style="font-size:13px">♡</div><div class="t2">最爱</div></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="padding:10px">
+        <div style="display:flex;align-items:center"><span class="lbl">推荐歌曲</span><span class="pill sm" style="margin-left:auto">查看全部 ›</span></div>
+        <div class="rail" style="margin-top:8px">
+          <div class="cov"><div class="a"></div><div class="n">像鱼</div></div>
+          <div class="cov"><div class="a"></div><div class="n">慢冷</div></div>
+          <div class="cov"><div class="a"></div><div class="n">花海</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:10px">
+        <div style="display:flex;align-items:center"><span class="lbl">推荐专辑</span><span class="pill sm" style="margin-left:auto">查看全部 ›</span></div>
+        <div class="rail" style="margin-top:8px">
+          <div class="cov"><div class="a"></div><div class="n">11月的萧邦</div></div>
+          <div class="cov"><div class="a"></div><div class="n">16未成年</div></div>
+          <div class="cov"><div class="a"></div><div class="n">1st星球</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:10px;flex:1">
+        <div style="display:flex;align-items:center"><span class="lbl">推荐艺人</span><span class="pill sm" style="margin-left:auto">查看全部 ›</span></div>
+        <div class="rail" style="margin-top:8px">
+          <div class="cov"><div class="a" style="border-radius:50%"></div><div class="n">周杰伦</div></div>
+          <div class="cov"><div class="a" style="border-radius:50%"></div><div class="n">孙燕姿</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="padding:10px;flex:1;min-height:0">
+        <div class="lbl">为你精选</div>
+        <div class="list" style="margin-top:6px">
+          <div class="li"><span class="n">1</span><span class="c"></span><span class="s"><b>暗香</b><span>沙宝亮</span></span></div>
+          <div class="li"><span class="n">2</span><span class="c"></span><span class="s"><b>像鱼</b><span>王贰浪</span></span></div>
+          <div class="li"><span class="n">3</span><span class="c"></span><span class="s"><b>慢冷</b><span>梁静茹</span></span></div>
+          <div class="li"><span class="n">4</span><span class="c"></span><span class="s"><b>花海</b><span>周杰伦</span></span></div>
+          <div class="li"><span class="n">5</span><span class="c"></span><span class="s"><b>雪落</b><span>周深</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ④ 歌单 -->
+<p class="cap">④ 歌单页 —— 左歌单栏 / 中歌曲列表 / 右歌曲详情（封面 + 所属专辑 + 播放统计）</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:280px;height:280px;left:60%;top:12%;background:#8FA3CC"></i></div>
+  <div class="navbar"><h2>歌单</h2><span class="sub">4 个歌单 · 766 首</span>
+    <div class="right"><span class="pill">＋ 新建歌单</span><span class="pill">排序</span></div></div>
+  <div class="split3" style="grid-template-columns:180px 1.25fr .8fr">
+    <div class="card" style="padding:8px;display:flex;flex-direction:column;gap:3px">
+      <div style="padding:8px 9px;border-radius:10px;background:rgba(143,163,204,.16);border:1px solid rgba(143,163,204,.4)">
+        <div style="font-size:12px;font-weight:600">我喜欢的</div><div class="t2">616 首</div>
+      </div>
+      <div style="padding:8px 9px"><div style="font-size:12px">雨天粤语</div><div class="t2">12 首</div></div>
+      <div style="padding:8px 9px"><div style="font-size:12px">通勤</div><div class="t2">38 首</div></div>
+      <div style="padding:8px 9px"><div style="font-size:12px">最近播放</div><div class="t2">100 首</div></div>
+      <div style="margin-top:auto;padding:8px 9px;border-top:1px solid var(--line2)">
+        <div class="t2">总时长 46.2 小时</div>
+      </div>
+    </div>
+    <div class="card" style="padding:10px;min-width:0;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div class="t1">我喜欢的</div><span class="pill sm">616 首</span>
+        <span class="pill on" style="margin-left:auto">播放全部</span>
+      </div>
+      <div class="list" style="flex:1">
+        <div class="li on"><span class="n">1</span><span class="c"></span><span class="s"><b>暗香</b><span>沙宝亮</span></span><span class="d">4:13</span></div>
+        <div class="li"><span class="n">2</span><span class="c"></span><span class="s"><b>像鱼</b><span>王贰浪</span></span><span class="d">3:58</span></div>
+        <div class="li"><span class="n">3</span><span class="c"></span><span class="s"><b>慢冷</b><span>梁静茹</span></span><span class="d">4:22</span></div>
+        <div class="li"><span class="n">4</span><span class="c"></span><span class="s"><b>花海</b><span>周杰伦</span></span><span class="d">4:19</span></div>
+        <div class="li"><span class="n">5</span><span class="c"></span><span class="s"><b>雪落下的声音</b><span>周深</span></span><span class="d">4:02</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="padding:11px">
+        <div class="art" style="width:100%;aspect-ratio:1"><span class="glyph">♪</span></div>
+        <div style="font-size:14px;font-weight:700;margin-top:9px">暗香</div>
+        <div class="t2">沙宝亮 · 金粉世家</div>
+      </div>
+      <div class="card" style="flex:1;padding:11px">
+        <div class="lbl">播放统计</div>
+        <div style="display:flex;gap:14px;margin-top:7px">
+          <div class="kpi">42<span>播放次数</span></div>
+          <div class="kpi">9<span>本周</span></div>
+        </div>
+        <div class="t2" style="margin-top:8px">上次 3 天前 · 来自专辑《金粉世家》</div>
+      </div>
+    </div>
+  </div>
+  <div class="dock">
+    <div class="mini"></div>
+    <div><b style="font-size:11.5px">暗香</b> <span style="font-size:10.5px;color:var(--dim)">沙宝亮</span></div>
+    <div class="bar" style="width:120px"><i style="width:41%"></i></div>
+    <div class="nav"><span>播放</span><span>发现</span><span class="on">歌单</span><span>音乐库</span></div>
+  </div>
+</div></div>
+
+<!-- ⑤ 音乐库 -->
+<p class="cap">⑤ 音乐库 —— 左数字 + 存储环；中资料库 / 工具；右最近添加 + 洞察</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:260px;height:260px;left:8%;top:14%;background:#7ED8C3"></i></div>
+  <div class="navbar"><h2>音乐库</h2><span class="sub">本地 + 网络 · 1 个资料库</span>
+    <div class="right"><span class="pill">听歌统计</span><span class="pill">扫描音乐</span></div></div>
+  <div class="split3" style="grid-template-columns:1fr 1fr .8fr">
+    <div class="col">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="card" style="padding:10px"><div class="kpi">616<span>歌曲</span></div></div>
+        <div class="card" style="padding:10px"><div class="kpi">359<span>艺术家</span></div></div>
+        <div class="card" style="padding:10px"><div class="kpi">537<span>专辑</span></div></div>
+        <div class="card" style="padding:10px"><div class="kpi">42.8<span>小时</span></div></div>
+      </div>
+      <div class="card" style="flex:1;padding:11px">
+        <div style="display:flex;align-items:center"><span class="lbl">存储占用</span><span class="pill sm" style="margin-left:auto">46.3 GB</span></div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:9px">
+          <div style="width:64px;height:64px;border-radius:50%;flex:0 0 auto;
+            background:conic-gradient(#8FA3CC 0 92%, #7ED8C3 92% 97%, #C9B6E4 97% 100%);
+            display:grid;place-items:center">
+            <div style="width:46px;height:46px;border-radius:50%;background:#161B27;display:grid;place-items:center;font-size:10px;color:var(--dim)">92%</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px"><i style="width:7px;height:7px;border-radius:2px;background:#8FA3CC"></i>320 kbps<span style="margin-left:auto;color:var(--dim)">46.3 GB</span></div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px"><i style="width:7px;height:7px;border-radius:2px;background:#7ED8C3"></i>192 kbps<span style="margin-left:auto;color:var(--dim)">5.4 MB</span></div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px"><i style="width:7px;height:7px;border-radius:2px;background:#C9B6E4"></i>128 kbps<span style="margin-left:auto;color:var(--dim)">8.0 MB</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="flex:1;padding:11px">
+        <div style="display:flex;align-items:center"><span class="lbl">资料库</span><span class="pill sm" style="margin-left:auto">管理 ›</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>本地曲库</b><span>/Music · 616 首</span></span><span class="pill sm" style="border-color:rgba(126,216,195,.4);color:var(--ok)">已同步</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>Navidrome</b><span>music.example.com:4533</span></span><span class="pill sm">待连接</span></div>
+      </div>
+      <div class="card" style="flex:1;padding:11px">
+        <div class="lbl">工具</div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>下载管理</b><span>12 个任务 · 1.2 GB</span></span><span style="color:var(--dim)">›</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>扫描音乐</b><span>重新扫描本地文件夹</span></span><span style="color:var(--dim)">›</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="padding:11px">
+        <div class="lbl">最近添加</div>
+        <div class="rail" style="margin-top:8px">
+          <div class="cov"><div class="a"></div><div class="n">11月的萧邦</div></div>
+          <div class="cov"><div class="a"></div><div class="n">16未成年</div></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;padding:11px">
+        <div class="lbl">数据洞察</div>
+        <div class="t2" style="margin-top:5px">音频格式</div>
+        <div class="bar" style="margin-top:7px"><i style="width:78%"></i></div>
+        <div class="t2" style="margin-top:5px">FLAC 78% · MP3 19% · 其它 3%</div>
+        <div class="t2" style="margin-top:9px">艺术家 Top</div>
+        <div class="t2" style="margin-top:3px">周杰伦 62 · 梁静茹 41 · 孙燕姿 37</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+
+<!-- ⑥ 设置主页 -->
+<p class="cap">⑥ 设置（横屏）—— 左分类竖栏 / 右侧两组卡片并排</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:260px;height:260px;left:70%;top:10%;background:#8FA3CC"></i></div>
+  <div class="navbar"><div class="btn-ico" style="border-radius:10px">‹</div><h2>设置</h2><span class="sub">v2.0</span>
+    <div class="right"><span class="pill">搜索设置</span></div></div>
+  <div class="row" style="flex:1;gap:12px">
+    <div class="card" style="width:186px;padding:8px;display:flex;flex-direction:column;gap:3px">
+      <div style="padding:9px 10px;border-radius:10px;background:rgba(143,163,204,.16);border:1px solid rgba(143,163,204,.4)">
+        <div style="font-size:12px;font-weight:600">外观与体验</div><div class="t2">主题 · 发现页背景</div>
+      </div>
+      <div style="padding:9px 10px"><div style="font-size:12px">音乐来源</div><div class="t2">本地 · 远程 · 下载</div></div>
+      <div style="padding:9px 10px"><div style="font-size:12px">扩展</div><div class="t2">插件 · AI</div></div>
+      <div style="padding:9px 10px"><div style="font-size:12px">系统与维护</div><div class="t2">通用 · 备份 · 关于</div></div>
+      <div style="margin-top:auto;padding:9px 10px;border-top:1px solid var(--line2)">
+        <div class="t2">猫爪音乐 2.0.0 · 开源许可</div>
+      </div>
+    </div>
+    <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:10px;min-width:0">
+      <div class="card" style="padding:11px">
+        <div class="lbl">外观与体验</div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>外观</b><span>深色 · 跟随系统</span></span><span style="color:var(--dim)">›</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>桌面歌词</b><span>悬浮 · 逐字高亮</span></span><span style="color:var(--dim)">›</span></div>
+      </div>
+      <div class="card" style="padding:11px">
+        <div class="lbl">音乐来源</div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>本地音乐</b><span>616 首 · 3 个文件夹</span></span><span style="color:var(--dim)">›</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>远程音乐服务</b><span>WebDAV · Navidrome · SMB</span></span><span style="color:var(--dim)">›</span></div>
+      </div>
+      <div class="card" style="padding:11px">
+        <div class="lbl">扩展</div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>插件管理</b><span>3 个已启用</span></span><span style="color:var(--dim)">›</span></div>
+        <div class="li" style="padding:7px 0"><span class="c"></span><span class="s"><b>AI 设置</b><span>DeepSeek · deepseek-chat</span></span><span style="color:var(--dim)">›</span></div>
+      </div>
+      <div class="card" style="padding:11px">
+        <div class="lbl">系统与维护</div>
+        <div class="li" style="padding:6px 0"><span class="c"></span><span class="s"><b>通用设置</b><span>启动页 · 通知 · 播放行为</span></span><span style="color:var(--dim)">›</span></div>
+        <div class="li" style="padding:6px 0"><span class="c"></span><span class="s"><b>备份与恢复</b><span>歌单 · 设置 · 记录</span></span><span style="color:var(--dim)">›</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ⑦ 外观子页 -->
+<p class="cap">⑦ 设置子页（外观）—— 左返回 + 二级导航 / 右三栏参数</p>
+<div class="frame"><div class="screen">
+  <div class="amb"><i style="width:280px;height:280px;left:14%;top:12%;background:#E8C39E"></i></div>
+  <div class="navbar"><div class="btn-ico" style="border-radius:10px">‹</div><h2>外观</h2>
+    <div class="right"><span class="pill">恢复默认</span></div></div>
+  <div class="split3" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+      <div class="lbl">主题</div>
+      <div style="display:flex;gap:7px"><span class="pill">跟随系统</span><span class="pill">浅色</span><span class="pill on">深色</span></div>
+      <div class="lbl" style="margin-top:6px">启动页</div>
+      <div style="display:flex;gap:7px"><span class="pill">音乐库</span><span class="pill">发现</span><span class="pill on">播放</span></div>
+      <div class="t2" style="margin-top:auto">深色主题下播放页固定深色，避免封面亮图把白字冲淡。</div>
+    </div>
+    <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div class="lbl">发现页背景（三选一）</div>
+      <div style="border-radius:12px;border:1px solid rgba(143,163,204,.5);background:rgba(143,163,204,.14);padding:9px 10px">
+        <div style="display:flex;align-items:center"><span style="font-size:12px;font-weight:600">雾面动态</span><span style="margin-left:auto;color:var(--accentInk)">●</span></div>
+        <div class="t2">随播放流动，暂停即静止</div>
+      </div>
+      <div style="border-radius:12px;border:1px solid var(--line2);padding:9px 10px">
+        <div style="font-size:12px">自定义图片</div><div class="t2">用你选的图片铺满发现页</div>
+      </div>
+      <div style="border-radius:12px;border:1px solid var(--line2);padding:9px 10px">
+        <div style="font-size:12px">莫奈取色</div><div class="t2">按系统壁纸主色重新配色</div>
+      </div>
+    </div>
+    <div class="card" style="padding:12px;display:flex;flex-direction:column;gap:9px">
+      <div class="lbl">预览</div>
+      <div class="art" style="width:100%;aspect-ratio:1.35"></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim)">
+        <span>发现页 · 雾面动态</span><span>16:9</span>
+      </div>
+      <div class="t2" style="margin-top:auto">改动即时生效，不用重启。</div>
+    </div>
+  </div>
+</div></div>
+
+<p class="page" style="max-width:1000px;margin:26px auto 0">
+  v2 的三条硬规则：<b>环境色</b>（每页背景从当前封面晕一层，播放/歌词更浓）、
+  <b>三栏</b>（主内容 / 辅助信息 / 队列）、<b>层级</b>（标题 22-24 / 正文 12-14 / 说明 10-11，
+  卡片带 1px 内高光与投影）。
+</p>
+</div>
+</body>
+</html>

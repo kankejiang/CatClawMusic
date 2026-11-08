@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -22,10 +23,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import com.catclaw.music.kt.ui.theme.BarGlass
+import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.LocalBackdropState
 import com.catclaw.music.kt.ui.theme.backdropSource
 import com.catclaw.music.kt.ui.theme.rememberBackdropState
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -283,6 +286,13 @@ private fun TabsHost(
     // 其余页且队列非空时才显示 MiniPlayer
     val immersivePage = pagerState.settledPage <= PAGE_NOW_PLAYING
     val showMiniPlayer = !immersivePage && queueSongs.isNotEmpty()
+    // 横屏：导航从底部搬到左侧（MAUI 横屏就是切到桌面外壳，左侧一条 244dp 侧栏；
+    // 手机上 92dp 够放图标+两字标签，不占掉本就不多的横向空间）
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val sideRailWidth = 92.dp
+    // 播放页（1）与全屏歌词（0）是沉浸页：横屏也不显示侧栏（用户 2026-11-08：播放页面不要显示侧栏）
+    val railVisible = landscape && pagerState.settledPage >= 2
 
     // 手动横屏（MAUI `NowPlayingPage` 那颗旋转按钮）：锁 SensorLandscape，让「手机竖着拿、
     // 但想躺着看播放页」不必先去打开系统的自动旋转。状态放在外壳而不是播放页：
@@ -392,7 +402,10 @@ private fun TabsHost(
                 }
                     HorizontalPager(
                         state = pagerState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // 横屏让出左侧导航栏，否则封面/标题会被侧栏压住（2026-11-08 真机截图）
+                            .padding(start = if (railVisible) sideRailWidth else 0.dp),
                         // 预组装左右各一页：发现页几十张封面的首次组装/解码挪到启动空闲期，
                         // 不再压在滑入手势里（positionMs 已收敛到进度条组件，播放页不会再高频重组）
                         beyondViewportPageCount = 1,
@@ -492,6 +505,65 @@ private fun TabsHost(
                     barIn = false
                 }
             }
+            // ── 横屏左侧导航栏（MAUI 横屏用的是桌面外壳的侧栏；手机横屏宽度有限，收成 92dp 图标栏）
+            if (railVisible) {
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 10.dp, top = 10.dp, bottom = 10.dp)
+                        .width(sideRailWidth - 10.dp)
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        // 卡面统一走 glassCard —— 手写 α.10 面 + α.16 描边会被 VisualLanguageTest 拦下
+                        .glassCard(palette = palette, corner = 20)
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TopTab.entries.forEach { tab ->
+                        val selected = pagerState.settledPage == tab.pageIndex
+                        androidx.compose.foundation.layout.Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .then(
+                                    if (selected) {
+                                        Modifier.background(Color(palette.primaryLight).copy(alpha = 0.18f))
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                                .clickable {
+                                    scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
+                                }
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(tab.iconRes),
+                                contentDescription = stringResource(tab.labelRes),
+                                tint = if (selected) {
+                                    Color(palette.textPrimary)
+                                } else {
+                                    Color(palette.textPrimary).copy(alpha = 0.55f)
+                                },
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Text(
+                                text = stringResource(tab.labelRes),
+                                fontSize = 9.5.sp,
+                                color = if (selected) {
+                                    Color(palette.textPrimary)
+                                } else {
+                                    Color(palette.textPrimary).copy(alpha = 0.55f)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             AnimatedVisibility(
                 visible = chromeVisible || showMiniPlayer,
                 enter = fadeIn(tween(1)),
@@ -501,7 +573,8 @@ private fun TabsHost(
                 Column(
                     modifier = Modifier
                         .navigationBarsPadding()
-                        .padding(start = 18.dp, end = 18.dp, bottom = 4.dp),
+                        // 迷你播放器不贴底：横屏留 12dp、竖屏留 10dp，浮起来才有层次
+                        .padding(start = if (landscape) sideRailWidth + 12.dp else 18.dp, end = 18.dp, bottom = if (landscape) 12.dp else 10.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     playState.currentSong?.let { song ->
@@ -536,7 +609,8 @@ private fun TabsHost(
                         }
                     }
                     AnimatedVisibility(
-                        visible = barIn,
+                        // 横屏：导航已在左侧栏，底部不再画一遍（否则两套导航同时出现）
+                        visible = barIn && !landscape,
                         enter = slideInHorizontally(
                             tween(320, delayMillis = 50, easing = LinearOutSlowInEasing),
                         ) { it } + fadeIn(tween(140, delayMillis = 50)),

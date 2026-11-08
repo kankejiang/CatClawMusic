@@ -381,28 +381,34 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
                 // 几何对齐 xaml.cs:336-353/389-393：封面尺寸 = clamp(min(可用高, 可用宽), 240, 800)、
                 // 顶对齐状态栏+5、左缘 = 状态栏+5。本根已 statusBarsPadding（顶=状态栏下缘），
                 // 故上下各留 5dp、左缘 5dp；MAUI 的底部 max(inset)+5 并入可用高公式的 10dp 余量
-                val rowContentWidth = maxWidth - 5.dp - 48.dp
-                val leftColumnWidth = (rowContentWidth - 32.dp) / 2.15f
-                val coverSize = minOf(
-                    maxHeight - 10.dp,
-                    leftColumnWidth - 5.dp,
-                ).coerceIn(240.dp, 800.dp)
+                // 2026-11-08 用户反馈「封面不正」：原来照 MAUI xaml.cs 只留 5dp 边距，封面几乎顶到
+                // 屏幕边缘又没圆角，横屏里看着像铺歪了。改成与播放页横屏同一套几何：
+                // 48/8/48/20 内边距、圆角 28、垂直居中、边长上限 460。
+                val coverSize = minOf(460.dp, maxHeight - 28.dp, maxWidth * 0.46f)
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(start = 5.dp, top = 5.dp, end = 48.dp, bottom = 5.dp),
+                        .padding(start = 48.dp, end = 48.dp, top = 8.dp, bottom = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
                 ) {
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        CoverTileOrb(
-                            coverArtPath = song?.coverArtPath,
-                            audioPath = song?.filePath,
-                            title = song?.title ?: "",
-                            glow = rememberArtworkTint(cover),
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .size(coverSize),
-                        )
+                                .size(coverSize)
+                                .clip(RoundedCornerShape(28.dp))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.19f), RoundedCornerShape(28.dp)),
+                        ) {
+                            CoverTileOrb(
+                                coverArtPath = song?.coverArtPath,
+                                audioPath = song?.filePath,
+                                title = song?.title ?: "",
+                                glow = rememberArtworkTint(cover),
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                     Box(modifier = Modifier.weight(1.15f).fillMaxHeight()) {
                         LyricList(

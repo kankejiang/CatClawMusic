@@ -14,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -198,12 +199,47 @@ fun PlayingScreen(
             // clipToBounds 必须：AspectFill 的图按高度缩放后比页宽宽 880px，不裁剪会画进
             // HorizontalPager 的相邻页（真机：歌词页右缘/发现页左缘各露一条 48px 的白边）
             .clipToBounds()
-            .then(if (cover != null) Modifier.artworkBackdrop(cover) else Modifier.artworkWash(cover))
+            // 横屏不铺满封面底：横屏画幅宽，整屏都是专辑图细节会把文字淹没
+            // （真机实测：歌词与标题直接糊在专辑图里）。横屏只留外壳的主题渐变 + 左栏方块封面。
+            .then(
+                when {
+                    landscape -> Modifier
+                    cover != null -> Modifier.artworkBackdrop(cover)
+                    else -> Modifier.artworkWash(cover)
+                },
+            )
             // 封面铺满整个屏幕（含状态栏区域），内容再从状态栏下方排
             .statusBarsPadding()
-            .padding(horizontal = 26.dp),
+            .padding(horizontal = if (landscape) 0.dp else 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // 横屏整页交给 LandscapeNowPlaying（MAUI LandscapeRoot 的 1:1 移植）。
+        // 放在这里而不是替换中间那块 Box：横屏的进度条/控制行也要跟着换形状，
+        // 只换中间会在竖屏骨架里留下两条竖屏控件。
+        if (landscape) {
+            LandscapeNowPlaying(
+                cover = cover,
+                title = state.currentSong?.title,
+                artist = state.currentSong?.artist,
+                placeholder = song?.title?.take(1) ?: "♪",
+                isPlaying = state.isPlaying,
+                mode = state.mode,
+                durationMs = state.durationMs,
+                positionMsFlow = viewModel.positionMs,
+                favorite = state.currentSong?.let { it.id in menu.favoriteIds } == true,
+                onToggle = { viewModel.toggle() },
+                onNext = { viewModel.next() },
+                onPrevious = { viewModel.previous() },
+                onCycleMode = { viewModel.cycleMode() },
+                onSeek = { viewModel.seekTo(it) },
+                onToggleFavorite = { state.currentSong?.let { menu.onToggleFavorite(it.id) } },
+                onOpenQueue = onOpenQueue,
+                onSleepTimer = { sleepTimerOpen = true },
+                onMore = { songMenuOpen = true },
+                onCollapse = onCollapse,
+                palette = palette,
+            )
+        } else {
         Spacer(Modifier.height(12.dp))
         // 顶部：歌名/歌手在左上角（雾带里），右上角一颗「收起」（⌄ 回发现页）
         Row(
@@ -394,6 +430,7 @@ fun PlayingScreen(
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(palette.textSecondary),
             )
+        }
         }
     }
 
@@ -799,4 +836,258 @@ private fun SeekBar(
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     return "%02d:%02d".format(total / 60, total % 60)
+}
+
+            // ④ 多行歌词面板：占满剩余高度（MAUI 那句 Grid 行定义里的 *）
+            //
+            // 只列「③ 之后要唱的」：面板筛掉当前句/兜底句，避免同一句出现两次（用户反馈「歌词重复了」）。
+            // 用「还没唱到的」判定，而不是拿当前行去 lines 里 indexOf：
+            // indexOf 依赖对象相等，presentation 的行与 lines 里的行一旦不是同一实例就查不到（真机就是这样，
+            // 结果 currentIndex=-1、面板又从第一行开始，当前句在 ③ 和面板里出现两次 —— 用户说「歌词重复了」）。
+
+/**
+ * 横屏播放页 —— 按 MAUI `NowPlayingPage.xaml` 的 `LandscapeRoot` 1:1 移植。
+ *
+ * MAUI 原文：
+ *   Grid RowDefinitions="Auto,*" ColumnDefinitions="1*,1.15*"
+ *        ColumnSpacing=32  Padding="48,8,48,20"
+ *   左栏（占两行）封面 Border 460×460 圆角 28 AspectFill
+ *   右栏 RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing=10
+ *     ① 标题 28 + 艺人 14 + 音质徽章     ② 工具行（30dp）    ③ 当前歌词 16 粗体
+ *     ④ * 多行歌词面板                    ⑤ 进度条 + 时间     ⑥ 控制行（左对齐，间距 12）
+ *
+ * 与 MAUI 的差异只有两处，都是端上能力不同：
+ * - 工具行的第三颗：MAUI 是「旋转屏幕」，横屏里点了没有意义，换成「收起回发现页」；
+ * - 控制行的 ♥ 用按下的实心/空心图标（MAUI 也是两套图，只是名字不同）。
+ */
+@Composable
+private fun LandscapeNowPlaying(
+    cover: android.graphics.Bitmap?,
+    title: String?,
+    artist: String?,
+    placeholder: String,
+    isPlaying: Boolean,
+    mode: PlayMode,
+    durationMs: Long,
+    positionMsFlow: kotlinx.coroutines.flow.StateFlow<Long>,
+    favorite: Boolean,
+    onToggle: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onCycleMode: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onToggleFavorite: () -> Unit,
+    onOpenQueue: () -> Unit,
+    onSleepTimer: () -> Unit,
+    onMore: () -> Unit,
+    onCollapse: () -> Unit,
+    palette: com.catclaw.music.kt.core.theme.CatClawPalette,
+) {
+    val lyricsViewModel: LyricsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val lyricsState by lyricsViewModel.lyrics.collectAsStateWithLifecycle()
+    val lineMode by lyricsViewModel.lineMode.collectAsStateWithLifecycle()
+    val positionMs by positionMsFlow.collectAsStateWithLifecycle()
+    val lines = lyricsViewModel.visibleLyrics()?.lines.orEmpty()
+    val presentation = LyricsState.present(
+        lyrics = lyricsViewModel.visibleLyrics(),
+        positionMs = positionMs,
+        lineMode = lineMode,
+    )
+    val currentLine = presentation?.line?.takeIf { it.text.isNotBlank() }
+    // 用时间戳判定「还没唱到的行」，不用 indexOf —— presentation 的行和 lines 里的行
+    // 不保证是同一实例，查不到就会退化成「从第一行开始」，同一句出现两次（用户：歌词重复了）
+    val upcoming = lines.filter { it.startMs > positionMs + 300L && it.text.isNotBlank() }
+    // 当前句在整首里的位置（按时间戳算，不比对对象）
+    val currentIndex = lines.indexOfFirst { it.startMs > positionMs }.let { if (it < 0) lines.lastIndex else it - 1 }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(start = 48.dp, end = 48.dp, top = 8.dp, bottom = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
+    ) {
+        // 左栏：460 方形封面（高度不足时按高度收缩）
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            val side = minOf(460.dp, maxWidth, maxHeight)
+            Box(
+                modifier = Modifier
+                    .size(side)
+                    .align(Alignment.Center)
+                    .clip(RoundedCornerShape(28.dp))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.19f), RoundedCornerShape(28.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (cover != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = cover.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(
+                        text = placeholder,
+                        fontSize = 72.sp,
+                        color = Color(palette.textPrimary).copy(alpha = 0.5f),
+                    )
+                }
+            }
+        }
+
+        // 右栏：Auto / Auto / Auto / * / Auto / Auto
+        Column(modifier = Modifier.weight(1.15f).fillMaxHeight()) {
+            Text(
+                text = title.orEmpty(),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(palette.textPrimary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = artist.orEmpty(),
+                fontSize = 14.sp,
+                color = Color(palette.textSecondary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+
+            // 工具行（MAUI：播放列表 / 睡眠定时 / 旋转；旋转在横屏无意义，换成收起）
+            Row(
+                modifier = Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                LandscapeIconButton(PlayerIcons.QueueMusic, stringResource(R.string.queue_open), palette, onOpenQueue)
+                LandscapeIconButton(PlayerIcons.Timer, stringResource(R.string.sleep_timer_title), palette, onSleepTimer)
+                LandscapeIconButton(PlayerIcons.Collapse, stringResource(R.string.player_collapse), palette, onCollapse)
+            }
+
+            // 歌词：一条会自动往上滚的列表（MAUI 用的是同一个思路 —— 当前句居中，唱过就滚走）。
+            // 之前是「大字当前句 + 下面静态列表」，换句时文字直接跳变，很硬（用户 2026-11-08：
+            // 「歌词切换好僵硬，改成往上滚动」）。
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            ) {
+                val viewport = maxHeight
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                // 当前句滚到视口 1/3 处：上方留两句「唱过的」，下方是「要唱的」
+                LaunchedEffect(currentIndex) {
+                    if (lines.isNotEmpty()) {
+                        listState.animateScrollToItem(
+                            index = currentIndex.coerceIn(0, lines.lastIndex),
+                            scrollOffset = with(density) { -(viewport * 0.32f).roundToPx() },
+                        )
+                    }
+                }
+                androidx.compose.foundation.lazy.LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    itemsIndexed(lines) { index, line ->
+                        val distance = kotlin.math.abs(index - currentIndex)
+                        val active = index == currentIndex
+                        Text(
+                            text = line.text.ifBlank { " " },
+                            fontSize = when {
+                                active -> 17.sp
+                                distance == 1 -> 14.sp
+                                else -> 13.sp
+                            },
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                            color = when {
+                                active -> Color(palette.textPrimary)
+                                distance == 1 -> Color(palette.textSecondary).copy(alpha = 0.75f)
+                                else -> Color(palette.textSecondary).copy(alpha = 0.35f)
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { lyricsViewModel.seekTo(line.startMs) }
+                                .padding(vertical = 3.dp, horizontal = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            ProgressRow(
+                positionMsFlow = positionMsFlow,
+                durationMs = durationMs,
+                onSeek = onSeek,
+            )
+
+            // 控制行：左对齐、间距 12（MAUI LandscapeControlsRow）
+            Row(
+                modifier = Modifier.fillMaxWidth().height(72.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border,
+                    ),
+                    contentDescription = stringResource(
+                        if (favorite) R.string.favorite_remove else R.string.favorite_add,
+                    ),
+                    tint = if (favorite) Color(palette.textPrimary) else Color(palette.textSecondary),
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onToggleFavorite)
+                        .padding(10.dp),
+                )
+                LandscapeIconButton(PlayerIcons.Previous, stringResource(R.string.prev_song), palette, onPrevious)
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onToggle),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) PlayerIcons.Pause else PlayerIcons.Play,
+                        contentDescription = stringResource(R.string.play_or_pause),
+                        tint = Color(palette.textPrimary),
+                        modifier = Modifier.size(34.dp),
+                    )
+                }
+                LandscapeIconButton(PlayerIcons.Next, stringResource(R.string.next_song), palette, onNext)
+                LandscapeIconButton(
+                    icon = modeIcon(mode),
+                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(mode)),
+                    palette = palette,
+                    onClick = onCycleMode,
+                )
+                LandscapeIconButton(PlayerIcons.More, stringResource(R.string.playing_more), palette, onMore)
+            }
+        }
+    }
+}
+
+/** 横屏的工具/控制按钮：44dp 触达框、无底色（MAUI 那两行都是纯图标） */
+@Composable
+private fun LandscapeIconButton(
+    icon: PlayerIcon,
+    description: String,
+    palette: com.catclaw.music.kt.core.theme.CatClawPalette,
+    onClick: () -> Unit,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = description,
+        tint = Color(palette.textPrimary),
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+    )
 }

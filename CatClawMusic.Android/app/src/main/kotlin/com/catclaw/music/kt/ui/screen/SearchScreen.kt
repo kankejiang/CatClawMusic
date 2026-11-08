@@ -135,6 +135,9 @@ fun SearchScreen(
         // 反而像背景没洗干净；玻璃卡改由动态背景透色。
         // 整页 LazyColumn：歌手/专辑网格按行虚拟化，滚出视口的照片不解码不绘制——
         // 之前的 verticalScroll Column 全量组装，几十个 84dp 照片一次解码，滚动必卡
+        // 横屏：底栏在 480dp 高的画布上占比更高，Hero 要降高、底部留白要加大
+        val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -145,7 +148,7 @@ fun SearchScreen(
                 // 下钻层（歌手 / 专辑 / 歌曲详情）压住时同理：它们与这份列表在同一个 ComposeView 里，
                 // 不摘的话读屏能滑进那些被盖住的推荐卡。两条条件各自独立，所以分两个 semantics
                 .semantics { if (detail != null || songDetailId != null) hideFromAccessibility() },
-            contentPadding = PaddingValues(bottom = 132.dp),
+            contentPadding = PaddingValues(bottom = if (landscape) 168.dp else 132.dp),
         ) {
             // 头部：标题 + 问候语 + 三个 44×44 玻璃图标
             item("header") {
@@ -198,6 +201,7 @@ fun SearchScreen(
                 // 五颗分类 chip 全部取消：歌手/专辑由货架右上「查看全部」承接，统计挪到头部柱状图标，
                 // 「排行」本来就有「最多播放」入口，「每日推荐歌单列表」也不再单列（英雄卡就是它）。
                 recommendItems(
+                    landscape = landscape,
                     viewModel = viewModel,
                     sections = sections,
                     artists = artists,
@@ -281,6 +285,7 @@ private fun StaggerIn(index: Int, content: @Composable () -> Unit) {
 
 /** 推荐面板的各个板块，作为 LazyColumn 的 item 逐个发射（板块间 12dp 间距） */
 private fun LazyListScope.recommendItems(
+    landscape: Boolean,
     viewModel: SearchViewModel,
     sections: SearchViewModel.Sections,
     artists: List<com.catclaw.music.kt.data.db.ArtistListItem>,
@@ -305,69 +310,110 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ① 每日推荐英雄卡：封面铺满整卡，字压在底部的渐变遮罩上
-    if (hero != null) item("rec_hero") {
-        StaggerIn(index = 0) {
-            DailyHero(
-                song = hero,
-                onPlay = { viewModel.play(sections.daily, 0) },
-                onRefresh = { viewModel.reload() },
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
-            )
-        }
-    }
-
-    // ② 四个入口：等宽单色玻璃（不用彩虹渐变）
-    item("rec_quick") {
-        StaggerIn(index = 1) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
-                QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
-                QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
-                    if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
+    // ① 每日推荐英雄卡 + ② 四个入口
+    // 竖屏是「上下两块」；横屏并成一行：左边大卡、右边 2×2 入口。
+    // 横屏画布矮，两块竖着排会把入口挤到屏幕外（用户：发现页 ui 布局太奇怪了）。
+    if (landscape) {
+        item("rec_hero_row") {
+            StaggerIn(index = 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (hero != null) {
+                        DailyHero(
+                            song = hero,
+                            onPlay = { viewModel.play(sections.daily, 0) },
+                            onRefresh = { viewModel.reload() },
+                            modifier = Modifier.weight(1.45f),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
+                            QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
+                                if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
+                            }
+                            QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
+                        }
+                    }
                 }
-                QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
+            }
+        }
+    } else {
+        if (hero != null) item("rec_hero") {
+            StaggerIn(index = 0) {
+                DailyHero(
+                    song = hero,
+                    onPlay = { viewModel.play(sections.daily, 0) },
+                    onRefresh = { viewModel.reload() },
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                )
+            }
+        }
+        item("rec_quick") {
+            StaggerIn(index = 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
+                    QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
+                    QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
+                        if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
+                    }
+                    QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
+                }
             }
         }
     }
 
-    // ③ 推荐歌曲：今日推荐 + 最近添加 + 常听 混一遍去重，取 10 首（英雄卡已经代表「今日推荐」整体）
-    // LazyListScope 里不能调 remember（不是 Composable 上下文），直接算：三个列表最多几十首，成本可忽略
+    // ③ 推荐歌曲 / ④ 推荐专辑：横屏并排两列（一屏放得下两组货架，竖屏仍是一上一下）
     val recSongs = (sections.daily + sections.fresh + sections.frequent).distinctBy { it.id }.take(10)
-    if (recSongs.isNotEmpty()) item("rec_songs") {
-        StaggerIn(index = 2) {
-            Column {
-                RailHead(stringResource(R.string.disc_songs_rec), onSeeAll = onOpenSongs, primary = primary, secondary = secondary)
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    itemsIndexed(recSongs, key = { _, song -> "s${song.id}" }) { index, song ->
-                        SongRailCard(song) { viewModel.play(recSongs, index) }
-                    }
+    val songsShelf: @Composable () -> Unit = {
+        Column {
+            RailHead(stringResource(R.string.disc_songs_rec), onSeeAll = onOpenSongs, primary = primary, secondary = secondary)
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                itemsIndexed(recSongs, key = { _, song -> "s${song.id}" }) { index, song ->
+                    SongRailCard(song) { viewModel.play(recSongs, index) }
                 }
             }
         }
     }
-
-    // ④ 推荐专辑：单行 8 张，右侧露出半张暗示可滑
-    if (albums.isNotEmpty()) item("rec_albums") {
-        StaggerIn(index = 2) {
-            Column {
-                RailHead(stringResource(R.string.disc_albums_rec), onSeeAll = onOpenAlbums, primary = primary, secondary = secondary)
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(albums.take(8), key = { "a${it.id}" }) { album ->
-                        RailAlbumCard(album) { onOpenDetail(LibraryDetail(LibraryKind.Albums, album.id, album.title)) }
-                    }
+    val albumsShelf: @Composable () -> Unit = {
+        Column {
+            RailHead(stringResource(R.string.disc_albums_rec), onSeeAll = onOpenAlbums, primary = primary, secondary = secondary)
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(albums.take(8), key = { "a${it.id}" }) { album ->
+                    RailAlbumCard(album) { onOpenDetail(LibraryDetail(LibraryKind.Albums, album.id, album.title)) }
                 }
             }
         }
+    }
+    if (landscape && recSongs.isNotEmpty() && albums.isNotEmpty()) {
+        item("rec_two_up") {
+            StaggerIn(index = 2) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.weight(1f)) { songsShelf() }
+                    Box(Modifier.weight(1f)) { albumsShelf() }
+                }
+            }
+        }
+    } else {
+        if (recSongs.isNotEmpty()) item("rec_songs") { StaggerIn(index = 2) { songsShelf() } }
+        if (albums.isNotEmpty()) item("rec_albums") { StaggerIn(index = 2) { albumsShelf() } }
     }
 
     // ⑤ 推荐艺人：10 位，横滑
@@ -399,11 +445,15 @@ private fun DailyHero(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalCatClawPalette.current
+    // 横屏画布只有 480dp 高，268dp 的 Hero 几乎占满一屏，标题和按钮会被底栏压住
+    val heroLandscape =
+        androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(268.dp)
-            .clip(RoundedCornerShape(22.dp)),
+            .height(if (heroLandscape) 188.dp else 268.dp)
+            .clip(RoundedCornerShape(if (heroLandscape) 18.dp else 22.dp)),
     ) {
         CoverTile(
             coverArtPath = song.coverArtPath,
