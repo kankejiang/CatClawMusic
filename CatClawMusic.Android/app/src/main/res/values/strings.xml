@@ -14,7 +14,6 @@
     <string name="next_song">下一曲</string>
     <string name="play_or_pause">播放或暂停</string>
     <string name="mini_player_open">回到播放页</string>
-    <string name="lib_my_library">我的音乐库</string>
     <string name="lib_sources_count">本地 + 网络 · 共 %1$d 个资料库</string>
     <string name="lib_stat_songs">歌曲</string>
     <string name="lib_stat_artists">艺术家</string>
@@ -279,7 +278,6 @@
     <string name="local_scan_status">扫描状态</string>
     <string name="local_scan_now">立即扫描</string>
     <string name="lib_stat_storage">存储占用</string>
-    <string name="lib_cache_label">缓存</string>
     <string name="lib_open_stats">听歌统计</string>
     <string name="remote_edit">编辑</string>
     <string name="remote_edit_server">编辑连接：%1$s</string>
@@ -474,4 +472,7 @@
     <string name="ai_paste">粘贴</string>
     <string name="ai_memory_manage">管理</string>
     <string name="ai_memory_none">还没记什么</string>
+    <string name="lib_tools_title">工具</string>
+    <string name="lib_tools_scan_hint">重新扫描本地音乐文件夹</string>
+    <string name="lib_all_songs">全部歌曲</string>
 </resources>

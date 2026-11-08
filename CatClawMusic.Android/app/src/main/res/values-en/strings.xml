@@ -14,7 +14,6 @@
     <string name="next_song">Next</string>
     <string name="play_or_pause">Play or pause</string>
     <string name="mini_player_open">Back to now playing</string>
-    <string name="lib_my_library">My Library</string>
     <string name="lib_sources_count">Local + network · %1$d libraries</string>
     <string name="lib_stat_songs">Songs</string>
     <string name="lib_stat_artists">Artists</string>
@@ -279,7 +278,6 @@ Download it from GitHub.</string>
     <string name="local_scan_status">Scan status</string>
     <string name="local_scan_now">Scan now</string>
     <string name="lib_stat_storage">Storage</string>
-    <string name="lib_cache_label">cache</string>
     <string name="lib_open_stats">Listening stats</string>
     <string name="remote_edit">Edit</string>
     <string name="remote_edit_server">Editing: %1$s</string>
@@ -474,4 +472,7 @@ Download it from GitHub.</string>
     <string name="ai_paste">Paste</string>
     <string name="ai_memory_manage">Manage</string>
     <string name="ai_memory_none">Nothing remembered yet</string>
+    <string name="lib_tools_title">Tools</string>
+    <string name="lib_tools_scan_hint">Rescan local music folders</string>
+    <string name="lib_all_songs">All songs</string>
 </resources>

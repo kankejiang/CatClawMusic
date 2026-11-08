@@ -214,97 +214,158 @@ fun LibraryScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 132.dp),
     ) {
+        // 顶栏（2026-11-08 重设计）：标题 + 副标题 + 两个动作。
+        // 原来那块粉橙渐变 Hero 卡只是把「我的音乐库」放大，没有信息量，还把整页强调色带偏。
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.TabLibrary),
-                style = MaterialTheme.typography.titleLarge,
-                color = Color(palette.textPrimary),
-            )
-            PillLabel(
-                text = stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
-                onClick = { viewModel.scan() },
-                enabled = !scanning,
-            )
-        }
-
-        // Hero 卡：渐变底 + 4 个可点统计格（MAUI 的 HeroCard + st4）
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(palette.primary).copy(alpha = 0.40f), Color(0x40FFD9A8)),
-                    ),
-                )
-                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(26.dp))
-                .padding(22.dp),
-        ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.lib_my_library),
-                    fontSize = 22.sp,
+                    text = stringResource(R.string.TabLibrary),
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(palette.textPrimary),
                 )
                 Text(
                     text = stringResource(R.string.lib_sources_count, 1),
-                    fontSize = 12.5.sp,
-                    // 半透明 Hero 上不用次要色（浅色主题实测 3.15:1），层级交给字号
-                    color = Color(palette.textPrimary),
-                    modifier = Modifier.padding(top = 4.dp),
+                    fontSize = 12.sp,
+                    color = Color(palette.textSecondary).copy(alpha = 0.75f),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    StatTile(String.format("%,d", songs.size), stringResource(R.string.lib_stat_songs), palette) {
-                        onOpenKind(LibraryKind.Songs)
-                    }
-                    StatTile(String.format("%,d", artists.size), stringResource(R.string.lib_stat_artists), palette) {
-                        onOpenKind(LibraryKind.Artists)
-                    }
-                    StatTile(String.format("%,d", albums.size), stringResource(R.string.lib_stat_albums), palette) {
-                        onOpenKind(LibraryKind.Albums)
-                    }
-                    StatTile(String.format("%.1f", hours), stringResource(R.string.lib_stat_hours), palette) {
-                        onOpenKind(LibraryKind.Songs)
-                    }
-                }
-                // 曲库总大小搬到了下面那张「存储占用」卡（它还带分档占用与剩余空间），
-                // 这里只留缓存 —— 它是本端独有的数字，那张卡上没有。
-                // `bytes(0)` 回空串，所以缓存为 0 时整段不出现，而不是留一个空标签挂在行尾
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    if (storage.second > 0L) {
-                        Text(
-                            text = stringResource(R.string.lib_cache_label) + " " + SongDetailFormat.bytes(storage.second),
-                            fontSize = 12.5.sp,
-                            color = Color(palette.textPrimary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    PillLabel(
-                        text = stringResource(R.string.lib_open_stats),
-                        onClick = { statsOpen = true },
-                        filled = false,
-                    )
-                }
+            }
+            PillLabel(
+                text = stringResource(R.string.lib_open_stats),
+                onClick = { statsOpen = true },
+                filled = false,
+            )
+            PillLabel(
+                text = stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
+                onClick = { viewModel.scan() },
+                enabled = !scanning,
+                filled = false,
+            )
+        }
+
+        // 四个数字：四张独立玻璃格（原来这四格坐在渐变 Hero 上，靠压黑/压白维持对比度）
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatTile(String.format("%,d", songs.size), stringResource(R.string.lib_stat_songs), palette) {
+                onOpenKind(LibraryKind.Songs)
+            }
+            StatTile(String.format("%,d", artists.size), stringResource(R.string.lib_stat_artists), palette) {
+                onOpenKind(LibraryKind.Artists)
+            }
+            StatTile(String.format("%,d", albums.size), stringResource(R.string.lib_stat_albums), palette) {
+                onOpenKind(LibraryKind.Albums)
+            }
+            StatTile(String.format("%.1f", hours), stringResource(R.string.lib_stat_hours), palette) {
+                onOpenKind(LibraryKind.Songs)
             }
         }
 
+        // 四个入口：统计格回答「有多少」，这里回答「去哪」
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            EntryTile(R.drawable.ic_nav_lyrics, stringResource(R.string.lib_all_songs), palette) {
+                onOpenKind(LibraryKind.Songs)
+            }
+            EntryTile(R.drawable.ic_nav_appearance, stringResource(R.string.lib_stat_albums), palette) {
+                onOpenKind(LibraryKind.Albums)
+            }
+            EntryTile(R.drawable.ic_nav_permission, stringResource(R.string.lib_stat_artists), palette) {
+                onOpenKind(LibraryKind.Artists)
+            }
+            EntryTile(R.drawable.ic_favorite, stringResource(R.string.playlist_entry_favorites), palette) {
+                onOpenKind(LibraryKind.Favorites)
+            }
+        }
+        // 资料库卡 —— MAUI `LibraryPage` 首屏那五张入口卡（本地 / 我喜欢的 / 最近播放 / 网络 / 下载）。
+        // 副标题由这里给全：计数行是「N 首」，导航行是那句功能说明 —— 之前 SourceRow 只认一个 count，
+        // 于是「跳别的页面」这种行只能在徽标里显示一个没有意义的数字。
+        val sources = listOf(
+            LibrarySourceRow(
+                R.drawable.ic_library,
+                stringResource(R.string.lib_local_name),
+                stringResource(R.string.playlist_count, songs.size),
+            ) { onOpenKind(LibraryKind.Songs) },
+            LibrarySourceRow(
+                R.drawable.ic_favorite,
+                stringResource(R.string.lib_favorites_name),
+                stringResource(R.string.playlist_count, favorites.size),
+            ) { onOpenKind(LibraryKind.Favorites) },
+            LibrarySourceRow(
+                R.drawable.ic_history,
+                stringResource(R.string.playlist_entry_recent),
+                stringResource(R.string.playlist_count, recent.size),
+            ) { onOpenKind(LibraryKind.Recent) },
+            LibrarySourceRow(
+                R.drawable.ic_search,
+                stringResource(R.string.RemoteMusic),
+                stringResource(R.string.RemoteMusicSubtitle),
+                onOpenRemote,
+            ),
+
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp)
+                .glassCard(palette = palette, corner = 26)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.lib_sources_title),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(palette.textPrimary),
+                )
+                Text(
+                    text = sources.size.toString(),
+                    fontSize = 10.sp,
+                    color = Color(badgeTintOn(palette, palette.accent)),
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(palette.textPrimary).copy(alpha = 0.08f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            sources.forEach { SourceRow(it.iconRes, it.name, it.subtitle, palette, it.onClick) }
+        }
+
+
+        // 工具卡（2026-11-08 新增）：下载管理和扫描都是「低频但必须够得着」的动作，
+        // 放进上面的入口排会把「浏览库」和「管理文件」混在一起；独立一张卡，且带状态数字。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 6.dp)
+                .glassCard(palette = palette, corner = 26)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.lib_tools_title),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(palette.textPrimary),
+            )
+            Spacer(Modifier.height(6.dp))
+            SourceRow(R.drawable.ic_download, stringResource(R.string.downloads_title), stringResource(R.string.downloads_subtitle), palette, onOpenDownloads)
+            SourceRow(
+                R.drawable.ic_search,
+                stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
+                stringResource(R.string.lib_tools_scan_hint),
+                palette,
+            ) { viewModel.scan() }
+        }
         // 存储占用 —— MAUI `LibraryPage` 的 StorageCard：总大小 + 分档占用 + 设备剩余空间。
         // 此前本端只有 Hero 里一行「曲库大小 · 缓存」，分档占用与剩余空间两个信息完全看不到。
         // 分档键换成了比特率（MAUI 用文件后缀），原因写在 `LibraryInsightRules` 的说明里
@@ -537,67 +598,6 @@ fun LibraryScreen(
             }
         }
 
-        // 资料库卡 —— MAUI `LibraryPage` 首屏那五张入口卡（本地 / 我喜欢的 / 最近播放 / 网络 / 下载）。
-        // 副标题由这里给全：计数行是「N 首」，导航行是那句功能说明 —— 之前 SourceRow 只认一个 count，
-        // 于是「跳别的页面」这种行只能在徽标里显示一个没有意义的数字。
-        val sources = listOf(
-            LibrarySourceRow(
-                R.drawable.ic_library,
-                stringResource(R.string.lib_local_name),
-                stringResource(R.string.playlist_count, songs.size),
-            ) { onOpenKind(LibraryKind.Songs) },
-            LibrarySourceRow(
-                R.drawable.ic_favorite,
-                stringResource(R.string.lib_favorites_name),
-                stringResource(R.string.playlist_count, favorites.size),
-            ) { onOpenKind(LibraryKind.Favorites) },
-            LibrarySourceRow(
-                R.drawable.ic_history,
-                stringResource(R.string.playlist_entry_recent),
-                stringResource(R.string.playlist_count, recent.size),
-            ) { onOpenKind(LibraryKind.Recent) },
-            LibrarySourceRow(
-                R.drawable.ic_search,
-                stringResource(R.string.RemoteMusic),
-                stringResource(R.string.RemoteMusicSubtitle),
-                onOpenRemote,
-            ),
-            LibrarySourceRow(
-                R.drawable.ic_download,
-                stringResource(R.string.downloads_title),
-                stringResource(R.string.downloads_subtitle),
-                onOpenDownloads,
-            ),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 12.dp)
-                .glassCard(palette = palette, corner = 26)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.lib_sources_title),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                )
-                Text(
-                    text = sources.size.toString(),
-                    fontSize = 10.sp,
-                    color = Color(badgeTintOn(palette, palette.accent)),
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color(palette.textPrimary).copy(alpha = 0.08f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            sources.forEach { SourceRow(it.iconRes, it.name, it.subtitle, palette, it.onClick) }
-        }
-
         // 最近添加 —— MAUI `LibraryPage.xaml:197-216` 那张横滑卡（标题 + 「本周」徽标 + 横滑卡片）。
         // C# 那些卡片是纯展示的（`CreateRecentCard` 上没有挂任何手势），这里补上：
         // 点一张就从这张卡开始播 —— 摆着一排点不动的封面，用户只会以为界面卡了
@@ -696,6 +696,13 @@ private fun RecentAddCard(song: SongListItem, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 统计格（2026-11-08 重设计）：从「压在渐变 Hero 上的深色块」改成**独立玻璃格**。
+ *
+ * 以前它必须往墨色反方向压（深色主题压黑 α.30）才能在半透明 Hero 上保住对比度；
+ * 现在 Hero 没了，格子自己就是一块玻璃 —— 沿用 glassCard 那套面 + 描边，
+ * 文字层级交给字号（数字 20sp / 标签 11sp），不再把次要色压到 2.7:1。
+ */
 @Composable
 private fun RowScope.StatTile(
     value: String,
@@ -703,29 +710,55 @@ private fun RowScope.StatTile(
     palette: CatClawPalette,
     onClick: () -> Unit,
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .weight(1f)
-            // 统计格坐在半透明 Hero 上，面板必须往墨色的反方向走：
-            // 同色 α.10 时深色主题白字只剩 3.83:1，压黑 α.30（深色）/压白 α.42（浅色）后回到 6 以上
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (isLightPalette(palette)) Color.White.copy(alpha = 0.42f) else Color.Black.copy(alpha = 0.30f),
-            )
-            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.06f))
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.12f), RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = 12.dp),
     ) {
-        Column {
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
-            Text(
-                label,
-                fontSize = 11.sp,
-                // 层级交给字号而不是颜色：这层底上次要色只有 2.7:1
-                color = Color(palette.textPrimary),
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = Color(palette.textSecondary).copy(alpha = 0.85f),
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+/** 入口格：图标 + 文字，四格一行（统计格回答「有多少」，这里回答「去哪」） */
+@Composable
+private fun RowScope.EntryTile(
+    iconRes: Int,
+    label: String,
+    palette: CatClawPalette,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.04f))
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = Color(palette.primaryLight),
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = label,
+            fontSize = 11.5.sp,
+            color = Color(palette.textSecondary),
+            modifier = Modifier.padding(top = 7.dp),
+        )
     }
 }
 

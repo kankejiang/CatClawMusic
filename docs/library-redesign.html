@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>音乐库 · 重设计</title>
+<style>
+  :root{
+    --bg0:#11141D; --bg1:#171C2A; --bg2:#1E2536;
+    --ink:#fff; --sub:rgba(255,255,255,.66); --dim:rgba(255,255,255,.40);
+    --glass:rgba(255,255,255,.075); --glass2:rgba(255,255,255,.04);
+    --line:rgba(255,255,255,.13); --line2:rgba(255,255,255,.08);
+    --accent:#8FA3CC; --accentInk:#DDE4F2;
+    --c-320:#8FA3CC; --c-192:#7ED8C3; --c-128:#C9B6E4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 70% at 84% 4%, rgba(85,214,255,.10), transparent 62%),
+      radial-gradient(120% 90% at 14% 94%, rgba(126,216,195,.08), transparent 64%),
+      linear-gradient(168deg,var(--bg0),var(--bg1) 55%,var(--bg2));
+    color:var(--ink);font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .screen{max-width:462px;margin:0 auto;padding:0 16px 120px}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;height:44px;font-size:13px;color:var(--sub)}
+
+  /* 顶栏 */
+  .nav{display:flex;align-items:flex-end;gap:10px;padding:2px 2px 16px}
+  .nav h1{margin:0;font-size:30px;font-weight:700;letter-spacing:.5px}
+  .nav .sub{margin-top:2px;font-size:12px;color:var(--dim)}
+  .nav .live{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim);
+    border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+
+  /* 统计四宫格 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .stat{border-radius:18px;border:1px solid var(--line2);background:linear-gradient(180deg,var(--glass),var(--glass2));
+    backdrop-filter:blur(18px);padding:12px 10px}
+  .stat b{display:block;font-size:22px;font-weight:700;letter-spacing:.5px}
+  .stat span{display:block;margin-top:3px;font-size:11px;color:var(--dim)}
+
+  /* 入口四宫格 */
+  .entries{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+  .entry{border-radius:16px;border:1px solid var(--line2);background:var(--glass2);
+    padding:12px 6px;display:flex;flex-direction:column;align-items:center;gap:7px}
+  .entry svg{width:20px;height:20px;stroke:var(--accentInk);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .entry span{font-size:11.5px;color:var(--sub)}
+
+  .card{border-radius:22px;border:1px solid var(--line2);
+    background:linear-gradient(180deg,var(--glass),var(--glass2));
+    backdrop-filter:blur(22px) saturate(1.05);padding:16px;margin-bottom:14px}
+  .head{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+  .head h2{margin:0;font-size:15px;font-weight:600}
+  .head .more{margin-left:auto;font-size:11.5px;color:var(--dim)}
+
+  /* 存储 */
+  .gb{font-size:30px;font-weight:700;letter-spacing:.5px}
+  .gb em{font-style:normal;font-size:13px;font-weight:500;color:var(--dim);margin-left:6px}
+  .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;display:flex;margin:14px 0 12px}
+  .bar i{display:block;height:100%}
+  .legend{display:flex;flex-direction:column;gap:9px}
+  .lg{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--sub)}
+  .dot{width:7px;height:7px;border-radius:50%}
+  .lg .v{margin-left:auto;color:var(--dim)}
+
+  /* 工具行 */
+  .tool{display:flex;align-items:center;gap:12px;padding:13px 0}
+  .tool+.tool{border-top:1px solid rgba(255,255,255,.06)}
+  .tool .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+    background:rgba(143,163,204,.16);border:1px solid rgba(143,163,204,.24)}
+  .tool .ico svg{width:19px;height:19px;stroke:var(--accentInk);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .tool .t1{font-size:14px;font-weight:600}
+  .tool .t2{margin-top:2px;font-size:11.5px;color:var(--dim)}
+  .tool .chev{margin-left:auto;opacity:.45}
+  .tool .chev svg{width:16px;height:16px;stroke:var(--sub);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* 资料库 */
+  .lib{display:flex;align-items:center;gap:12px;padding:11px 0}
+  .lib+.lib{border-top:1px solid rgba(255,255,255,.06)}
+  .lib .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+    background:rgba(143,163,204,.16);border:1px solid rgba(143,163,204,.24)}
+  .lib .ico svg{width:19px;height:19px;stroke:var(--accentInk);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .lib .t1{font-size:14px;font-weight:600}
+  .lib .t2{margin-top:2px;font-size:11.5px;color:var(--dim)}
+  .lib .state{margin-left:auto;font-size:11px;color:var(--c-192);border:1px solid rgba(126,216,195,.35);
+    border-radius:999px;padding:5px 9px}
+
+  /* 最近添加：横滑 */
+  .rail{display:flex;gap:10px;overflow:hidden}
+  .cov{width:96px;flex:0 0 auto}
+  .cov .art{width:96px;height:96px;border-radius:12px;background:linear-gradient(140deg,#2A3350,#3C4767);
+    border:1px solid var(--line2)}
+  .cov .n{margin-top:7px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cov .a{margin-top:2px;font-size:10.5px;color:var(--dim)}
+
+  .foot{margin-top:16px;font-size:11px;color:var(--dim);text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar"><span>20:19</span><span>◍ ⚡ 21%</span></div>
+
+  <div class="nav">
+    <div>
+      <h1>音乐库</h1>
+      <div class="sub">本地 + 网络 · 共 1 个资料库</div>
+    </div>
+    <span class="live">◷ 听歌统计</span>
+  </div>
+
+  <!-- 四个数字 -->
+  <div class="stats">
+    <div class="stat"><b>616</b><span>歌曲</span></div>
+    <div class="stat"><b>359</b><span>艺术家</span></div>
+    <div class="stat"><b>537</b><span>专辑</span></div>
+    <div class="stat"><b>42.8</b><span>小时</span></div>
+  </div>
+
+  <!-- 四个入口 -->
+  <div class="entries">
+    <div class="entry">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      <span>全部歌曲</span>
+    </div>
+    <div class="entry">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r=".8" fill="currentColor"/></svg>
+      <span>专辑</span>
+    </div>
+    <div class="entry">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+      <span>艺术家</span>
+    </div>
+    <div class="entry">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5" rx="2"/><rect x="4" y="12" width="16" height="5" rx="2"/></svg>
+      <span>歌单</span>
+    </div>
+  </div>
+
+  <!-- 资料库 -->
+  <div class="card">
+    <div class="head"><h2>资料库</h2><span class="more">管理 ›</span></div>
+    <div class="lib">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 8.5c0-1.4 1.1-2.5 2.5-2.5h4l2 2.5h6.5c1.4 0 2.5 1.1 2.5 2.5v6.5c0 1.4-1.1 2.5-2.5 2.5h-12A2.5 2.5 0 0 1 3 17.5z"/></svg></div>
+      <div>
+        <div class="t1">本机音乐</div>
+        <div class="t2">/storage/emulated/0/Music · 616 首</div>
+      </div>
+      <span class="state">已同步</span>
+    </div>
+    <div class="lib">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="6" rx="2"/><rect x="3.5" y="13.5" width="17" height="6" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+      <div>
+        <div class="t1">Navidrome</div>
+        <div class="t2">music.example.com:4533 · 未连接</div>
+      </div>
+      <span class="state" style="color:var(--dim);border-color:var(--line)">待连接</span>
+    </div>
+  </div>
+
+  <!-- 下载与存储工具 -->
+  <div class="card">
+    <div class="head"><h2>工具</h2></div>
+    <div class="tool">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4.5 19.5h15"/></svg></div>
+      <div>
+        <div class="t1">下载管理</div>
+        <div class="t2">12 个离线任务 · 占用 1.2 GB · 下载目录 /Music/Downloads</div>
+      </div>
+      <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+    </div>
+    <div class="tool">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 8h16M9.5 8V5.5h5V8M6.5 8l1 11h9l1-11"/></svg></div>
+      <div>
+        <div class="t1">缓存清理</div>
+        <div class="t2">封面 / 歌词 / 解码缓存 · 1.8 GB</div>
+      </div>
+      <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+    </div>
+  </div>
+
+  <!-- 存储 -->
+  <div class="card">
+    <div class="head"><h2>存储占用</h2><span class="more">按音质分布</span></div>
+    <div class="gb">46.3 GB <em>音乐文件总大小</em></div>
+    <div class="bar">
+      <i style="width:100%;background:var(--c-320)"></i>
+    </div>
+    <div class="legend">
+      <div class="lg"><i class="dot" style="background:var(--c-320)"></i>320 kbps<span class="v">46.3 GB · 603 首</span></div>
+      <div class="lg"><i class="dot" style="background:var(--c-192)"></i>192 kbps<span class="v">5.4 MB · 9 首</span></div>
+      <div class="lg"><i class="dot" style="background:var(--c-128)"></i>128 kbps<span class="v">8.0 MB · 4 首</span></div>
+    </div>
+  </div>
+
+  <!-- 最近添加 -->
+  <div class="card">
+    <div class="head"><h2>最近添加</h2><span class="more">全部 ›</span></div>
+    <div class="rail">
+      <div class="cov"><div class="art"></div><div class="n">11 月的萧邦</div><div class="a">周杰伦</div></div>
+      <div class="cov"><div class="art"></div><div class="n">16 未成年</div><div class="a">群星</div></div>
+      <div class="cov"><div class="art"></div><div class="n">1st 星球</div><div class="a">未知艺术家</div></div>
+      <div class="cov"><div class="art"></div><div class="n">幼鸟指南</div><div class="a">裘德</div></div>
+    </div>
+  </div>
+
+  <div class="foot">本页只有墨色 + 冷灰蓝一组强调色；卡片 22dp 圆角、玻璃面 7.5% 白 + 22px 模糊</div>
+</div>
+</body>
+</html>
