@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
@@ -227,6 +228,36 @@ fun AboutScreen(
             }
         }
 
+        // ── 打赏卡：微信 / 支付宝收款码并排（2026-11-10 用户提供的收款页截图）
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .glassCard(palette = palette, corner = 22)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.about_reward_title),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(palette.textPrimary),
+            )
+            Text(
+                text = stringResource(R.string.about_reward_hint),
+                fontSize = 11.5.sp,
+                color = Color(palette.textSecondary),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                RewardQr(R.drawable.reward_wechat, Modifier.weight(1f))
+                RewardQr(R.drawable.reward_alipay, Modifier.weight(1f))
+            }
+        }
+
         Text(
             text = AboutViewModel.copyright(),
             fontSize = 11.sp,
@@ -312,5 +343,23 @@ private fun AboutHairline(palette: com.catclaw.music.kt.core.theme.CatClawPalett
             .padding(start = 16.dp)
             .height(0.5.dp)
             .background(Color(palette.textSecondary).copy(alpha = 0.14f)),
+    )
+}
+
+/**
+ * 打赏收款码：白底衬一层再圆角裁切 —— 收款页截图本身是白底，压在玻璃卡上需要这层白，
+ * 否则二维码的静区被玻璃染暗，扫码识别率会掉。两张统一 196dp 高，并排时底边齐。
+ */
+@Composable
+private fun RewardQr(iconRes: Int, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(iconRes),
+        contentDescription = null,
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        modifier = modifier
+            .height(196.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .padding(6.dp),
     )
 }

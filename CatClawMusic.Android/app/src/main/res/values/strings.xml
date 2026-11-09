@@ -180,6 +180,8 @@
     <string name="perm_notification_desc">显示播放控制通知所需（Android 13+）</string>
     <string name="about_tagline">一只会放音乐的猫爪喵——本地、私域、在线，都给你安排好啦</string>
     <string name="about_edition">Kotlin 原生版</string>
+    <string name="about_reward_title">打赏作者</string>
+    <string name="about_reward_hint">如果猫爪陪到过你，请作者喝杯咖啡</string>
     <string name="about_license">开源协议</string>
     <string name="about_version">版本</string>
     <string name="about_package">包名</string>

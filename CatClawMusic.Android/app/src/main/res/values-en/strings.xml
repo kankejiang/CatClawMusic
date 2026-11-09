@@ -180,6 +180,8 @@
     <string name="perm_notification_desc">Needed for the playback control notification (Android 13+)</string>
     <string name="about_tagline">A cat paw that plays music — local, private and online, all sorted for you.</string>
     <string name="about_edition">Kotlin native edition</string>
+    <string name="about_reward_title">Support the author</string>
+    <string name="about_reward_hint">If CatClaw kept you company, buy the author a coffee</string>
     <string name="about_license">Licenses</string>
     <string name="about_version">Version</string>
     <string name="about_package">Package</string>
