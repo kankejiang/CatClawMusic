@@ -155,25 +155,28 @@ private fun CollectionLandscape(
                 .padding(start = 18.dp, end = 14.dp, top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            // 返回 + 真实封面（专辑/歌单）；统计列表页（全部歌曲/收藏/最近）没有封面，
-            // 不再画「标题首字」的占位方块 —— 用户明确要求去掉
+            // 返回 + 动作图标（▶ / 🔀）同一条顶栏；真实封面（专辑/歌单）跟在后面。
+            // 注意 actions 与 trailing 不会同时出现：带 trailing 的艺人/专辑网格页没有 songRows，
+            // 所以这条 208dp 的顶栏不会挤爆。
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+                actions.forEach { action ->
+                    IconAction(action, primary, secondary)
+                }
+                Spacer(Modifier.weight(1f))
+                trailing()
+            }
+            // 标题行：专辑/歌单详情把 52dp 封面放在标题左侧（顶栏塞不下 3 个动作 + 封面）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-                cover?.let { CollectionCoverTile(it, 60.dp) }
-                Spacer(Modifier.weight(1f))
-                trailing()
-            }
-            // 标题行右侧放动作图标（▶ / 🔀 / ＋）：原来动作独占一行，
-            // 信息列被挤到 353dp、排序 chips 落到迷你条下面（真机 y=1391 扫不到）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+                cover?.let { CollectionCoverTile(it, 52.dp) }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
@@ -191,9 +194,6 @@ private fun CollectionLandscape(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                actions.forEach { action ->
-                    IconAction(action, primary, secondary)
                 }
             }
             search?.let {
