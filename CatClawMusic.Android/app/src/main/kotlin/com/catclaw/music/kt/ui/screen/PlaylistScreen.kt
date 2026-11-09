@@ -63,6 +63,12 @@ import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.song.SongBelongs
 import com.catclaw.music.kt.ui.song.SongDetailScreen
+import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.ui.song.CollectionAction
+import com.catclaw.music.kt.ui.song.CollectionChip
+import com.catclaw.music.kt.ui.song.CollectionCover
+import com.catclaw.music.kt.ui.song.CollectionSearch
+import com.catclaw.music.kt.ui.song.SongCollectionScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.SongMenuFor
 import com.catclaw.music.kt.ui.song.SongMenuTarget
@@ -206,18 +212,60 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             primary = primary,
             secondary = secondary,
         )
-    } else if (landscape) {
-        // 详情层横屏同样不能用竖屏那四行控制条（真机截图里歌曲列表只剩一条缝）
+    } else if (open != null) {
+        // 歌单详情横竖屏共用同一份骨架：头图 + 三颗动作 + 五档排序 + 搜索 + 歌曲列表。
+        // 横屏由 SongCollectionScreen 压成两行，竖屏仍是纵向堆叠。
         open?.let { playlist ->
-            LandscapePlaylistDetail(
-                playlist = playlist,
-                cover = covers[playlist.id],
-                viewModel = viewModel,
+            SongCollectionScreen(
+                title = playlist.name,
+                countText = stringResource(R.string.playlist_count, shown.size),
                 onBack = { viewModel.close() },
-                onOpenMenu = { rowMenu = it },
-                primary = primary,
-                secondary = secondary,
-            )
+                cover = CollectionCover(
+                    coverArtPath = covers[playlist.id]?.coverArtPath,
+                    audioPath = covers[playlist.id]?.filePath,
+                    fallback = playlist.name,
+                ),
+                actions = listOf(
+                    CollectionAction(
+                        label = stringResource(R.string.playlist_play_all),
+                        primary = true,
+                        onClick = { viewModel.playAll() },
+                    ),
+                    CollectionAction(
+                        label = stringResource(R.string.shuffle_play),
+                        onClick = { viewModel.playAllShuffled() },
+                    ),
+                    CollectionAction(
+                        label = stringResource(R.string.playlist_add_current),
+                        onClick = { viewModel.addCurrentSong() },
+                    ),
+                ),
+                chipGroups = listOf(
+                    SongSortKey.entries.map { mode ->
+                        CollectionChip(
+                            label = stringResource(sortLabelRes(mode)) +
+                                if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
+                            selected = itemSort == mode,
+                            onClick = { viewModel.setItemSort(mode) },
+                        )
+                    },
+                ),
+                search = CollectionSearch(
+                    itemQuery,
+                    stringResource(R.string.playlist_search_hint),
+                    viewModel::setItemQuery,
+                ),
+            ) {
+                PlaylistSongRows(
+                    rows = shown,
+                    query = itemQuery,
+                    compact = landscape,
+                    primary = primary,
+                    secondary = secondary,
+                    onPlay = { viewModel.playAt(it) },
+                    onOpenMenu = { rowMenu = it },
+                )
+            }
         }
     } else {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
@@ -348,153 +396,6 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 onCommitOrder = { viewModel.commitPlaylistOrder(it) },
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
-            // 详情层：返回块 + 封面 + 标题 + 计数（头图对应 MAUI `PlaylistDetailPage.xaml:117`）
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BackTile(onBack = { viewModel.close() }, description = stringResource(R.string.GoBack))
-                val openCover = covers[open.id]
-                CoverTile(
-                    coverArtPath = openCover?.coverArtPath,
-                    audioPath = openCover?.filePath,
-                    maxPx = 128,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(palette.primary).copy(alpha = 0.22f)),
-                ) {
-                    Text(text = open.name.take(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = open.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(text = stringResource(R.string.playlist_count, shown.size), fontSize = 12.sp, color = secondary)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                // 三个动作并排，窄屏（360dp）放不下，横向可滚而不是把最后一个裁掉
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(palette.primary))
-                        .clickable { viewModel.playAll() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_play),
-                        contentDescription = null,
-                        tint = Color(inkOn(palette.primary)),
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(stringResource(R.string.playlist_play_all), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(inkOn(palette.primary)))
-                }
-                // MAUI 的歌单详情就是这两个播放动作：整张表顺序播 / 随机播
-                Text(
-                    text = stringResource(R.string.shuffle_play),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = secondary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(16.dp))
-                        .clickable { viewModel.playAllShuffled() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                )
-                Text(
-                    text = stringResource(R.string.playlist_add_current),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = secondary,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), RoundedCornerShape(16.dp))
-                        .clickable { viewModel.addCurrentSong() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            // 搜索与排序（MAUI PlaylistDetailPage 顶部那两条）。规则与全部歌曲页同一条，
-            // 所以这里也摆五档 —— 少摆一档会让两个页面对"同一份列表"给出不同顺序
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 与上面那三个动作同一条横滑轨道：英文 locale 下五颗 chip 会比屏幕宽，
-                    // 首尾那颗不该贴到屏幕边缘，所以内边距在滚动外面
-                    .padding(vertical = 4.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SongSortKey.entries.forEach { mode ->
-                    GlassChip(
-                        // 活动那档带方向箭头：点它就是翻方向（与全部歌曲页同一套交互）
-                        label = stringResource(sortLabelRes(mode)) +
-                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
-                        selected = itemSort == mode,
-                        onClick = { viewModel.setItemSort(mode) },
-                    )
-                }
-            }
-            GlassSearchField(
-                query = itemQuery,
-                onChange = viewModel::setItemQuery,
-                placeholder = stringResource(R.string.playlist_search_hint),
-                modifier = Modifier.padding(vertical = 6.dp),
-            )
-            if (shown.isEmpty()) {
-                EmptyState(
-                    hint = if (itemQuery.isBlank()) {
-                        stringResource(R.string.playlist_empty)
-                    } else {
-                        // 搜出来是空不能说"这个歌单还没有歌"——那是两件事
-                        stringResource(R.string.search_none, itemQuery.trim())
-                    },
-                    iconRes = R.drawable.ic_add,
-                )
-            }
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                items(shown, key = { it.id }) { song ->
-                    val index = shown.indexOf(song)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .combinedClickable(
-                                onClick = { viewModel.playAt(index) },
-                                onLongClick = {
-                                    rowMenu = SongMenuTarget(
-                                        id = song.id,
-                                        title = song.title,
-                                        subtitle = songMenuSubtitle(song.artist, song.album),
-                                        song = song.toSong(),
-                                    )
-                                },
-                            )
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CoverTile(
-                            coverArtPath = song.coverArtPath,
-                            audioPath = song.filePath,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                        ) {
-                            Text(text = (index + 1).toString(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = secondary)
-                        }
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(text = song.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(text = song.artist.orEmpty(), fontSize = 12.sp, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
         }
     }
     } // else：竖屏 Column / 横屏详情层
@@ -721,37 +622,18 @@ private fun PlaylistEntryScreen(
     onOpenDetail: (Int) -> Unit,
     onOpenBelongs: ((SongBelongs) -> Unit)?,
 ) {
-    val palette = LocalCatClawPalette.current
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val isFavorites = kind == PlaylistEntry.Favorites
     val rows = if (isFavorites) favorites else recent
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(
-                        if (isFavorites) R.string.playlist_entry_favorites else R.string.playlist_entry_recent,
-                    ),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.playlist_count, rows.size),
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary),
-                )
-            }
-        }
+    SongCollectionScreen(
+        title = stringResource(
+            if (isFavorites) R.string.playlist_entry_favorites else R.string.playlist_entry_recent,
+        ),
+        countText = stringResource(R.string.playlist_count, rows.size),
+        onBack = onBack,
+    ) {
         SongList(
             rows = rows,
             subtitleOf = { it.artist },
@@ -1265,200 +1147,95 @@ private fun PlaylistRows(
 }
 
 /**
- * 歌单详情横屏版：竖屏是「返回行 + 三个动作 + 五档排序 + 搜索框」四条控制行，
- * 411dp 的画布堆完就只剩一条缝给歌曲列表（真机截图确认）。这里压成
- * 「头部一行（含三颗动作）+ 搜索/排序一行」，其余高度全给列表。
+ * 歌单详情的歌曲行：横竖屏共用一份，长按菜单由页面托管（菜单里带「从歌单移除」）。
+ * 只有行高按 compact 收一档 —— 横屏 411dp 的画布要尽量多露几行。
  */
 @Composable
-private fun LandscapePlaylistDetail(
-    playlist: PlaylistEntity,
-    cover: PlaylistCover?,
-    viewModel: PlaylistViewModel,
-    onBack: () -> Unit,
-    onOpenMenu: (SongMenuTarget) -> Unit,
+private fun PlaylistSongRows(
+    rows: List<SongListItem>,
+    query: String,
+    compact: Boolean,
     primary: Color,
     secondary: Color,
+    onPlay: (Int) -> Unit,
+    onOpenMenu: (SongMenuTarget) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
-    val shown by viewModel.displayItems.collectAsStateWithLifecycle()
-    val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
-    val itemSortDescending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
-    val itemQuery by viewModel.itemQuery.collectAsStateWithLifecycle()
-
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-            CoverTile(
-                coverArtPath = cover?.coverArtPath,
-                audioPath = cover?.filePath,
-                maxPx = 128,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(palette.primary).copy(alpha = 0.22f)),
-            ) {
-                Text(playlist.name.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = primary)
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = playlist.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.playlist_count, shown.size),
-                    fontSize = 10.5.sp,
-                    color = secondary,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color(palette.primary))
-                    .clickable { viewModel.playAll() }
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.playlist_play_all),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(inkOn(palette.primary)),
-                )
-            }
-            DetailAction(stringResource(R.string.shuffle_play), secondary) { viewModel.playAllShuffled() }
-            DetailAction(stringResource(R.string.playlist_add_current), secondary) { viewModel.addCurrentSong() }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            GlassSearchField(
-                query = itemQuery,
-                onChange = viewModel::setItemQuery,
-                placeholder = stringResource(R.string.playlist_search_hint),
-                modifier = Modifier.weight(1f),
-            )
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SongSortKey.entries.forEach { mode ->
-                    GlassChip(
-                        label = stringResource(sortLabelRes(mode)) +
-                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
-                        selected = itemSort == mode,
-                        onClick = { viewModel.setItemSort(mode) },
-                    )
-                }
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(bottom = PlaylistChromeReserve),
-        ) {
-            if (shown.isEmpty()) {
-                item("empty") {
-                    EmptyState(
-                        hint = if (itemQuery.isBlank()) {
-                            stringResource(R.string.playlist_empty)
-                        } else {
-                            stringResource(R.string.search_none, itemQuery.trim())
-                        },
-                        iconRes = R.drawable.ic_add,
-                    )
-                }
+    if (rows.isEmpty()) {
+        EmptyState(
+            hint = if (query.isBlank()) {
+                stringResource(R.string.playlist_empty)
             } else {
-                items(shown, key = { it.id }) { song ->
-                    val index = shown.indexOf(song)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .combinedClickable(
-                                onClick = { viewModel.playAt(index) },
-                                onLongClick = {
-                                    onOpenMenu(
-                                        SongMenuTarget(
-                                            id = song.id,
-                                            title = song.title,
-                                            subtitle = songMenuSubtitle(song.artist, song.album),
-                                            song = song.toSong(),
-                                        ),
-                                    )
-                                },
+                stringResource(R.string.search_none, query.trim())
+            },
+            iconRes = R.drawable.ic_add,
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = if (compact) 80.dp else 96.dp),
+    ) {
+        items(rows, key = { it.id }) { song ->
+            val index = rows.indexOf(song)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = if (compact) 2.dp else 4.dp)
+                    .clip(RoundedCornerShape(if (compact) 14.dp else 18.dp))
+                    .combinedClickable(
+                        onClick = { onPlay(index) },
+                        onLongClick = {
+                            onOpenMenu(
+                                SongMenuTarget(
+                                    id = song.id,
+                                    title = song.title,
+                                    subtitle = songMenuSubtitle(song.artist, song.album),
+                                    song = song.toSong(),
+                                ),
                             )
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        CoverTile(
-                            coverArtPath = song.coverArtPath,
-                            audioPath = song.filePath,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                        ) {
-                            Text(
-                                text = (index + 1).toString(),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = secondary,
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = song.artist.orEmpty(),
-                                fontSize = 10.5.sp,
-                                color = secondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
+                        },
+                    )
+                    .padding(
+                        horizontal = if (compact) 10.dp else 12.dp,
+                        vertical = if (compact) 5.dp else 10.dp,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
+            ) {
+                CoverTile(
+                    coverArtPath = song.coverArtPath,
+                    audioPath = song.filePath,
+                    modifier = Modifier
+                        .size(if (compact) 36.dp else 40.dp)
+                        .clip(RoundedCornerShape(if (compact) 10.dp else 12.dp))
+                        .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
+                ) {
+                    Text(
+                        text = (index + 1).toString(),
+                        fontSize = if (compact) 12.sp else 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = secondary,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = song.title,
+                        fontSize = if (compact) 13.sp else 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = song.artist.orEmpty(),
+                        fontSize = if (compact) 10.5.sp else 12.sp,
+                        color = secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
     }
-}
-
-/** 详情横屏头部那两颗次要动作胶囊 */
-@Composable
-private fun DetailAction(label: String, ink: Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(999.dp)
-    Text(
-        text = label,
-        fontSize = 12.sp,
-        color = ink,
-        maxLines = 1,
-        modifier = Modifier
-            .clip(shape)
-            .border(1.dp, ink.copy(alpha = 0.16f), shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 9.dp),
-    )
 }

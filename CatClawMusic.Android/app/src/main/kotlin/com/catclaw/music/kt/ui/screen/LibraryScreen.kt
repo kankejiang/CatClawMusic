@@ -81,6 +81,11 @@ import com.catclaw.music.kt.ui.song.SongBelongs
 import com.catclaw.music.kt.ui.song.SongBelongsKind
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.song.SongDetailScreen
+import com.catclaw.music.kt.ui.song.CollectionAction
+import com.catclaw.music.kt.ui.song.CollectionChip
+import com.catclaw.music.kt.ui.song.CollectionCover
+import com.catclaw.music.kt.ui.song.CollectionSearch
+import com.catclaw.music.kt.ui.song.SongCollectionScreen
 import com.catclaw.music.kt.ui.song.SongList
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.library.LibraryViewModel
@@ -889,115 +894,75 @@ fun LibraryListScreen(
         else -> stringResource(R.string.playlist_count, count)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = countText,
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary),
-                )
-            }
-            // 宫格 / 列表切换只给这两张页：歌曲类页面的行是「序号 + 标题 + 歌手」，
-            // 摊成宫格反而每个格子只能放下一行字（MAUI 也只在这两张页上给了这对按钮）
-            when (kind) {
-                LibraryKind.Artists -> ViewModeToggle(grid = artistsGrid) { artistsGrid = it }
-                LibraryKind.Albums -> ViewModeToggle(grid = albumsGrid) { albumsGrid = it }
-                else -> Unit
-            }
-            songRows?.let { rows ->
-                PillLabel(
-                    text = stringResource(R.string.playlist_play_all),
+    // 筛选 / 排序 / 搜索按 kind 配好交给通用二级页；横屏会合并成一条横滚轨道，
+    // 竖屏仍按组各占一行，行为与原来逐页堆的版本一致。
+    val sourceChips = if (kind == LibraryKind.Songs) {
+        SongSourceFilter.entries.map { mode ->
+            CollectionChip(
+                label = stringResource(sourceFilterLabelRes(mode)),
+                selected = songSource == mode,
+                onClick = { viewModel.setSongSource(mode) },
+            )
+        }
+    } else emptyList()
+    val sortChips = if (kind == LibraryKind.Songs) {
+        SongSortKey.entries.map { mode ->
+            CollectionChip(
+                label = stringResource(sortLabelRes(mode)) +
+                    if (sort == mode) (if (sortDescending) " ↓" else " ↑") else "",
+                selected = sort == mode,
+                onClick = { viewModel.setSongSort(mode) },
+            )
+        }
+    } else emptyList()
+    val collectionSearch = when (kind) {
+        LibraryKind.Songs -> CollectionSearch(
+            query, stringResource(R.string.library_search_hint), viewModel::setSongQuery,
+        )
+        LibraryKind.Artists -> CollectionSearch(
+            infoQuery, stringResource(R.string.library_search_artist_hint), viewModel::setInfoQuery,
+        )
+        LibraryKind.Albums -> CollectionSearch(
+            infoQuery, stringResource(R.string.library_search_album_hint), viewModel::setInfoQuery,
+        )
+        else -> null
+    }
+
+    SongCollectionScreen(
+        title = title,
+        countText = countText,
+        onBack = onBack,
+        actions = songRows?.let { rows ->
+            listOf(
+                CollectionAction(
+                    label = stringResource(R.string.playlist_play_all),
+                    primary = true,
                     onClick = {
-                        // 「播放全部」就是"从这份可见列表的第一首开始顺序播"，与点第一行同一条路
                         when (kind) {
                             LibraryKind.Favorites -> viewModel.playFavoriteAt(0)
                             else -> viewModel.playRows(rows, 0)
                         }
                     },
-                    filled = false,
-                )
-                PillLabel(
-                    text = stringResource(R.string.shuffle_play),
-                    onClick = { viewModel.playShuffled(rows) },
-                    filled = false,
-                )
-            }
-        }
-
-        // 全部歌曲页的搜索与排序（MAUI AllSongsPage 顶部那两条）。
-        // 只对歌曲这一类开：艺人/专辑页的行是名字列表，按"标题/时长"排没有意义
-        if (kind == LibraryKind.Songs) {
-            // 来源筛选：MAUI `AllSongsPage` 的本地/网络/全部三档（`SourceFilterControl`）。
-            // 此前这张页只读 Source = 0，「网络」曲目在库列表里根本看不见 ——
-            // 从远程来源页导进来的歌只能回那一页找
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SongSourceFilter.entries.forEach { mode ->
-                    GlassChip(
-                        label = stringResource(sourceFilterLabelRes(mode)),
-                        selected = songSource == mode,
-                        onClick = { viewModel.setSongSource(mode) },
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    // 内边距在滚动**外面**：英文 locale 下四颗 chip 会比屏幕宽，横滑时首尾那颗
-                    // 不该贴到屏幕边缘（先 padding 再 horizontalScroll 才是"带边距的窗口"）
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SongSortKey.entries.forEach { mode ->
-                    GlassChip(
-                        // 活动那档带方向箭头（箭头是符号，不进翻译表）：点它就是翻方向，
-                        // 与 C# `ToggleSort` 的交互一致，只是这边真的会翻
-                        label = stringResource(sortLabelRes(mode)) +
-                            if (sort == mode) (if (sortDescending) " ↓" else " ↑") else "",
-                        selected = sort == mode,
-                        onClick = { viewModel.setSongSort(mode) },
-                    )
-                }
-            }
-            GlassSearchField(
-                query = query,
-                onChange = viewModel::setSongQuery,
-                placeholder = stringResource(R.string.library_search_hint),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
-        }
-        // 艺人 / 专辑页的搜索（MAUI 那两张页顶部也有）。没有排序档：
-        // 这两页的行是名字列表，DAO 已经按名字升序给出来，再摆四颗排不动的 chip 就是假控件
-        if (kind == LibraryKind.Artists || kind == LibraryKind.Albums) {
-            GlassSearchField(
-                query = infoQuery,
-                onChange = viewModel::setInfoQuery,
-                placeholder = stringResource(
-                    if (kind == LibraryKind.Artists) R.string.library_search_artist_hint else R.string.library_search_album_hint,
                 ),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                CollectionAction(
+                    label = stringResource(R.string.shuffle_play),
+                    onClick = { viewModel.playShuffled(rows) },
+                ),
             )
-        }
-
+        } ?: emptyList(),
+        chipGroups = listOfNotNull(
+            sourceChips.takeIf { it.isNotEmpty() },
+            sortChips.takeIf { it.isNotEmpty() },
+        ),
+        search = collectionSearch,
+        trailing = {
+            when (kind) {
+                LibraryKind.Artists -> ViewModeToggle(grid = artistsGrid) { artistsGrid = it }
+                LibraryKind.Albums -> ViewModeToggle(grid = albumsGrid) { albumsGrid = it }
+                else -> Unit
+            }
+        },
+    ) {
         when (kind) {
             LibraryKind.Songs -> SongList(
                 displayAll, subtitleOf = { it.artist }, menu = menu,
@@ -1062,6 +1027,7 @@ fun LibraryListScreen(
             )
         }
     }
+
 }
 
 /**
@@ -1100,111 +1066,55 @@ internal fun LibraryDetailScreen(
     // 「＋ 添加到」的选择弹层。跟着 detail 重置：换了一张专辑不该还开着上一张的框
     var addToPlaylistOpen by remember(detail) { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-            // 专辑头图 —— 对应 MAUI `AlbumDetailPage.xaml:13-65` 的 HeroCard（72dp 封面 + 专辑名/歌手/年份）。
-            // 取不到封面就退回专辑首字（CoverTile 的 fallback），不是空框
-            val head = albumHeader
-            if (head != null) {
-                CoverTile(
-                    coverArtPath = head.coverArtPath,
-                    audioPath = head.sampleFilePath,
-                    maxPx = 256,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(palette.primary).copy(alpha = 0.22f)),
-                ) {
-                    Text(
-                        text = detail.name.take(1),
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textPrimary),
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = detail.name,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (head != null && head.artist.isNotBlank()) {
-                    Text(
-                        text = head.artist,
-                        fontSize = 13.sp,
-                        color = Color(palette.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                // 年份 0 表示库里没有这一列的值：不画，而不是显示一个 0（MAUI 那张卡同样留空）
-                if (head != null && head.year > 0) {
-                    Text(text = head.year.toString(), fontSize = 12.sp, color = Color(palette.textSecondary))
-                }
-                Text(
-                    text = stringResource(R.string.playlist_count, loaded.size),
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary),
-                )
-            }
-        }
-        // 整张播 / 随机播 / 加进歌单：单开一行（MAUI 的 HeroCard 里这几颗也在标题下面另起一行）。
-        // 挤在页头那一行里、再加上封面之后，窄屏会把标题压成两个字
-        if (loaded.isNotEmpty() && !(byArtist && albumTab)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                // 粒子与全部歌曲页同一套文案、同一条路径（播的就是屏幕上这份 loaded）
-                PillLabel(
-                    text = stringResource(R.string.playlist_play_all),
+    val head = albumHeader
+    val subtitle = listOfNotNull(
+        head?.artist?.takeIf { it.isNotBlank() },
+        head?.year?.takeIf { it > 0 }?.toString(),
+    ).joinToString(" · ").takeIf { it.isNotBlank() }
+
+    SongCollectionScreen(
+        title = detail.name,
+        countText = stringResource(R.string.playlist_count, loaded.size),
+        subtitle = subtitle,
+        onBack = onBack,
+        cover = head?.let { CollectionCover(it.coverArtPath, it.sampleFilePath, detail.name) },
+        actions = if (loaded.isNotEmpty() && !(byArtist && albumTab)) {
+            listOfNotNull(
+                CollectionAction(
+                    label = stringResource(R.string.playlist_play_all),
+                    primary = true,
                     onClick = { viewModel.playRows(loaded, 0) },
-                    filled = false,
-                )
-                PillLabel(
-                    text = stringResource(R.string.shuffle_play),
+                ),
+                CollectionAction(
+                    label = stringResource(R.string.shuffle_play),
                     onClick = { viewModel.playShuffled(loaded) },
-                    filled = false,
-                )
-                // 只有专辑页给这一颗：艺人页那份列表是「这个人名下的歌」、跨专辑，
-                // 与 MAUI HeroCard 上那颗按钮的语义不是一回事
+                ),
+                // 艺人页那份列表跨专辑，没有「整张加进歌单」的语义
                 if (!byArtist) {
-                    PillLabel(
-                        text = stringResource(R.string.song_menu_add_to_playlist),
+                    CollectionAction(
+                        label = stringResource(R.string.song_menu_add_to_playlist),
                         onClick = { addToPlaylistOpen = true },
-                        filled = false,
                     )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-        if (byArtist) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                GlassChip(
-                    label = stringResource(R.string.disc_cat_album),
-                    selected = albumTab,
-                    onClick = { albumTab = true },
-                )
-                GlassChip(
-                    label = stringResource(R.string.TabSongs),
-                    selected = !albumTab,
-                    onClick = { albumTab = false },
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-        }
+                } else null,
+            )
+        } else emptyList(),
+        chipGroups = if (byArtist) {
+            listOf(
+                listOf(
+                    CollectionChip(
+                        label = stringResource(R.string.disc_cat_album),
+                        selected = albumTab,
+                        onClick = { albumTab = true },
+                    ),
+                    CollectionChip(
+                        label = stringResource(R.string.TabSongs),
+                        selected = !albumTab,
+                        onClick = { albumTab = false },
+                    ),
+                ),
+            )
+        } else emptyList(),
+    ) {
         if (byArtist && albumTab) {
             val list = artistAlbums.orEmpty()
             InfoList(

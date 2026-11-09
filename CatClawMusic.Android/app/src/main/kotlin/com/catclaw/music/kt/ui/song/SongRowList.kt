@@ -21,8 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.content.res.Configuration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -115,6 +117,9 @@ fun SongList(
     onPlay: (Int) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
+    // 横屏二级页只有 ~150dp 给列表，行按 68dp 排只能露两首。SongList 只被这类
+    // 统计/详情二级页调用，所以横屏统一收一档（封面 36、行距 4、内边距 6）。
+    val compact = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var target by remember { mutableStateOf<SongMenuTarget?>(null) }
     if (rows.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
@@ -124,26 +129,26 @@ fun SongList(
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = if (compact) 80.dp else 100.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
     ) {
         itemsIndexed(rows) { index, row ->
             val subtitle = subtitleOf(row)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .glassCard(palette = palette, corner = 22)
+                    .glassCard(palette = palette, corner = if (compact) 18 else 22)
                     .combinedClickable(
                         onClick = { onPlay(index) },
                         onLongClick = { target = SongMenuTarget(row.id, row.title, subtitle, row.toSong()) },
                     )
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = if (compact) 6.dp else 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(if (compact) 36.dp else 40.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(
                             if (row.id in menu.favoriteIds) Color(palette.primary).copy(alpha = 0.55f)
