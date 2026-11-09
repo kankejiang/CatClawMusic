@@ -130,15 +130,8 @@ fun SettingsScreen(
 
     val heroContent: @Composable () -> Unit = {
         if (landscape) {
-            // 横屏只留返回键：渐变卡、标题、副标题、深浅切换全部去掉（页面身份由左侧栏承担）
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-            }
+            // 横屏内嵌在发现页里：导航靠左侧栏，返回键也由侧栏承担 —— 这里只留一点顶部留白
+            Spacer(Modifier.height(8.dp))
         } else {
             // HeroCard：照 MAUI `SettingsPage.xaml` —— 渐变卡 + 左上返回 + 标题/副标题 + 右上深浅色切换
             Row(
