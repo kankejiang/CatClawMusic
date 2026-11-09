@@ -531,6 +531,9 @@ private fun TabsHost(
                         .fillMaxSize()
                         // 自己铺一层主题背景：否则设置会直接叠在发现页文案上（真机第一版就是「发现」和「设置」两层字）
                         .catClawBackground()
+                        // 全屏路由的 ThemedSurface 带 statusBarsPadding，内嵌这层原来漏了：
+                        // 子页的返回键会压进状态栏（真机 y=77..161px，状态栏 84px）
+                        .statusBarsPadding()
                         .padding(start = if (railVisible) sideRailWidth + 12.dp else 0.dp),
                 ) {
                     SettingsScreen(
