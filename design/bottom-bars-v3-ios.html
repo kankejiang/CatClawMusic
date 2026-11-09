@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>猫爪音乐 · 底栏与迷你播放器 · iOS 语言精修</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  /* iOS 系统色（Dark） */
+  :root{
+    --label:#FFFFFF;
+    --label2:rgba(235,235,245,.60);
+    --label3:rgba(235,235,245,.30);
+    --separator:rgba(84,84,88,.65);      /* iOS separator（固定色，不是白α） */
+    --fill:rgba(120,120,128,.20);        /* systemFill */
+    --fill2:rgba(120,120,128,.32);
+    --tint:#FF8FB8;                      /* 仅用于强调 */
+  }
+  body{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;gap:76px;flex-wrap:wrap;
+    background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","HarmonyOS Sans SC","PingFang SC",system-ui,sans-serif;
+    color:var(--label);padding:56px 32px;
+  }
+
+  /* ══ 手机 ══ */
+  .phone{position:relative;width:390px;height:844px;border-radius:56px;background:#000;padding:11px;flex:none;
+    box-shadow:0 0 0 1px rgba(255,255,255,.10),0 60px 120px -30px rgba(0,0,0,1),inset 0 0 0 2px #1c1c1e}
+  .screen{position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;background:#000;isolation:isolate}
+
+  /* 内容：iOS 大标题 + 分组列表 */
+  .content{position:absolute;inset:0;padding:58px 16px 0}
+  .bigtitle{font-size:34px;font-weight:700;letter-spacing:-.9px;margin:0 4px 2px}
+  .subtitle{font-size:13px;color:var(--label2);letter-spacing:-.08px;margin:0 4px 18px}
+  .group{background:rgba(118,118,128,.16);border-radius:12px;overflow:hidden}
+  .cell{display:flex;align-items:center;gap:12px;padding:9px 12px;position:relative}
+  .cell+.cell::before{content:"";position:absolute;left:58px;right:0;top:0;height:.5px;background:var(--separator)}
+  .cell .art{width:46px;height:46px;border-radius:6px;flex:none}
+  .cell .t{font-size:16px;letter-spacing:-.31px;font-weight:400}
+  .cell .s{font-size:13px;color:var(--label2);letter-spacing:-.08px;margin-top:2px}
+  .cell .dur{font-size:13px;color:var(--label2);margin-left:auto;font-variant-numeric:tabular-nums}
+
+  /* ══ 底部两栏（保持现有结构：整条贴底） ══ */
+  .bottom{position:absolute;left:0;right:0;bottom:0}
+
+  /* 迷你播放器 —— iOS Music 的 Now Playing 条 */
+  .mini{
+    position:relative;height:64px;display:flex;align-items:center;gap:12px;padding:0 16px;
+    background:rgba(28,28,30,.72);
+    backdrop-filter:blur(48px) saturate(190%);-webkit-backdrop-filter:blur(48px) saturate(190%);
+    /* 顶部分隔线：iOS 用 0.5px 的发丝线，不是投影 */
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.10);
+  }
+  .mini .art{width:44px;height:44px;border-radius:6px;flex:none;
+    background:radial-gradient(circle at 32% 26%,#ffe3d2 0%,#e8a48d 38%,#9c5560 72%,#331d26 100%)}
+  .mini .txt{min-width:0;flex:1}
+  .mini .t{font-size:15px;font-weight:600;letter-spacing:-.24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .s{font-size:13px;color:var(--label2);letter-spacing:-.08px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .ctrl{display:flex;align-items:center;gap:22px}
+  .mini .ctrl svg{width:24px;height:24px;display:block;color:var(--label)}
+  /* 迷你条底部的进度线：iOS Music 就是贴着底边的一条 2px 白线 */
+  .mini .prog{position:absolute;left:0;bottom:0;height:2px;width:38%;background:rgba(255,255,255,.86)}
+  .mini .track{position:absolute;left:0;bottom:0;right:0;height:2px;background:rgba(255,255,255,.14)}
+
+  /* 底栏 —— iOS Tab Bar：49pt、图标24/文字10、只染选中项 */
+  .tabbar{
+    height:83px;padding-top:8px;display:flex;align-items:flex-start;
+    background:rgba(22,22,24,.78);
+    backdrop-filter:blur(48px) saturate(190%);-webkit-backdrop-filter:blur(48px) saturate(190%);
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.10);
+  }
+  .item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(235,235,245,.42)}
+  .item svg{width:25px;height:25px;display:block}
+  .item span{font-size:10px;letter-spacing:.01em;font-weight:500}
+  .item.on{color:var(--tint)}
+  /* Home indicator */
+  .home{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.85)}
+
+  /* ══ 说明 ══ */
+  .notes{width:360px;color:rgba(255,255,255,.62);font-size:13.5px;line-height:1.85}
+  .notes h1{font-size:31px;font-weight:700;letter-spacing:-.7px;color:#fff;margin-bottom:8px}
+  .notes .lead{color:rgba(255,255,255,.66);margin-bottom:4px}
+  .notes h2{font-size:12px;letter-spacing:.14em;color:var(--tint);margin:19px 0 6px;font-weight:600}
+  .notes b{color:#fff;font-weight:600}
+  .notes code{font-size:11.5px;background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;color:#FFD7E6}
+  .notes ul li{margin:4px 0 4px 16px}
+</style>
+</head>
+<body>
+
+<div class="phone"><div class="screen">
+  <div class="content">
+    <div class="bigtitle">发现</div>
+    <div class="subtitle">晚上好，为你精选今日好歌</div>
+    <div class="group">
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ffe3d2,#e8a48d 38%,#9c5560 72%,#331d26)"></div>
+        <div><div class="t">红拂夜奔</div><div class="s">黄诗扶 · 九万字</div></div><div class="dur">4:06</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#d8ecff,#7fa6c9 40%,#2c3f52)"></div>
+        <div><div class="t">路过人间 (Live)</div><div class="s">郁可唯 · 时光音乐会</div></div><div class="dur">4:48</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ffe6b8,#c98b4a 40%,#3a2418)"></div>
+        <div><div class="t">愚人的国度</div><div class="s">孙燕姿 · 是时候</div></div><div class="dur">3:51</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ecdcff,#9b7fc0 40%,#2c2338)"></div>
+        <div><div class="t">化身孤岛的鲸</div><div class="s">蔡明希-不才</div></div><div class="dur">4:39</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ffe0b8,#d4924f 40%,#3d2a1a)"></div>
+        <div><div class="t">愚人的国度 (Live)</div><div class="s">孙燕姿 · 是时候</div></div><div class="dur">4:12</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#cfe6e2,#6f9c94 40%,#1f3330)"></div>
+        <div><div class="t">苏幕遮</div><div class="s">张晓棠 · 苏幕遮</div></div><div class="dur">3:19</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ffd7d7,#c97070 40%,#3a1c1c)"></div>
+        <div><div class="t">偏爱</div><div class="s">张芸京 · 破天荒</div></div><div class="dur">3:32</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#d9e4ff,#7d8fc0 40%,#232b3d)"></div>
+        <div><div class="t">看得最远的地方</div><div class="s">毛不易 · 月光、背影与海</div></div><div class="dur">4:12</div></div>
+      <div class="cell"><div class="art" style="background:radial-gradient(circle at 32% 26%,#ffe9d0,#cfa06a 40%,#382a1c)"></div>
+        <div><div class="t">赤裸裸</div><div class="s">郑钧 · 赤裸裸</div></div><div class="dur">5:02</div></div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <!-- 迷你播放器 -->
+    <div class="mini">
+      <div class="art"></div>
+      <div class="txt"><div class="t">红拂夜奔</div><div class="s">黄诗扶 · 九万字</div></div>
+      <div class="ctrl">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5h2.2v13H7zM16.4 5.6l.05 12.8L6.9 12z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.5h-2.2v13H17zM7.6 5.6l-.05 12.8L17.1 12z"/></svg>
+      </div>
+      <div class="track"></div>
+      <div class="prog"></div>
+    </div>
+
+    <!-- 底栏 -->
+    <div class="tabbar">
+      <div class="item on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V6l10-2.2v12"/><circle cx="6.6" cy="18.2" r="2.5"/><circle cx="16.6" cy="16" r="2.5"/></svg>
+        <span>播放</span>
+      </div>
+      <div class="item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19V6.6a1.6 1.6 0 0 1 1.3-1.57l8-1.6A1.6 1.6 0 0 1 15.2 5v11.6"/>
+          <circle cx="2.6" cy="19" r="2.2"/><circle cx="13.8" cy="16.6" r="2.2"/>
+          <path d="M18 9h3M18 13h3M18 17h3"/></svg>
+        <span>音乐库</span>
+      </div>
+      <div class="item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h11M4 12h16M4 17h8"/></svg>
+        <span>歌单</span>
+      </div>
+      <div class="item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.1"/><path d="M12 3.4v2.3M12 18.3v2.3M3.4 12h2.3M18.3 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg>
+        <span>设置</span>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="notes">
+  <h1>iOS 语言精修</h1>
+  <p class="lead">结构不动（整条贴底），只把「设计语言」换成 iOS 的：<b>排版分级 + 发丝线 + 材质</b>，装饰一律去掉。</p>
+
+  <h2>① 排版分级，而不是颜色分级</h2>
+  <p>标题 <code>15/600/-0.24px</code>、副标题 <code>13/-0.08px</code>、时长 <code>tabular-nums</code>。iOS 靠<b>字重和字号</b>拉开层次，颜色只有一档灰，不用彩色区分。</p>
+
+  <h2>② 发丝线代替投影</h2>
+  <p>两栏的顶边是 <code>inset 0 .5px 0 rgba(255,255,255,.10)</code>，列表分隔线是 <code>.5px rgba(84,84,88,.65)</code>。<b>不投影、不描边粗线</b>——iOS 的“浮起”靠材质的明度差，不靠阴影。</p>
+
+  <h2>③ 材质是 <code>systemChromeMaterial</code></h2>
+  <p><code>rgba(22,22,24,.78)</code> + <code>blur(48px) saturate(190%)</code>。比之前更暗、更实，因为 iOS 的 tab bar 本来就<b>不追求透</b>——它要的是“文字在上面能读”。</p>
+
+  <h2>④ 强调色只出现一次</h2>
+  <p>整屏唯一的彩色是<b>选中 tab 的粉色</b>。进度线是<b>白色</b>的（iOS Music 就是白线，不是主题色），播放键也是白的。<b>克制</b>是这套语言的核心。</p>
+
+  <h2>⑤ 尺寸照抄 iOS 规格</h2>
+  <ul>
+    <li>迷你播放器 <b>64pt</b>，封面 <b>44pt / 圆角 6</b></li>
+    <li>Tab Bar <b>49pt</b> + 安全区，图标 <b>25pt</b>，文字 <b>10pt</b></li>
+    <li>Home indicator <b>134×5pt</b> 也画上了，方便看整体比例</li>
+    <li>图标 <b>1.6 笔画、圆头圆角</b>（贴近 SF Symbols 的 monoline）</li>
+  </ul>
+
+  <h2>⑥ 进度线位置</h2>
+  <p>贴在迷你播放器<b>最底边</b>（2pt），不是浮在中间。<code>点开播放器</code>后这条线会变成整宽；列表页上它只占 38%。</p>
+</div>
+
+</body>
+</html>

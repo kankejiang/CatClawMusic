@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>猫爪音乐 · 底栏与迷你播放器 设计方案</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  :root{
+    --pink:#FF8FB8; --pink-deep:#F06B9B;
+    --ink:#F5F4F8; --ink2:rgba(245,244,248,.66); --ink3:rgba(245,244,248,.36);
+    --hair:rgba(255,255,255,.10);
+  }
+  body{
+    min-height:100vh;display:flex;gap:44px;align-items:flex-start;justify-content:center;flex-wrap:wrap;
+    background:radial-gradient(1200px 620px at 18% -8%,#3b2c38 0%,#171419 56%,#0b0a0e 100%);
+    font-family:-apple-system,BlinkMacSystemFont,"HarmonyOS Sans SC","PingFang SC","MiSans",system-ui,sans-serif;
+    color:var(--ink);padding:44px 28px 64px;
+  }
+  .col{display:flex;flex-direction:column;gap:14px;align-items:center}
+  .tag{font-size:12.5px;color:rgba(255,255,255,.5);letter-spacing:.04em}
+  .tag b{color:var(--pink);font-weight:600}
+  .phone{
+    position:relative;width:360px;height:760px;border-radius:46px;background:#000;padding:9px;
+    box-shadow:0 50px 100px -28px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.07),inset 0 0 0 2px #191820;
+  }
+  .screen{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#121016;isolation:isolate}
+  /* 页面底：模拟专辑封面的暖色雾 */
+  .page{position:absolute;inset:0;padding:52px 18px 0;display:flex;flex-direction:column;gap:10px}
+  .bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(90% 60% at 22% 18%, rgba(226,154,132,.55) 0%, rgba(120,80,100,.28) 45%, transparent 72%),
+      radial-gradient(80% 50% at 82% 42%, rgba(110,140,150,.30) 0%, transparent 70%),
+      linear-gradient(#241d28,#100e14);
+  }
+  .row{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:14px;background:rgba(255,255,255,.045)}
+  .row .art{width:42px;height:42px;border-radius:10px;flex:none;
+    background:radial-gradient(circle at 34% 28%,#ffe0cf,#d99a86 42%,#7c4650 78%,#2a1a22)}
+  .row .t{font-size:13.5px;color:var(--ink)}
+  .row .s{font-size:11px;color:var(--ink3);margin-top:2px}
+  .row .time{font-size:11px;color:var(--ink3);margin-left:auto}
+  .page-title{font-size:20px;font-weight:650;letter-spacing:.2px;margin-bottom:2px}
+  .page-sub{font-size:12px;color:var(--ink3);margin-bottom:8px}
+
+  /* ── 玻璃通用 ── */
+  .glass{
+    position:relative;
+    background:rgba(28,26,34,.52);
+    backdrop-filter:blur(26px) saturate(150%);
+    -webkit-backdrop-filter:blur(26px) saturate(150%);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.20),
+      inset 0 -1px 0 rgba(0,0,0,.22),
+      0 14px 34px -12px rgba(0,0,0,.66);
+  }
+  .bars{position:absolute;left:0;right:0;bottom:0;padding:0 12px 16px;display:flex;flex-direction:column;gap:9px}
+  /* 迷你播放器 */
+  .mini{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:22px;height:64px}
+  .mini .art{width:44px;height:44px;border-radius:12px;flex:none;
+    background:radial-gradient(circle at 34% 28%,#ffe0cf,#d99a86 42%,#7c4650 78%,#2a1a22);
+    box-shadow:0 6px 16px -6px rgba(0,0,0,.7)}
+  .mini .txt{min-width:0;flex:1}
+  .mini .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .s{font-size:11px;color:var(--ink2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tr{display:flex;align-items:center;gap:12px}
+  .ico{width:20px;height:20px;display:block;opacity:.92}
+  .ico.sm{width:17px;height:17px;opacity:.6}
+  .play{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)}
+  /* 进度线 */
+  .prog{position:absolute;left:12px;right:12px;bottom:4px;height:2px;border-radius:2px;background:rgba(255,255,255,.16)}
+  .prog i{position:absolute;inset:0 auto 0 0;width:38%;border-radius:2px;background:linear-gradient(90deg,#FFB3CE,#F06B9B)}
+  /* 底栏 A：浮动药丸 */
+  .dock{display:flex;align-items:center;justify-content:space-around;height:60px;border-radius:22px}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(255,255,255,.52);font-size:10.5px}
+  .tab.on{color:#fff}
+  .tab.on .dotwrap{background:rgba(255,143,184,.18);border:1px solid rgba(255,143,184,.38)}
+  .dotwrap{width:44px;height:28px;border-radius:14px;display:grid;place-items:center;border:1px solid transparent}
+  /* 底栏 B：整条贴底（精修） */
+  .dockfull{display:flex;align-items:center;height:64px;padding:0 6px}
+  .dockfull .tab{flex:1}
+  /* 底栏 C：展开式（选中项拉长） */
+  .dockexp{display:flex;align-items:center;justify-content:center;gap:8px;height:62px;border-radius:24px;padding:0 12px}
+  .exp{display:flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:19px;
+    background:rgba(255,143,184,.20);border:1px solid rgba(255,143,184,.42);color:#FFD7E6}
+  .exp span{font-size:12px;font-weight:600}
+  .iconbtn{width:38px;height:38px;border-radius:19px;display:grid;place-items:center;color:rgba(255,255,255,.62)}
+  /* 说明 */
+  .notes{max-width:360px;color:rgba(255,255,255,.62);font-size:13px;line-height:1.8}
+  .notes h2{font-size:12px;letter-spacing:.12em;color:var(--pink);margin:16px 0 7px}
+  .notes h2:first-child{margin-top:0}
+  .notes b{color:#fff;font-weight:600}
+  .notes li{margin:4px 0 4px 16px}
+</style>
+</head>
+<body>
+
+<!-- ══════════ A · 浮动药丸 ══════════ -->
+<div class="col">
+  <div class="tag">方案 A · <b>浮动胶囊</b>（iOS 26 / HyperOS 风）</div>
+  <div class="phone"><div class="screen">
+    <div class="bg"></div>
+    <div class="page">
+      <div class="page-title">发现</div>
+      <div class="page-sub">晚上好，为你精选今日好歌</div>
+      <div class="row"><div class="art"></div><div><div class="t">红拂夜奔</div><div class="s">黄诗扶</div></div><div class="time">4:06</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#cfe6ff,#7fa6c9 45%,#2b3c4c)"></div><div><div class="t">路过人间 (Live)</div><div class="s">郁可唯 · 时光音乐会</div></div><div class="time">4:48</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#ffd9a0,#c98b4a 45%,#3a2418)"></div><div><div class="t">愚人的国度</div><div class="s">孙燕姿</div></div><div class="time">3:51</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#e6d4ff,#9b7fc0 45%,#2c2338)"></div><div><div class="t">化身孤岛的鲸</div><div class="s">蔡明希-不才</div></div><div class="time">4:39</div></div>
+    </div>
+    <div class="bars">
+      <div class="glass mini">
+        <div class="art"></div>
+        <div class="txt"><div class="t">红拂夜奔</div><div class="s">黄诗扶 · 九万字</div></div>
+        <div class="tr">
+          <svg class="ico sm" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM15 5l7 7-7 7z"/></svg>
+          <div class="play"><svg class="ico" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+          <svg class="ico sm" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM2 12l7-7v14z"/></svg>
+        </div>
+        <div class="prog"><i></i></div>
+      </div>
+      <div class="glass dock">
+        <div class="tab on"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#FF8FB8" stroke-width="1.9"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.4"/><circle cx="17" cy="16" r="2.4"/></svg></div>首页</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="10" height="6" rx="2"/><circle cx="18.5" cy="17" r="2.2"/></svg></div>音乐库</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h10M4 12h16M4 17h7"/></svg></div>歌单</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg></div>设置</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ B · 整条贴底 · 精修 ══════════ -->
+<div class="col">
+  <div class="tag">方案 B · <b>整条贴底（现结构精修）</b></div>
+  <div class="phone"><div class="screen">
+    <div class="bg"></div>
+    <div class="page">
+      <div class="page-title">发现</div>
+      <div class="page-sub">晚上好，为你精选今日好歌</div>
+      <div class="row"><div class="art"></div><div><div class="t">红拂夜奔</div><div class="s">黄诗扶</div></div><div class="time">4:06</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#cfe6ff,#7fa6c9 45%,#2b3c4c)"></div><div><div class="t">路过人间 (Live)</div><div class="s">郁可唯 · 时光音乐会</div></div><div class="time">4:48</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#ffd9a0,#c98b4a 45%,#3a2418)"></div><div><div class="t">愚人的国度</div><div class="s">孙燕姿</div></div><div class="time">3:51</div></div>
+    </div>
+    <div class="bars" style="padding:0 12px 0">
+      <div class="glass mini" style="height:62px;border-radius:20px">
+        <div class="art"></div>
+        <div class="txt"><div class="t">红拂夜奔</div><div class="s">黄诗扶 · 九万字</div></div>
+        <div class="tr">
+          <svg class="ico sm" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM15 5l7 7-7 7z"/></svg>
+          <div class="play"><svg class="ico" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+          <svg class="ico sm" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM2 12l7-7v14z"/></svg>
+        </div>
+        <div class="prog"><i></i></div>
+      </div>
+      <div class="glass dockfull" style="margin:0 -12px;border-radius:0 0 38px 38px;height:64px">
+        <div class="tab on"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#FF8FB8" stroke-width="1.9"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.4"/><circle cx="17" cy="16" r="2.4"/></svg></div>首页</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="10" height="6" rx="2"/><circle cx="18.5" cy="17" r="2.2"/></svg></div>音乐库</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h10M4 12h16M4 17h7"/></svg></div>歌单</div>
+        <div class="tab"><div class="dotwrap"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg></div>设置</div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ C · 展开式（Halcyon 同款） ══════════ -->
+<div class="col">
+  <div class="tag">方案 C · <b>展开式</b>（选中项拉长成胶囊）</div>
+  <div class="phone"><div class="screen">
+    <div class="bg"></div>
+    <div class="page">
+      <div class="page-title">发现</div>
+      <div class="page-sub">晚上好，为你精选今日好歌</div>
+      <div class="row"><div class="art"></div><div><div class="t">红拂夜奔</div><div class="s">黄诗扶</div></div><div class="time">4:06</div></div>
+      <div class="row"><div class="art" style="background:radial-gradient(circle at 30% 30%,#cfe6ff,#7fa6c9 45%,#2b3c4c)"></div><div><div class="t">路过人间 (Live)</div><div class="s">郁可唯 · 时光音乐会</div></div><div class="time">4:48</div></div>
+    </div>
+    <div class="bars">
+      <div class="glass mini" style="height:62px">
+        <div class="art" style="width:42px;height:42px"></div>
+        <div class="txt"><div class="t">红拂夜奔</div><div class="s">黄诗扶</div></div>
+        <div class="play" style="width:32px;height:32px"><svg class="ico" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+        <div class="prog"><i></i></div>
+      </div>
+      <div class="glass dockexp">
+        <div class="iconbtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="10" height="6" rx="2"/><circle cx="18.5" cy="17" r="2.2"/></svg></div>
+        <div class="exp"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="#FFD7E6" stroke-width="1.9"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.4"/><circle cx="17" cy="16" r="2.4"/></svg><span>首页</span></div>
+        <div class="iconbtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h10M4 12h16M4 17h7"/></svg></div>
+        <div class="iconbtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ 说明 ══════════ -->
+<div class="notes">
+  <h2>现状问题</h2>
+  <ul>
+    <li>两栏都是<b>满宽直角贴底</b>，玻璃再好看也像一条“横带”，没有“浮起来”的层次。</li>
+    <li>迷你播放器信息密度低：<b>没有播放进度</b>，也不知道接下来是谁。</li>
+    <li>选中态只有颜色变亮，<b>没有形状变化</b>，扫一眼分不出当前在哪。</li>
+  </ul>
+  <h2>三套方向</h2>
+  <ul>
+    <li><b>A 浮动胶囊</b>：两栏都留边、独立圆角，像贴在内容之上；选中项带一层粉色淡底。层次最好，改动中等。</li>
+    <li><b>B 整条贴底</b>：保持现在的结构，只做精修——迷你条圆角上翻、底栏顶部一条发丝线、选中项加药丸底。改动最小、风险最低。</li>
+    <li><b>C 展开式</b>：选中的 tab 拉长成“图标 + 文字”的胶囊，其余只留图标，迷你播放器再瘦一圈。最像 Halcyon，信息密度最高。</li>
+  </ul>
+  <h2>共通细节</h2>
+  <ul>
+    <li>迷你播放器底部<b>一条 2px 进度线</b>（粉色渐变），替代现在没有进度的问题。</li>
+    <li>玻璃边缘：<b>1px 顶部高光 + 1px 底部暗边</b>，这是“有厚度”的关键。</li>
+    <li>图标统一 <b>1.7～1.9 笔画</b>，选中态换成 1.9 并加粉色调。</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>猫爪音乐 · 底栏设计（满内容版）</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  :root{--label:#fff;--label2:rgba(235,235,245,.62);--label3:rgba(235,235,245,.34);
+    --sep:rgba(84,84,88,.6);--tint:#FF8FB8}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;gap:64px;flex-wrap:wrap;
+    background:radial-gradient(1000px 600px at 18% -6%,#3a2b39 0%,#0b0a0e 62%),#070609;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","HarmonyOS Sans SC","PingFang SC",system-ui,sans-serif;
+    color:var(--label);padding:52px 30px}
+
+  .phone{position:relative;width:390px;height:844px;border-radius:56px;background:#000;padding:11px;flex:none;
+    box-shadow:0 0 0 1px rgba(255,255,255,.11),0 70px 130px -34px rgba(0,0,0,1),inset 0 0 0 2px #1c1c1e}
+  .screen{position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;background:#08070b;isolation:isolate}
+
+  /* ── 页面：内容做满 ── */
+  .page{position:absolute;inset:0;padding:54px 0 0;overflow:hidden}
+  .eyebrow{font-size:11px;letter-spacing:.26em;color:var(--label3);text-transform:uppercase;padding:0 22px}
+  .h1{font-size:32px;font-weight:760;letter-spacing:-.9px;padding:0 22px;margin-top:6px}
+
+  /* HERO：大封面卡 */
+  .hero{position:relative;margin:18px 16px 0;height:250px;border-radius:26px;overflow:hidden;
+    box-shadow:0 30px 60px -26px rgba(0,0,0,.95)}
+  .hero .img{position:absolute;inset:0;
+    background:
+      radial-gradient(70% 70% at 22% 18%,#ffd9b8 0%,#f0a37d 26%,#c2607a 52%,#5c2c48 76%,#1d1220 100%);
+  }
+  /* 封面里的“唱片”纹样 + 高光 */
+  .hero .disc{position:absolute;right:-30px;bottom:-34px;width:210px;height:210px;border-radius:50%;
+    background:repeating-radial-gradient(circle at 50% 50%,#120a10 0 2px,#241423 2.6px 5px);
+    opacity:.55;mix-blend-mode:multiply}
+  .hero .sheen{position:absolute;inset:0;
+    background:linear-gradient(160deg,rgba(255,255,255,.22) 0%,transparent 38%,transparent 68%,rgba(0,0,0,.40) 100%)}
+  .hero .meta{position:absolute;left:20px;bottom:18px;right:20px}
+  .hero .tag{display:inline-block;font-size:10px;letter-spacing:.14em;padding:3px 8px;border-radius:99px;
+    background:rgba(255,255,255,.16);border:.5px solid rgba(255,255,255,.28);backdrop-filter:blur(8px)}
+  .hero .ht{font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:9px}
+  .hero .hs{font-size:12.5px;color:rgba(255,255,255,.72);margin-top:4px}
+  .hero .play{position:absolute;right:18px;bottom:18px;width:48px;height:48px;border-radius:50%;
+    background:rgba(255,255,255,.92);display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(0,0,0,.8)}
+  .hero .play svg{width:18px;height:18px;margin-left:2px}
+
+  /* 横滑卡片 */
+  .sec{margin-top:24px}
+  .sec .sh{display:flex;align-items:baseline;padding:0 22px;margin-bottom:11px}
+  .sec .sh b{font-size:19px;font-weight:700;letter-spacing:-.4px}
+  .sec .sh span{margin-left:auto;font-size:12.5px;color:var(--tint);font-weight:600}
+  .hrow{display:flex;gap:11px;padding:0 22px 4px}
+  .card{width:132px;flex:none}
+  .card .c{width:132px;height:132px;border-radius:14px;position:relative;overflow:hidden;
+    box-shadow:0 16px 32px -18px rgba(0,0,0,.9)}
+  .card .c::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(160deg,rgba(255,255,255,.20),transparent 42%,rgba(0,0,0,.28))}
+  .card .n{font-size:12.5px;margin-top:8px;font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .a{font-size:11px;color:var(--label3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ── 底部两栏（结构不变：整条贴底） ── */
+  .bottom{position:absolute;left:0;right:0;bottom:0}
+  .mini{position:relative;height:64px;display:flex;align-items:center;gap:12px;padding:0 16px;
+    background:rgba(26,24,30,.62);
+    backdrop-filter:blur(50px) saturate(200%);-webkit-backdrop-filter:blur(50px) saturate(200%);
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.12)}
+  .mini .art{width:44px;height:44px;border-radius:7px;flex:none;position:relative;overflow:hidden;
+    background:radial-gradient(circle at 30% 24%,#ffd9b8,#f0a37d 30%,#c2607a 60%,#5c2c48 84%,#1d1220);
+    box-shadow:0 6px 16px -8px rgba(0,0,0,.9)}
+  .mini .art::after{content:"";position:absolute;inset:0;background:linear-gradient(150deg,rgba(255,255,255,.22),transparent 55%)}
+  .mini .txt{min-width:0;flex:1}
+  .mini .t{font-size:14.5px;font-weight:640;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .s{font-size:12.5px;color:var(--label2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .ctrl{display:flex;align-items:center;gap:20px;color:#fff}
+  .mini .ctrl svg{width:23px;height:23px;display:block}
+  .mini .track{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.13)}
+  .mini .prog{position:absolute;left:0;bottom:0;height:2px;width:34%;background:rgba(255,255,255,.88)}
+
+  .tabbar{height:83px;padding-top:9px;display:flex;align-items:flex-start;position:relative;
+    background:rgba(20,19,24,.72);
+    backdrop-filter:blur(50px) saturate(200%);-webkit-backdrop-filter:blur(50px) saturate(200%);
+    box-shadow:inset 0 .5px 0 rgba(255,255,255,.12)}
+  .item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(235,235,245,.42)}
+  .item svg{width:25px;height:25px;display:block}
+  .item span{font-size:10px;font-weight:500}
+  .item.on{color:var(--tint)}
+  .home{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.82)}
+
+  /* 说明 */
+  .notes{width:335px;color:rgba(255,255,255,.62);font-size:13.5px;line-height:1.85}
+  .notes h1{font-size:28px;font-weight:750;letter-spacing:-.6px;color:#fff;margin-bottom:8px}
+  .notes p.lead{color:rgba(255,255,255,.66)}
+  .notes h2{font-size:12px;letter-spacing:.14em;color:var(--tint);margin:18px 0 6px;font-weight:600}
+  .notes b{color:#fff;font-weight:600}
+  .notes code{font-size:11.5px;background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;color:#FFD7E6}
+</style>
+</head>
+<body>
+
+<div class="phone"><div class="screen">
+  <div class="page">
+    <div class="eyebrow">discover</div>
+    <div class="h1">晚上好</div>
+
+    <div class="hero">
+      <div class="img"></div>
+      <div class="disc"></div>
+      <div class="sheen"></div>
+      <div class="meta">
+        <span class="tag">每日精选</span>
+        <div class="ht">九万字</div>
+        <div class="hs">黄诗扶 · 正在播放 · 4:06</div>
+      </div>
+      <div class="play"><svg viewBox="0 0 24 24" fill="#111"><path d="M8 5v14l11-7z"/></svg></div>
+    </div>
+
+    <div class="sec">
+      <div class="sh"><b>因为你听了黄诗扶</b><span>全部</span></div>
+      <div class="hrow">
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 26% 22%,#ffe2c8,#f2a97e 28%,#c9696f 56%,#5c2a3f 80%,#1e1220)"></div><div class="n">红拂夜奔</div><div class="a">黄诗扶</div></div>
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 70% 20%,#d9ecff,#8fb2cf 30%,#42607c 60%,#1a2531 86%)"></div><div class="n">路过人间</div><div class="a">郁可唯</div></div>
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 30% 76%,#ffe6b0,#d19a52 30%,#8a5a2c 62%,#2f1d10 88%)"></div><div class="n">愚人的国度</div><div class="a">孙燕姿</div></div>
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 74% 70%,#ecdbff,#a98ccb 30%,#5d4278 62%,#221832 88%)"></div><div class="n">化身孤岛的鲸</div><div class="a">蔡明希-不才</div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sh"><b>最近播放</b></div>
+      <div class="hrow">
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 30% 30%,#cfe7e3,#6f9c96 32%,#31514d 64%,#101f1e 90%)"></div><div class="n">苏幕遮</div><div class="a">张晓棠</div></div>
+        <div class="card"><div class="c" style="background:radial-gradient(circle at 66% 26%,#ffd6d6,#cd7a7a 30%,#7a3b3b 62%,#2a1414 88%)"></div><div class="n">偏爱</div><div class="a">张芸京</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="mini">
+      <div class="art"></div>
+      <div class="txt"><div class="t">红拂夜奔</div><div class="s">黄诗扶 · 九万字</div></div>
+      <div class="ctrl">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5h2.2v13H7zM16.4 5.6l.05 12.8L6.9 12z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.5h-2.2v13H17zM7.6 5.6l-.05 12.8L17.1 12z"/></svg>
+      </div>
+      <div class="track"></div><div class="prog"></div>
+    </div>
+    <div class="tabbar">
+      <div class="item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2.2v12"/><circle cx="6.6" cy="18.2" r="2.5"/><circle cx="16.6" cy="16" r="2.5"/></svg><span>播放</span></div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5.2 4 10.4V20h5v-6h6v6h5V10.4z"/><path d="M9 4h6"/></svg><span>音乐库</span></div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11M4 12h16M4 17h8"/></svg><span>歌单</span></div>
+      <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.4v2.3M12 18.3v2.3M3.4 12h2.3M18.3 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg><span>设置</span></div>
+      <div class="home"></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="notes">
+  <h1>为什么之前“不好看”</h1>
+  <p class="lead">问题不在栏子，在<b>栏子底下的内容</b>：前几版稿子是黑底 + 四个灰块 + 假渐变封面。玻璃、排版再精细，压在空背景上也显不出质感。</p>
+
+  <h2>玻璃好不好看，取决于它压住什么</h2>
+  <p>iOS 的 tab bar 之所以好看，是因为列表里有<b>彩色封面</b>、有<b>大图卡片</b>滚过去。玻璃只负责“把这层内容淡化成底色”。所以我这版先把页面做满：</p>
+  <ul style="list-style:disc;padding-left:18px;margin-top:4px">
+    <li>顶部 <b>250pt 的 hero 卡</b>（真实封面 + 唱片纹 + 斜向高光）</li>
+    <li><b>横滑封面卡</b>：132pt 见方、圆角 14、带投影</li>
+    <li>每张封面都是<b>多层径向渐变 + 方向高光</b>，不是单色块</li>
+  </ul>
+
+  <h2>栏子本身仍然按 iOS 规格</h2>
+  <p>64pt / 49pt、图标 25、文字 10、<code>0.5px</code> 发丝线、进度线纯白、强调色只给选中的 tab。</p>
+
+  <h2>下一步</h2>
+  <p>如果你认可这版的“内容 + 栏子”关系，我就照这个落地：<br>
+  ① 迷你播放器加封面高光与投影<br>
+  ② 底栏保持极简、只调尺寸与发丝线<br>
+  ③ hero 卡与横滑卡片是发现页的改造，可以单独排期</p>
+</div>
+
+</body>
+</html>

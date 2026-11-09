@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AI 设置 · 简化版</title>
+<style>
+  :root{
+    --bg0:#11141D; --bg1:#171C2A; --bg2:#1E2536;
+    --ink:#fff; --sub:rgba(255,255,255,.66); --dim:rgba(255,255,255,.40);
+    --glass:rgba(255,255,255,.075); --glass2:rgba(255,255,255,.04);
+    --line:rgba(255,255,255,.13); --line2:rgba(255,255,255,.08);
+    --accent:#8FA3CC; --accentInk:#DDE4F2; --ok:#7ED8C3;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 70% at 84% 4%, rgba(85,214,255,.12), transparent 62%),
+      radial-gradient(120% 90% at 14% 94%, rgba(126,216,195,.10), transparent 64%),
+      linear-gradient(168deg,var(--bg0),var(--bg1) 55%,var(--bg2));
+    color:var(--ink);font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .screen{max-width:462px;margin:0 auto;padding:0 16px 40px}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;height:44px;font-size:13px;color:var(--sub)}
+  .nav{display:flex;align-items:center;gap:12px;padding:2px 0 6px}
+  .back{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:var(--glass);display:grid;place-items:center}
+  .nav h1{margin:0;font-size:26px;font-weight:700}
+  .nav .state{margin-left:auto;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .pill{height:7px;width:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px rgba(126,216,195,.8)}
+  .lead{margin:6px 4px 14px;font-size:12.5px;line-height:1.6;color:var(--dim)}
+
+  .card{border-radius:22px;border:1px solid var(--line2);
+    background:linear-gradient(180deg,var(--glass),var(--glass2));
+    backdrop-filter:blur(22px) saturate(1.05);padding:16px;margin-bottom:16px}
+  .label{font-size:12px;letter-spacing:.6px;color:var(--dim);margin-bottom:10px}
+
+  /* 下拉 */
+  .select{display:flex;align-items:center;gap:10px;height:50px;border-radius:14px;
+    border:1px solid var(--line);background:rgba(255,255,255,.04);padding:0 14px}
+  .select.open{border-color:rgba(143,163,204,.55);background:rgba(143,163,204,.10)}
+  .logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto;
+    background:rgba(143,163,204,.22);border:1px solid rgba(143,163,204,.34);font-size:12px;font-weight:700;color:var(--accentInk)}
+  .logo.m{background:rgba(126,216,195,.18);border-color:rgba(126,216,195,.34);color:var(--ok)}
+  .select .name{font-size:14.5px;font-weight:600}
+  .select .host{margin-left:auto;font-size:11.5px;color:var(--dim)}
+  .select .chev{width:16px;height:16px;stroke:var(--sub);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  .menu{margin-top:8px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:rgba(24,29,42,.55)}
+  .opt{display:flex;align-items:center;gap:8px;padding:13px 14px;font-size:14px;color:var(--sub)}
+  .opt+.opt{border-top:1px solid rgba(255,255,255,.06)}
+  .opt .sub2{font-size:11px;color:var(--dim)}
+  .opt .tick{margin-left:auto;font-size:13px;color:var(--accentInk)}
+  .opt.on{color:#fff;background:rgba(143,163,204,.13)}
+  .hint{margin-top:10px;font-size:11.5px;color:var(--dim);line-height:1.5}
+
+  /* 输入 */
+  .field{display:flex;align-items:center;gap:10px;height:50px;border-radius:14px;
+    border:1px solid var(--line);background:rgba(255,255,255,.04);padding:0 14px}
+  .field svg{width:18px;height:18px;stroke:var(--accentInk);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;opacity:.85}
+  .field input{border:0;background:transparent;color:#fff;font-size:14px;flex:1;outline:none;letter-spacing:.3px}
+  .field .tag{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:8px;padding:3px 7px}
+
+  .cta{width:100%;height:50px;margin-top:14px;border-radius:15px;border:1px solid rgba(143,163,204,.5);
+    background:linear-gradient(180deg,rgba(143,163,204,.30),rgba(143,163,204,.16));
+    color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center}
+  .status{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--ok)}
+  .status .ok{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--ok);display:grid;place-items:center;font-size:10px}
+
+  .kv{display:flex;align-items:center;gap:12px;padding:11px 0}
+  .kv+.kv{border-top:1px solid rgba(255,255,255,.06)}
+  .kv .k{font-size:13px;color:var(--sub)}
+  .kv .v{margin-left:auto;font-size:12.5px;color:var(--accentInk);font-weight:600}
+  .kv .v.auto{color:var(--ok)}
+  .kv .sub3{display:block;font-size:11px;color:var(--dim);font-weight:400;margin-top:2px}
+  .row2{display:flex;align-items:center;gap:12px}
+  .row2 .txt{flex:1}
+  .t1{font-size:14.5px;font-weight:600}
+  .t2{margin-top:3px;font-size:12px;color:var(--dim);line-height:1.4}
+  .mini{font-size:12px;color:var(--accentInk);border:1px solid rgba(143,163,204,.45);border-radius:999px;padding:7px 12px}
+
+  .foot{text-align:center;font-size:11px;color:var(--dim);line-height:1.7;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="statusbar"><span>23:12</span><span>◍ ⚡ 22%</span></div>
+
+  <div class="nav">
+    <div class="back"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M15 5l-7 7 7 7" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h1>AI</h1>
+    <span class="state"><i class="pill"></i>已连接</span>
+  </div>
+  <div class="lead">填一个 API Key 就能用。服务商、模型、地址都有默认值，不用管。</div>
+
+  <!-- ① 服务商（展开态） -->
+  <div class="card">
+    <div class="label">服务商</div>
+    <div class="select open">
+      <span class="logo">D</span>
+      <span class="name">DeepSeek</span>
+      <span class="host">api.deepseek.com</span>
+      <svg class="chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg>
+    </div>
+    <div class="menu">
+      <div class="opt">OpenAI<span class="sub2">api.openai.com</span></div>
+      <div class="opt on">DeepSeek<span class="sub2">api.deepseek.com</span><span class="tick">✓</span></div>
+      <div class="opt">智谱 GLM<span class="sub2">open.bigmodel.cn</span></div>
+      <div class="opt">Moonshot<span class="sub2">api.moonshot.cn</span></div>
+      <div class="opt">自定义…</div>
+    </div>
+  </div>
+
+  <!-- ② API Key -->
+  <div class="card">
+    <div class="label">API Key</div>
+    <div class="field">
+      <svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21M17.5 12v3.5M14.5 12v2.5"/></svg>
+      <input type="password" value="sk-9f4c2a71b8e04d6f93a5c0e7b2d18a63" readonly />
+      <span class="tag">粘贴</span>
+    </div>
+    <div class="cta">连接并获取模型</div>
+    <div class="status"><span class="ok">✓</span>已连接 · 可选 3 个模型</div>
+  </div>
+
+  <!-- ③ 模型（展开态） -->
+  <div class="card">
+    <div class="label">模型</div>
+    <div class="select open">
+      <span class="logo m">M</span>
+      <span class="name">deepseek-chat</span>
+      <span class="host">¥1 / 百万 tokens</span>
+      <svg class="chev" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg>
+    </div>
+    <div class="menu">
+      <div class="opt on">deepseek-chat<span class="sub2">通用 · 便宜</span><span class="tick">✓</span></div>
+      <div class="opt">deepseek-reasoner<span class="sub2">推理更强 · 更慢</span></div>
+      <div class="opt">deepseek-coder<span class="sub2">代码</span></div>
+    </div>
+    <div class="hint">列表来自「连接并获取模型」的结果；没连过时先用服务商默认值</div>
+  </div>
+  <!-- ④ 记忆 -->
+  <div class="card">
+    <div class="row2">
+      <div class="txt">
+        <div class="t1">长期记忆</div>
+        <div class="t2">已记 3 条 · 喜欢下雨天听周杰伦…</div>
+      </div>
+      <span class="mini">管理</span>
+    </div>
+  </div>
+
+  <div class="foot">
+    必填只有 API Key；上下文长度 / 轮数 / 推理力度 / 温度全是内部默认值，界面不展示
+  </div>
+</div>
+</body>
+</html>
