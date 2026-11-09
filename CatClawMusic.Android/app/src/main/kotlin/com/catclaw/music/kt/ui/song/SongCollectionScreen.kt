@@ -262,12 +262,14 @@ private fun CollectionPortrait(
             }
             trailing()
         }
+        // 标题与搜索同一行：竖屏上半部分原来「顶栏 + 标题 + 来源 + 排序 + 搜索」五行，
+        // 列表要到 349dp 才开始；合并后头部压到约 140dp，首屏多看 3～4 首
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             cover?.let { CollectionCoverTile(it, 56.dp) }
             Column(modifier = Modifier.weight(1f)) {
@@ -282,37 +284,57 @@ private fun CollectionPortrait(
                 subtitle?.takeIf { it.isNotBlank() }?.let {
                     Text(
                         text = it,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         color = secondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(text = countText, fontSize = 12.sp, color = secondary)
+                Text(text = countText, fontSize = 11.5.sp, color = secondary, maxLines = 1)
+            }
+            search?.let {
+                GlassSearchField(
+                    query = it.query,
+                    onChange = it.onChange,
+                    placeholder = it.hint,
+                    modifier = Modifier.width(196.dp),
+                    compact = true,
+                )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        chipGroups.filter { it.isNotEmpty() }.forEach { group ->
+        val groups = chipGroups.filter { it.isNotEmpty() }
+        if (groups.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(horizontal = 16.dp)
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                group.forEach { chip ->
-                    GlassChip(label = chip.label, selected = chip.selected, onClick = chip.onClick)
+                groups.forEachIndexed { index, group ->
+                    // 组间竖线：来源与排序合成一条轨道后仍能一眼分开
+                    if (index > 0) {
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(14.dp)
+                                .background(secondary.copy(alpha = 0.22f)),
+                        )
+                    }
+                    group.forEach { chip ->
+                        GlassChip(
+                            label = chip.label,
+                            selected = chip.selected,
+                            onClick = chip.onClick,
+                            compact = true,
+                        )
+                    }
                 }
             }
         }
-        search?.let {
-            GlassSearchField(
-                query = it.query,
-                onChange = it.onChange,
-                placeholder = it.hint,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
-        }
+        Spacer(Modifier.height(2.dp))
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
     }
 }
