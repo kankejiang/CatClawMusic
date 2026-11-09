@@ -3,6 +3,7 @@ package com.catclaw.music.kt.ui.screen
 import com.catclaw.music.kt.data.settings.DiscoverBackground
 import androidx.activity.compose.BackHandler
 import android.app.Activity
+import android.content.res.Configuration
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,12 +125,10 @@ fun SettingsScreen(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-    ) {
+    val landscape = LocalConfiguration.current.orientation ==
+        Configuration.ORIENTATION_LANDSCAPE
+
+    val heroContent: @Composable () -> Unit = {
         // HeroCard：照 MAUI `SettingsPage.xaml` —— 渐变卡 + 左上返回 + 标题/副标题 + 右上深浅色切换
         Row(
             modifier = Modifier
@@ -194,7 +195,9 @@ fun SettingsScreen(
             }
         }
         Spacer(Modifier.height(10.dp))
+    }
 
+    val lookGroup: @Composable () -> Unit = {
         // 枢纽：MAUI 的每一行自己是一张 GlassCard，上面挂一个 ✦ 分组标题
         SettingsGroup(title = stringResource(R.string.settings_group_look)) {
             HubRow(
@@ -210,7 +213,9 @@ fun SettingsScreen(
                 onClick = { dest = SettingsDest.DesktopLyric },
             )
         }
+    }
 
+    val sourcesGroup: @Composable () -> Unit = {
         SettingsGroup(title = stringResource(R.string.settings_group_sources)) {
             HubRow(
                 iconRes = R.drawable.ic_nav_folder,
@@ -231,7 +236,9 @@ fun SettingsScreen(
                 onClick = { dest = SettingsDest.Downloads },
             )
         }
+    }
 
+    val extGroup: @Composable () -> Unit = {
         SettingsGroup(title = stringResource(R.string.settings_group_ext)) {
             HubRow(
                 iconRes = R.drawable.ic_nav_plugin,
@@ -246,7 +253,9 @@ fun SettingsScreen(
                 onClick = { dest = SettingsDest.Ai },
             )
         }
+    }
 
+    val systemGroup: @Composable () -> Unit = {
         SettingsGroup(title = stringResource(R.string.settings_group_system)) {
             HubRow(
                 iconRes = R.drawable.ic_nav_general,
@@ -278,6 +287,44 @@ fun SettingsScreen(
                 desc = stringResource(R.string.AboutDesc),
                 onClick = { dest = SettingsDest.About },
             )
+        }
+    }
+    if (landscape) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 7.dp, top = 10.dp, bottom = 24.dp),
+            ) {
+                heroContent()
+                lookGroup()
+                sourcesGroup()
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 7.dp, end = 20.dp, top = 10.dp, bottom = 24.dp),
+            ) {
+                extGroup()
+                systemGroup()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+        ) {
+            heroContent()
+            lookGroup()
+            sourcesGroup()
+            extGroup()
+            systemGroup()
         }
     }
 }
