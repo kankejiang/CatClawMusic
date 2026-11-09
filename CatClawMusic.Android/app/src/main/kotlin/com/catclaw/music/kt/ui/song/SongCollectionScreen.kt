@@ -155,19 +155,15 @@ private fun CollectionLandscape(
                 .padding(start = 18.dp, end = 14.dp, top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            // 返回 + 合集封面同一行：60dp 的封面撑起左侧视觉，右端留给视图切换
+            // 返回 + 真实封面（专辑/歌单）；统计列表页（全部歌曲/收藏/最近）没有封面，
+            // 不再画「标题首字」的占位方块 —— 用户明确要求去掉
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-                CollectionCoverTile(
-                    // 统计列表页（全部歌曲/收藏/最近）没有专属封面，用标题首字兜底，
-                    // 而不是留一块空白 —— 这正是「左侧太空」的直接来源
-                    cover = cover ?: CollectionCover(null, null, title),
-                    size = 60.dp,
-                )
+                cover?.let { CollectionCoverTile(it, 60.dp) }
                 Spacer(Modifier.weight(1f))
                 trailing()
             }
