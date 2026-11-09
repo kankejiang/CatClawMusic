@@ -129,8 +129,19 @@ fun SettingsScreen(
         Configuration.ORIENTATION_LANDSCAPE
 
     val heroContent: @Composable () -> Unit = {
-        // HeroCard：照 MAUI `SettingsPage.xaml` —— 渐变卡 + 左上返回 + 标题/副标题 + 右上深浅色切换
-        Row(
+        if (landscape) {
+            // 横屏只留返回键：渐变卡、标题、副标题、深浅切换全部去掉（页面身份由左侧栏承担）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
+            }
+        } else {
+            // HeroCard：照 MAUI `SettingsPage.xaml` —— 渐变卡 + 左上返回 + 标题/副标题 + 右上深浅色切换
+            Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp, bottom = 6.dp)
@@ -141,7 +152,12 @@ fun SettingsScreen(
                     ),
                 )
                 .border(1.dp, primary.copy(alpha = 0.16f), RoundedCornerShape(26.dp))
-                .padding(start = 10.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                .padding(
+                    start = 10.dp,
+                    end = 12.dp,
+                    top = if (landscape) 4.dp else 12.dp,
+                    bottom = if (landscape) 4.dp else 12.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -158,22 +174,28 @@ fun SettingsScreen(
                     modifier = Modifier.size(24.dp),
                 )
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.Settings),
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primary,
-                )
-                Text(
-                    text = stringResource(R.string.SettingsSubtitle),
-                    fontSize = 14.sp,
-                    // 渐变上的次要文字用正文墨色（层级靠字号），次要色压在半透明渐变上只有 3.56/3.93:1
-                    color = primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            if (landscape) {
+                // 横屏顶部只留返回 + 深浅切换：页面身份由左侧栏承担，
+                // 再放 28sp 的「设置」+ 两行副标题会把首屏高度吃掉
+                Spacer(Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.Settings),
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.SettingsSubtitle),
+                        fontSize = 14.sp,
+                        // 渐变上的次要文字用正文墨色（层级靠字号），次要色压在半透明渐变上只有 3.56/3.93:1
+                        color = primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -193,6 +215,7 @@ fun SettingsScreen(
                     modifier = Modifier.size(28.dp),
                 )
             }
+        }
         }
         Spacer(Modifier.height(10.dp))
     }
