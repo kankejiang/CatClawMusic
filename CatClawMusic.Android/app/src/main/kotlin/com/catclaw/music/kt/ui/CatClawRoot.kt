@@ -731,7 +731,9 @@ private fun TabsHost(
                     }
                 }
             }
-            // 睡眠定时弹窗：放在 backdropSource 之外，liquidGlass 才能安全地采样身后的播放页
+            // 睡眠定时弹窗：放在 backdropSource 之外，liquidGlass 才能安全地采样身后的播放页。
+            // 返回键在这一层接住（弹窗内部不再重复注册）
+            BackHandler(enabled = sleepTimerOpen) { sleepTimerOpen = false }
             if (sleepTimerOpen) {
                 SleepTimerDialog(
                     sleep = sleepTimerState,

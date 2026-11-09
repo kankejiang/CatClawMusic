@@ -1,7 +1,6 @@
 package com.catclaw.music.kt.ui.player
 
 import android.content.res.Configuration
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -86,8 +85,6 @@ fun SleepTimerDialog(
     var fadeOut by remember { mutableStateOf(sleep.fadeOut) }
     val landscape = LocalConfiguration.current.orientation ==
         Configuration.ORIENTATION_LANDSCAPE
-
-    BackHandler { onDismiss() }
 
     val fade = remember { MutableInteractionSource() }
     Box(
