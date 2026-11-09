@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.player
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -33,6 +34,9 @@ import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.DialogProperties
 
 /** 预设分钟数，与 C# `NowPlayingPage.Actions.cs:132` 的 chips 同集合（"自定义…"换成了滑杆，见下） */
 private val PRESET_MINUTES = listOf(15, 30, 45, 60, 90)
@@ -66,9 +70,15 @@ fun SleepTimerDialog(
     var minutes by remember { mutableStateOf(if (sleep.totalSec > 0) sleep.totalSec / 60 else 30) }
     var stopAfterSong by remember { mutableStateOf(sleep.stopAfterSong) }
     var fadeOut by remember { mutableStateOf(sleep.fadeOut) }
+    // 横屏仍用平台的 281dp 默认宽度时，5 个时间 chip 会挤成 3+2、第二行左对齐留半行白；
+    // 横屏横向空间充足，放开默认宽度改成 520dp，chip 一行排完、滑杆也更好拖
+    val landscape = LocalConfiguration.current.orientation ==
+        Configuration.ORIENTATION_LANDSCAPE
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = if (landscape) Modifier.width(520.dp) else Modifier,
+        properties = DialogProperties(usePlatformDefaultWidth = !landscape),
         confirmButton = {
             if (sleep.running) {
                 PillLabel(text = stringResource(R.string.sleep_timer_close), onClick = onDismiss)
