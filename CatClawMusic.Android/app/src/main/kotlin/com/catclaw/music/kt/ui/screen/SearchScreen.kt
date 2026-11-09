@@ -7,11 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -148,8 +150,39 @@ fun SearchScreen(
                 // 下钻层（歌手 / 专辑 / 歌曲详情）压住时同理：它们与这份列表在同一个 ComposeView 里，
                 // 不摘的话读屏能滑进那些被盖住的推荐卡。两条条件各自独立，所以分两个 semantics
                 .semantics { if (detail != null || songDetailId != null) hideFromAccessibility() },
-            contentPadding = PaddingValues(bottom = if (landscape) 168.dp else 132.dp),
+            // 横屏舞台自身恰好一屏（fillParentMaxHeight），不再留底部滚动余量
+            contentPadding = PaddingValues(bottom = if (landscape) 0.dp else 132.dp),
         ) {
+            // ── 横屏：不用纵向列表 ──
+            // 411dp 高的画布堆不下「标题 + 英雄卡 + 四入口 + 货架」，硬堆的结果就是四个入口
+            // 被迷你条切掉半截（2026-11-09 真机截图）。改成整块「双栏舞台」：
+            // 左边实图主卡吃满高度、右边四入口 + 推荐货架，首屏自足。
+            if (landscape) {
+                item("landscape_stage") {
+                    LandscapeDiscover(
+                        modifier = Modifier.fillParentMaxHeight(),
+                        query = query,
+                        results = results,
+                        sections = sections,
+                        albums = albums,
+                        artists = artists,
+                        primary = primary,
+                        secondary = secondary,
+                        searchOpen = searchOpen,
+                        onToggleSearch = { searchOpen = !searchOpen },
+                        onQueryChange = { viewModel.setQuery(it) },
+                        onOpenStats = { statsOpen = true },
+                        onAskYuki = { chatMode = true },
+                        onOpenDetail = { detail = it },
+                        onOpenSongs = { onOpenLibrary(LibraryKind.Songs) },
+                        onOpenAlbums = { onOpenLibrary(LibraryKind.Albums) },
+                        onOpenArtists = { onOpenLibrary(LibraryKind.Artists) },
+                        viewModel = viewModel,
+                    )
+                }
+                return@LazyColumn
+            }
+
             // 头部：标题 + 问候语 + 三个 44×44 玻璃图标
             item("header") {
                 Row(
@@ -160,11 +193,12 @@ fun SearchScreen(
                         Text(stringResource(R.string.TabDiscover), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = primary)
                         Text(greeting(), fontSize = 13.sp, color = secondary, modifier = Modifier.padding(top = 4.dp))
                     }
-                    GlassIcon(R.drawable.ic_search, "搜索") { searchOpen = !searchOpen }
+                    // 这里是竖屏头部：横屏在 LandscapeDiscover 里有自己的一条（图标更小、含搜索与统计）
+                    GlassIcon(R.drawable.ic_search, stringResource(R.string.TabSearch)) { searchOpen = !searchOpen }
                     Spacer(Modifier.width(10.dp))
-                    GlassIcon(R.drawable.ic_equalizer, "听歌统计") { statsOpen = true }
+                    GlassIcon(R.drawable.ic_equalizer, stringResource(R.string.lib_open_stats)) { statsOpen = true }
                     Spacer(Modifier.width(10.dp))
-                    GlassIcon(R.drawable.ic_settings, "设置", onClick = onOpenSettings)
+                    GlassIcon(R.drawable.ic_settings, stringResource(R.string.Settings), onClick = onOpenSettings)
                 }
             }
 
@@ -201,7 +235,6 @@ fun SearchScreen(
                 // 五颗分类 chip 全部取消：歌手/专辑由货架右上「查看全部」承接，统计挪到头部柱状图标，
                 // 「排行」本来就有「最多播放」入口，「每日推荐歌单列表」也不再单列（英雄卡就是它）。
                 recommendItems(
-                    landscape = landscape,
                     viewModel = viewModel,
                     sections = sections,
                     artists = artists,
@@ -285,7 +318,6 @@ private fun StaggerIn(index: Int, content: @Composable () -> Unit) {
 
 /** 推荐面板的各个板块，作为 LazyColumn 的 item 逐个发射（板块间 12dp 间距） */
 private fun LazyListScope.recommendItems(
-    landscape: Boolean,
     viewModel: SearchViewModel,
     sections: SearchViewModel.Sections,
     artists: List<com.catclaw.music.kt.data.db.ArtistListItem>,
@@ -293,6 +325,7 @@ private fun LazyListScope.recommendItems(
     primary: Color,
     secondary: Color,
     onAskYuki: () -> Unit,
+    // 横屏时头部只剩标题，「搜索 / 听歌统计」挪到入口上方，回调从这里传进来
     onOpenDetail: (LibraryDetail) -> Unit,
     onOpenSongs: () -> Unit,
     onOpenAlbums: () -> Unit,
@@ -310,66 +343,33 @@ private fun LazyListScope.recommendItems(
         }
     }
 
-    // ① 每日推荐英雄卡 + ② 四个入口
-    // 竖屏是「上下两块」；横屏并成一行：左边大卡、右边 2×2 入口。
-    // 横屏画布矮，两块竖着排会把入口挤到屏幕外（用户：发现页 ui 布局太奇怪了）。
-    if (landscape) {
-        item("rec_hero_row") {
-            StaggerIn(index = 0) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (hero != null) {
-                        DailyHero(
-                            song = hero,
-                            onPlay = { viewModel.play(sections.daily, 0) },
-                            onRefresh = { viewModel.reload() },
-                            modifier = Modifier.weight(1.45f),
-                        )
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
-                            QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
-                                if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
-                            }
-                            QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
-                        }
-                    }
-                }
-            }
+    // ① 每日推荐英雄卡（横屏时卡片内部自动变成「封面 + 文字」横排）
+    if (hero != null) item("rec_hero") {
+        StaggerIn(index = 0) {
+            DailyHero(
+                song = hero,
+                onPlay = { viewModel.play(sections.daily, 0) },
+                onRefresh = { viewModel.reload() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
+            )
         }
-    } else {
-        if (hero != null) item("rec_hero") {
-            StaggerIn(index = 0) {
-                DailyHero(
-                    song = hero,
-                    onPlay = { viewModel.play(sections.daily, 0) },
-                    onRefresh = { viewModel.reload() },
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
-                )
-            }
-        }
-        item("rec_quick") {
-            StaggerIn(index = 1) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
-                    QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
-                    QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
-                        if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
-                    }
-                    QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
+    }
+
+    // ② 四个入口：横屏竖屏都是一行四个（横屏宽度够，不需要折成 2×2）
+    item("rec_quick") {
+        StaggerIn(index = 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
+                QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
+                QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
+                    if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
                 }
+                QuickTile(R.drawable.ic_favorite, stringResource(R.string.disc_favorite), Modifier.weight(1f), viewModel::playFavorites)
             }
         }
     }
@@ -402,19 +402,8 @@ private fun LazyListScope.recommendItems(
             }
         }
     }
-    if (landscape && recSongs.isNotEmpty() && albums.isNotEmpty()) {
-        item("rec_two_up") {
-            StaggerIn(index = 2) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.weight(1f)) { songsShelf() }
-                    Box(Modifier.weight(1f)) { albumsShelf() }
-                }
-            }
-        }
-    } else {
-        if (recSongs.isNotEmpty()) item("rec_songs") { StaggerIn(index = 2) { songsShelf() } }
-        if (albums.isNotEmpty()) item("rec_albums") { StaggerIn(index = 2) { albumsShelf() } }
-    }
+    if (recSongs.isNotEmpty()) item("rec_songs") { StaggerIn(index = 2) { songsShelf() } }
+    if (albums.isNotEmpty()) item("rec_albums") { StaggerIn(index = 2) { albumsShelf() } }
 
     // ⑤ 推荐艺人：10 位，横滑
     if (artists.isNotEmpty()) item("rec_artists") {
@@ -444,16 +433,13 @@ private fun DailyHero(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val palette = LocalCatClawPalette.current
-    // 横屏画布只有 480dp 高，268dp 的 Hero 几乎占满一屏，标题和按钮会被底栏压住
-    val heroLandscape =
-        androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // 竖屏专用。横屏在 411dp 高的画布上根本放不下这张 268dp 的卡，
+    // 已整体换成双栏舞台（见 LandscapeDiscover / LandscapeHeroCard）。
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (heroLandscape) 188.dp else 268.dp)
-            .clip(RoundedCornerShape(if (heroLandscape) 18.dp else 22.dp)),
+            .height(268.dp)
+            .clip(RoundedCornerShape(22.dp)),
     ) {
         CoverTile(
             coverArtPath = song.coverArtPath,
@@ -566,10 +552,17 @@ private fun RailHead(title: String, onSeeAll: () -> Unit, primary: Color, second
 
 /** 货架上的歌曲卡：封面 + 标题 + 歌手，右下角一颗小播放点 */
 @Composable
-private fun SongRailCard(song: SongListItem, onClick: () -> Unit) {
+private fun SongRailCard(
+    song: SongListItem,
+    /** 横屏面板高度按屏高自适应，封面边长由调用方算好传进来 */
+    cover: androidx.compose.ui.unit.Dp = 104.dp,
+    /** 横屏面板只有 ~120dp，放不下歌手行时只留标题（2026-11-09 真机 dump 量到歌手被裁剩 9dp） */
+    showArtist: Boolean = true,
+    onClick: () -> Unit,
+) {
     val palette = LocalCatClawPalette.current
-    Column(modifier = Modifier.width(104.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
-        Box(modifier = Modifier.size(104.dp)) {
+    Column(modifier = Modifier.width(cover).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+        Box(modifier = Modifier.size(cover)) {
             CoverTile(
                 coverArtPath = song.coverArtPath,
                 audioPath = song.filePath,
@@ -602,26 +595,33 @@ private fun SongRailCard(song: SongListItem, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 7.dp),
         )
-        Text(
-            text = song.artist,
-            fontSize = 10.5.sp,
-            color = Color(palette.textSecondary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        if (showArtist) {
+            Text(
+                text = song.artist,
+                fontSize = 10.5.sp,
+                color = Color(palette.textSecondary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 /** 货架上的专辑卡：比网格卡小一号，单行能露 3.5 张 */
 @Composable
-private fun RailAlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onClick: () -> Unit) {
+private fun RailAlbumCard(
+    album: com.catclaw.music.kt.data.db.AlbumListItem,
+    cover: androidx.compose.ui.unit.Dp = 104.dp,
+    showArtist: Boolean = true,
+    onClick: () -> Unit,
+) {
     val palette = LocalCatClawPalette.current
-    Column(modifier = Modifier.width(104.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+    Column(modifier = Modifier.width(cover).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
         CoverTile(
             coverArtPath = album.coverArtPath,
             audioPath = album.sampleFilePath,
             maxPx = 320,
-            modifier = Modifier.size(104.dp).clip(RoundedCornerShape(12.dp)),
+            modifier = Modifier.size(cover).clip(RoundedCornerShape(12.dp)),
         ) {}
         Text(
             text = album.title,
@@ -632,14 +632,16 @@ private fun RailAlbumCard(album: com.catclaw.music.kt.data.db.AlbumListItem, onC
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 7.dp),
         )
-        Text(
-            text = album.artist,
-            fontSize = 10.5.sp,
-            color = Color(palette.textSecondary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        if (showArtist) {
+            Text(
+                text = album.artist,
+                fontSize = 10.5.sp,
+                color = Color(palette.textSecondary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 @Composable
@@ -984,11 +986,17 @@ private fun CatChip(label: String, selected: Boolean, modifier: Modifier = Modif
 }
 
 @Composable
-private fun GlassIcon(iconRes: Int, description: String, onClick: () -> Unit) {
+private fun GlassIcon(
+    iconRes: Int,
+    description: String,
+    /** 横屏头部只有一条 44dp 的窄栏，44dp 的方块会顶满，收到 38dp */
+    size: androidx.compose.ui.unit.Dp = 44.dp,
+    onClick: () -> Unit,
+) {
     val palette = LocalCatClawPalette.current
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(size)
             .glassCard(palette = palette, corner = 16)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -997,7 +1005,7 @@ private fun GlassIcon(iconRes: Int, description: String, onClick: () -> Unit) {
             painter = painterResource(iconRes),
             contentDescription = description,
             tint = Color(palette.textPrimary),
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(size * 0.5f),
         )
     }
 }
@@ -1014,4 +1022,452 @@ private fun greeting(): String {
             else -> R.string.disc_greeting_night
         },
     )
+}
+
+// ─────────────────────────── 横屏发现页（双栏舞台） ───────────────────────────
+
+/**
+ * 横屏四入口的色相：冷蓝 / 青 / 紫 / 琥珀。
+ * 全部低饱和 —— 用户 2026-11-07 明确要求删掉粉色，这里也不引入高饱和色块。
+ */
+private const val QUICK_BLUE = 0xFF7C9BE8L
+private const val QUICK_TEAL = 0xFF5FBEAEL
+private const val QUICK_VIOLET = 0xFF9A8DD6L
+private const val QUICK_AMBER = 0xFFD8AA6AL
+
+/** 迷你条浮在底部（高 60 + 下边距 12 + 4dp 呼吸），舞台留 80dp 给它，内容就不会被压住 */
+private val LandscapeChromeReserve = 80.dp
+
+/**
+ * 横屏发现页 = 一整块「双栏舞台」，高度由调用方给（`fillParentMaxHeight()`，恰好一屏）。
+ *
+ * 换掉竖屏纵向列表的原因：411dp 高的画布只够「标题 + 英雄卡 + 一排入口」，
+ * 竖着堆到第四块就只能被迷你条遮住 —— 2026-11-09 真机截图里四个入口只剩图标头顶。
+ * 这里把宽度用起来：左栏约 38% 是每日推荐的实图大卡，右栏上排四入口、下排推荐货架。
+ */
+@Composable
+private fun LandscapeDiscover(
+    modifier: Modifier = Modifier,
+    query: String,
+    results: List<SongListItem>,
+    sections: SearchViewModel.Sections,
+    albums: List<com.catclaw.music.kt.data.db.AlbumListItem>,
+    artists: List<com.catclaw.music.kt.data.db.ArtistListItem>,
+    primary: Color,
+    secondary: Color,
+    searchOpen: Boolean,
+    onToggleSearch: () -> Unit,
+    onQueryChange: (String) -> Unit,
+    onOpenStats: () -> Unit,
+    onAskYuki: () -> Unit,
+    onOpenDetail: (LibraryDetail) -> Unit,
+    onOpenSongs: () -> Unit,
+    onOpenAlbums: () -> Unit,
+    onOpenArtists: () -> Unit,
+    viewModel: SearchViewModel,
+) {
+    val palette = LocalCatClawPalette.current
+    Column(modifier.fillMaxSize()) {
+        // 头部压到一条 44dp 的窄栏：横屏没有纵向余量留给 30sp 的大标题
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.TabDiscover),
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                color = primary,
+            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .size(width = 1.dp, height = 15.dp)
+                    .background(Color(palette.textPrimary).copy(alpha = 0.22f)),
+            )
+            Text(
+                text = greeting(),
+                fontSize = 12.sp,
+                color = secondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            GlassIcon(
+                R.drawable.ic_search,
+                stringResource(R.string.TabSearch),
+                size = 38.dp,
+                onClick = onToggleSearch,
+            )
+            Spacer(Modifier.width(8.dp))
+            GlassIcon(
+                R.drawable.ic_equalizer,
+                stringResource(R.string.lib_open_stats),
+                size = 38.dp,
+                onClick = onOpenStats,
+            )
+        }
+
+        if (searchOpen || query.isNotBlank()) {
+            GlassSearchField(
+                query = query,
+                onChange = onQueryChange,
+                placeholder = stringResource(R.string.disc_search_hint),
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            )
+            // 刚点开、还没输入时不要摆「没找到与「」相关」的结论 —— 列表干脆不出（输入框已占住焦点）
+            if (query.isNotBlank()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(bottom = LandscapeChromeReserve),
+                ) {
+                    if (results.isEmpty()) {
+                        item("none") {
+                            EmptyState(
+                                hint = stringResource(R.string.search_none, query.trim()),
+                                iconRes = R.drawable.ic_search,
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                            )
+                        }
+                    } else {
+                        item("results") {
+                            SongRows(stringResource(R.string.TabSongs), results, primary, secondary) {
+                                viewModel.play(results, it)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = LandscapeChromeReserve),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                val hero = sections.daily.firstOrNull()
+                if (hero != null) {
+                    LandscapeHeroCard(
+                        song = hero,
+                        onPlay = { viewModel.play(sections.daily, 0) },
+                        onRefresh = { viewModel.reload() },
+                        // 0.66 : 1 → 主卡约占内容宽度的 38%，与设计稿一致
+                        modifier = Modifier.weight(0.66f).fillMaxHeight(),
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.weight(0.66f).fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(stringResource(R.string.disc_empty), fontSize = 12.sp, color = secondary)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        LandscapeQuickTile(
+                            R.drawable.ic_spark,
+                            stringResource(R.string.disc_tag_ai),
+                            QUICK_BLUE,
+                            Modifier.weight(1f),
+                            onAskYuki,
+                        )
+                        LandscapeQuickTile(
+                            R.drawable.ic_shuffle,
+                            stringResource(R.string.disc_tag_shuffle),
+                            QUICK_TEAL,
+                            Modifier.weight(1f),
+                            { viewModel.shuffleAll() },
+                        )
+                        LandscapeQuickTile(
+                            R.drawable.ic_rank,
+                            stringResource(R.string.disc_tag_top),
+                            QUICK_VIOLET,
+                            Modifier.weight(1f),
+                            { if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0) },
+                        )
+                        LandscapeQuickTile(
+                            R.drawable.ic_favorite,
+                            stringResource(R.string.disc_favorite),
+                            QUICK_AMBER,
+                            Modifier.weight(1f),
+                            { viewModel.playFavorites() },
+                        )
+                    }
+                    val recSongs = (sections.daily + sections.fresh + sections.frequent)
+                        .distinctBy { it.id }
+                        .take(10)
+                    LandscapeRailPanel(
+                        recSongs = recSongs,
+                        albums = albums,
+                        artists = artists,
+                        onOpenSongs = onOpenSongs,
+                        onOpenAlbums = onOpenAlbums,
+                        onOpenArtists = onOpenArtists,
+                        onOpenDetail = onOpenDetail,
+                        viewModel = viewModel,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 横屏主卡：封面铺满整张卡，底部重渐变压住文字。
+ * 与竖屏那张 268dp 的横幅不同 —— 这里高度由舞台决定（约 259dp），宽度约 300dp，
+ * 所以文字块要更紧凑：标题最多两行、胶囊保持 44dp 触达。
+ */
+@Composable
+private fun LandscapeHeroCard(
+    song: SongListItem,
+    onPlay: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    Box(modifier = modifier.clip(RoundedCornerShape(24.dp))) {
+        CoverTile(
+            coverArtPath = song.coverArtPath,
+            audioPath = song.filePath,
+            maxPx = 640,
+            modifier = Modifier.fillMaxSize(),
+        ) {}
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.18f),
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.35f),
+                        Color.Black.copy(alpha = 0.90f),
+                    ),
+                ),
+            ),
+        )
+        // 顶部徽标：玻璃片浮在封面上，和竖屏那张卡同一处语言
+        Text(
+            text = stringResource(R.string.disc_hero_by_taste),
+            fontSize = 10.sp,
+            color = ink,
+            maxLines = 1,
+            modifier = Modifier
+                .padding(14.dp)
+                .clip(RoundedCornerShape(50))
+                .background(ink.copy(alpha = 0.16f))
+                .border(1.dp, ink.copy(alpha = 0.26f), RoundedCornerShape(50))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.disc_tag_daily),
+                fontSize = 9.5.sp,
+                color = ink.copy(alpha = 0.66f),
+                maxLines = 1,
+            )
+            Text(
+                text = song.title,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 5.dp),
+            )
+            Text(
+                text = song.artist,
+                fontSize = 11.5.sp,
+                color = ink.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PillLabel(text = stringResource(R.string.playlist_play_all), onClick = onPlay)
+                PillLabel(text = stringResource(R.string.disc_hero_refresh), onClick = onRefresh, filled = false)
+            }
+        }
+    }
+}
+
+/**
+ * 横屏四入口的一格：图标在左上、文字在左下，底子是这一格自己的色相渐变。
+ * 竖屏那版是等宽单色玻璃（[QuickTile]），横屏宽高比更扁，横向排布比上下堆好看。
+ */
+@Composable
+private fun LandscapeQuickTile(
+    iconRes: Int,
+    label: String,
+    accentArgb: Long,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val accent = Color(accentArgb)
+    val shape = RoundedCornerShape(18.dp)
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(shape)
+            .background(
+                Brush.linearGradient(listOf(accent.copy(alpha = 0.34f), accent.copy(alpha = 0.05f))),
+            )
+            .border(1.dp, ink.copy(alpha = 0.16f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(ink.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = ink,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = ink,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart),
+        )
+    }
+}
+
+/**
+ * 横屏推荐货架：一块玻璃面板，头部是「歌曲 / 专辑 / 艺人」三个分段 + 查看全部。
+ * 高度只有 ~185dp，所以卡片封面收到 96dp（竖屏货架是 104dp），保证标题与歌手不被切掉。
+ */
+@Composable
+private fun LandscapeRailPanel(
+    recSongs: List<SongListItem>,
+    albums: List<com.catclaw.music.kt.data.db.AlbumListItem>,
+    artists: List<com.catclaw.music.kt.data.db.ArtistListItem>,
+    onOpenSongs: () -> Unit,
+    onOpenAlbums: () -> Unit,
+    onOpenArtists: () -> Unit,
+    onOpenDetail: (LibraryDetail) -> Unit,
+    viewModel: SearchViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf(
+        stringResource(R.string.TabSongs),
+        stringResource(R.string.TabAlbums),
+        stringResource(R.string.TabArtists),
+    )
+    Column(
+        modifier = modifier
+            .glassCard(palette = palette, corner = 24)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            tabs.forEachIndexed { index, label ->
+                val selected = index == tab
+                Text(
+                    text = label,
+                    fontSize = 11.5.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (selected) ink else Color(palette.textSecondary),
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (selected) ink.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { tab = index }
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
+                )
+                Spacer(Modifier.width(3.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = stringResource(R.string.disc_see_all) + " ›",
+                fontSize = 11.sp,
+                color = Color(palette.textSecondary),
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        when (tab) {
+                            0 -> onOpenSongs()
+                            1 -> onOpenAlbums()
+                            else -> onOpenArtists()
+                        }
+                    }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+        }
+        val empty = when (tab) {
+            0 -> recSongs.isEmpty()
+            1 -> albums.isEmpty()
+            else -> artists.isEmpty()
+        }
+        if (empty) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(stringResource(R.string.disc_empty), fontSize = 11.5.sp, color = Color(palette.textSecondary))
+            }
+        } else {
+            // 面板只剩 ~160dp：封面按剩余高度自适应（标题 17 + 歌手 15 + 间距 10 ≈ 42dp）。
+            // 写死 104dp 会把歌手那行挤出可视区 —— 2026-11-09 真机 dump 量到卡片被裁掉 21dp
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp)) {
+                // 卡片 = 封面 + 7dp 间距 + 一行标题（~24dp），余量全给封面；
+                // 高度够时才把歌手行加回来（平板/更高的画布）
+                val showArtist = maxHeight >= 145.dp
+                val textBlock = if (showArtist) 48.dp else 33.dp
+                val cover = (maxHeight - textBlock).coerceIn(64.dp, 132.dp)
+                LazyRow(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    when (tab) {
+                        0 -> itemsIndexed(recSongs, key = { _, song -> "ls${song.id}" }) { index, song ->
+                            SongRailCard(song, cover = cover, showArtist = showArtist) {
+                                viewModel.play(recSongs, index)
+                            }
+                        }
+                        1 -> items(albums, key = { "la${it.id}" }) { album ->
+                            RailAlbumCard(album, cover = cover, showArtist = showArtist) {
+                                onOpenDetail(LibraryDetail(LibraryKind.Albums, album.id, album.title))
+                            }
+                        }
+                        else -> items(artists, key = { "lr${it.id}" }) { artist ->
+                            ArtistBubble(artist) {
+                                onOpenDetail(LibraryDetail(LibraryKind.Artists, artist.id, artist.name))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
