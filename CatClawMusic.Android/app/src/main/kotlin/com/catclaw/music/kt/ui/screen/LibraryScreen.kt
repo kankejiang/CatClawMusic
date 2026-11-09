@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -213,12 +215,13 @@ fun LibraryScreen(
     val artistGroups = remember(stats) { artistInsight(stats) }
     var insightIndex by remember { mutableStateOf(0) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 132.dp),
-    ) {
+    val landscape = LocalConfiguration.current.orientation ==
+        Configuration.ORIENTATION_LANDSCAPE
+
+    // 横屏左右两栏共用同一份内容：左栏回答「有多少 / 去哪」，右栏放资料库与管理卡。
+    // 竖屏仍是一列纵向滚动，两栏只在 landscape 分支里成立。
+    val headContent: @Composable () -> Unit = {
+        Column(modifier = Modifier.fillMaxWidth()) {
         // 顶栏（2026-11-08 重设计）：标题 + 副标题 + 两个动作。
         // 原来那块粉橙渐变 Hero 卡只是把「我的音乐库」放大，没有信息量，还把整页强调色带偏。
         Row(
@@ -254,6 +257,7 @@ fun LibraryScreen(
         }
 
         // 四个数字：四张独立玻璃格（原来这四格坐在渐变 Hero 上，靠压黑/压白维持对比度）
+        // 横屏左栏 360dp 也排得下四格：75dp/格，20sp 的数字不顶，入口同理
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -290,6 +294,11 @@ fun LibraryScreen(
                 onOpenKind(LibraryKind.Favorites)
             }
         }
+    }
+}
+
+    val sectionContent: @Composable () -> Unit = {
+        Column(modifier = Modifier.fillMaxWidth()) {
         // 资料库卡 —— MAUI `LibraryPage` 首屏那五张入口卡（本地 / 我喜欢的 / 最近播放 / 网络 / 下载）。
         // 副标题由这里给全：计数行是「N 首」，导航行是那句功能说明 —— 之前 SourceRow 只认一个 count，
         // 于是「跳别的页面」这种行只能在徽标里显示一个没有意义的数字。
@@ -647,6 +656,36 @@ fun LibraryScreen(
                     }
                 }
             }
+        }
+        }
+    }
+
+    if (landscape) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .width(360.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 92.dp),
+            ) { headContent() }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 92.dp),
+            ) { sectionContent() }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 132.dp),
+        ) {
+            headContent()
+            sectionContent()
         }
     }
 }
