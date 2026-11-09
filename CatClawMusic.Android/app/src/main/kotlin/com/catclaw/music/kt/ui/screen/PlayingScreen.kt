@@ -73,6 +73,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.ui.LocalSleepTimerOpener
 import com.catclaw.music.kt.core.lyrics.LyricsState
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.ui.library.LibraryViewModel
@@ -125,7 +126,6 @@ fun PlayingScreen(
     var belongsDetail by remember { mutableStateOf<LibraryDetail?>(null) }
     // 睡眠定时弹窗的开关。内核（SleepTimerRules）与弹窗本身早就写好了，
     // 但此前全仓库没有任何一处调用点 —— 定时器在跑，用户却打不开它
-    var sleepTimerOpen by remember { mutableStateOf(false) }
     val menu = rememberSongMenu(
         viewModel = libraryViewModel,
         onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
@@ -183,6 +183,8 @@ fun PlayingScreen(
 
     // 横屏（含平板 / 折叠屏展开）走另一套形状：见 [LandscapeBody]。这一句要在页面顶层拿到，
     // 因为要减的不只是中栏——抓栏在横屏是多余的一行，去掉它才给歌词行腾出高度。
+    // 定时弹窗由壳层渲染（录制层外），这里只拿到「打开」这一个动作
+    val openSleepTimer = LocalSleepTimerOpener.current
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     // 页面底 = 当前这张封面本身（[artworkBackdrop]：全屏 AspectFill + 上下压暗，网易云「一起听」那套），
@@ -234,7 +236,7 @@ fun PlayingScreen(
                 onSeek = { viewModel.seekTo(it) },
                 onToggleFavorite = { state.currentSong?.let { menu.onToggleFavorite(it.id) } },
                 onOpenQueue = onOpenQueue,
-                onSleepTimer = { sleepTimerOpen = true },
+                onSleepTimer = openSleepTimer,
                 onMore = { songMenuOpen = true },
                 onCollapse = onCollapse,
                 palette = palette,
@@ -436,21 +438,6 @@ fun PlayingScreen(
 
     // 菜单指向当前曲目。用 takeIf 而不是 `if (songMenuOpen)`：菜单项点完即 dismiss，
     // 目标歌在这一刻取，滑到别的歌上时不会把菜单留给上一首
-    if (sleepTimerOpen) {
-        SleepTimerDialog(
-            sleep = sleep,
-            onStart = { minutes, stopAfterSong, fadeOut ->
-                viewModel.startSleepTimer(minutes, stopAfterSong, fadeOut)
-                sleepTimerOpen = false
-            },
-            onCancel = {
-                viewModel.cancelSleepTimer()
-                sleepTimerOpen = false
-            },
-            onDismiss = { sleepTimerOpen = false },
-        )
-    }
-
     state.currentSong?.takeIf { songMenuOpen && it.id > 0 }?.let { song ->
         SongMenuFor(
             // isCurrent = true：这是「正在播放的这首」的菜单，不摆「下一首播放」
@@ -473,7 +460,7 @@ fun PlayingScreen(
                             },
                             onClick = {
                                 songMenuOpen = false
-                                sleepTimerOpen = true
+                                openSleepTimer()
                             },
                         ),
                         SongMenuItem(

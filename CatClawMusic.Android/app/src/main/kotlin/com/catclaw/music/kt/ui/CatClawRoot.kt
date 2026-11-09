@@ -73,6 +73,7 @@ import com.catclaw.music.kt.ui.screen.PlaylistScreen
 import com.catclaw.music.kt.ui.screen.RemoteSourcesScreen
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.MiniPlayer
+import com.catclaw.music.kt.ui.player.SleepTimerDialog
 import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.equalizer.SoundEffectsScreen
 import com.catclaw.music.kt.ui.screen.QueueScreen
@@ -171,6 +172,14 @@ private fun TabCell(
     }
 }
 
+/**
+ * 睡眠定时弹窗的「喊一声」入口。
+ *
+ * 弹窗必须由壳层在**录制层之外**渲染：页面（PlayingScreen）在 `backdropSource` 里面，
+ * 它内部再画一块 `liquidGlass` 会采样到自己那一层 —— 真机表现为点开就整页闪退（RenderThread 自采样）。
+ */
+val LocalSleepTimerOpener = androidx.compose.runtime.staticCompositionLocalOf<() -> Unit> { {} }
+
 @Composable
 fun CatClawRoot() {
     val rootNavController = rememberNavController()
@@ -254,6 +263,8 @@ private fun TabsHost(
     onCloseInlineSettings: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    // 睡眠定时弹窗由壳层（录制层之外）渲染，页面只通过 LocalSleepTimerOpener 喊一声
+    var sleepTimerOpen by remember { mutableStateOf(false) }
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val mode by themeViewModel.mode.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
@@ -288,6 +299,7 @@ private fun TabsHost(
     // 队列页要读同一条队列，所以 VM 在这里取一次往下传（hiltViewModel 按路由作用域，两边共享同一实例）
     val playingViewModel: PlayingViewModel = hiltViewModel()
     val queueSongs by playingViewModel.queueSongs.collectAsStateWithLifecycle()
+    val sleepTimerState by playingViewModel.sleep.collectAsStateWithLifecycle()
     val playState by playingViewModel.state.collectAsStateWithLifecycle()
     val positionMs by playingViewModel.positionMs.collectAsStateWithLifecycle()
     var showQueue by remember { mutableStateOf(false) }
@@ -336,6 +348,7 @@ private fun TabsHost(
         LocalCustomBackground provides if (onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.CUSTOM) customBg else null,
         // 液玻材质从这里取宿主层：全 app 的卡片/面板都走它，不必层层传参
         LocalBackdropState provides backdrop,
+        LocalSleepTimerOpener provides { sleepTimerOpen = true },
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // 2026-10-18 实测（本次卡顿排查）：这一层录的是**整页内容**，而歌词逐字动画每帧都在变，
@@ -717,6 +730,21 @@ private fun TabsHost(
                         }
                     }
                 }
+            }
+            // 睡眠定时弹窗：放在 backdropSource 之外，liquidGlass 才能安全地采样身后的播放页
+            if (sleepTimerOpen) {
+                SleepTimerDialog(
+                    sleep = sleepTimerState,
+                    onStart = { minutes, stopAfterSong, fadeOut ->
+                        playingViewModel.startSleepTimer(minutes, stopAfterSong, fadeOut)
+                        sleepTimerOpen = false
+                    },
+                    onCancel = {
+                        playingViewModel.cancelSleepTimer()
+                        sleepTimerOpen = false
+                    },
+                    onDismiss = { sleepTimerOpen = false },
+                )
             }
             // 全屏歌词页是 pager 的第 0 页而不是 NavHost 路由，没人接系统返回键就是**直接退掉整个应用**
             // （真机：歌词页按返回掉回桌面）。它是从播放页滑出来的，返回就该滑回去。
