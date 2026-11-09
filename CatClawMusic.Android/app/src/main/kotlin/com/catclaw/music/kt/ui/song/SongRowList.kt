@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.song
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import com.catclaw.music.kt.data.db.SongDetailRow
 import com.catclaw.music.kt.data.db.SongListItem
 import com.catclaw.music.kt.data.db.toSong
 import com.catclaw.music.kt.ui.library.LibraryViewModel
+import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.glassCard
@@ -134,6 +136,7 @@ fun SongList(
     ) {
         itemsIndexed(rows) { index, row ->
             val subtitle = subtitleOf(row)
+            val favorite = row.id in menu.favoriteIds
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,22 +149,40 @@ fun SongList(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // 有封面显示封面，没有才退回序号；收藏状态改用品牌色描边标在封面外圈
                 Box(
                     modifier = Modifier
                         .size(if (compact) 36.dp else 40.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(
-                            if (row.id in menu.favoriteIds) Color(palette.primary).copy(alpha = 0.55f)
-                            else Color(palette.primary).copy(alpha = 0.22f),
+                            Color(palette.primary).copy(alpha = if (favorite) 0.55f else 0.22f),
+                        )
+                        .then(
+                            if (favorite) {
+                                Modifier.border(
+                                    width = 1.5.dp,
+                                    color = Color(palette.primary),
+                                    shape = RoundedCornerShape(13.dp),
+                                )
+                            } else {
+                                Modifier
+                            },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = (index + 1).toString(),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textPrimary),
-                    )
+                    CoverTile(
+                        coverArtPath = row.coverArtPath,
+                        audioPath = row.filePath,
+                        maxPx = 160,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        Text(
+                            text = (index + 1).toString(),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(palette.textPrimary),
+                        )
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
