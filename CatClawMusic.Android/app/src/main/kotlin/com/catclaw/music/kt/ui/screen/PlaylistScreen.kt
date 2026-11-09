@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.screen
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,10 +42,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -73,6 +77,7 @@ import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.GlassSearchField
+import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.core.library.SongSortKey
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
@@ -148,6 +153,10 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val open = openId?.let { id -> playlists.firstOrNull { it.id == id } }
+    // 两个虚拟入口的计数在竖屏/横屏都要用，提到分支外，避免两边各自订阅一份流
+    val favorites by libraryViewModel.favorites.collectAsStateWithLifecycle()
+    val recent by libraryViewModel.recent.collectAsStateWithLifecycle()
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     entry?.let { kind ->
         PlaylistEntryScreen(
             kind = kind,
@@ -159,6 +168,58 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
         return
     }
 
+    // 横屏 411dp 高的画布堆不下「大 Hero + 两张 130dp 入口卡 + 列表」，列表会被迷你条切掉。
+    // 与发现页同一套「双栏舞台」：左边实图主卡、右边玻璃货架，首屏自足；竖屏完全走原来的 Column。
+    if (landscape && open == null) {
+        LandscapePlaylistStage(
+            playlists = playlists,
+            covers = covers,
+            favoriteCount = favorites.size,
+            recentCount = recent.size,
+            draft = draft,
+            onDraftChange = { draft = it },
+            creating = creating,
+            onToggleCreate = { creating = !creating },
+            onCreate = {
+                viewModel.create(draft)
+                draft = ""
+                creating = false
+            },
+            onOpenFavorites = { entry = PlaylistEntry.Favorites },
+            onOpenRecent = { entry = PlaylistEntry.Recent },
+            editing = editing,
+            draftName = draftName,
+            renameTaken = renameTaken,
+            onRenameDraft = { draftName = it; renameTaken = false },
+            onCancelRename = { editing = null },
+            onSaveRename = { id ->
+                if (viewModel.rename(id, draftName)) editing = null else renameTaken = true
+            },
+            onOpen = { viewModel.open(it) },
+            onDelete = { viewModel.delete(it) },
+            onStartRename = { id, name ->
+                draftName = name
+                renameTaken = false
+                editing = id
+            },
+            onCommitOrder = { viewModel.commitPlaylistOrder(it) },
+            primary = primary,
+            secondary = secondary,
+        )
+    } else if (landscape) {
+        // 详情层横屏同样不能用竖屏那四行控制条（真机截图里歌曲列表只剩一条缝）
+        open?.let { playlist ->
+            LandscapePlaylistDetail(
+                playlist = playlist,
+                cover = covers[playlist.id],
+                viewModel = viewModel,
+                onBack = { viewModel.close() },
+                onOpenMenu = { rowMenu = it },
+                primary = primary,
+                secondary = secondary,
+            )
+        }
+    } else {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(14.dp))
         if (open == null) {
@@ -200,8 +261,6 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             // MAUI 的 PlaylistPage 顶部就是这两张带计数的入口卡片。本端此前一张都没有，
             // 于是收藏在歌单页完全不可达，而 `PlaylistCard` 里的 isSystem 分支一直是死代码 ——
             // 系统歌单从来没被种进 Playlists 表（MAUI 也没有），它们本来就是虚拟入口而不是虚拟行。
-            val favorites by libraryViewModel.favorites.collectAsStateWithLifecycle()
-            val recent by libraryViewModel.recent.collectAsStateWithLifecycle()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 EntryCard(
                     iconRes = R.drawable.ic_favorite,
@@ -265,107 +324,30 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             if (playlists.isEmpty() && !creating) {
                 EmptyState(hint = stringResource(R.string.playlist_none), iconRes = R.drawable.ic_playlist)
             }
-            // 拖拽排序（MAUI `PlaylistDragDropHelper` 的 Compose 对应物）：长按自建歌单进拖拽、
-            // 上下拖动实时让位、松手按最终顺序落库。
-            // 系统歌单不参与：列表按 `IsSystem DESC` 恒在最前，拖也拖不动（DAO 里另有 IsSystem = 0 兜底）。
-            // 拖拽期间只改本地顺序，不每帧写库 —— 每帧一条 UPDATE 会把主线程拖垮
-            val listState = rememberLazyListState()
-            val haptics = LocalHapticFeedback.current
-            var draggingId by remember { mutableStateOf<Int?>(null) }
-            var dragOffset by remember { mutableFloatStateOf(0f) }
-            var dragOrder by remember { mutableStateOf<List<PlaylistEntity>?>(null) }
-            val shownPlaylists = dragOrder ?: playlists
-
-            LazyColumn(
-                state = listState,
+            // 竖屏与横屏共用同一份列表（拖拽排序、行内改名、打开/删除都在这里），
+            // 横屏只是把它放进玻璃货架并让行更矮（compact）。
+            PlaylistRows(
+                playlists = playlists,
+                covers = covers,
+                editingId = editing,
+                draftName = draftName,
+                renameTaken = renameTaken,
+                onDraft = { draftName = it; renameTaken = false },
+                onCancelRename = { editing = null },
+                onSaveRename = { id ->
+                    // 改成才收框：同名/空名时留着编辑框并给原因，不然用户以为改好了
+                    if (viewModel.rename(id, draftName)) editing = null else renameTaken = true
+                },
+                onOpen = { viewModel.open(it) },
+                onDelete = { viewModel.delete(it) },
+                onStartRename = { id, name ->
+                    draftName = name
+                    renameTaken = false
+                    editing = id
+                },
+                onCommitOrder = { viewModel.commitPlaylistOrder(it) },
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp),
-            ) {
-                itemsIndexed(shownPlaylists, key = { _, p -> p.id }) { _, playlist ->
-                    if (editing == playlist.id) {
-                        RenameRow(
-                            draft = draftName,
-                            taken = renameTaken,
-                            onDraft = { draftName = it; renameTaken = false },
-                            onCancel = { editing = null },
-                            onSave = {
-                                // 改成才收框：同名/空名时留着编辑框并给原因，不然用户以为改好了
-                                if (viewModel.rename(playlist.id, draftName)) editing = null else renameTaken = true
-                            },
-                        )
-                    } else {
-                        val isDragging = draggingId == playlist.id
-                        PlaylistCard(
-                            playlist = playlist,
-                            cover = covers[playlist.id],
-                            // 手势的键里**不能**放列表本身：拖拽中每次换位都会重组，
-                            // 键一变 pointerInput 就重启，手势当场断掉。要读的东西都在回调里现读（State 是活的）
-                            modifier = Modifier
-                                .graphicsLayer {
-                                    if (isDragging) {
-                                        translationY = dragOffset
-                                        // 抬起来的观感：轻微放大 + 压暗（MAUI ItemTouchHelper 那张卡的 1.02 / 0.94）
-                                        scaleX = 1.02f
-                                        scaleY = 1.02f
-                                        alpha = 0.94f
-                                    }
-                                }
-                                .pointerInput(playlist.id, playlist.isSystem) {
-                                    if (playlist.isSystem) return@pointerInput
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            draggingId = playlist.id
-                                            dragOrder = playlists
-                                            dragOffset = 0f
-                                        },
-                                        onDrag = { change, delta ->
-                                            change.consume()
-                                            dragOffset += delta.y
-                                            val list = dragOrder
-                                            val from = list?.indexOfFirst { it.id == draggingId } ?: -1
-                                            val rowHeight = if (from >= 0) {
-                                                listState.layoutInfo.visibleItemsInfo
-                                                    .firstOrNull { it.index == from }?.size ?: 0
-                                            } else {
-                                                0
-                                            }
-                                            if (list != null && from >= 0 && rowHeight > 0) {
-                                                // 越过半行就与邻居换位，并把累计位移减掉一行 —— 位置看起来才是连续的
-                                                if (dragOffset > rowHeight / 2f && from < list.lastIndex && !list[from + 1].isSystem) {
-                                                    dragOrder = list.toMutableList().apply { add(from + 1, removeAt(from)) }
-                                                    dragOffset -= rowHeight
-                                                } else if (dragOffset < -rowHeight / 2f && from > 0 && !list[from - 1].isSystem) {
-                                                    dragOrder = list.toMutableList().apply { add(from - 1, removeAt(from)) }
-                                                    dragOffset += rowHeight
-                                                }
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            // 松手按最终顺序一次性落库；没换过位也提交一次，代价一条事务
-                                            dragOrder?.let { viewModel.commitPlaylistOrder(it.map { p -> p.id }) }
-                                            draggingId = null
-                                            dragOrder = null
-                                            dragOffset = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingId = null
-                                            dragOrder = null
-                                            dragOffset = 0f
-                                        },
-                                    )
-                                },
-                            onOpen = { viewModel.open(playlist.id) },
-                            onDelete = { viewModel.delete(playlist.id) },
-                            onRename = {
-                                draftName = playlist.name
-                                renameTaken = false
-                                editing = playlist.id
-                            },
-                        )
-                    }
-                }
-            }
+            )
         } else {
             // 详情层：返回块 + 封面 + 标题 + 计数（头图对应 MAUI `PlaylistDetailPage.xaml:117`）
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -515,6 +497,7 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
             }
         }
     }
+    } // else：竖屏 Column / 横屏详情层
     rowMenu?.let { target -> SongMenuFor(target = target, menu = detailMenu, onDismiss = { rowMenu = null }) }
 }
 
@@ -529,17 +512,20 @@ private fun PlaylistCard(
     onRename: () -> Unit,
     /** 拖拽排序要在这张卡最外层挂手势与位移（见调用处），所以由调用方给 */
     modifier: Modifier = Modifier,
+    /** 横屏货架只有 ~230dp 高，行要压到 52dp 才露得出四五行 */
+    compact: Boolean = false,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+    val corner = if (compact) 16 else 22
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
-            .glassCard(palette = palette, corner = 22)
+            .padding(vertical = if (compact) 2.dp else 5.dp)
+            .glassCard(palette = palette, corner = corner)
             .clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = if (compact) 5.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -549,8 +535,8 @@ private fun PlaylistCard(
             audioPath = cover?.filePath,
             maxPx = 128,
             modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(if (compact) 38.dp else 46.dp)
+                .clip(RoundedCornerShape(if (compact) 11.dp else 14.dp))
                 .background(
                     if (playlist.isSystem) Color(palette.primary).copy(alpha = 0.22f)
                     else Color(palette.textPrimary).copy(alpha = 0.12f),
@@ -571,26 +557,26 @@ private fun PlaylistCard(
             }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = playlist.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text = stringResource(R.string.playlist_count, playlist.songCount), fontSize = 12.sp, color = secondary)
+            Text(text = playlist.name, fontSize = if (compact) 13.5.sp else 15.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = stringResource(R.string.playlist_count, playlist.songCount), fontSize = if (compact) 10.5.sp else 12.sp, color = secondary)
         }
         if (!playlist.isSystem) {
             // MAUI 是 ⋮ 菜单里两项（重命名 / 删除）；这里摊成两个 44dp 按钮，
             // 少一层弹窗、也不用在一行里再嵌一个弹层去管它的生命周期
-            CardAction(R.drawable.ic_edit, stringResource(R.string.playlist_rename), onRename)
-            CardAction(R.drawable.ic_close, stringResource(R.string.Delete), onDelete)
+            CardAction(R.drawable.ic_edit, stringResource(R.string.playlist_rename), onRename, compact)
+            CardAction(R.drawable.ic_close, stringResource(R.string.Delete), onDelete, compact)
         }
     }
 }
 
 /** 行尾那个 44×44 的图标按钮。尺寸与触达面走全 app 同一档 */
 @Composable
-private fun CardAction(iconRes: Int, description: String, onClick: () -> Unit) {
+private fun CardAction(iconRes: Int, description: String, onClick: () -> Unit, compact: Boolean = false) {
     val palette = LocalCatClawPalette.current
     Box(
         modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .size(if (compact) 34.dp else 44.dp)
+            .clip(RoundedCornerShape(if (compact) 11.dp else 14.dp))
             .clickable(onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -598,7 +584,7 @@ private fun CardAction(iconRes: Int, description: String, onClick: () -> Unit) {
             painter = painterResource(iconRes),
             contentDescription = description,
             tint = Color(palette.textSecondary),
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(if (compact) 15.dp else 18.dp),
         )
     }
 }
@@ -776,4 +762,703 @@ private fun PlaylistEntryScreen(
             onPlay = { if (isFavorites) viewModel.playFavoriteAt(it) else viewModel.playRecentAt(it) },
         )
     }
+}
+
+// ─────────────────────────── 横屏舞台 ───────────────────────────
+// 与发现页（SearchScreen.LandscapeDiscover）同一套语言：44dp 窄头 + 左实图主卡 +
+// 右玻璃货架，底部 80dp 留给迷你条。竖屏完全不走这里的任何一个组件。
+
+private const val COLLECTION_BLUE = 0xFF7FA6D8L
+private const val COLLECTION_AMBER = 0xFFD8AA6AL
+/** 迷你条浮在底部（60 高 + 12 下边距 + 呼吸） */
+private val PlaylistChromeReserve = 80.dp
+
+@Composable
+private fun LandscapePlaylistStage(
+    playlists: List<PlaylistEntity>,
+    covers: Map<Int, PlaylistCover>,
+    favoriteCount: Int,
+    recentCount: Int,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    creating: Boolean,
+    onToggleCreate: () -> Unit,
+    onCreate: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onOpenRecent: () -> Unit,
+    editing: Int?,
+    draftName: String,
+    renameTaken: Boolean,
+    onRenameDraft: (String) -> Unit,
+    onCancelRename: () -> Unit,
+    onSaveRename: (Int) -> Unit,
+    onOpen: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    onStartRename: (Int, String) -> Unit,
+    onCommitOrder: (List<Int>) -> Unit,
+    primary: Color,
+    secondary: Color,
+) {
+    val palette = LocalCatClawPalette.current
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.MyPlaylists),
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                color = primary,
+            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .size(width = 1.dp, height = 15.dp)
+                    .background(primary.copy(alpha = 0.22f)),
+            )
+            Text(
+                text = stringResource(R.string.PlaylistSubtitle),
+                fontSize = 12.sp,
+                color = secondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .glassCard(palette = palette, corner = 13)
+                    .clickable(onClick = onToggleCreate),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(if (creating) R.drawable.ic_close else R.drawable.ic_add),
+                    contentDescription = stringResource(R.string.playlist_new),
+                    tint = primary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        }
+
+        if (creating) {
+            LandscapeCreateRow(draft, onDraftChange, onCreate, primary, secondary)
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(start = 18.dp, end = 18.dp, top = 2.dp, bottom = PlaylistChromeReserve),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            LandscapeCollectionCard(
+                playlists = playlists,
+                covers = covers,
+                favoriteCount = favoriteCount,
+                recentCount = recentCount,
+                onOpenFavorites = onOpenFavorites,
+                onOpenRecent = onOpenRecent,
+                modifier = Modifier.weight(0.6f).fillMaxHeight(),
+            )
+            LandscapePlaylistShelf(
+                count = playlists.size,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            ) {
+                if (playlists.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.playlist_none),
+                            fontSize = 11.5.sp,
+                            color = secondary,
+                        )
+                        // 空面板不能只剩一句话：把新建动作摆在正中间，省得用户去找头部那颗 38dp 圆钮
+                        Box(modifier = Modifier.padding(top = 12.dp)) {
+                            PillLabel(text = stringResource(R.string.playlist_new), onClick = onToggleCreate)
+                        }
+                    }
+                } else {
+                    PlaylistRows(
+                        playlists = playlists,
+                        covers = covers,
+                        editingId = editing,
+                        draftName = draftName,
+                        renameTaken = renameTaken,
+                        onDraft = onRenameDraft,
+                        onCancelRename = onCancelRename,
+                        onSaveRename = onSaveRename,
+                        onOpen = onOpen,
+                        onDelete = onDelete,
+                        onStartRename = onStartRename,
+                        onCommitOrder = onCommitOrder,
+                        compact = true,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 横屏的「新建歌单」输入行：与竖屏同一套写法，只是压到一条 48dp 的窄轨里 */
+@Composable
+private fun LandscapeCreateRow(
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    primary: Color,
+    secondary: Color,
+) {
+    val palette = LocalCatClawPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 3.dp)
+            .glassCard(palette = palette, corner = 18)
+            .padding(horizontal = 12.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextField(
+            value = draft,
+            onValueChange = onDraftChange,
+            placeholder = { Text(stringResource(R.string.playlist_name_hint), fontSize = 13.sp, color = secondary) },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = primary,
+                unfocusedTextColor = primary,
+                cursorColor = Color(palette.primary),
+            ),
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.playlist_new),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(inkOn(palette.primary)),
+            modifier = Modifier
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(palette.primary))
+                .clickable(onClick = onCreate)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/**
+ * 左栏实图主卡：拿第一张有封面的歌单铺满，压渐变与玻璃徽标，底部是总数与两个虚拟入口。
+ * 没有封面时退回玻璃 + 主色渐变，不出现空白方块。
+ */
+@Composable
+private fun LandscapeCollectionCard(
+    playlists: List<PlaylistEntity>,
+    covers: Map<Int, PlaylistCover>,
+    favoriteCount: Int,
+    recentCount: Int,
+    onOpenFavorites: () -> Unit,
+    onOpenRecent: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val hero = playlists.firstNotNullOfOrNull { covers[it.id] }
+    Box(modifier = modifier.clip(RoundedCornerShape(24.dp))) {
+        if (hero != null) {
+            CoverTile(
+                coverArtPath = hero.coverArtPath,
+                audioPath = hero.filePath,
+                maxPx = 640,
+                modifier = Modifier.fillMaxSize(),
+            ) {}
+        } else {
+            Box(Modifier.fillMaxSize().glassCard(palette = palette, corner = 24))
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.linearGradient(
+                        listOf(Color(palette.primary).copy(alpha = 0.46f), Color.Transparent),
+                    ),
+                ),
+            )
+            // 一张自建歌单都没有时别留一块纯玻璃：压一个低对比的歌单水印
+            Icon(
+                painter = painterResource(R.drawable.ic_playlist),
+                contentDescription = null,
+                tint = ink.copy(alpha = 0.10f),
+                modifier = Modifier.size(112.dp).align(Alignment.Center),
+            )
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.16f),
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.42f),
+                        Color.Black.copy(alpha = 0.90f),
+                    ),
+                ),
+            ),
+        )
+        Text(
+            text = stringResource(R.string.MyPlaylists),
+            fontSize = 10.sp,
+            color = ink,
+            maxLines = 1,
+            modifier = Modifier
+                .padding(14.dp)
+                .clip(RoundedCornerShape(50))
+                .background(ink.copy(alpha = 0.16f))
+                .border(1.dp, ink.copy(alpha = 0.26f), RoundedCornerShape(50))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(14.dp),
+        ) {
+            Text(
+                text = playlists.size.toString(),
+                fontSize = 31.sp,
+                fontWeight = FontWeight.Bold,
+                color = ink,
+            )
+            Text(
+                text = stringResource(R.string.playlist_created) + " · " +
+                    stringResource(R.string.playlist_entry_favorites) + " " +
+                    stringResource(R.string.playlist_count, favoriteCount),
+                fontSize = 10.5.sp,
+                color = ink.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LandscapeMiniEntry(
+                    R.drawable.ic_favorite,
+                    stringResource(R.string.playlist_entry_favorites),
+                    favoriteCount,
+                    COLLECTION_BLUE,
+                    Modifier.weight(1f),
+                    onOpenFavorites,
+                )
+                LandscapeMiniEntry(
+                    R.drawable.ic_history,
+                    stringResource(R.string.playlist_entry_recent),
+                    recentCount,
+                    COLLECTION_AMBER,
+                    Modifier.weight(1f),
+                    onOpenRecent,
+                )
+            }
+        }
+    }
+}
+
+/** 主卡底部那两颗带计数的彩色入口：冷蓝 / 琥珀，与发现页四入口同一档饱和度 */
+@Composable
+private fun LandscapeMiniEntry(
+    iconRes: Int,
+    label: String,
+    count: Int,
+    accentArgb: Long,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val ink = Color(LocalCatClawPalette.current.textPrimary)
+    val accent = Color(accentArgb)
+    val shape = RoundedCornerShape(13.dp)
+    Row(
+        modifier = modifier
+            .height(44.dp)
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(accent.copy(alpha = 0.52f), accent.copy(alpha = 0.09f)),
+                ),
+            )
+            .border(1.dp, ink.copy(alpha = 0.16f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = ink,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = stringResource(R.string.playlist_count, count),
+            fontSize = 9.5.sp,
+            color = ink.copy(alpha = 0.72f),
+            maxLines = 1,
+        )
+    }
+}
+
+/** 右栏玻璃货架：标题一行 + 列表槽。列表仍是竖屏那份（含长按拖拽），只是行压矮 */
+@Composable
+private fun LandscapePlaylistShelf(
+    count: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    Column(
+        modifier = modifier
+            .glassCard(palette = palette, corner = 24)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.playlist_created) + " · " + count,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(palette.textPrimary),
+            )
+            Spacer(Modifier.weight(1f))
+            if (count > 0) {
+                Text(
+                    text = stringResource(R.string.playlist_drag_hint),
+                    fontSize = 10.sp,
+                    color = Color(palette.textSecondary),
+                    maxLines = 1,
+                )
+            }
+        }
+        content()
+    }
+}
+
+/**
+ * 竖屏 / 横屏共用的一份歌单列表：长按拖拽排序、行内改名、打开与删除都在这里，
+ * 只是横屏用 compact 把行压到 52dp、并把底部留白从 96dp 收到 2dp（舞台外已留了 80dp）。
+ */
+@Composable
+private fun PlaylistRows(
+    playlists: List<PlaylistEntity>,
+    covers: Map<Int, PlaylistCover>,
+    editingId: Int?,
+    draftName: String,
+    renameTaken: Boolean,
+    onDraft: (String) -> Unit,
+    onCancelRename: () -> Unit,
+    onSaveRename: (Int) -> Unit,
+    onOpen: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    onStartRename: (Int, String) -> Unit,
+    onCommitOrder: (List<Int>) -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    val listState = rememberLazyListState()
+    val haptics = LocalHapticFeedback.current
+    var draggingId by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragOrder by remember { mutableStateOf<List<PlaylistEntity>?>(null) }
+    val shownPlaylists = dragOrder ?: playlists
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = if (compact) 2.dp else 96.dp),
+    ) {
+        itemsIndexed(shownPlaylists, key = { _, p -> p.id }) { _, playlist ->
+            if (editingId == playlist.id) {
+                RenameRow(
+                    draft = draftName,
+                    taken = renameTaken,
+                    onDraft = onDraft,
+                    onCancel = onCancelRename,
+                    onSave = { onSaveRename(playlist.id) },
+                )
+            } else {
+                val isDragging = draggingId == playlist.id
+                PlaylistCard(
+                    playlist = playlist,
+                    cover = covers[playlist.id],
+                    compact = compact,
+                    // 手势的键里**不能**放列表本身：拖拽中每次换位都会重组，
+                    // 键一变 pointerInput 就重启，手势当场断掉
+                    modifier = Modifier
+                        .graphicsLayer {
+                            if (isDragging) {
+                                translationY = dragOffset
+                                scaleX = 1.02f
+                                scaleY = 1.02f
+                                alpha = 0.94f
+                            }
+                        }
+                        .pointerInput(playlist.id, playlist.isSystem) {
+                            if (playlist.isSystem) return@pointerInput
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    draggingId = playlist.id
+                                    dragOrder = playlists
+                                    dragOffset = 0f
+                                },
+                                onDrag = { change, delta ->
+                                    change.consume()
+                                    dragOffset += delta.y
+                                    val list = dragOrder
+                                    val from = list?.indexOfFirst { it.id == draggingId } ?: -1
+                                    val rowHeight = if (from >= 0) {
+                                        listState.layoutInfo.visibleItemsInfo
+                                            .firstOrNull { it.index == from }?.size ?: 0
+                                    } else {
+                                        0
+                                    }
+                                    if (list != null && from >= 0 && rowHeight > 0) {
+                                        // 越过半行就与邻居换位，并把累计位移减掉一行
+                                        if (dragOffset > rowHeight / 2f && from < list.lastIndex && !list[from + 1].isSystem) {
+                                            dragOrder = list.toMutableList().apply { add(from + 1, removeAt(from)) }
+                                            dragOffset -= rowHeight
+                                        } else if (dragOffset < -rowHeight / 2f && from > 0 && !list[from - 1].isSystem) {
+                                            dragOrder = list.toMutableList().apply { add(from - 1, removeAt(from)) }
+                                            dragOffset += rowHeight
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    // 松手按最终顺序一次性落库
+                                    dragOrder?.let { onCommitOrder(it.map { p -> p.id }) }
+                                    draggingId = null
+                                    dragOrder = null
+                                    dragOffset = 0f
+                                },
+                                onDragCancel = {
+                                    draggingId = null
+                                    dragOrder = null
+                                    dragOffset = 0f
+                                },
+                            )
+                        },
+                    onOpen = { onOpen(playlist.id) },
+                    onDelete = { onDelete(playlist.id) },
+                    onRename = { onStartRename(playlist.id, playlist.name) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 歌单详情横屏版：竖屏是「返回行 + 三个动作 + 五档排序 + 搜索框」四条控制行，
+ * 411dp 的画布堆完就只剩一条缝给歌曲列表（真机截图确认）。这里压成
+ * 「头部一行（含三颗动作）+ 搜索/排序一行」，其余高度全给列表。
+ */
+@Composable
+private fun LandscapePlaylistDetail(
+    playlist: PlaylistEntity,
+    cover: PlaylistCover?,
+    viewModel: PlaylistViewModel,
+    onBack: () -> Unit,
+    onOpenMenu: (SongMenuTarget) -> Unit,
+    primary: Color,
+    secondary: Color,
+) {
+    val palette = LocalCatClawPalette.current
+    val shown by viewModel.displayItems.collectAsStateWithLifecycle()
+    val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
+    val itemSortDescending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
+    val itemQuery by viewModel.itemQuery.collectAsStateWithLifecycle()
+
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
+            CoverTile(
+                coverArtPath = cover?.coverArtPath,
+                audioPath = cover?.filePath,
+                maxPx = 128,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(palette.primary).copy(alpha = 0.22f)),
+            ) {
+                Text(playlist.name.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = primary)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = playlist.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.playlist_count, shown.size),
+                    fontSize = 10.5.sp,
+                    color = secondary,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(palette.primary))
+                    .clickable { viewModel.playAll() }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.playlist_play_all),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(inkOn(palette.primary)),
+                )
+            }
+            DetailAction(stringResource(R.string.shuffle_play), secondary) { viewModel.playAllShuffled() }
+            DetailAction(stringResource(R.string.playlist_add_current), secondary) { viewModel.addCurrentSong() }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            GlassSearchField(
+                query = itemQuery,
+                onChange = viewModel::setItemQuery,
+                placeholder = stringResource(R.string.playlist_search_hint),
+                modifier = Modifier.weight(1f),
+            )
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SongSortKey.entries.forEach { mode ->
+                    GlassChip(
+                        label = stringResource(sortLabelRes(mode)) +
+                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
+                        selected = itemSort == mode,
+                        onClick = { viewModel.setItemSort(mode) },
+                    )
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = PlaylistChromeReserve),
+        ) {
+            if (shown.isEmpty()) {
+                item("empty") {
+                    EmptyState(
+                        hint = if (itemQuery.isBlank()) {
+                            stringResource(R.string.playlist_empty)
+                        } else {
+                            stringResource(R.string.search_none, itemQuery.trim())
+                        },
+                        iconRes = R.drawable.ic_add,
+                    )
+                }
+            } else {
+                items(shown, key = { it.id }) { song ->
+                    val index = shown.indexOf(song)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .combinedClickable(
+                                onClick = { viewModel.playAt(index) },
+                                onLongClick = {
+                                    onOpenMenu(
+                                        SongMenuTarget(
+                                            id = song.id,
+                                            title = song.title,
+                                            subtitle = songMenuSubtitle(song.artist, song.album),
+                                            song = song.toSong(),
+                                        ),
+                                    )
+                                },
+                            )
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CoverTile(
+                            coverArtPath = song.coverArtPath,
+                            audioPath = song.filePath,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
+                        ) {
+                            Text(
+                                text = (index + 1).toString(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = secondary,
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = song.artist.orEmpty(),
+                                fontSize = 10.5.sp,
+                                color = secondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 详情横屏头部那两颗次要动作胶囊 */
+@Composable
+private fun DetailAction(label: String, ink: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(999.dp)
+    Text(
+        text = label,
+        fontSize = 12.sp,
+        color = ink,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, ink.copy(alpha = 0.16f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 9.dp),
+    )
 }

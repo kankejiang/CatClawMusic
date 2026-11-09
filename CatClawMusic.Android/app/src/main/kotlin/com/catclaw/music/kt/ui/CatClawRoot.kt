@@ -269,7 +269,7 @@ private fun TabsHost(
     val backdrop = rememberBackdropState()
     // 2026-11-07 用户反馈：底栏与迷你播放器是黑的，没吃到雾面动态背景。
     // 原因是它们接的是**内容层**的录制（layerBackdrop 只录宿主子节点），渐变/雾面背景是兄弟层，不进录制；
-    // 底栏下方大面积没有内容，采出来就是黑。这里单独给**背景层**开一份录制，供这两条玻璃用。
+    // 底栏下方大面积没有内容，采出来就是黑。这里单独给**背景层**开一份录制，供这两条玻璃用。
     // 队列页要读同一条队列，所以 VM 在这里取一次往下传（hiltViewModel 按路由作用域，两边共享同一实例）
     val playingViewModel: PlayingViewModel = hiltViewModel()
     val queueSongs by playingViewModel.queueSongs.collectAsStateWithLifecycle()
@@ -386,7 +386,9 @@ private fun TabsHost(
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     // 2026-11-07：雾面背景只给「发现页 + 选中雾面」与全屏歌词页；其它页只有主题渐变。
                     val frostedHere = pagerState.settledPage == PAGE_FULL_LYRICS ||
-                        (onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.FROSTED)
+                        (onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.FROSTED) ||
+                        // 2026-11-09 用户：横屏播放页也要雾面动态背景（原来是纯主题渐变）
+                        (landscape && pagerState.settledPage == PAGE_NOW_PLAYING)
                     if (frostedHere) FrostedFlowBackground(
                         // 2026-11-07 用户要求：**暂停就冻结**、播放才流动。
                         // FrostedFlowBackground 在暂停时会先渲染一帧再停（见那里的注释），
@@ -405,7 +407,7 @@ private fun TabsHost(
                         modifier = Modifier
                             .fillMaxSize()
                             // 横屏让出左侧导航栏，否则封面/标题会被侧栏压住（2026-11-08 真机截图）
-                            .padding(start = if (railVisible) sideRailWidth else 0.dp),
+                            .padding(start = if (railVisible) sideRailWidth + 12.dp else 0.dp),
                         // 预组装左右各一页：发现页几十张封面的首次组装/解码挪到启动空闲期，
                         // 不再压在滑入手势里（positionMs 已收敛到进度条组件，播放页不会再高频重组）
                         beyondViewportPageCount = 1,
@@ -516,9 +518,12 @@ private fun TabsHost(
                         .navigationBarsPadding()
                         // 卡面统一走 glassCard —— 手写 α.10 面 + α.16 描边会被 VisualLanguageTest 拦下
                         .glassCard(palette = palette, corner = 20)
-                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    // 2026-11-09 真机 dump：原来每项按 75dp 排，第 5 项「设置」的文字落在
+                    // y 393..417dp，而横屏画布只有 411dp —— 齿轮看得到、文字被裁在侧栏底边外。
+                    // 五项一起收紧垂直节奏，让设置也带上文字标签。
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     TopTab.entries.forEach { tab ->
                         val selected = pagerState.settledPage == tab.pageIndex
@@ -536,7 +541,7 @@ private fun TabsHost(
                                 .clickable {
                                     scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
                                 }
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 5.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
@@ -560,6 +565,30 @@ private fun TabsHost(
                                 },
                             )
                         }
+                    }
+
+                    // 「设置」从顶部图标挪到侧栏（用户 2026-11-09）
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onOpenSettings() }
+                            .padding(vertical = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings),
+                            contentDescription = stringResource(R.string.Settings),
+                            tint = Color(palette.textPrimary).copy(alpha = 0.72f),
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.Settings),
+                            fontSize = 9.5.sp,
+                            color = Color(palette.textPrimary).copy(alpha = 0.72f),
+                            maxLines = 1,
+                        )
                     }
                 }
             }

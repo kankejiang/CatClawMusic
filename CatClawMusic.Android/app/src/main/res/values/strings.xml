@@ -75,6 +75,8 @@
     <string name="playlist_name_hint">歌单名称</string>
     <string name="playlist_none">还没有歌单，先建一个</string>
     <string name="playlist_count">%1$d 首</string>
+    <string name="playlist_created">自建歌单</string>
+    <string name="playlist_drag_hint">长按拖动排序</string>
     <string name="playlist_play_all">播放全部</string>
     <string name="playlist_add_current">加入当前歌曲</string>
     <string name="playlist_empty">这个歌单还没有歌</string>
