@@ -39,14 +39,13 @@ import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
-import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.inkOn
 
 /** 二级页头部的一颗动作（播放全部 / 随机播放 / 加入…） */
 data class CollectionAction(
     val label: String,
     val onClick: () -> Unit,
-    /** 横屏主按钮走实心品牌面，其余是玻璃描边胶囊；竖屏一律走 PillLabel */
+    /** 主按钮走实心品牌面，其余是玻璃描边胶囊（横竖屏同一套 TextAction） */
     val primary: Boolean = false,
     /**
      * 预留：横屏顶栏目前走 10.5sp 文字胶囊（208dp 装不下图标 + 文字），
@@ -248,14 +247,28 @@ private fun CollectionPortrait(
     val primary = Color(LocalCatClawPalette.current.textPrimary)
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
     Column(modifier.fillMaxSize()) {
+        // 与横屏一致：返回在左，动作靠右；标题行单独一行，封面放标题左侧
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Spacer(Modifier.weight(1f))
+            actions.forEach { action ->
+                TextAction(action, primary, secondary, compact = false)
+            }
+            trailing()
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
             cover?.let { CollectionCoverTile(it, 56.dp) }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -277,19 +290,8 @@ private fun CollectionPortrait(
                 }
                 Text(text = countText, fontSize = 12.sp, color = secondary)
             }
-            trailing()
         }
-        if (actions.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                actions.forEach { action ->
-                    PillLabel(text = action.label, onClick = action.onClick, filled = false)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
+        Spacer(Modifier.height(8.dp))
         chipGroups.filter { it.isNotEmpty() }.forEach { group ->
             Row(
                 modifier = Modifier
@@ -348,14 +350,19 @@ private fun CollectionCoverTile(cover: CollectionCover, size: Dp) {
     }
 }
 
-/** 顶栏右侧的动作胶囊：30dp 高、10.5sp 文字；primary 走实心品牌面 + inkOn */
+/** 动作胶囊：横屏 30dp / 10.5sp（省高度），竖屏 32dp / 12sp；primary 走实心品牌面 + inkOn */
 @Composable
-private fun TextAction(action: CollectionAction, primary: Color, secondary: Color) {
+private fun TextAction(
+    action: CollectionAction,
+    primary: Color,
+    secondary: Color,
+    compact: Boolean = true,
+) {
     val palette = LocalCatClawPalette.current
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(if (compact) 10.dp else 12.dp)
     Box(
         modifier = Modifier
-            .height(30.dp)
+            .height(if (compact) 30.dp else 32.dp)
             .clip(shape)
             .background(if (action.primary) Color(palette.primary) else Color.Transparent)
             .then(
@@ -363,12 +370,12 @@ private fun TextAction(action: CollectionAction, primary: Color, secondary: Colo
                 else Modifier.border(1.dp, primary.copy(alpha = 0.16f), shape),
             )
             .clickable(onClick = action.onClick)
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = if (compact) 9.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = action.label,
-            fontSize = 10.5.sp,
+            fontSize = if (compact) 10.5.sp else 12.sp,
             fontWeight = if (action.primary) FontWeight.SemiBold else FontWeight.Medium,
             color = if (action.primary) Color(inkOn(palette.primary)) else secondary,
             maxLines = 1,
