@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +50,11 @@ data class CollectionAction(
     val onClick: () -> Unit,
     /** 横屏主按钮走实心品牌面，其余是玻璃描边胶囊；竖屏一律走 PillLabel */
     val primary: Boolean = false,
+    /**
+     * 横屏信息列宽 240dp，标题行右侧只放得下 34dp 的图标胶囊，
+     * 所以动作在横屏一律图标化；为空时退回短文字胶囊。
+     */
+    val iconRes: Int? = null,
 )
 
 /** 筛选或排序档。横屏会把所有组合并进同一条横滚轨道 */
@@ -164,29 +171,33 @@ private fun CollectionLandscape(
                 Spacer(Modifier.weight(1f))
                 trailing()
             }
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = listOfNotNull(countText, subtitle?.takeIf { it.isNotBlank() })
-                        .joinToString(" · "),
-                    fontSize = 10.5.sp,
-                    color = secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (actions.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    actions.forEach { action ->
-                        CompactAction(action, primary, secondary)
-                    }
+            // 标题行右侧放动作图标（▶ / 🔀 / ＋）：原来动作独占一行，
+            // 信息列被挤到 353dp、排序 chips 落到迷你条下面（真机 y=1391 扫不到）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = listOfNotNull(countText, subtitle?.takeIf { it.isNotBlank() })
+                            .joinToString(" · "),
+                        fontSize = 10.5.sp,
+                        color = secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                actions.forEach { action ->
+                    IconAction(action, primary, secondary)
                 }
             }
             search?.let {
@@ -344,30 +355,42 @@ private fun CollectionCoverTile(cover: CollectionCover, size: Dp) {
     }
 }
 
-/** 横屏信息列的紧凑胶囊：固定 30dp 高（不给 Material 的 48dp 触摸最小尺寸留空） */
+/** 横屏标题行右侧的动作胶囊：34×30dp，实心品牌面或玻璃描边 */
 @Composable
-private fun CompactAction(action: CollectionAction, primary: Color, secondary: Color) {
-    val shape = RoundedCornerShape(999.dp)
+private fun IconAction(action: CollectionAction, primary: Color, secondary: Color) {
     val palette = LocalCatClawPalette.current
+    val shape = RoundedCornerShape(11.dp)
+    val bg = if (action.primary) Color(palette.primary) else Color.Transparent
+    val fg = if (action.primary) Color(inkOn(palette.primary)) else secondary
     Box(
         modifier = Modifier
             .height(30.dp)
+            .then(if (action.iconRes == null) Modifier else Modifier.width(34.dp))
             .clip(shape)
-            .background(if (action.primary) Color(palette.primary) else Color.Transparent)
+            .background(bg)
             .then(
                 if (action.primary) Modifier
                 else Modifier.border(1.dp, primary.copy(alpha = 0.16f), shape),
             )
             .clickable(onClick = action.onClick)
-            .padding(horizontal = 13.dp),
+            .padding(horizontal = if (action.iconRes == null) 9.dp else 0.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = action.label,
-            fontSize = 11.5.sp,
-            fontWeight = if (action.primary) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (action.primary) Color(inkOn(palette.primary)) else secondary,
-            maxLines = 1,
-        )
+        if (action.iconRes != null) {
+            Icon(
+                painter = painterResource(action.iconRes),
+                contentDescription = action.label,
+                tint = fg,
+                modifier = Modifier.size(15.dp),
+            )
+        } else {
+            Text(
+                text = action.label,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = fg,
+                maxLines = 1,
+            )
+        }
     }
 }

@@ -228,15 +228,18 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                 actions = listOf(
                     CollectionAction(
                         label = stringResource(R.string.playlist_play_all),
+                        iconRes = R.drawable.ic_play,
                         primary = true,
                         onClick = { viewModel.playAll() },
                     ),
                     CollectionAction(
                         label = stringResource(R.string.shuffle_play),
+                        iconRes = R.drawable.ic_shuffle,
                         onClick = { viewModel.playAllShuffled() },
                     ),
                     CollectionAction(
                         label = stringResource(R.string.playlist_add_current),
+                        iconRes = R.drawable.ic_add,
                         onClick = { viewModel.addCurrentSong() },
                     ),
                 ),

@@ -936,6 +936,7 @@ fun LibraryListScreen(
             listOf(
                 CollectionAction(
                     label = stringResource(R.string.playlist_play_all),
+                    iconRes = R.drawable.ic_play,
                     primary = true,
                     onClick = {
                         when (kind) {
@@ -946,6 +947,7 @@ fun LibraryListScreen(
                 ),
                 CollectionAction(
                     label = stringResource(R.string.shuffle_play),
+                    iconRes = R.drawable.ic_shuffle,
                     onClick = { viewModel.playShuffled(rows) },
                 ),
             )
@@ -1082,17 +1084,20 @@ internal fun LibraryDetailScreen(
             listOfNotNull(
                 CollectionAction(
                     label = stringResource(R.string.playlist_play_all),
+                    iconRes = R.drawable.ic_play,
                     primary = true,
                     onClick = { viewModel.playRows(loaded, 0) },
                 ),
                 CollectionAction(
                     label = stringResource(R.string.shuffle_play),
+                    iconRes = R.drawable.ic_shuffle,
                     onClick = { viewModel.playShuffled(loaded) },
                 ),
                 // 艺人页那份列表跨专辑，没有「整张加进歌单」的语义
                 if (!byArtist) {
                     CollectionAction(
                         label = stringResource(R.string.song_menu_add_to_playlist),
+                        iconRes = R.drawable.ic_add,
                         onClick = { addToPlaylistOpen = true },
                     )
                 } else null,
