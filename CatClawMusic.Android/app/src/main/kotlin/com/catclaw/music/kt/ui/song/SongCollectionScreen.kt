@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,8 +49,8 @@ data class CollectionAction(
     /** 横屏主按钮走实心品牌面，其余是玻璃描边胶囊；竖屏一律走 PillLabel */
     val primary: Boolean = false,
     /**
-     * 横屏信息列宽 240dp，标题行右侧只放得下 34dp 的图标胶囊，
-     * 所以动作在横屏一律图标化；为空时退回短文字胶囊。
+     * 预留：横屏顶栏目前走 10.5sp 文字胶囊（208dp 装不下图标 + 文字），
+     * 图标资源先留着，等以后信息列加宽再启用。
      */
     val iconRes: Int? = null,
 )
@@ -155,19 +153,18 @@ private fun CollectionLandscape(
                 .padding(start = 18.dp, end = 14.dp, top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            // 返回 + 动作图标（▶ / 🔀）同一条顶栏；真实封面（专辑/歌单）跟在后面。
-            // 注意 actions 与 trailing 不会同时出现：带 trailing 的艺人/专辑网格页没有 songRows，
-            // 所以这条 208dp 的顶栏不会挤爆。
+            // 返回在左，动作靠右（用户嫌贴太近）：返回 + weight + 文字胶囊。
+            // 208dp 的账：44 + 8 + 「播放全部」60 + 5 + 「随机」39 = 156；三动作约 197，都放得下。
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-                actions.forEach { action ->
-                    IconAction(action, primary, secondary)
-                }
                 Spacer(Modifier.weight(1f))
+                actions.forEach { action ->
+                    TextAction(action, primary, secondary)
+                }
                 trailing()
             }
             // 标题行：专辑/歌单详情把 52dp 封面放在标题左侧（顶栏塞不下 3 个动作 + 封面）
@@ -351,42 +348,30 @@ private fun CollectionCoverTile(cover: CollectionCover, size: Dp) {
     }
 }
 
-/** 横屏标题行右侧的动作胶囊：34×30dp，实心品牌面或玻璃描边 */
+/** 顶栏右侧的动作胶囊：30dp 高、10.5sp 文字；primary 走实心品牌面 + inkOn */
 @Composable
-private fun IconAction(action: CollectionAction, primary: Color, secondary: Color) {
+private fun TextAction(action: CollectionAction, primary: Color, secondary: Color) {
     val palette = LocalCatClawPalette.current
-    val shape = RoundedCornerShape(11.dp)
-    val bg = if (action.primary) Color(palette.primary) else Color.Transparent
-    val fg = if (action.primary) Color(inkOn(palette.primary)) else secondary
+    val shape = RoundedCornerShape(10.dp)
     Box(
         modifier = Modifier
             .height(30.dp)
-            .then(if (action.iconRes == null) Modifier else Modifier.width(34.dp))
             .clip(shape)
-            .background(bg)
+            .background(if (action.primary) Color(palette.primary) else Color.Transparent)
             .then(
                 if (action.primary) Modifier
                 else Modifier.border(1.dp, primary.copy(alpha = 0.16f), shape),
             )
             .clickable(onClick = action.onClick)
-            .padding(horizontal = if (action.iconRes == null) 9.dp else 0.dp),
+            .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (action.iconRes != null) {
-            Icon(
-                painter = painterResource(action.iconRes),
-                contentDescription = action.label,
-                tint = fg,
-                modifier = Modifier.size(15.dp),
-            )
-        } else {
-            Text(
-                text = action.label,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = fg,
-                maxLines = 1,
-            )
-        }
+        Text(
+            text = action.label,
+            fontSize = 10.5.sp,
+            fontWeight = if (action.primary) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (action.primary) Color(inkOn(palette.primary)) else secondary,
+            maxLines = 1,
+        )
     }
 }
