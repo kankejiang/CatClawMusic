@@ -177,22 +177,34 @@ fun CatClawRoot() {
     // 设置路由一进来落在哪一页。用提升的状态而不是导航参数：只有「从别处直接跳某个子页」才需要它，
     // 而那条路径目前只有一个调用点（音乐库的资料库卡 → 下载管理）
     var settingsDest by remember { mutableStateOf(SettingsDest.Hub) }
+    // 横屏设置内嵌状态：true 时盖在 pager 区域上（左侧导航栏保留），不跳全屏路由
+    var inlineSettings by remember { mutableStateOf(false) }
     NavHost(
         navController = rootNavController,
         startDestination = ROUTE_TABS,
         modifier = Modifier.fillMaxSize(),
     ) {
         composable(ROUTE_TABS) {
+            // 横屏把设置内嵌进发现页（侧栏右侧那块），不再全屏覆盖 ——
+            // 否则侧栏消失、页面只剩一个孤零零的返回键
+            val landscapeNow = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
             TabsHost(
                 onOpenSettings = {
-                    settingsDest = SettingsDest.Hub
-                    rootNavController.navigate(ROUTE_SETTINGS)
+                    if (landscapeNow) {
+                        inlineSettings = true
+                    } else {
+                        settingsDest = SettingsDest.Hub
+                        rootNavController.navigate(ROUTE_SETTINGS)
+                    }
                 },
                 onOpenRemote = { rootNavController.navigate(ROUTE_REMOTE) },
                 onOpenDownloads = {
                     settingsDest = SettingsDest.Downloads
                     rootNavController.navigate(ROUTE_SETTINGS)
                 },
+                inlineSettings = inlineSettings,
+                onCloseInlineSettings = { inlineSettings = false },
             )
         }
         composable(ROUTE_SETTINGS) {
@@ -237,6 +249,9 @@ private fun TabsHost(
     // 音乐库的资料库卡要用：远程音乐与下载管理都不是本页内容，得从壳层跳整页
     onOpenRemote: () -> Unit,
     onOpenDownloads: () -> Unit,
+    /** 横屏：设置内嵌在 pager 区域（侧栏保留），不跳全屏路由 */
+    inlineSettings: Boolean = false,
+    onCloseInlineSettings: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val themeViewModel: ThemeViewModel = hiltViewModel()
@@ -285,7 +300,7 @@ private fun TabsHost(
     // MAUI 的显隐规则：`_currentIndex <= 1`（播放页 / 全屏歌词页）收起 TabBar 与 MiniPlayer；
     // 其余页且队列非空时才显示 MiniPlayer
     val immersivePage = pagerState.settledPage <= PAGE_NOW_PLAYING
-    val showMiniPlayer = !immersivePage && queueSongs.isNotEmpty()
+    val showMiniPlayer = !immersivePage && queueSongs.isNotEmpty() && !inlineSettings
     // 横屏：导航从底部搬到左侧（MAUI 横屏就是切到桌面外壳，左侧一条 244dp 侧栏；
     // 手机上 92dp 够放图标+两字标签，不占掉本就不多的横向空间）
     val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
@@ -507,6 +522,24 @@ private fun TabsHost(
                     barIn = false
                 }
             }
+            // ── 横屏内嵌设置：盖在 pager 区域上，左侧导航栏保留（侧栏在它之后绘制，仍可点） ──
+            if (inlineSettings) {
+                // 先注册：SettingsScreen 自己的 BackHandler 后组合、优先处理子页返回
+                BackHandler(enabled = inlineSettings) { onCloseInlineSettings() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // 自己铺一层主题背景：否则设置会直接叠在发现页文案上（真机第一版就是「发现」和「设置」两层字）
+                        .catClawBackground()
+                        .padding(start = if (railVisible) sideRailWidth + 12.dp else 0.dp),
+                ) {
+                    SettingsScreen(
+                        onBack = onCloseInlineSettings,
+                        onOpenRemote = onOpenRemote,
+                        initialDest = SettingsDest.Hub,
+                    )
+                }
+            }
             // ── 横屏左侧导航栏（MAUI 横屏用的是桌面外壳的侧栏；手机横屏宽度有限，收成 92dp 图标栏）
             if (railVisible) {
                 androidx.compose.foundation.layout.Column(
@@ -539,6 +572,8 @@ private fun TabsHost(
                                     },
                                 )
                                 .clickable {
+                                    // 点任意 tab 先收起内嵌设置，再切页
+                                    onCloseInlineSettings()
                                     scope.launch { pagerState.animateScrollToPage(tab.pageIndex) }
                                 }
                                 .padding(vertical = 5.dp),
