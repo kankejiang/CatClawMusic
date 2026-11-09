@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -22,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -109,6 +112,17 @@ fun SongCollectionScreen(
     }
 }
 
+/** 横屏信息列宽度：822dp 可用宽度里切出 240，列表留 582dp（≈ 每行歌名 380dp 可视） */
+private val LandscapeInfoWidth = 240.dp
+
+/**
+ * 横屏：左信息列 + 右列表（参照 PC 端「导航 / 信息列 / 列表」三栏）。
+ *
+ * 原来把返回、标题、动作、chips、搜索全部压在顶部两行，列表只能铺满剩下的高度，
+ * 首屏只露 4 首（2026-11-09 真机截图）。现在这些控制项全部下沉到 240dp 的信息列，
+ * 列表从组件顶部一直铺到迷你条上方，首屏行数翻倍；信息列本身也有了封面这个视觉重心，
+ * 左侧不再是一片空玻璃。
+ */
 @Composable
 private fun CollectionLandscape(
     title: String,
@@ -126,20 +140,34 @@ private fun CollectionLandscape(
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
-    Column(modifier.fillMaxSize()) {
-        Row(
+    Row(modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
+                .width(LandscapeInfoWidth)
+                .fillMaxHeight()
+                .padding(start = 18.dp, end = 14.dp, top = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-            cover?.let { CollectionCoverTile(it, 38.dp) }
-            Column(modifier = Modifier.weight(1f)) {
+            // 返回 + 合集封面同一行：60dp 的封面撑起左侧视觉，右端留给视图切换
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+                CollectionCoverTile(
+                    // 统计列表页（全部歌曲/收藏/最近）没有专属封面，用标题首字兜底，
+                    // 而不是留一块空白 —— 这正是「左侧太空」的直接来源
+                    cover = cover ?: CollectionCover(null, null, title),
+                    size = 60.dp,
+                )
+                Spacer(Modifier.weight(1f))
+                trailing()
+            }
+            Column {
                 Text(
                     text = title,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = primary,
                     maxLines = 1,
@@ -154,46 +182,48 @@ private fun CollectionLandscape(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            trailing()
-            actions.forEach { action ->
-                CompactAction(action, primary, secondary)
-            }
-        }
-
-        if (search != null || chipGroups.any { it.isNotEmpty() }) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                search?.let {
-                    GlassSearchField(
-                        query = it.query,
-                        onChange = it.onChange,
-                        placeholder = it.hint,
-                        modifier = Modifier.weight(1f),
-                    )
+            if (actions.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    actions.forEach { action ->
+                        CompactAction(action, primary, secondary)
+                    }
                 }
-                val chips = chipGroups.flatten()
-                if (chips.isNotEmpty()) {
-                    Row(
-                        // 与搜索框对半分：不给 weight 的话 chips 会按内容宽量走 500+dp，
-                        // 搜索框只剩 ~200dp，placeholder 被折成两行（真机截图实测）
-                        modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        chips.forEach { chip ->
-                            GlassChip(label = chip.label, selected = chip.selected, onClick = chip.onClick)
-                        }
+            }
+            search?.let {
+                GlassSearchField(
+                    query = it.query,
+                    onChange = it.onChange,
+                    placeholder = it.hint,
+                    modifier = Modifier.fillMaxWidth(),
+                    compact = true,
+                )
+            }
+            // 每组 chips 一行、组内横向滚动：240dp 装不下「标题/艺术家/专辑/时长/入库时间」六档
+            chipGroups.filter { it.isNotEmpty() }.forEach { group ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    group.forEach { chip ->
+                        GlassChip(
+                            label = chip.label,
+                            selected = chip.selected,
+                            onClick = chip.onClick,
+                            compact = true,
+                        )
                     }
                 }
             }
         }
-
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(top = 4.dp),
+        ) { content() }
     }
 }
 
@@ -281,57 +311,63 @@ private fun CollectionPortrait(
     }
 }
 
-/** 头图：横屏 38dp、竖屏 56dp；取不到封面时退回名称首字，不留空框 */
+/** 头图：横屏 60dp、竖屏 56dp；取不到封面时退回名称首字 + 品牌色渐变，不留空框 */
 @Composable
 private fun CollectionCoverTile(cover: CollectionCover, size: Dp) {
     val palette = LocalCatClawPalette.current
+    val shape = RoundedCornerShape(size * 0.26f)
     CoverTile(
         coverArtPath = cover.coverArtPath,
         audioPath = cover.audioPath,
-        maxPx = 128,
+        maxPx = if (size >= 56.dp) 256 else 128,
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(if (size == 38.dp) 12.dp else 16.dp))
-            .background(Color(palette.primary).copy(alpha = 0.22f)),
+            .clip(shape)
+            // 22% 的平涂在浅色莫奈背景上几乎看不见（真机采样与背景差 <10）；
+            // 用 primaryDark 压深一档，封面块才有「图」的重量
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(palette.primaryDark).copy(alpha = 0.62f),
+                        Color(palette.primary).copy(alpha = 0.30f),
+                    ),
+                ),
+            )
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.12f), shape),
     ) {
         Text(
             text = cover.fallback.take(1),
-            fontSize = if (size == 38.dp) 17.sp else 22.sp,
+            fontSize = (size.value * 0.34f).sp,
             fontWeight = FontWeight.Bold,
             color = Color(palette.textPrimary),
         )
     }
 }
 
-/** 横屏头部那颗紧凑胶囊：12sp + 9dp 内边距 ≈ 33dp 高，44dp 的头部行放得下三颗 */
+/** 横屏信息列的紧凑胶囊：固定 30dp 高（不给 Material 的 48dp 触摸最小尺寸留空） */
 @Composable
 private fun CompactAction(action: CollectionAction, primary: Color, secondary: Color) {
     val shape = RoundedCornerShape(999.dp)
-    if (action.primary) {
-        val palette = LocalCatClawPalette.current
+    val palette = LocalCatClawPalette.current
+    Box(
+        modifier = Modifier
+            .height(30.dp)
+            .clip(shape)
+            .background(if (action.primary) Color(palette.primary) else Color.Transparent)
+            .then(
+                if (action.primary) Modifier
+                else Modifier.border(1.dp, primary.copy(alpha = 0.16f), shape),
+            )
+            .clickable(onClick = action.onClick)
+            .padding(horizontal = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             text = action.label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(inkOn(palette.primary)),
+            fontSize = 11.5.sp,
+            fontWeight = if (action.primary) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (action.primary) Color(inkOn(palette.primary)) else secondary,
             maxLines = 1,
-            modifier = Modifier
-                .clip(shape)
-                .background(Color(palette.primary))
-                .clickable(onClick = action.onClick)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
-        )
-    } else {
-        Text(
-            text = action.label,
-            fontSize = 12.sp,
-            color = secondary,
-            maxLines = 1,
-            modifier = Modifier
-                .clip(shape)
-                .border(1.dp, primary.copy(alpha = 0.16f), shape)
-                .clickable(onClick = action.onClick)
-                .padding(horizontal = 13.dp, vertical = 9.dp),
         )
     }
 }

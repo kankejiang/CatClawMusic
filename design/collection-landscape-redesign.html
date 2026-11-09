@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>猫爪音乐 · 横屏歌曲页三栏重设计</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #eef6f2;
+    --ink2: rgba(238, 246, 242, .64);
+    --ink3: rgba(238, 246, 242, .40);
+    --glass: rgba(255, 255, 255, .075);
+    --glass2: rgba(255, 255, 255, .045);
+    --stroke: rgba(255, 255, 255, .15);
+    --accent: #e9a17a;
+    --accent-ink: #2a1810;
+    --blue: #7c9be8;
+  }
+  html, body { height: 100%; }
+  body {
+    background: #0d1512;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 18px 0 26px;
+  }
+  .toolbar {
+    width: 1440px; display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; font-size: 13px; color: #9fb4aa;
+  }
+  .toolbar b { color: #dbe9e2; font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+  .toolbar span { color: #7d938a; }
+
+  .screen {
+    position: relative; width: 1440px; height: 648px; overflow: hidden;
+    border-radius: 26px; isolation: isolate;
+    box-shadow: 0 40px 110px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.07);
+    background: #223a30;
+  }
+  .bg { position: absolute; inset: 0; z-index: 0;
+    background:
+      radial-gradient(760px 520px at 12% 8%, rgba(84,126,168,.34), transparent 70%),
+      radial-gradient(680px 520px at 88% 96%, rgba(58,150,132,.28), transparent 72%),
+      radial-gradient(520px 420px at 62% 0%, rgba(110,100,170,.20), transparent 70%),
+      linear-gradient(135deg, #2c463b 0%, #1e3229 48%, #172720 100%);
+  }
+  .bg::after { content:""; position:absolute; inset:0; opacity:.26;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px); }
+
+  .status { position: absolute; z-index: 8; top: 0; left: 0; right: 0; height: 34px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 30px; font-size: 15px; font-weight: 600; color: rgba(255,255,255,.92); }
+  .status .right { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,.78); }
+
+  /* ── 三栏骨架：侧栏 92dp / 信息列 240dp / 列表自适应 ── */
+  .body { position: absolute; inset: 34px 0 0 0; display: grid; grid-template-columns: 145px 378px 1fr; }
+
+  /* 左侧毛玻璃侧栏（沿用现有 92dp 结构） */
+  .rail { position: relative; display: flex; flex-direction: column; align-items: center;
+    padding: 14px 0 12px; gap: 2px;
+    background: rgba(255,255,255,.045);
+    border-right: 1px solid rgba(255,255,255,.08);
+    backdrop-filter: blur(26px);
+  }
+  .rail .tab { width: 118px; border-radius: 14px; padding: 8px 0 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink3); }
+  .rail .tab svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .rail .tab b { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
+  .rail .tab.on { color: var(--ink); background: rgba(255,255,255,.11);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  .rail .spacer { flex: 1; }
+  .rail .tab.set { color: rgba(238,246,242,.62); }
+
+  /* 中间信息列 */
+  .panel { padding: 6px 22px 0 24px; display: flex; flex-direction: column; min-width: 0; }
+  .backrow { display: flex; align-items: center; gap: 9px; height: 34px; }
+  .back { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center;
+    background: var(--glass); border: 1px solid var(--stroke); color: var(--ink); }
+  .back svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .crumb { font-size: 11px; color: var(--ink3); letter-spacing: .4px; }
+
+  .cover { width: 128px; height: 128px; border-radius: 20px; margin-top: 8px; position: relative; overflow: hidden;
+    box-shadow: 0 14px 34px rgba(0,0,0,.42), inset 0 0 0 1px rgba(255,255,255,.14); }
+  .cover .q { position: absolute; width: 50%; height: 50%; }
+  .cover .q1 { left: 0; top: 0; background: linear-gradient(140deg, #7b8fd4, #3f4f86); }
+  .cover .q2 { right: 0; top: 0; background: linear-gradient(140deg, #d29a76, #8a5a41); }
+  .cover .q3 { left: 0; bottom: 0; background: linear-gradient(140deg, #6fb3a6, #35685f); }
+  .cover .q4 { right: 0; bottom: 0; background: linear-gradient(140deg, #a98bc4, #5c4676); }
+  .cover::after { content:""; position: absolute; inset: 0;
+    background: radial-gradient(90px 70px at 50% 50%, rgba(255,255,255,.16), transparent 70%); }
+  .cover .badge { position: absolute; left: 9px; bottom: 9px; z-index: 2;
+    padding: 3px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; letter-spacing: .6px;
+    background: rgba(12,16,14,.52); color: rgba(255,255,255,.86); backdrop-filter: blur(8px); }
+
+  .title { margin-top: 12px; font-size: 26px; font-weight: 700; letter-spacing: .2px; line-height: 1.05; }
+  .meta { margin-top: 4px; font-size: 11px; color: var(--ink3); }
+  .meta i { font-style: normal; color: var(--ink2); }
+
+  .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { height: 33px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 15px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 8px 20px rgba(233,161,122,.28); }
+  .btn.ghost { background: var(--glass2); border: 1px solid var(--stroke); color: var(--ink2); }
+  .btn svg { width: 12px; height: 12px; fill: currentColor; }
+
+  .search { margin-top: 10px; height: 34px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
+    padding: 0 11px; background: var(--glass2); border: 1px solid rgba(255,255,255,.09); color: var(--ink3); }
+  .search svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; flex: none; }
+  .search span { font-size: 11.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .label { margin-top: 11px; font-size: 9px; font-weight: 700; letter-spacing: 1.1px; color: var(--ink3); }
+  .chips { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+  .chip { height: 25px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center;
+    font-size: 11px; color: var(--ink2); background: var(--glass2); border: 1px solid rgba(255,255,255,.08); }
+  .chip.on { background: rgba(255,255,255,.16); color: var(--ink); border-color: rgba(255,255,255,.22); font-weight: 600; }
+  .sorts { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+  .sort { height: 23px; padding: 0 9px; border-radius: 8px; display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10.5px; color: var(--ink3); }
+  .sort.on { background: rgba(255,255,255,.10); color: var(--ink); }
+  .sort i { font-style: normal; font-size: 9px; opacity: .8; }
+
+  /* 右侧列表 */
+  .listwrap { position: relative; min-width: 0; padding: 4px 18px 0 2px; }
+  .listhead { display: flex; align-items: center; height: 26px; padding: 0 12px;
+    font-size: 9.5px; letter-spacing: .9px; color: var(--ink3); }
+  .listhead .c1 { width: 26px; }
+  .listhead .c2 { flex: 1; }
+  .listhead .c3 { width: 54px; text-align: right; }
+  .rows { position: absolute; left: 2px; right: 18px; top: 30px; bottom: 118px; overflow: hidden; }
+  .row { display: flex; align-items: center; height: 45px; padding: 0 12px; border-radius: 14px; gap: 10px; }
+  .row:nth-child(odd) { background: rgba(255,255,255,.035); }
+  .row.now { background: rgba(233,161,122,.16); box-shadow: inset 0 0 0 1px rgba(233,161,122,.28); }
+  .row .c1 { width: 16px; font-size: 10.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .row .cv { width: 30px; height: 30px; border-radius: 9px; flex: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.10); }
+  .row .tx { flex: 1; min-width: 0; }
+  .row .tx b { display: block; font-size: 12.5px; font-weight: 500; letter-spacing: .1px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .row .tx span { display: block; margin-top: 2px; font-size: 10px; color: var(--ink3);
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .row .src { font-size: 8.5px; padding: 2px 5px; border-radius: 5px; background: rgba(124,155,232,.16);
+    color: #9fb6ee; font-weight: 700; letter-spacing: .3px; flex: none; }
+  .row .dur { width: 42px; text-align: right; font-size: 10.5px; color: var(--ink3);
+    font-variant-numeric: tabular-nums; flex: none; }
+  .row .dots { width: 22px; text-align: center; color: var(--ink3); font-size: 14px; flex: none; }
+
+  /* 底部迷你条：横跨信息列 + 列表，给 80dp 留白 */
+  .mini { position: absolute; left: 161px; right: 16px; bottom: 10px; height: 104px; z-index: 6;
+    border-radius: 22px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+    background: rgba(255,255,255,.085); border: 1px solid rgba(255,255,255,.14);
+    backdrop-filter: blur(26px); box-shadow: 0 18px 44px rgba(0,0,0,.34); }
+  .mini .mc { width: 62px; height: 62px; border-radius: 15px;
+    background: linear-gradient(140deg, #9b86c9, #4d3d74); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+  .mini .mt { min-width: 0; flex: 1; }
+  .mini .mt b { font-size: 13px; font-weight: 600; }
+  .mini .mt span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--ink3); }
+  .mini .mbtn { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center;
+    color: var(--ink2); border: 1px solid var(--stroke); }
+  .mini .mbtn svg { width: 13px; height: 13px; fill: currentColor; }
+  .mini .mbtn.play { width: 42px; height: 42px; background: var(--accent); color: var(--accent-ink); border: 0; }
+  .mini .mbtn.play svg { width: 14px; height: 14px; }
+  .mini .bar { width: 190px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.16); margin: 0 8px; }
+  .mini .bar i { display: block; width: 38%; height: 100%; border-radius: 3px; background: rgba(255,255,255,.78); }
+
+  .foot { width: 1440px; margin-top: 10px; font-size: 11.5px; color: #6f847b; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <b>横屏歌曲页 · 三栏版（参照 PC 端「导航 / 信息列 / 列表」）</b>
+    <span>画布 1440×648 ≈ 914×411dp · 侧栏 92dp · 信息列 240dp · 列表自适应</span>
+  </div>
+
+  <div class="screen">
+    <div class="bg"></div>
+
+    <div class="status">
+      <div>22:31</div>
+      <div class="right">
+        <span>WiFi</span><span>82%</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="1.8"><rect x="2" y="6" width="17" height="12" rx="3"/><rect x="20" y="10" width="2" height="4" rx="1" fill="rgba(255,255,255,.8)"/></svg>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- 侧栏 -->
+      <div class="rail">
+        <div class="tab"><svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19" fill="currentColor" stroke="none"/></svg><b>播放</b></div>
+        <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z"/></svg><b>发现</b></div>
+        <div class="tab"><svg viewBox="0 0 24 24"><path d="M4 6h11M4 12h11M4 18h7"/><circle cx="18" cy="17" r="2.4"/><path d="M20.4 17V8l-3 .8"/></svg><b>歌单</b></div>
+        <div class="tab on"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="3"/><path d="M8 4v16"/><path d="M12 9.5v6M15.5 11v3"/></svg><b>音乐库</b></div>
+        <div class="spacer"></div>
+        <div class="tab set"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></svg><b>设置</b></div>
+      </div>
+
+      <!-- 信息列 -->
+      <div class="panel">
+        <div class="backrow">
+          <div class="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>
+          <div class="crumb">音乐库 / 歌曲</div>
+        </div>
+
+        <div class="cover">
+          <div class="q q1"></div><div class="q q2"></div><div class="q q3"></div><div class="q q4"></div>
+          <div class="badge">618 首</div>
+        </div>
+
+        <div class="title">歌曲</div>
+        <div class="meta">本地 <i>512</i> · 网络 <i>106</i> · 总时长 <i>38 小时</i></div>
+
+        <div class="acts">
+          <div class="btn primary"><svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>播放全部</div>
+          <div class="btn ghost"><svg viewBox="0 0 24 24"><path d="M4 7h3l3.2 10H17"/><path d="M4 17h3l3.2-10H17"/><path d="M17 4v6M14 7h6"/></svg>随机</div>
+        </div>
+
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+          <span>搜索歌曲、艺术家、专辑</span>
+        </div>
+
+        <div class="label">来源</div>
+        <div class="chips">
+          <div class="chip on">全部</div>
+          <div class="chip">本地</div>
+          <div class="chip">网络</div>
+        </div>
+
+        <div class="label">排序</div>
+        <div class="sorts">
+          <div class="sort on">标题 <i>↑</i></div>
+          <div class="sort">艺术家</div>
+          <div class="sort">专辑</div>
+          <div class="sort">时长</div>
+          <div class="sort">入库</div>
+        </div>
+      </div>
+
+      <!-- 列表 -->
+      <div class="listwrap">
+        <div class="listhead"><div class="c1">#</div><div class="c2">歌曲</div><div class="c3">时长</div></div>
+        <div class="rows">
+          <div class="row now"><div class="c1">01</div><div class="cv" style="background:linear-gradient(140deg,#d98f6f,#6d3b2c)"></div>
+            <div class="tx"><b>50 Ways to Say Goodbye</b><span>Train · California 37</span></div><div class="dur">04:08</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">02</div><div class="cv" style="background:linear-gradient(140deg,#7c9bd6,#2f4270)"></div>
+            <div class="tx"><b>7月の翼</b><span>Aimer · Midnight Sun</span></div><div class="dur">04:44</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">03</div><div class="cv" style="background:linear-gradient(140deg,#8fb7a3,#3c6252)"></div>
+            <div class="tx"><b>A Little Story</b><span>Valentin</span></div><div class="dur">03:24</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">04</div><div class="cv" style="background:linear-gradient(140deg,#c3a6d8,#5b4272)"></div>
+            <div class="tx"><b>A Thousand Miles</b><span>Kurt Hugo Schneider · Sam Tsui</span></div><div class="dur">03:44</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">05</div><div class="cv" style="background:linear-gradient(140deg,#d8b078,#7a5528)"></div>
+            <div class="tx"><b>Refrain</b><span>阿南亮子</span></div><div class="dur">04:30</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">06</div><div class="cv" style="background:linear-gradient(140deg,#9ab0c8,#40566d)"></div>
+            <div class="tx"><b>与我无关</b><span>阿冗</span></div><div class="dur">04:21</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">07</div><div class="cv" style="background:linear-gradient(140deg,#c0c4cc,#5d646e)"></div>
+            <div class="tx"><b>寂寞在唱歌</b><span>阿桑</span></div><div class="dur">04:18</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">08</div><div class="cv" style="background:linear-gradient(140deg,#d3a0a8,#6d4049)"></div>
+            <div class="tx"><b>故里逢春</b><span>阿YueYue</span></div><div class="dur">03:58</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">09</div><div class="cv" style="background:linear-gradient(140deg,#a8c0a2,#4a6346)"></div>
+            <div class="tx"><b>画皮</b><span>阿YueYue</span></div><div class="dur">04:02</div><div class="dots">⋯</div></div>
+          <div class="row"><div class="c1">10</div><div class="cv" style="background:linear-gradient(140deg,#b9a6d0,#53406e)"></div>
+            <div class="tx"><b>富士山下</b><span>陈奕迅 · What's Going On…?</span></div><div class="dur">04:19</div><div class="dots">⋯</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 迷你播放器 -->
+    <div class="mini">
+      <div class="mc"></div>
+      <div class="mt"><b>原谅</b><span>张玉华 · 原谅</span></div>
+      <div class="mbtn"><svg viewBox="0 0 24 24"><polygon points="6,4 19,12 6,20"/></svg></div>
+      <div class="bar"><i></i></div>
+      <div class="mbtn play"><svg viewBox="0 0 24 24"><polygon points="7,4 20,12 7,20"/></svg></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>信息列放：返回 / 合集封面 / 标题与来源统计 / 播放动作 / 搜索 / 来源 chips / 排序</span>
+    <span>列表首屏 6 行完整可见，第 7 行起被迷你条自然覆盖</span>
+  </div>
+</body>
+</html>

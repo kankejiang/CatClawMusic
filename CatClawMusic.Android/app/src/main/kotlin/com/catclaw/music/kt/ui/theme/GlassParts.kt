@@ -6,9 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -23,7 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -123,12 +127,14 @@ fun GlassChip(
     palette: CatClawPalette = LocalCatClawPalette.current,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    /** 横屏信息列（240dp）里要把两组 chips 压进一屏，用 11sp + 5dp 内边距 ≈ 25dp 高 */
+    compact: Boolean = false,
 ) {
     val shape = RoundedCornerShape(999.dp)
     val ink = Color(palette.textPrimary)
     Text(
         text = label,
-        fontSize = 13.sp,
+        fontSize = if (compact) 11.sp else 13.sp,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
         color = when {
             selected -> Color(inkOn(palette.primary))
@@ -144,7 +150,10 @@ fun GlassChip(
             )
             .border(width = if (selected) 0.dp else 1.dp, color = ink.copy(alpha = 0.16f), shape)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(
+                horizontal = if (compact) 10.dp else 14.dp,
+                vertical = if (compact) 5.dp else 9.dp,
+            ),
     )
 }
 
@@ -210,12 +219,61 @@ fun GlassSearchField(
     placeholder: String,
     modifier: Modifier = Modifier,
     palette: CatClawPalette = LocalCatClawPalette.current,
+    /** 横屏信息列宽 208dp，底部还要放 chips：压到 42dp 并让提示单行省略 */
+    compact: Boolean = false,
 ) {
     val ink = Color(palette.textPrimary)
+    val shape = RoundedCornerShape(22.dp)
+    if (compact) {
+        // 横屏信息列只有 208dp 宽、下面还要塞两组 chips。Material TextField 的 56dp 下限
+        // 撑不住 —— 强制 42dp 高度会把 placeholder 整行裁掉（真机 OCR 扫不到文字），
+        // 所以这里自绘一条 40dp 的单行输入框。
+        BasicTextField(
+            value = query,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = TextStyle(color = ink, fontSize = 13.sp),
+            cursorBrush = SolidColor(Color(palette.primary)),
+            modifier = modifier.fillMaxWidth(),
+            decorationBox = { inner ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(shape)
+                        .background(ink.copy(alpha = 0.08f))
+                        .border(1.dp, ink.copy(alpha = 0.10f), shape)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (query.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            color = Color(palette.textSecondary),
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        inner()
+                    }
+                }
+            },
+        )
+        return
+    }
     TextField(
         value = query,
         onValueChange = onChange,
-        placeholder = { Text(placeholder, color = Color(palette.textSecondary), fontSize = 14.sp) },
+        placeholder = {
+            Text(
+                placeholder,
+                color = Color(palette.textSecondary),
+                fontSize = if (compact) 13.sp else 14.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        },
         singleLine = true,
         colors = TextFieldDefaults.colors(
             focusedContainerColor = ink.copy(alpha = 0.10f),
@@ -227,7 +285,9 @@ fun GlassSearchField(
             cursorColor = Color(palette.primary),
         ),
         shape = RoundedCornerShape(22.dp),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (compact) Modifier.height(42.dp) else Modifier),
     )
 }
 
