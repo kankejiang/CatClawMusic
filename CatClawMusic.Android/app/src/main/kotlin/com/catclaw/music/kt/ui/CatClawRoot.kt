@@ -559,7 +559,8 @@ private fun TabsHost(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     TopTab.entries.forEach { tab ->
-                        val selected = pagerState.settledPage == tab.pageIndex
+                        // 内嵌设置打开时，高亮归设置项，tab 全部让位
+                        val selected = pagerState.settledPage == tab.pageIndex && !inlineSettings
                         androidx.compose.foundation.layout.Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -603,10 +604,19 @@ private fun TabsHost(
                     }
 
                     // 「设置」从顶部图标挪到侧栏（用户 2026-11-09）
+                    // 内嵌设置打开时这一项要接过高亮，否则侧栏会一直停在切换前那个 tab 上
+                    val settingsSelected = inlineSettings
                     androidx.compose.foundation.layout.Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
+                            .then(
+                                if (settingsSelected) {
+                                    Modifier.background(Color(palette.primaryLight).copy(alpha = 0.18f))
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .clickable { onOpenSettings() }
                             .padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -615,13 +625,21 @@ private fun TabsHost(
                         Icon(
                             painter = painterResource(R.drawable.ic_settings),
                             contentDescription = stringResource(R.string.Settings),
-                            tint = Color(palette.textPrimary).copy(alpha = 0.72f),
+                            tint = if (settingsSelected) {
+                                Color(palette.textPrimary)
+                            } else {
+                                Color(palette.textPrimary).copy(alpha = 0.72f)
+                            },
                             modifier = Modifier.size(22.dp),
                         )
                         Text(
                             text = stringResource(R.string.Settings),
                             fontSize = 9.5.sp,
-                            color = Color(palette.textPrimary).copy(alpha = 0.72f),
+                            color = if (settingsSelected) {
+                                Color(palette.textPrimary)
+                            } else {
+                                Color(palette.textPrimary).copy(alpha = 0.72f)
+                            },
                             maxLines = 1,
                         )
                     }
