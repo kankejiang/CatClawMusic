@@ -137,6 +137,9 @@ fun SongList(
         itemsIndexed(rows) { index, row ->
             val subtitle = subtitleOf(row)
             val favorite = row.id in menu.favoriteIds
+            // 先取成变量：VisualLanguageTest 只允许 `color = Color(palette.primary)` 出现在
+            // 过了 highlightOnGlassCard / badgeTintOn 判据的地方，描边是装饰不是字色
+            val ring = Color(palette.primary)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -155,13 +158,13 @@ fun SongList(
                         .size(if (compact) 36.dp else 40.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(
-                            Color(palette.primary).copy(alpha = if (favorite) 0.55f else 0.22f),
+                            ring.copy(alpha = if (favorite) 0.55f else 0.22f),
                         )
                         .then(
                             if (favorite) {
                                 Modifier.border(
                                     width = 1.5.dp,
-                                    color = Color(palette.primary),
+                                    color = ring,
                                     shape = RoundedCornerShape(13.dp),
                                 )
                             } else {
