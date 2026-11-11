@@ -74,6 +74,9 @@ import com.catclaw.music.kt.ui.screen.RemoteSourcesScreen
 import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.MiniPlayer
 import com.catclaw.music.kt.ui.player.SleepTimerDialog
+import com.catclaw.music.kt.ui.library.NeteaseImportPanel
+import com.catclaw.music.kt.ui.netease.NeteaseMusicScreen
+import com.catclaw.music.kt.ui.library.NeteaseImportViewModel
 import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.equalizer.SoundEffectsScreen
 import com.catclaw.music.kt.ui.screen.QueueScreen
@@ -122,6 +125,7 @@ private enum class TopTab(val pageIndex: Int, val labelRes: Int, val iconRes: In
 private const val ROUTE_TABS = "tabs"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_REMOTE = "remote"
+private const val ROUTE_NETEASE = "netease"
 
 /**
  * TabBar 的一格 —— 对应 MAUI 的 `TabItem{i}`：选中态是 accent 色 α .28 的圆角 12 胶囊（`TabBg{i}` margin 4/3），
@@ -208,6 +212,7 @@ fun CatClawRoot() {
                     }
                 },
                 onOpenRemote = { rootNavController.navigate(ROUTE_REMOTE) },
+                onOpenNeteaseMusic = { rootNavController.navigate(ROUTE_NETEASE) },
                 onOpenDownloads = {
                     settingsDest = SettingsDest.Downloads
                     rootNavController.navigate(ROUTE_SETTINGS)
@@ -228,6 +233,11 @@ fun CatClawRoot() {
         composable(ROUTE_REMOTE) {
             ThemedSurface {
                 RemoteSourcesScreen(onBack = { rootNavController.popBackStack() })
+            }
+        }
+        composable(ROUTE_NETEASE) {
+            ThemedSurface {
+                NeteaseMusicScreen(onBack = { rootNavController.popBackStack() })
             }
         }
     }
@@ -257,6 +267,8 @@ private fun TabsHost(
     onOpenSettings: () -> Unit,
     // 音乐库的资料库卡要用：远程音乐与下载管理都不是本页内容，得从壳层跳整页
     onOpenRemote: () -> Unit,
+    // 网易云在线音乐：整页路由，资料库里那一行点进来
+    onOpenNeteaseMusic: () -> Unit,
     onOpenDownloads: () -> Unit,
     /** 横屏：设置内嵌在 pager 区域（侧栏保留），不跳全屏路由 */
     inlineSettings: Boolean = false,
@@ -265,6 +277,9 @@ private fun TabsHost(
     val scope = rememberCoroutineScope()
     // 睡眠定时弹窗由壳层（录制层之外）渲染，页面只通过 LocalSleepTimerOpener 喊一声
     var sleepTimerOpen by remember { mutableStateOf(false) }
+    // 导入网易云歌单同理：面板是液态玻璃，必须画在 backdropSource 之外
+    var neteaseImportOpen by remember { mutableStateOf(false) }
+    val neteaseImportViewModel: NeteaseImportViewModel = hiltViewModel()
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val mode by themeViewModel.mode.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
@@ -479,6 +494,8 @@ private fun TabsHost(
                                 LibraryScreen(
                                     onOpenRemote = onOpenRemote,
                                     onOpenDownloads = onOpenDownloads,
+                                    onOpenNeteaseImport = { neteaseImportOpen = true },
+                                    onOpenNeteaseMusic = onOpenNeteaseMusic,
                                     initialKind = pendingLibraryKind,
                                     onInitialKindConsumed = { pendingLibraryKind = null },
                                 )
@@ -746,6 +763,18 @@ private fun TabsHost(
                         sleepTimerOpen = false
                     },
                     onDismiss = { sleepTimerOpen = false },
+                )
+            }
+            // 导入网易云歌单面板：与上面同一条规则 —— 液态玻璃只能画在录制层之外。
+            // 导入本身不随面板关闭而中断（状态在 ViewModel 里），所以这里的 dismiss 只是收起 UI。
+            BackHandler(enabled = neteaseImportOpen) { neteaseImportOpen = false }
+            if (neteaseImportOpen) {
+                val importState by neteaseImportViewModel.state.collectAsStateWithLifecycle()
+                NeteaseImportPanel(
+                    state = importState,
+                    onStart = neteaseImportViewModel::start,
+                    onReset = neteaseImportViewModel::reset,
+                    onDismiss = { neteaseImportOpen = false },
                 )
             }
             // 全屏歌词页是 pager 的第 0 页而不是 NavHost 路由，没人接系统返回键就是**直接退掉整个应用**

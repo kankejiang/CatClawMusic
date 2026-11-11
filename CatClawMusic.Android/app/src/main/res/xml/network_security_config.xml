@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网易云音频外链的落地点是 http://m801.music.126.net/...（302 目标是明文），
+  而 Android 9+ 默认禁止 cleartext —— 不放行的话 ExoPlayer 会在收到 302 的瞬间抛
+  CleartextHttpTrafficNotPermitted，表现成"歌单导进来了，但每首都是播放失败"。
+
+  只对网易云自己的域放行，不开全局明文：
+  - music.163.com  ：outer/url 跳转入口本身（https）与网页接口
+  - *.126.net      ：CDN（m801/m800 等，封面 cdn 也在这里）
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">music.163.com</domain>
+        <domain includeSubdomains="true">126.net</domain>
+    </domain-config>
+</network-security-config>

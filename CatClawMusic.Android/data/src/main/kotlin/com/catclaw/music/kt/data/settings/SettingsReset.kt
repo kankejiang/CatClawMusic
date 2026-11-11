@@ -42,6 +42,11 @@ class SettingsReset @Inject constructor(
             "catclaw_state",
             "catclaw_music_sources",
             "app_locale",
+            // 网易云 eapi 的桌面客户端设备指纹。它不是"用户设置"，但重置后重新生成即可，
+            // 功能不受影响（账号态在天关网那边，本端还没有登录态）。
+            "netease_eapi",
+            // 网易云登录 cookie / 账号名。重置所有设置应当一并登出。
+            "netease_session",
         )
     }
 }
