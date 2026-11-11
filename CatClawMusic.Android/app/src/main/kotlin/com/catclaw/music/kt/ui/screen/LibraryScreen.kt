@@ -330,6 +330,8 @@ fun LibraryScreen(
                 iconRes = R.drawable.ic_cloud,
                 name = stringResource(R.string.RemoteMusic),
                 subtitle = stringResource(R.string.RemoteMusicSubtitle),
+                // 直接用 MAUI 导出的 PNG，保留原色（云朵灰），不跟着主题 tint
+                tinted = false,
                 onClick = onOpenRemote,
             ),
             // 网易云：品牌红圆标，tinted=false 保留原色（MAUI ic_netease.svg）
