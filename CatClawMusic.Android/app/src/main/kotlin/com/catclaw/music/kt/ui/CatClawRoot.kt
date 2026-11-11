@@ -506,7 +506,6 @@ private fun TabsHost(
                                 LibraryScreen(
                                     onOpenRemote = onOpenRemote,
                                     onOpenDownloads = onOpenDownloads,
-                                    onOpenNeteaseMusic = onOpenNeteaseMusic,
                                     initialKind = pendingLibraryKind,
                                     onInitialKindConsumed = { pendingLibraryKind = null },
                                 )

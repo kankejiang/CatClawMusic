@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.screen
 
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -100,6 +101,9 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
+    val neteaseLoggedIn by viewModel.neteaseLoggedIn.collectAsStateWithLifecycle()
+    // 登录发生在网易云页；切回发现页时刷新登录态（pager 页面常驻，不会重建）
+    LaunchedEffect(active) { if (active) viewModel.refreshNeteaseLogin() }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val sections by viewModel.sections.collectAsStateWithLifecycle()
@@ -177,6 +181,7 @@ fun SearchScreen(
                         onOpenSongs = { onOpenLibrary(LibraryKind.Songs) },
                         onOpenAlbums = { onOpenLibrary(LibraryKind.Albums) },
                         onOpenArtists = { onOpenLibrary(LibraryKind.Artists) },
+                        neteaseLoggedIn = neteaseLoggedIn,
                         viewModel = viewModel,
                     )
                 }
@@ -246,6 +251,7 @@ fun SearchScreen(
                     onOpenSongs = { onOpenLibrary(LibraryKind.Songs) },
                     onOpenAlbums = { onOpenLibrary(LibraryKind.Albums) },
                     onOpenArtists = { onOpenLibrary(LibraryKind.Artists) },
+                    neteaseLoggedIn = neteaseLoggedIn,
                 )
             }
         }
@@ -330,6 +336,7 @@ private fun LazyListScope.recommendItems(
     onOpenSongs: () -> Unit,
     onOpenAlbums: () -> Unit,
     onOpenArtists: () -> Unit,
+    neteaseLoggedIn: Boolean,
 ) {
     val hero = sections.daily.firstOrNull()
 
@@ -366,6 +373,14 @@ private fun LazyListScope.recommendItems(
             ) {
                 QuickTile(R.drawable.ic_spark, stringResource(R.string.disc_tag_ai), Modifier.weight(1f), onAskYuki)
                 QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
+                if (neteaseLoggedIn) {
+                    QuickTile(
+                        R.drawable.ic_netease_app,
+                        stringResource(R.string.netease_private_fm),
+                        Modifier.weight(1f),
+                        viewModel::startNeteaseFm,
+                    )
+                }
                 QuickTile(R.drawable.ic_rank, stringResource(R.string.disc_tag_top), Modifier.weight(1f)) {
                     if (sections.frequent.isNotEmpty()) viewModel.play(sections.frequent, 0)
                 }
@@ -1064,6 +1079,7 @@ private fun LandscapeDiscover(
     onOpenSongs: () -> Unit,
     onOpenAlbums: () -> Unit,
     onOpenArtists: () -> Unit,
+    neteaseLoggedIn: Boolean,
     viewModel: SearchViewModel,
 ) {
     val palette = LocalCatClawPalette.current
@@ -1188,6 +1204,15 @@ private fun LandscapeDiscover(
                             Modifier.weight(1f),
                             { viewModel.shuffleAll() },
                         )
+                        if (neteaseLoggedIn) {
+                            LandscapeQuickTile(
+                                R.drawable.ic_netease_app,
+                                stringResource(R.string.netease_private_fm),
+                                QUICK_TEAL,
+                                Modifier.weight(1f),
+                                viewModel::startNeteaseFm,
+                            )
+                        }
                         LandscapeQuickTile(
                             R.drawable.ic_rank,
                             stringResource(R.string.disc_tag_top),

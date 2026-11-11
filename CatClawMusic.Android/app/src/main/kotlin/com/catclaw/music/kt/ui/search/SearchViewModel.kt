@@ -27,7 +27,16 @@ class SearchViewModel @Inject constructor(
     private val dao: LibraryDao,
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
+    private val radio: com.catclaw.music.kt.ui.netease.NeteaseRadioController,
 ) : ViewModel() {
+
+    /** 网易云账号登录态：决定发现页是否出现「私人 FM」按钮 */
+    val neteaseLoggedIn: kotlinx.coroutines.flow.StateFlow<Boolean> = radio.loggedIn
+
+    fun refreshNeteaseLogin() = radio.refreshLogin()
+
+    /** 私人 FM 是电台按钮：点一下直接开播（插件 LoadPrivateFmAsync 同行为） */
+    fun startNeteaseFm() = radio.start()
 
     data class Sections(
         val daily: List<SongListItem> = emptyList(),
