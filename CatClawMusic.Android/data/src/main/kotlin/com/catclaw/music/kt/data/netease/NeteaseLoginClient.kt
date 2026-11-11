@@ -13,6 +13,7 @@ import javax.inject.Singleton
 @Singleton
 class NeteaseLoginClient @Inject constructor(
     private val weapi: NeteaseWeapi,
+    private val eapi: NeteaseEapi,
     private val session: NeteaseSession,
 ) {
 
@@ -105,6 +106,36 @@ class NeteaseLoginClient @Inject constructor(
             )
         }
         return finish(result, "账号密码登录")
+    }
+
+    /**
+     * 会话续期：`/eapi/login/token/refresh`。
+     *
+     * 与插件一致：`code=200` 即成功，服务端可能不轮换 MUSIC_U（手机号验证码会话就是这样，
+     * 有效期已顺延）；只有在 Set-Cookie 里给了新会话时才需要写回。
+     */
+    suspend fun refreshSession(): Boolean {
+        val cookie = session.cookie ?: return false
+        val result = runCatching {
+            eapi.requestWithCookies("/eapi/login/token/refresh", emptyMap(), true, cookie)
+        }.getOrNull() ?: return false
+        val code = result.body?.let {
+            runCatching {
+                kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                    .parseToJsonElement(it)
+                    .let { element ->
+                        (element as? kotlinx.serialization.json.JsonObject)
+                            ?.get("code")?.let { c ->
+                                (c as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                            }
+                    }
+            }.getOrNull()
+        }
+        if (code == 200) {
+            session.mergeCookies(result.cookies)
+            return true
+        }
+        return false
     }
 
     fun logout() {

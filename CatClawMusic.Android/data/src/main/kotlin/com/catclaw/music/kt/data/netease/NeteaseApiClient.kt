@@ -304,6 +304,29 @@ class NeteaseApiClient @Inject constructor(
         return songs.map { song -> fixed[song.id]?.copy(id = song.id) ?: song }
     }
 
+    /**
+     * 听歌打卡（`/api/feedback/weblog`）：影响推荐精度，失败静默。
+     * 与插件一致：`time` 是秒，`end=playend` 表示整首播完。
+     */
+    suspend fun scrobble(songId: String, durationMs: Long) {
+        val cookie = session.cookie ?: return
+        val seconds = (durationMs / 1000).coerceAtLeast(1)
+        val logs = """
+            [{"action":"play","json":{"download":0,"end":"playend","id":"$songId","source":"list","sourceId":"0","time":"$seconds","type":"song","wifi":0}}]
+        """.trimIndent()
+        runCatching {
+            http.postForm(
+                "https://music.163.com/api/feedback/weblog",
+                mapOf("logs" to logs),
+                mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Referer" to "https://music.163.com/",
+                    "Cookie" to cookie,
+                ),
+            )
+        }
+    }
+
     // ── 歌词 / 播放 ────────────────────────────────────────────
 
     /**

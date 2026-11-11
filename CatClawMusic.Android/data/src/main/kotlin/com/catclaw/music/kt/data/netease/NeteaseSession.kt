@@ -38,6 +38,21 @@ class NeteaseSession @Inject constructor(
 
     val isLoggedIn: Boolean get() = !cookie.isNullOrBlank()
 
+    /** 续期时把响应 Set-Cookie 合并进现有会话（同名覆盖，其余保留） */
+    fun mergeCookies(setCookies: List<String>) {
+        if (setCookies.isEmpty()) return
+        val map = linkedMapOf<String, String>()
+        cookie?.split(';')?.forEach { part ->
+            val kv = part.trim().split('=', limit = 2)
+            if (kv.size == 2 && kv[0].isNotBlank()) map[kv[0]] = kv[1]
+        }
+        setCookies.forEach { line ->
+            val kv = line.substringBefore(';').trim().split('=', limit = 2)
+            if (kv.size == 2 && kv[0].isNotBlank()) map[kv[0]] = kv[1]
+        }
+        cookie = map.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }

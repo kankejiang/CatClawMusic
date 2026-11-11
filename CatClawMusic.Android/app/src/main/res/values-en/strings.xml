@@ -112,6 +112,9 @@
     <string name="netease_loading">Loading…</string>
     <string name="netease_empty">Nothing found</string>
     <string name="netease_failed">Failed to load. Tap to retry.</string>
+    <string name="netease_load_more">Load more</string>
+    <string name="netease_artists_section">Artists</string>
+    <string name="netease_blocked">Unavailable</string>
     <string name="netease_play_all">Play all</string>
     <string name="netease_songs_unit">%1$d tracks</string>
     <string name="netease_songs_section">Songs</string>

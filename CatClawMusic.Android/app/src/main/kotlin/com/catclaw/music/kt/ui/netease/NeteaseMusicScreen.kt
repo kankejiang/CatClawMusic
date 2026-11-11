@@ -40,6 +40,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -146,6 +147,7 @@ fun NeteaseMusicScreen(
                         onPlay = { index -> viewModel.playFrom(search.songs, index) },
                         onOpenPlaylist = viewModel::openPlaylist,
                         onLike = viewModel::like,
+                        onLoadMore = viewModel::loadMoreSearch,
                     )
                 } else {
                     HomeList(
@@ -448,6 +450,7 @@ private fun SearchResults(
     onPlay: (Int) -> Unit,
     onOpenPlaylist: (OnlinePlaylist) -> Unit,
     onLike: (OnlineSong, Boolean) -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
@@ -460,6 +463,42 @@ private fun SearchResults(
         if (search.loading) {
             item { HintText(stringResource(R.string.netease_loading), secondary) }
         }
+        if (search.artists.isNotEmpty()) {
+            item { SectionTitle(stringResource(R.string.netease_artists_section), primary) }
+            items(count = search.artists.size, key = { "ar-" + search.artists[it].id }) { index ->
+                val artist = search.artists[index]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassCard(palette = palette, corner = 16)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CoverTile(
+                        coverArtPath = artist.picUrl,
+                        audioPath = null,
+                        maxPx = 128,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(palette.primary).copy(alpha = 0.16f)),
+                    ) {
+                        Text(artist.name.take(1), color = primary, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(artist.name, fontSize = 14.sp, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = stringResource(R.string.netease_songs_unit, artist.songCount) +
+                                " · " + artist.albumCount + " albums",
+                            fontSize = 11.sp,
+                            color = secondary,
+                        )
+                    }
+                }
+            }
+        }
+
         if (search.songs.isNotEmpty()) {
             item { SectionTitle(stringResource(R.string.netease_songs_section), primary) }
             itemsIndexed(search.songs, key = { index, song -> "s-$index-${song.id}" }) { index, song ->
@@ -489,7 +528,26 @@ private fun SearchResults(
                 }
             }
         }
-        if (!search.loading && search.songs.isEmpty() && search.playlists.isEmpty()) {
+        if (search.hasMore || search.loadingMore) {
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    PillLabel(
+                        text = if (search.loadingMore) {
+                            stringResource(R.string.netease_loading)
+                        } else {
+                            stringResource(R.string.netease_load_more)
+                        },
+                        onClick = onLoadMore,
+                        filled = false,
+                        enabled = !search.loadingMore,
+                    )
+                }
+            }
+        }
+        if (!search.loading && search.songs.isEmpty() && search.playlists.isEmpty() && search.artists.isEmpty()) {
             item { HintText(stringResource(R.string.netease_empty), secondary) }
         }
         item { Spacer(Modifier.height(96.dp)) }
@@ -594,6 +652,8 @@ private fun SongRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 下架/无版权整行降透明度：还能点（可能外链可播），但不该看起来和正常曲一样
+            .alpha(if (song.blocked) 0.45f else 1f)
             .glassCard(palette = palette, corner = 16)
             // 点一下播放；长按切换红心（在线曲没有"移出歌单"的概念，长按就一件事）
             .combinedClickable(onClick = onClick, onLongClick = onLike)
@@ -636,6 +696,17 @@ private fun SongRow(
         }
         if (liked) {
             Text(text = "❤", fontSize = 12.sp, color = Color(highlightOnGlassCard(palette)))
+        }
+        if (song.blocked) {
+            Text(
+                text = stringResource(R.string.netease_blocked),
+                fontSize = 9.5.sp,
+                color = secondary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(palette.textPrimary).copy(alpha = 0.08f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
         }
         if (song.vip) {
             Text(

@@ -13,7 +13,13 @@ import kotlin.random.Random
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.put
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /**
  * 网易云桌面客户端 eapi 通道（`interface.music.163.com`）。
@@ -84,34 +90,8 @@ class NeteaseEapi @Inject constructor(
         rawCipherResponse: Boolean,
         cookie: String?,
     ): String? {
-        val header = buildJsonObject {
-            put("clientSign", clientSign)
-            put("osver", osVer)
-            put("deviceId", deviceId)
-            put("os", "pc")
-            put("appver", APP_VER)
-            put("requestId", System.currentTimeMillis().toString())
-        }
-        val finalParams = buildJsonObject {
-            for ((key, value) in params) {
-                when (value) {
-                    is Long -> put(key, JsonPrimitive(value))
-                    is Int -> put(key, JsonPrimitive(value))
-                    is Boolean -> put(key, JsonPrimitive(value))
-                    is String -> put(key, JsonPrimitive(value))
-                    else -> error("不支持的 eapi 参数类型：${value::class.simpleName}")
-                }
-            }
-            // header 是**字符串**而不是对象：桌面客户端就是这么发的，改成对象签名对不上
-            put("header", header.toString())
-            put("e_r", true)
-        }
-
-        val encryptPath = if (path.startsWith("/eapi/")) "/api/" + path.removePrefix("/eapi/") else path
-        val paramsText = finalParams.toString()
-        val digest = md5Hex("nobody" + encryptPath + "use" + paramsText + "md5forencrypt")
-        val data = encryptPath + SALT + paramsText + SALT + digest
-        val encrypted = aesEcbEncryptHex(data.toByteArray(Charsets.UTF_8))
+        val header = buildHeader()
+        val encrypted = encryptParams(path, params, header)
 
         val body = http.postForm(
             url = "https://interface.music.163.com$path",
@@ -134,6 +114,76 @@ class NeteaseEapi @Inject constructor(
         val c = songIds.joinToString(prefix = "[", postfix = "]") { """{"id":$it}""" }
         return request("/eapi/v3/song/detail", linkedMapOf("c" to c), cookie = cookie)
     }
+
+    data class Detailed(val body: String?, val cookies: List<String>)
+
+    /**
+     * 与 [request] 相同，但**带回响应 Set-Cookie**。
+     *
+     * 会话续期（`/eapi/login/token/refresh`）只在响应头里轮换 MUSIC_U，
+     * `SourceHttp` 拿不到头，所以这一条单独走 OkHttp —— 与 weapi 同样的理由。
+     */
+    suspend fun requestWithCookies(
+        path: String,
+        params: Map<String, Any>,
+        rawCipherResponse: Boolean = true,
+        cookie: String? = null,
+    ): Detailed = withContext(Dispatchers.IO) {
+        runCatching {
+            val header = buildHeader()
+            val encrypted = encryptParams(path, params, header)
+            val request = Request.Builder()
+                .url("https://interface.music.163.com$path")
+                .post(FormBody.Builder().add("params", encrypted).build())
+                .header("User-Agent", UA)
+                .header("Referer", "https://music.163.com/")
+                .header("Accept", "*/*")
+                .header("Cookie", cookie?.takeIf { it.isNotBlank() } ?: anonymousCookie())
+                .build()
+            client.newCall(request).execute().use { response ->
+                val sets = response.headers("Set-Cookie")
+                val bytes = response.body?.bytes() ?: ByteArray(0)
+                Detailed(decryptBody(bytes, rawCipherResponse), sets)
+            }
+        }.getOrElse { Detailed(null, emptyList()) }
+    }
+
+    private fun buildHeader() = buildJsonObject {
+        put("clientSign", clientSign)
+        put("osver", osVer)
+        put("deviceId", deviceId)
+        put("os", "pc")
+        put("appver", APP_VER)
+        put("requestId", System.currentTimeMillis().toString())
+    }
+
+    private fun encryptParams(path: String, params: Map<String, Any>, header: JsonObject): String {
+        val finalParams = buildJsonObject {
+            for ((key, value) in params) {
+                when (value) {
+                    is Long -> put(key, JsonPrimitive(value))
+                    is Int -> put(key, JsonPrimitive(value))
+                    is Boolean -> put(key, JsonPrimitive(value))
+                    is String -> put(key, JsonPrimitive(value))
+                    else -> error("不支持的 eapi 参数类型：${value::class.simpleName}")
+                }
+            }
+            // header 是**字符串**而不是对象：桌面客户端就是这么发的，改成对象签名对不上
+            put("header", header.toString())
+            put("e_r", true)
+        }
+        val encryptPath = if (path.startsWith("/eapi/")) "/api/" + path.removePrefix("/eapi/") else path
+        val paramsText = finalParams.toString()
+        val digest = md5Hex("nobody" + encryptPath + "use" + paramsText + "md5forencrypt")
+        val data = encryptPath + SALT + paramsText + SALT + digest
+        return aesEcbEncryptHex(data.toByteArray(Charsets.UTF_8))
+    }
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
+        .build()
 
     private fun anonymousCookie(): String =
         "os=pc; deviceId=$deviceId; osver=$osVer; clientSign=$clientSign; " +

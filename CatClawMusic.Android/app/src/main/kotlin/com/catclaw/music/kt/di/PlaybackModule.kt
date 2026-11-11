@@ -66,10 +66,24 @@ object PlaybackModule {
         history: PlayHistoryRecorder,
         audioFx: AndroidAudioFx,
         fxPrefs: AudioFxPreferences,
+        netease: com.catclaw.music.kt.data.netease.NeteaseApiClient,
     ): PlayerController = PlayerController(context, cache, store, scope).apply {
         // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
         // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
-        onListenStarted = { songId -> history.record(songId) }
+        onListenStarted = { songId ->
+            history.record(songId)
+            // 在线曲打卡：影响网易云推荐精度，静默失败（插件同规则）
+            val song = state.value.currentSong
+            val remoteId = song?.remoteId
+            if (song != null && remoteId != null && remoteId.startsWith("netease:")) {
+                scope.launch {
+                    netease.scrobble(
+                        remoteId.removePrefix("netease:"),
+                        song.durationSeconds * 1000L,
+                    )
+                }
+            }
+        }
         // 收听时长统计走同一条链：:core 只报"现在听到哪儿了"，落库在这层
         onListenSample = { id, pos, playing -> history.sample(id, pos, playing) }
         // 音效同理：会话就绪那一刻把效果挂上，并把存下来的设置应用一遍，

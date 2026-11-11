@@ -9,6 +9,7 @@ import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteaseLoginClient
 import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
+import com.catclaw.music.kt.data.netease.NeteaseArtist
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
@@ -49,6 +50,10 @@ class NeteaseMusicViewModel @Inject constructor(
         val loading: Boolean = false,
         val songs: List<OnlineSong> = emptyList(),
         val playlists: List<OnlinePlaylist> = emptyList(),
+        val artists: List<NeteaseArtist> = emptyList(),
+        val page: Int = 1,
+        val loadingMore: Boolean = false,
+        val hasMore: Boolean = false,
     )
 
     data class Detail(
@@ -139,9 +144,38 @@ class NeteaseMusicViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _search.value = Search(query = keyword, loading = true)
-            val songs = runCatching { api.searchSongs(keyword) }.getOrNull().orEmpty()
+            val songs = runCatching { api.searchSongs(keyword, page = 1) }.getOrNull().orEmpty()
             val playlists = runCatching { api.searchPlaylists(keyword) }.getOrDefault(emptyList())
-            _search.value = Search(keyword, loading = false, songs = songs, playlists = playlists)
+            val artists = runCatching { api.searchArtists(keyword, 12) }.getOrDefault(emptyList())
+            _search.value = Search(
+                query = keyword,
+                loading = false,
+                songs = songs,
+                playlists = playlists,
+                artists = artists,
+                page = 1,
+                hasMore = songs.size >= SEARCH_PAGE_SIZE,
+            )
+        }
+    }
+
+    /** 搜索结果下一页（追加，按 id 去重） */
+    fun loadMoreSearch() {
+        val current = _search.value
+        if (current.query.isBlank() || current.loadingMore || !current.hasMore) return
+        viewModelScope.launch {
+            _search.value = current.copy(loadingMore = true)
+            val nextPage = current.page + 1
+            val more = runCatching {
+                api.searchSongs(current.query, page = nextPage, pageSize = SEARCH_PAGE_SIZE)
+            }.getOrNull().orEmpty()
+            val existing = current.songs.map { it.id }.toSet()
+            _search.value = _search.value.copy(
+                songs = current.songs + more.filter { it.id !in existing },
+                page = nextPage,
+                loadingMore = false,
+                hasMore = more.size >= SEARCH_PAGE_SIZE,
+            )
         }
     }
 
@@ -305,6 +339,10 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     fun playAll(songs: List<OnlineSong>) = playFrom(songs, 0)
+
+    private companion object {
+        const val SEARCH_PAGE_SIZE = 20
+    }
 
     /**
      * 在线曲 → 本地播放模型的映射。
