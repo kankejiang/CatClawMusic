@@ -53,6 +53,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
+import com.catclaw.music.kt.ui.library.NeteaseImportPanel
+import com.catclaw.music.kt.ui.library.NeteaseImportViewModel
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassChip
@@ -77,6 +79,7 @@ import kotlinx.coroutines.delay
 fun NeteaseMusicScreen(
     onBack: () -> Unit,
     viewModel: NeteaseMusicViewModel = hiltViewModel(),
+    importViewModel: NeteaseImportViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
     val home by viewModel.home.collectAsStateWithLifecycle()
@@ -90,12 +93,14 @@ fun NeteaseMusicScreen(
     val toast by viewModel.toast.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showLogin by remember { mutableStateOf(false) }
+    var showImport by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadHome() }
 
     // 详情页在页内切换而不是导航路由：返回键应当先退回列表，再退整页
     BackHandler(enabled = detail != null) { viewModel.closeDetail() }
     BackHandler(enabled = showLogin) { showLogin = false }
+    BackHandler(enabled = showImport) { showImport = false }
 
     Box(modifier = Modifier.fillMaxSize()) {
         val currentDetail = detail
@@ -138,10 +143,21 @@ fun NeteaseMusicScreen(
                         onDaily = viewModel::openDaily,
                         onPrivateFm = viewModel::openPrivateFm,
                         onLiked = viewModel::openLiked,
+                        onImport = { showImport = true },
                         onReload = viewModel::loadHome,
                     )
                 }
             }
+        }
+
+        if (showImport) {
+            val importState by importViewModel.state.collectAsStateWithLifecycle()
+            NeteaseImportPanel(
+                state = importState,
+                onStart = importViewModel::start,
+                onReset = importViewModel::reset,
+                onDismiss = { showImport = false },
+            )
         }
 
         if (showLogin) {
@@ -305,6 +321,7 @@ private fun HomeList(
     onDaily: () -> Unit,
     onPrivateFm: () -> Unit,
     onLiked: () -> Unit,
+    onImport: () -> Unit,
     onReload: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -316,13 +333,15 @@ private fun HomeList(
         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (loggedIn) {
-            item {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+        item {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // 导入歌单不需要登录（本地匹配 + 在线外链），所以不受 loggedIn 限制
+                GlassChip(label = stringResource(R.string.netease_import_chip), selected = false, onClick = onImport)
+                if (loggedIn) {
                     GlassChip(label = stringResource(R.string.netease_daily), selected = false, onClick = onDaily)
                     GlassChip(label = stringResource(R.string.netease_private_fm), selected = false, onClick = onPrivateFm)
                     GlassChip(label = stringResource(R.string.netease_liked), selected = false, onClick = onLiked)

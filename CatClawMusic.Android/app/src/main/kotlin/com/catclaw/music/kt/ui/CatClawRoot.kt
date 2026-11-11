@@ -277,9 +277,6 @@ private fun TabsHost(
     val scope = rememberCoroutineScope()
     // 睡眠定时弹窗由壳层（录制层之外）渲染，页面只通过 LocalSleepTimerOpener 喊一声
     var sleepTimerOpen by remember { mutableStateOf(false) }
-    // 导入网易云歌单同理：面板是液态玻璃，必须画在 backdropSource 之外
-    var neteaseImportOpen by remember { mutableStateOf(false) }
-    val neteaseImportViewModel: NeteaseImportViewModel = hiltViewModel()
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val mode by themeViewModel.mode.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
@@ -494,7 +491,6 @@ private fun TabsHost(
                                 LibraryScreen(
                                     onOpenRemote = onOpenRemote,
                                     onOpenDownloads = onOpenDownloads,
-                                    onOpenNeteaseImport = { neteaseImportOpen = true },
                                     onOpenNeteaseMusic = onOpenNeteaseMusic,
                                     initialKind = pendingLibraryKind,
                                     onInitialKindConsumed = { pendingLibraryKind = null },
@@ -763,18 +759,6 @@ private fun TabsHost(
                         sleepTimerOpen = false
                     },
                     onDismiss = { sleepTimerOpen = false },
-                )
-            }
-            // 导入网易云歌单面板：与上面同一条规则 —— 液态玻璃只能画在录制层之外。
-            // 导入本身不随面板关闭而中断（状态在 ViewModel 里），所以这里的 dismiss 只是收起 UI。
-            BackHandler(enabled = neteaseImportOpen) { neteaseImportOpen = false }
-            if (neteaseImportOpen) {
-                val importState by neteaseImportViewModel.state.collectAsStateWithLifecycle()
-                NeteaseImportPanel(
-                    state = importState,
-                    onStart = neteaseImportViewModel::start,
-                    onReset = neteaseImportViewModel::reset,
-                    onDismiss = { neteaseImportOpen = false },
                 )
             }
             // 全屏歌词页是 pager 的第 0 页而不是 NavHost 路由，没人接系统返回键就是**直接退掉整个应用**

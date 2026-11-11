@@ -2,6 +2,7 @@ package com.catclaw.music.kt.ui.library
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -37,7 +40,7 @@ import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
-import com.catclaw.music.kt.ui.theme.liquidGlass
+import com.catclaw.music.kt.ui.theme.isLightPalette
 
 /**
  * 「导入网易云歌单」面板。
@@ -62,18 +65,28 @@ fun NeteaseImportPanel(
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     var input by remember { mutableStateOf("") }
     val fade = remember { MutableInteractionSource() }
+    // 实心面板：进了网易云音乐页之后，这个弹层不再挂在壳层录制层外面，
+    // 液态玻璃在这里没有可采样的宿主（会退化成纯色/自采样），实心反而稳定可读。
+    val panelBg = if (isLightPalette(palette)) {
+        Color.White.copy(alpha = 0.96f)
+    } else {
+        Color(0xFF13161D).copy(alpha = 0.96f)
+    }
+    val shape = RoundedCornerShape(28.dp)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.34f))
+            .background(Color.Black.copy(alpha = 0.55f))
             .clickable(interactionSource = fade, indication = null, onClick = onDismiss),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             modifier = Modifier
                 .width(if (landscape) 520.dp else 340.dp)
-                .liquidGlass(palette = palette, corner = 28)
+                .clip(shape)
+                .background(panelBg)
+                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.14f), shape)
                 // 吃掉面板上的点击，别穿透到遮罩
                 .clickable(interactionSource = fade, indication = null) { }
                 .padding(horizontal = 20.dp, vertical = 18.dp),

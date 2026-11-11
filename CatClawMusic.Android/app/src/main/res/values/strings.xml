@@ -112,8 +112,7 @@
     <string name="netease_songs_unit">%1$d 首</string>
     <string name="netease_songs_section">歌曲</string>
     <string name="netease_playlists_section">歌单</string>
-    <string name="netease_import_entry">导入网易云歌单</string>
-    <string name="netease_import_entry_sub">粘贴歌单链接 · 本地优先 · 缺失走在线播放</string>
+    <string name="netease_import_chip">导入歌单</string>
     <string name="netease_import_title">导入网易云歌单</string>
     <string name="netease_import_desc">粘贴歌单链接或 ID。本地已有的歌直接用本地文件；本地没有的记为在线曲，边听边缓存。</string>
     <string name="netease_import_placeholder">https://music.163.com/playlist?id=…</string>

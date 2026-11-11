@@ -130,8 +130,6 @@ fun LibraryScreen(
     // 资料库卡里「网络音乐库」「下载管理」两行的去处：它们不是本页的列表，是别处的整页（MAUI 那五张卡也是各自跳页面）
     onOpenRemote: () -> Unit = {},
     onOpenDownloads: () -> Unit = {},
-    /** 资料库卡里的「导入网易云歌单」：面板由壳层渲染（液态玻璃要采样宿主），这里只负责喊一声 */
-    onOpenNeteaseImport: () -> Unit = {},
     /** 资料库卡里的「网易云音乐」：整页在线音乐（搜索 / 推荐 / 榜单 / 歌单） */
     onOpenNeteaseMusic: () -> Unit = {},
     /** 发现页货架的「查看全部」：进来直接打开这个列表，消费一次即清空 */
@@ -342,13 +340,6 @@ fun LibraryScreen(
                 subtitle = stringResource(R.string.netease_music_entry_sub),
                 tinted = false,
                 onClick = onOpenNeteaseMusic,
-            ),
-            // 导入放在资料库里：它产出的就是一叠新歌单，和「网络音乐库」是同一类入口。
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_download,
-                name = stringResource(R.string.netease_import_entry),
-                subtitle = stringResource(R.string.netease_import_entry_sub),
-                onClick = onOpenNeteaseImport,
             ),
         )
         Column(

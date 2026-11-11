@@ -112,8 +112,7 @@
     <string name="netease_songs_unit">%1$d tracks</string>
     <string name="netease_songs_section">Songs</string>
     <string name="netease_playlists_section">Playlists</string>
-    <string name="netease_import_entry">Import NetEase playlist</string>
-    <string name="netease_import_entry_sub">Paste a link · local files first · missing tracks stream online</string>
+    <string name="netease_import_chip">Import playlist</string>
     <string name="netease_import_title">Import NetEase playlist</string>
     <string name="netease_import_desc">Paste a playlist link or ID. Tracks you already own stay local; the rest are added as online tracks and cached while playing.</string>
     <string name="netease_import_placeholder">https://music.163.com/playlist?id=…</string>
