@@ -3,7 +3,9 @@ package com.catclaw.music.kt.ui.netease
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,36 +88,82 @@ fun NeteaseMusicScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-            Text(
-                text = stringResource(R.string.netease_music_title),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = primary,
-            )
-            GlassSearchField(
-                query = query,
-                onChange = {
-                    query = it
-                    viewModel.search(it)
-                },
-                placeholder = stringResource(R.string.netease_search_hint),
-                modifier = Modifier.weight(1f),
-                compact = true,
-            )
-            if (!viewModel.loggedIn) {
+        val landscape = LocalConfiguration.current.orientation ==
+            Configuration.ORIENTATION_LANDSCAPE
+        // 竖屏 1440px 宽塞不下「标题 + 搜索框 + 未登录提示」一行：搜索框会被压到 ~80dp，
+        // 只能显示两个字（真机实测）。竖屏改成两行：第一行标题与登录态，第二行整条搜索框。
+        if (landscape) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
                 Text(
-                    text = stringResource(R.string.netease_login_hint),
-                    fontSize = 10.5.sp,
-                    color = secondary,
-                    maxLines = 1,
+                    text = stringResource(R.string.netease_music_title),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primary,
+                )
+                GlassSearchField(
+                    query = query,
+                    onChange = {
+                        query = it
+                        viewModel.search(it)
+                    },
+                    placeholder = stringResource(R.string.netease_search_hint),
+                    modifier = Modifier.weight(1f),
+                    compact = true,
+                )
+                if (!viewModel.loggedIn) {
+                    Text(
+                        text = stringResource(R.string.netease_login_hint),
+                        fontSize = 10.5.sp,
+                        color = secondary,
+                        maxLines = 1,
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
+                    Text(
+                        text = stringResource(R.string.netease_music_title),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (!viewModel.loggedIn) {
+                        Text(
+                            text = stringResource(R.string.netease_login_hint),
+                            fontSize = 10.5.sp,
+                            color = secondary,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                GlassSearchField(
+                    query = query,
+                    onChange = {
+                        query = it
+                        viewModel.search(it)
+                    },
+                    placeholder = stringResource(R.string.netease_search_hint),
+                    modifier = Modifier.fillMaxWidth(),
+                    compact = true,
                 )
             }
         }
@@ -356,6 +405,9 @@ private fun PlaylistCard(
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+    // 横屏两列时卡片本身不高（首屏要塞两行），封面固定 112dp；竖屏每列约 200dp 宽，
+    // 同样的 112dp 会把封面裁成横条，改成 1:1 与歌单卡的传统观感一致
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Column(
         modifier = modifier
             .glassCard(palette = palette, corner = 18)
@@ -368,7 +420,7 @@ private fun PlaylistCard(
             maxPx = 320,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(112.dp)
+                .then(if (landscape) Modifier.height(112.dp) else Modifier.aspectRatio(1f))
                 .clip(RoundedCornerShape(13.dp))
                 .background(Color(palette.primary).copy(alpha = 0.18f)),
         ) {
