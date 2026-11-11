@@ -336,7 +336,8 @@ fun LibraryScreen(
             ),
             // 网易云：品牌红圆标，tinted=false 保留原色（MAUI ic_netease.svg）
             LibrarySourceRow(
-                iconRes = R.drawable.ic_netease,
+                // 插件 Assets/netease_icon.png 的官方红底音符（多分辨率 PNG），不是歌曲行的小圆标
+                iconRes = R.drawable.ic_netease_app,
                 name = stringResource(R.string.netease_music_entry),
                 subtitle = stringResource(R.string.netease_music_entry_sub),
                 tinted = false,
