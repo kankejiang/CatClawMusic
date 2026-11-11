@@ -75,6 +75,7 @@ import com.catclaw.music.kt.ui.playback.PlayingViewModel
 import com.catclaw.music.kt.ui.player.MiniPlayer
 import com.catclaw.music.kt.ui.player.SleepTimerDialog
 import com.catclaw.music.kt.ui.library.NeteaseImportPanel
+import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.ui.netease.NeteaseMusicScreen
 import com.catclaw.music.kt.ui.library.NeteaseImportViewModel
 import com.catclaw.music.kt.ui.theme.GlassTokens
@@ -187,6 +188,8 @@ val LocalSleepTimerOpener = androidx.compose.runtime.staticCompositionLocalOf<()
 @Composable
 fun CatClawRoot() {
     val rootNavController = rememberNavController()
+    // 从歌单 tab 点网易云歌单时，先把歌单对象带到在线音乐路由，进来后由该页消费掉
+    var pendingNeteasePlaylist by remember { mutableStateOf<OnlinePlaylist?>(null) }
     // 设置路由一进来落在哪一页。用提升的状态而不是导航参数：只有「从别处直接跳某个子页」才需要它，
     // 而那条路径目前只有一个调用点（音乐库的资料库卡 → 下载管理）
     var settingsDest by remember { mutableStateOf(SettingsDest.Hub) }
@@ -213,6 +216,10 @@ fun CatClawRoot() {
                 },
                 onOpenRemote = { rootNavController.navigate(ROUTE_REMOTE) },
                 onOpenNeteaseMusic = { rootNavController.navigate(ROUTE_NETEASE) },
+                onOpenNeteasePlaylist = { playlist ->
+                    pendingNeteasePlaylist = playlist
+                    rootNavController.navigate(ROUTE_NETEASE)
+                },
                 onOpenDownloads = {
                     settingsDest = SettingsDest.Downloads
                     rootNavController.navigate(ROUTE_SETTINGS)
@@ -237,7 +244,11 @@ fun CatClawRoot() {
         }
         composable(ROUTE_NETEASE) {
             ThemedSurface {
-                NeteaseMusicScreen(onBack = { rootNavController.popBackStack() })
+                NeteaseMusicScreen(
+                    onBack = { rootNavController.popBackStack() },
+                    initialPlaylist = pendingNeteasePlaylist,
+                    onInitialPlaylistConsumed = { pendingNeteasePlaylist = null },
+                )
             }
         }
     }
@@ -269,6 +280,8 @@ private fun TabsHost(
     onOpenRemote: () -> Unit,
     // 网易云在线音乐：整页路由，资料库里那一行点进来
     onOpenNeteaseMusic: () -> Unit,
+    // 歌单 tab 的「网易云歌单」货架：点某个歌单后直接打开它的详情
+    onOpenNeteasePlaylist: (OnlinePlaylist) -> Unit,
     onOpenDownloads: () -> Unit,
     /** 横屏：设置内嵌在 pager 区域（侧栏保留），不跳全屏路由 */
     inlineSettings: Boolean = false,
@@ -486,7 +499,9 @@ private fun TabsHost(
                                     chatBottomReserve = if (showMiniPlayer) GlassTokens.BarHeight + 6.dp else 0.dp,
                                 )
                             }
-                            3 -> Box(Modifier.fillMaxSize().statusBarsPadding()) { PlaylistScreen() }
+                            3 -> Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                                PlaylistScreen(onOpenNeteasePlaylist = onOpenNeteasePlaylist)
+                            }
                             else -> Box(Modifier.fillMaxSize().statusBarsPadding()) {
                                 LibraryScreen(
                                     onOpenRemote = onOpenRemote,

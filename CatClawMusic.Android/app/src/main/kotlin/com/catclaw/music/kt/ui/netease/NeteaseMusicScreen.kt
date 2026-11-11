@@ -78,6 +78,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun NeteaseMusicScreen(
     onBack: () -> Unit,
+    /** 从歌单 tab 的「网易云歌单」货架进来时，直接打开这个歌单 */
+    initialPlaylist: OnlinePlaylist? = null,
+    onInitialPlaylistConsumed: () -> Unit = {},
     viewModel: NeteaseMusicViewModel = hiltViewModel(),
     importViewModel: NeteaseImportViewModel = hiltViewModel(),
 ) {
@@ -96,6 +99,12 @@ fun NeteaseMusicScreen(
     var showImport by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadHome() }
+    LaunchedEffect(initialPlaylist?.id) {
+        initialPlaylist?.let {
+            viewModel.openPlaylist(it)
+            onInitialPlaylistConsumed()
+        }
+    }
 
     // 详情页在页内切换而不是导航路由：返回键应当先退回列表，再退整页
     BackHandler(enabled = detail != null) { viewModel.closeDetail() }

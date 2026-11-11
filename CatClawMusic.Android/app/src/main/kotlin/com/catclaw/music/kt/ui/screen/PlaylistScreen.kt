@@ -23,6 +23,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -93,9 +98,18 @@ import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
  * 系统歌单与自建歌单各是一张带 46dp 图标块的玻璃卡、详情层是返回块 + 两个胶囊按钮 + 歌曲行。
  */
 @Composable
-fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
+fun PlaylistScreen(
+    /** 点开网易云账号里的歌单：整页在线音乐由壳层导航，这里只把歌单对象交出去 */
+    onOpenNeteasePlaylist: (OnlinePlaylist) -> Unit = {},
+    viewModel: PlaylistViewModel = hiltViewModel(),
+) {
     val palette = LocalCatClawPalette.current
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val neteaseAccount by viewModel.neteaseAccount.collectAsStateWithLifecycle()
+    val neteasePlaylists by viewModel.neteasePlaylists.collectAsStateWithLifecycle()
+    // 登录发生在网易云页；从那里返回时本页会重新 START，借这个时机刷新歌单列表
+    LaunchedEffect(Unit) { viewModel.refreshNetease() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.refreshNetease() }
     val shown by viewModel.displayItems.collectAsStateWithLifecycle()
     val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
     val itemSortDescending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
@@ -369,6 +383,15 @@ fun PlaylistScreen(viewModel: PlaylistViewModel = hiltViewModel()) {
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (neteasePlaylists.isNotEmpty()) {
+                NeteaseShelf(
+                    accountName = neteaseAccount?.nickname.orEmpty(),
+                    playlists = neteasePlaylists,
+                    onOpen = onOpenNeteasePlaylist,
+                )
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -1033,6 +1056,86 @@ private fun LandscapePlaylistShelf(
             }
         }
         content()
+    }
+}
+
+/**
+ * 「网易云歌单」横向货架：登录后在歌单 tab 顶部展示账号里已有的歌单。
+ *
+ * 用横向 LazyRow 而不是纵向铺开：账号里几十个歌单会把自建歌单挤出首屏，
+ * 而这一区的定位是"快速取用"，不是主列表。
+ */
+@Composable
+private fun NeteaseShelf(
+    accountName: String,
+    playlists: List<OnlinePlaylist>,
+    onOpen: (OnlinePlaylist) -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.netease_playlist_section),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = primary,
+            )
+            if (accountName.isNotBlank()) {
+                Text(
+                    text = accountName,
+                    fontSize = 11.sp,
+                    color = secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 8.dp).weight(1f),
+                )
+            }
+        }
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(end = 4.dp),
+        ) {
+            items(playlists.size, key = { "nt-" + playlists[it].id }) { index ->
+                val playlist = playlists[index]
+                Column(
+                    modifier = Modifier
+                        .width(96.dp)
+                        .clickable { onOpen(playlist) },
+                ) {
+                    CoverTile(
+                        coverArtPath = playlist.coverUrl,
+                        audioPath = null,
+                        maxPx = 256,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(palette.primary).copy(alpha = 0.18f)),
+                    ) {
+                        Text(
+                            text = playlist.name.take(1),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primary,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = playlist.name,
+                        fontSize = 11.5.sp,
+                        color = primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(R.string.netease_songs_unit, playlist.songCount),
+                        fontSize = 9.5.sp,
+                        color = secondary,
+                    )
+                }
+            }
+        }
     }
 }
 

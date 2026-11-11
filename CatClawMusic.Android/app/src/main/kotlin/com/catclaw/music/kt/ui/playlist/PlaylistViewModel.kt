@@ -8,6 +8,8 @@ import com.catclaw.music.kt.core.library.defaultDescending
 import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.PlaylistCover
+import com.catclaw.music.kt.data.netease.NeteaseApiClient
+import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.data.db.toSong
@@ -32,7 +34,18 @@ class PlaylistViewModel @Inject constructor(
     private val playlistDao: PlaylistDao,
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
+    private val netease: NeteaseApiClient,
 ) : ViewModel() {
+
+    /**
+     * 网易云账号里的歌单（含「我喜欢的音乐」）。登录后这里才有值；
+     * 页面每次重新进入时调 [refreshNetease]，因为登录动作发生在网易云页。
+     */
+    private val _neteaseAccount = MutableStateFlow<NeteaseApiClient.Account?>(null)
+    val neteaseAccount: StateFlow<NeteaseApiClient.Account?> = _neteaseAccount.asStateFlow()
+
+    private val _neteasePlaylists = MutableStateFlow<List<OnlinePlaylist>>(emptyList())
+    val neteasePlaylists: StateFlow<List<OnlinePlaylist>> = _neteasePlaylists.asStateFlow()
 
     val playlists = playlistDao.observePlaylists().stateIn(
         scope = viewModelScope,
@@ -71,6 +84,18 @@ class PlaylistViewModel @Inject constructor(
             SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun refreshNetease() {
+        viewModelScope.launch {
+            val me = runCatching { netease.account() }.getOrNull()
+            _neteaseAccount.value = me
+            _neteasePlaylists.value = if (me != null) {
+                runCatching { netease.userPlaylists() }.getOrDefault(emptyList())
+            } else {
+                emptyList()
+            }
+        }
+    }
 
     fun open(id: Int) {
         // 换歌单要清掉搜索框：留着上一个的关键词，新打开的这个看着像是空的

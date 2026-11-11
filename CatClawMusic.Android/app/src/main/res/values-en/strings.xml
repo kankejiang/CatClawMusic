@@ -100,6 +100,7 @@
     <string name="netease_daily">Daily mix</string>
     <string name="netease_private_fm">Private FM</string>
     <string name="netease_liked">Liked</string>
+    <string name="netease_playlist_section">NetEase playlists</string>
     <string name="netease_my_playlists">My playlists</string>
     <string name="netease_music_title">NetEase Music</string>
     <string name="netease_search_hint">Search songs, playlists, artists</string>
