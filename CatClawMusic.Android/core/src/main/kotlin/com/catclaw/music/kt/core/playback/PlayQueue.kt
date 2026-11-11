@@ -138,6 +138,17 @@ class PlayQueue {
         }
     }
 
+    /**
+     * 末尾追加（私人漫游续播用）：不改变当前索引与播放位置。
+     * 随机模式下同时追加到洗牌列表，否则 ExoPlayer 的 shuffle 序会与队列不一致。
+     */
+    fun appendAll(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        originalList.addAll(songs)
+        if (playMode == PlayMode.Shuffle) shuffledList.addAll(songs)
+        rebuildIndex()
+    }
+
     /** 下一首播放：插到当前之后 */
     fun addNext(song: Song) {
         if (currentIndex >= 0 && currentIndex + 1 < originalList.size) {

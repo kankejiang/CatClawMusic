@@ -112,11 +112,41 @@ class NeteaseMusicViewModel @Inject constructor(
         }
     }
 
+    /** 私人 FM 续播的防重入闩：一次只拉一批，避免同一首末尾歌触发多次请求 */
+    private var fmRefilling = false
+
     init {
         viewModelScope.launch {
             _account.value = api.account()
             if (_account.value != null) {
                 _myPlaylists.value = api.userPlaylists()
+            }
+        }
+        // 私人 FM 无限续播：当前曲已是队列最后一首时预取下一批并追加（addMediaItems 不打断播放）
+        viewModelScope.launch {
+            controller.state.collect { state ->
+                val detail = _detail.value ?: return@collect
+                if (detail.playlist?.id != FM_ID) return@collect
+                val current = state.currentSong ?: return@collect
+                val queueSongs = controller.queueSongs.value
+                if (queueSongs.isEmpty() || queueSongs.last().id != current.id) return@collect
+                if (fmRefilling) return@collect
+                fmRefilling = true
+                try {
+                    val existing = queueSongs.map { it.id }.toSet()
+                    val next = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+                        .filter { it.toSong(0).id !in existing }
+                    if (next.isNotEmpty()) {
+                        controller.appendSongs(next.mapIndexed { index, song -> song.toSong(index) })
+                        _detail.value = _detail.value?.copy(songs = detail.songs + next)
+                        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                            "NeteaseFm",
+                            "续播追加 ${next.size} 首，队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
+                        )
+                    }
+                } finally {
+                    fmRefilling = false
+                }
             }
         }
     }
@@ -342,6 +372,9 @@ class NeteaseMusicViewModel @Inject constructor(
 
     private companion object {
         const val SEARCH_PAGE_SIZE = 20
+        /** 私人 FM 的虚拟歌单 id，与 openPrivateFm 里构造的一致 */
+        const val FM_ID = "fm"
+        const val FM_BATCH = 20
     }
 
     /**

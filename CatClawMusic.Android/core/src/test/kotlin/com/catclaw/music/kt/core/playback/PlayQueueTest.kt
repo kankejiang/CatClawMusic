@@ -20,6 +20,18 @@ class PlayQueueTest {
     }
 
     @Test
+    fun appendAllKeepsCurrentSongAndExtendsTail() {
+        val q = PlayQueue().apply { setSongs(songs(2)) }
+        q.selectSong(2)
+        q.appendAll(songs(4).drop(2))
+        assertEquals(listOf(1, 2, 3, 4), q.songs().map { it.id })
+        assertEquals(2, q.currentSong?.id)
+        // 追加后仍能按 id 定位（索引表要重建，否则 selectSong 会拿到 -1）
+        q.selectSong(4)
+        assertEquals(4, q.currentSong?.id)
+    }
+
+    @Test
     fun sequentialStopsAtEnd() {
         val q = PlayQueue().apply {
             setSongs(songs(2))

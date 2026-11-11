@@ -307,6 +307,24 @@ class PlayerController(
         save()
     }
 
+    /**
+     * 末尾追加曲目并同步给播放器（私人漫游续播）。
+     *
+     * 用 `addMediaItems` 而不是重建整张列表：后者会打断当前播放；
+     * 只有队列原本是空的时候才退回整表同步。
+     */
+    fun appendSongs(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        queue.appendAll(songs)
+        if (player.mediaItemCount > 0) {
+            player.addMediaItems(songs.map { buildMediaItem(it) })
+            publishQueue(queue.songs())
+        } else {
+            syncPlayerList(resumeAtMs = 0)
+        }
+        save()
+    }
+
     /** 队列的只读快照，供 AI 工具与统计展示；改队列必须走下面的显式方法 */
     override fun queueSongs(): List<Song> = queue.songs()
 
