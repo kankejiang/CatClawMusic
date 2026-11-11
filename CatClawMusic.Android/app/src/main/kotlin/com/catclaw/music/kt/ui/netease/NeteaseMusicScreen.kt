@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
 import com.catclaw.music.kt.ui.library.NeteaseImportPanel
@@ -94,6 +95,7 @@ fun NeteaseMusicScreen(
     val smsCountdown by viewModel.smsCountdown.collectAsStateWithLifecycle()
     val likedIds by viewModel.likedIds.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
+    val quality by viewModel.quality.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showLogin by remember { mutableStateOf(false) }
     var showImport by remember { mutableStateOf(false) }
@@ -131,6 +133,8 @@ fun NeteaseMusicScreen(
                         viewModel.search(it)
                     },
                     accountName = account?.nickname,
+                    quality = quality,
+                    onCycleQuality = viewModel::cycleQuality,
                     onOpenLogin = { showLogin = true },
                     onBack = onBack,
                 )
@@ -224,6 +228,8 @@ private fun TopBar(
     query: String,
     onQueryChange: (String) -> Unit,
     accountName: String?,
+    quality: NeteasePlaylistClient.Quality,
+    onCycleQuality: () -> Unit,
     onOpenLogin: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -231,6 +237,24 @@ private fun TopBar(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val qualitySlot: @Composable () -> Unit = {
+        Text(
+            text = when (quality) {
+                NeteasePlaylistClient.Quality.Lossless -> stringResource(R.string.netease_quality_lossless)
+                NeteasePlaylistClient.Quality.Exhigh -> stringResource(R.string.netease_quality_320)
+                NeteasePlaylistClient.Quality.Standard -> stringResource(R.string.netease_quality_128)
+            },
+            fontSize = 10.5.sp,
+            color = Color(highlightOnGlassCard(palette)),
+            maxLines = 1,
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color(palette.textPrimary).copy(alpha = 0.08f))
+                .clickable(onClick = onCycleQuality)
+                .padding(horizontal = 9.dp, vertical = 4.dp),
+        )
+    }
 
     val accountSlot: @Composable () -> Unit = {
         if (accountName == null) {
@@ -283,6 +307,7 @@ private fun TopBar(
                 modifier = Modifier.weight(1f),
                 compact = true,
             )
+            qualitySlot()
             accountSlot()
         }
     } else {
@@ -305,6 +330,7 @@ private fun TopBar(
                     color = primary,
                     modifier = Modifier.weight(1f),
                 )
+                qualitySlot()
                 accountSlot()
             }
             GlassSearchField(

@@ -8,6 +8,7 @@ import com.catclaw.music.kt.core.model.SongSource
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteaseLoginClient
+import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 class NeteaseMusicViewModel @Inject constructor(
     private val api: NeteaseApiClient,
     private val loginClient: NeteaseLoginClient,
+    private val playUrlResolver: NeteasePlayUrlResolver,
     private val controller: PlayerController,
     private val playbackSession: PlaybackSessionStarter,
 ) : ViewModel() {
@@ -91,6 +93,19 @@ class NeteaseMusicViewModel @Inject constructor(
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
+
+    /** 播放音质：无损 / 320k / 128k（点击顶部胶囊循环） */
+    private val _quality = MutableStateFlow(playUrlResolver.quality)
+    val quality: StateFlow<NeteasePlaylistClient.Quality> = _quality.asStateFlow()
+
+    fun cycleQuality() {
+        _quality.value = playUrlResolver.cycleQuality()
+        _toast.value = "音质：" + when (_quality.value) {
+            NeteasePlaylistClient.Quality.Lossless -> "无损"
+            NeteasePlaylistClient.Quality.Exhigh -> "320k"
+            NeteasePlaylistClient.Quality.Standard -> "128k"
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -274,13 +289,14 @@ class NeteaseMusicViewModel @Inject constructor(
         if (songs.isEmpty()) return
         viewModelScope.launch {
             val queue = songs.mapIndexed { position, online -> online.toSong(position) }.toMutableList()
-            // 当前曲登录态下换 eapi 直链：只有这一首值得多一次请求，整队逐首取链会让点击后等很久
-            if (_account.value != null && index in queue.indices) {
-                val better = runCatching {
-                    api.playUrl(songs[index].id, NeteasePlaylistClient.Quality.Lossless)
-                }.getOrNull()
-                if (!better.isNullOrBlank()) {
-                    queue[index] = queue[index].copy(filePath = better)
+            // 当前曲按偏好音质取链（20 分钟缓存 + 自动降档）；整队逐首取链会让点击后等很久
+            if (index in queue.indices) {
+                val songId = songs[index].id.toLongOrNull()
+                if (songId != null) {
+                    val better = runCatching { playUrlResolver.resolve(songId) }.getOrNull()
+                    if (!better.isNullOrBlank()) {
+                        queue[index] = queue[index].copy(filePath = better)
+                    }
                 }
             }
             playbackSession.ensure()

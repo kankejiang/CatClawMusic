@@ -85,6 +85,9 @@
     <string name="playlist_rename_save">保存</string>
     <string name="netease_music_entry">网易云音乐</string>
     <string name="netease_music_entry_sub">在线搜索 · 推荐歌单 · 排行榜</string>
+    <string name="netease_quality_lossless">无损</string>
+    <string name="netease_quality_320">320k</string>
+    <string name="netease_quality_128">128k</string>
     <string name="netease_login">登录</string>
     <string name="netease_login_tab_phone">手机号登录</string>
     <string name="netease_login_tab_password">账号密码</string>
