@@ -308,42 +308,45 @@ fun LibraryScreen(
         // 于是「跳别的页面」这种行只能在徽标里显示一个没有意义的数字。
         val sources = listOf(
             LibrarySourceRow(
-                R.drawable.ic_library,
-                stringResource(R.string.lib_local_name),
-                stringResource(R.string.playlist_count, songs.size),
-            ) { onOpenKind(LibraryKind.Songs) },
-            LibrarySourceRow(
-                R.drawable.ic_favorite,
-                stringResource(R.string.lib_favorites_name),
-                stringResource(R.string.playlist_count, favorites.size),
-            ) { onOpenKind(LibraryKind.Favorites) },
-            LibrarySourceRow(
-                R.drawable.ic_history,
-                stringResource(R.string.playlist_entry_recent),
-                stringResource(R.string.playlist_count, recent.size),
-            ) { onOpenKind(LibraryKind.Recent) },
-            LibrarySourceRow(
-                R.drawable.ic_search,
-                stringResource(R.string.RemoteMusic),
-                stringResource(R.string.RemoteMusicSubtitle),
-                onOpenRemote,
+                iconRes = R.drawable.ic_library,
+                name = stringResource(R.string.lib_local_name),
+                subtitle = stringResource(R.string.playlist_count, songs.size),
+                onClick = { onOpenKind(LibraryKind.Songs) },
             ),
-            // 网易云：整页在线音乐（搜索/推荐/榜单/歌单），导入歌单是它的一个附属动作
             LibrarySourceRow(
-                R.drawable.ic_search,
-                stringResource(R.string.netease_music_entry),
-                stringResource(R.string.netease_music_entry_sub),
-                onOpenNeteaseMusic,
+                iconRes = R.drawable.ic_favorite,
+                name = stringResource(R.string.lib_favorites_name),
+                subtitle = stringResource(R.string.playlist_count, favorites.size),
+                onClick = { onOpenKind(LibraryKind.Favorites) },
+            ),
+            LibrarySourceRow(
+                iconRes = R.drawable.ic_history,
+                name = stringResource(R.string.playlist_entry_recent),
+                subtitle = stringResource(R.string.playlist_count, recent.size),
+                onClick = { onOpenKind(LibraryKind.Recent) },
+            ),
+            // 远程音乐服务：图标用 MAUI 的 ic_cloud（云朵），此前误用了搜索放大镜
+            LibrarySourceRow(
+                iconRes = R.drawable.ic_cloud,
+                name = stringResource(R.string.RemoteMusic),
+                subtitle = stringResource(R.string.RemoteMusicSubtitle),
+                onClick = onOpenRemote,
+            ),
+            // 网易云：品牌红圆标，tinted=false 保留原色（MAUI ic_netease.svg）
+            LibrarySourceRow(
+                iconRes = R.drawable.ic_netease,
+                name = stringResource(R.string.netease_music_entry),
+                subtitle = stringResource(R.string.netease_music_entry_sub),
+                tinted = false,
+                onClick = onOpenNeteaseMusic,
             ),
             // 导入放在资料库里：它产出的就是一叠新歌单，和「网络音乐库」是同一类入口。
-            // 不入 songs 计数 —— 这里回答的是「去哪」，不是「有多少」。
             LibrarySourceRow(
-                R.drawable.ic_download,
-                stringResource(R.string.netease_import_entry),
-                stringResource(R.string.netease_import_entry_sub),
-                onOpenNeteaseImport,
+                iconRes = R.drawable.ic_download,
+                name = stringResource(R.string.netease_import_entry),
+                subtitle = stringResource(R.string.netease_import_entry_sub),
+                onClick = onOpenNeteaseImport,
             ),
-
         )
         Column(
             modifier = Modifier
@@ -371,7 +374,7 @@ fun LibraryScreen(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            sources.forEach { SourceRow(it.iconRes, it.name, it.subtitle, palette, it.onClick) }
+            sources.forEach { row -> SourceRow(row.iconRes, row.name, row.subtitle, palette, row.tinted, row.onClick) }
         }
 
 
@@ -391,7 +394,7 @@ fun LibraryScreen(
                 color = Color(palette.textPrimary),
             )
             Spacer(Modifier.height(6.dp))
-            SourceRow(R.drawable.ic_download, stringResource(R.string.downloads_title), stringResource(R.string.downloads_subtitle), palette, onOpenDownloads)
+            SourceRow(R.drawable.ic_download, stringResource(R.string.downloads_title), stringResource(R.string.downloads_subtitle), palette, onClick = onOpenDownloads)
             SourceRow(
                 R.drawable.ic_search,
                 stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
@@ -831,6 +834,8 @@ private data class LibrarySourceRow(
     val iconRes: Int,
     val name: String,
     val subtitle: String,
+    /** 品牌图标（如网易云红圆标）不能 tint，否则会被染成主题单色 */
+    val tinted: Boolean = true,
     val onClick: () -> Unit,
 )
 
@@ -840,6 +845,7 @@ private fun SourceRow(
     name: String,
     subtitle: String,
     palette: CatClawPalette,
+    tinted: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
@@ -860,7 +866,8 @@ private fun SourceRow(
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                tint = Color(palette.textPrimary),
+                // 品牌图标保留原色（Color.Unspecified 不做 tint 混合）
+                tint = if (tinted) Color(palette.textPrimary) else Color.Unspecified,
                 modifier = Modifier.size(25.dp),
             )
         }

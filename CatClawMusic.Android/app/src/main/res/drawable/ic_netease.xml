@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网易云品牌标：移植自 MAUI Resources/Images/ic_netease.svg
+  （红底圆 + 白色音符，用于资料库入口与歌曲行尾区分网络来源）。
+  与其它单色图标不同，这个不能 tint —— Icon 里要用 Color.Unspecified 保留品牌红。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFD43C33"
+        android:pathData="M12,12m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3.5v9.7c-0.55,-0.3 -1.15,-0.45 -1.8,-0.45c-1.85,0 -3.35,1.5 -3.35,3.35s1.5,3.35 3.35,3.35s3.35,-1.5 3.35,-3.35V7h3.8V3.5H12z" />
+</vector>
