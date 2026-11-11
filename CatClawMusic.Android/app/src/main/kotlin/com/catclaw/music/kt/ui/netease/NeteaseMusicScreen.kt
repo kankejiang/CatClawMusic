@@ -1,15 +1,20 @@
 package com.catclaw.music.kt.ui.netease
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import android.content.res.Configuration
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,8 +33,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -44,20 +55,23 @@ import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.ui.theme.BackTile
+import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.isLightPalette
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
+import kotlinx.coroutines.delay
 
 /**
  * 网易云在线音乐页 —— 对应插件 `NeteaseOnlineMusicPage`。
  *
- * 三个层：首页（推荐歌单 + 榜单）→ 歌单详情（曲目 + 播放）→ 搜索（歌曲 + 歌单）。
- * 各自的数据与请求都在 [NeteaseMusicViewModel] 里，页面只负责按状态画。
+ * 结构：首页（快捷入口 + 推荐歌单 + 我的歌单 + 榜单）→ 歌单/每日推荐/FM 详情 → 搜索 → 登录。
+ * 数据与请求都在 [NeteaseMusicViewModel] 里，页面只按状态画。
  *
- * 播放复用主播放器：在线曲会被转成 core 的 `Song` 塞进同一个队列，
- * 播完自动接下一首，迷你条/播放页/歌词页都能正常显示。
+ * 竖屏优先：顶部固定两行（标题与账号 / 整行搜索框），卡片用方形封面；
+ * 横屏保留单行顶栏与 112dp 封面，避免首屏被大卡片吃掉。
  */
 @Composable
 fun NeteaseMusicScreen(
@@ -65,38 +79,196 @@ fun NeteaseMusicScreen(
     viewModel: NeteaseMusicViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
-    val primary = Color(palette.textPrimary)
-    val secondary = Color(palette.textSecondary)
     val home by viewModel.home.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val account by viewModel.account.collectAsStateWithLifecycle()
+    val myPlaylists by viewModel.myPlaylists.collectAsStateWithLifecycle()
+    val loginState by viewModel.login.collectAsStateWithLifecycle()
+    val smsCountdown by viewModel.smsCountdown.collectAsStateWithLifecycle()
+    val likedIds by viewModel.likedIds.collectAsStateWithLifecycle()
+    val toast by viewModel.toast.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
+    var showLogin by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.loadHome() }
 
     // 详情页在页内切换而不是导航路由：返回键应当先退回列表，再退整页
     BackHandler(enabled = detail != null) { viewModel.closeDetail() }
+    BackHandler(enabled = showLogin) { showLogin = false }
 
-    detail?.let { current ->
-        NeteasePlaylistDetail(
-            detail = current,
-            onBack = viewModel::closeDetail,
-            onPlayAll = { viewModel.playAll(current.songs) },
-            onPlayAt = { viewModel.playFrom(current.songs, it) },
-        )
-        return
-    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        val currentDetail = detail
+        if (currentDetail != null) {
+            NeteasePlaylistDetail(
+                detail = currentDetail,
+                likedIds = likedIds,
+                onBack = viewModel::closeDetail,
+                onPlayAll = { viewModel.playAll(currentDetail.songs) },
+                onPlayAt = { viewModel.playFrom(currentDetail.songs, it) },
+                onLike = { song, like -> viewModel.like(song, like) },
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                TopBar(
+                    query = query,
+                    onQueryChange = {
+                        query = it
+                        viewModel.search(it)
+                    },
+                    accountName = account?.nickname,
+                    onOpenLogin = { showLogin = true },
+                    onBack = onBack,
+                )
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        val landscape = LocalConfiguration.current.orientation ==
-            Configuration.ORIENTATION_LANDSCAPE
-        // 竖屏 1440px 宽塞不下「标题 + 搜索框 + 未登录提示」一行：搜索框会被压到 ~80dp，
-        // 只能显示两个字（真机实测）。竖屏改成两行：第一行标题与登录态，第二行整条搜索框。
-        if (landscape) {
-            Row(
+                if (search.query.isNotBlank()) {
+                    SearchResults(
+                        search = search,
+                        likedIds = likedIds,
+                        onPlay = { index -> viewModel.playFrom(search.songs, index) },
+                        onOpenPlaylist = viewModel::openPlaylist,
+                        onLike = viewModel::like,
+                    )
+                } else {
+                    HomeList(
+                        home = home,
+                        myPlaylists = myPlaylists,
+                        loggedIn = account != null,
+                        onOpenPlaylist = viewModel::openPlaylist,
+                        onDaily = viewModel::openDaily,
+                        onPrivateFm = viewModel::openPrivateFm,
+                        onLiked = viewModel::openLiked,
+                        onReload = viewModel::loadHome,
+                    )
+                }
+            }
+        }
+
+        if (showLogin) {
+            LoginOverlay(
+                accountName = account?.nickname,
+                state = loginState,
+                countdown = smsCountdown,
+                onSendSms = { phone, country -> viewModel.sendSmsCode(phone, country) },
+                onLoginSms = { phone, captcha, country ->
+                    viewModel.loginWithSms(phone, captcha, country)
+                },
+                onLoginPassword = { accountName2, password, country ->
+                    viewModel.loginWithPassword(accountName2, password, country)
+                },
+                onLogout = {
+                    viewModel.logout()
+                    showLogin = false
+                },
+                onDismiss = {
+                    viewModel.resetLoginState()
+                    showLogin = false
+                },
+            )
+        }
+
+        toast?.let { message ->
+            LaunchedEffect(message) {
+                delay(2_500)
+                viewModel.consumeToast()
+            }
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 6.dp),
+                    .padding(bottom = 92.dp)
+                    .align(Alignment.BottomCenter),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = message,
+                    fontSize = 12.sp,
+                    color = Color(palette.textPrimary),
+                    modifier = Modifier
+                        .glassCard(palette = palette, corner = 999)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+// ── 顶栏 ───────────────────────────────────────────────────────
+
+@Composable
+private fun TopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    accountName: String?,
+    onOpenLogin: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val accountSlot: @Composable () -> Unit = {
+        if (accountName == null) {
+            Text(
+                text = stringResource(R.string.netease_login),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(highlightOnGlassCard(palette)),
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(palette.textPrimary).copy(alpha = 0.10f))
+                    .clickable(onClick = onOpenLogin)
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            )
+        } else {
+            Text(
+                text = accountName,
+                fontSize = 11.sp,
+                color = secondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable(onClick = onOpenLogin)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
+
+    if (landscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
+            Text(
+                text = stringResource(R.string.netease_music_title),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = primary,
+            )
+            GlassSearchField(
+                query = query,
+                onChange = onQueryChange,
+                placeholder = stringResource(R.string.netease_search_hint),
+                modifier = Modifier.weight(1f),
+                compact = true,
+            )
+            accountSlot()
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -106,127 +278,127 @@ fun NeteaseMusicScreen(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = primary,
-                )
-                GlassSearchField(
-                    query = query,
-                    onChange = {
-                        query = it
-                        viewModel.search(it)
-                    },
-                    placeholder = stringResource(R.string.netease_search_hint),
                     modifier = Modifier.weight(1f),
-                    compact = true,
                 )
-                if (!viewModel.loggedIn) {
-                    Text(
-                        text = stringResource(R.string.netease_login_hint),
-                        fontSize = 10.5.sp,
-                        color = secondary,
-                        maxLines = 1,
-                    )
-                }
+                accountSlot()
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-                    Text(
-                        text = stringResource(R.string.netease_music_title),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = primary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (!viewModel.loggedIn) {
-                        Text(
-                            text = stringResource(R.string.netease_login_hint),
-                            fontSize = 10.5.sp,
-                            color = secondary,
-                            maxLines = 1,
-                        )
-                    }
-                }
-                GlassSearchField(
-                    query = query,
-                    onChange = {
-                        query = it
-                        viewModel.search(it)
-                    },
-                    placeholder = stringResource(R.string.netease_search_hint),
-                    modifier = Modifier.fillMaxWidth(),
-                    compact = true,
-                )
-            }
-        }
-
-        if (search.query.isNotBlank()) {
-            SearchResults(
-                search = search,
-                onPlay = { song, index -> viewModel.playFrom(search.songs, index) },
-                onOpenPlaylist = viewModel::openPlaylist,
+            GlassSearchField(
+                query = query,
+                onChange = onQueryChange,
+                placeholder = stringResource(R.string.netease_search_hint),
+                modifier = Modifier.fillMaxWidth(),
+                compact = true,
             )
-            return@Column
+        }
+    }
+}
+
+// ── 首页 ───────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HomeList(
+    home: NeteaseMusicViewModel.Home,
+    myPlaylists: List<OnlinePlaylist>,
+    loggedIn: Boolean,
+    onOpenPlaylist: (OnlinePlaylist) -> Unit,
+    onDaily: () -> Unit,
+    onPrivateFm: () -> Unit,
+    onLiked: () -> Unit,
+    onReload: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (loggedIn) {
+            item {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    GlassChip(label = stringResource(R.string.netease_daily), selected = false, onClick = onDaily)
+                    GlassChip(label = stringResource(R.string.netease_private_fm), selected = false, onClick = onPrivateFm)
+                    GlassChip(label = stringResource(R.string.netease_liked), selected = false, onClick = onLiked)
+                }
+            }
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item {
-                SectionTitle(stringResource(R.string.netease_recommend), primary)
+        item { SectionTitle(stringResource(R.string.netease_recommend), primary) }
+        items(count = home.recommend.chunked(2).size, key = { "rec-$it" }) { rowIndex ->
+            val row = home.recommend.chunked(2)[rowIndex]
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        landscape = landscape,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpenPlaylist(playlist) },
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-            items(home.recommend.chunked(2).size) { rowIndex ->
-                val row = home.recommend.chunked(2)[rowIndex]
+        }
+
+        if (myPlaylists.isNotEmpty()) {
+            item { SectionTitle(stringResource(R.string.netease_my_playlists), primary) }
+            items(count = myPlaylists.chunked(2).size, key = { "mine-$it" }) { rowIndex ->
+                val row = myPlaylists.chunked(2)[rowIndex]
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { playlist ->
                         PlaylistCard(
                             playlist = playlist,
+                            landscape = landscape,
                             modifier = Modifier.weight(1f),
-                            onClick = { viewModel.openPlaylist(playlist) },
+                            onClick = { onOpenPlaylist(playlist) },
                         )
                     }
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
-            item { SectionTitle(stringResource(R.string.netease_toplists), primary) }
-            items(home.toplists.size) { index ->
-                val playlist = home.toplists[index]
-                PlaylistRow(playlist = playlist, onClick = { viewModel.openPlaylist(playlist) })
-            }
-            if (home.loading) {
-                item { HintText(stringResource(R.string.netease_loading), secondary) }
-            } else if (home.error) {
-                item {
-                    HintText(
-                        text = stringResource(R.string.netease_failed),
-                        color = secondary,
-                        modifier = Modifier.clickable { viewModel.loadHome() },
-                    )
-                }
-            }
-            item { Spacer(Modifier.height(96.dp)) }
         }
+
+        item { SectionTitle(stringResource(R.string.netease_toplists), primary) }
+        items(count = home.toplists.size, key = { "top-$it" }) { index ->
+            val playlist = home.toplists[index]
+            PlaylistRow(playlist = playlist, onClick = { onOpenPlaylist(playlist) })
+        }
+
+        if (home.loading) {
+            item { HintText(stringResource(R.string.netease_loading), secondary) }
+        } else if (home.error) {
+            item {
+                HintText(
+                    text = stringResource(R.string.netease_failed),
+                    color = secondary,
+                    modifier = Modifier.clickable(onClick = onReload),
+                )
+            }
+        }
+        item { Spacer(Modifier.height(96.dp)) }
     }
 }
+
+// ── 搜索 ───────────────────────────────────────────────────────
 
 @Composable
 private fun SearchResults(
     search: NeteaseMusicViewModel.Search,
-    onPlay: (OnlineSong, Int) -> Unit,
+    likedIds: Set<String>,
+    onPlay: (Int) -> Unit,
     onOpenPlaylist: (OnlinePlaylist) -> Unit,
+    onLike: (OnlineSong, Boolean) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -236,18 +408,25 @@ private fun SearchResults(
         }
         if (search.songs.isNotEmpty()) {
             item { SectionTitle(stringResource(R.string.netease_songs_section), primary) }
-            itemsIndexed(search.songs) { index, song ->
-                SongRow(song = song, index = index, onClick = { onPlay(song, index) })
+            itemsIndexed(search.songs, key = { index, song -> "s-$index-${song.id}" }) { index, song ->
+                SongRow(
+                    song = song,
+                    index = index,
+                    liked = song.id in likedIds,
+                    onClick = { onPlay(index) },
+                    onLike = { onLike(song, song.id !in likedIds) },
+                )
             }
         }
         if (search.playlists.isNotEmpty()) {
             item { SectionTitle(stringResource(R.string.netease_playlists_section), primary) }
-            items(search.playlists.chunked(2).size) { rowIndex ->
+            items(count = search.playlists.chunked(2).size, key = { "sp-$it" }) { rowIndex ->
                 val row = search.playlists.chunked(2)[rowIndex]
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { playlist ->
                         PlaylistCard(
                             playlist = playlist,
+                            landscape = landscape,
                             modifier = Modifier.weight(1f),
                             onClick = { onOpenPlaylist(playlist) },
                         )
@@ -263,12 +442,16 @@ private fun SearchResults(
     }
 }
 
+// ── 详情 ───────────────────────────────────────────────────────
+
 @Composable
 private fun NeteasePlaylistDetail(
     detail: NeteaseMusicViewModel.Detail,
+    likedIds: Set<String>,
     onBack: () -> Unit,
     onPlayAll: () -> Unit,
     onPlayAt: (Int) -> Unit,
+    onLike: (OnlineSong, Boolean) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
@@ -327,16 +510,30 @@ private fun NeteasePlaylistDetail(
             modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            itemsIndexed(detail.songs) { index, song ->
-                SongRow(song = song, index = index, onClick = { onPlayAt(index) })
+            itemsIndexed(detail.songs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
+                SongRow(
+                    song = song,
+                    index = index,
+                    liked = song.id in likedIds,
+                    onClick = { onPlayAt(index) },
+                    onLike = { onLike(song, song.id !in likedIds) },
+                )
             }
             item { Spacer(Modifier.height(96.dp)) }
         }
     }
 }
 
+// ── 组件 ───────────────────────────────────────────────────────
+
 @Composable
-private fun SongRow(song: OnlineSong, index: Int, onClick: () -> Unit) {
+private fun SongRow(
+    song: OnlineSong,
+    index: Int,
+    liked: Boolean,
+    onClick: () -> Unit,
+    onLike: () -> Unit,
+) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
@@ -344,7 +541,8 @@ private fun SongRow(song: OnlineSong, index: Int, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .glassCard(palette = palette, corner = 16)
-            .clickable(onClick = onClick)
+            // 点一下播放；长按切换红心（在线曲没有"移出歌单"的概念，长按就一件事）
+            .combinedClickable(onClick = onClick, onLongClick = onLike)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -382,6 +580,9 @@ private fun SongRow(song: OnlineSong, index: Int, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (liked) {
+            Text(text = "❤", fontSize = 12.sp, color = Color(highlightOnGlassCard(palette)))
+        }
         if (song.vip) {
             Text(
                 text = "VIP",
@@ -399,6 +600,7 @@ private fun SongRow(song: OnlineSong, index: Int, onClick: () -> Unit) {
 @Composable
 private fun PlaylistCard(
     playlist: OnlinePlaylist,
+    landscape: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -407,7 +609,6 @@ private fun PlaylistCard(
     val secondary = Color(palette.textSecondary)
     // 横屏两列时卡片本身不高（首屏要塞两行），封面固定 112dp；竖屏每列约 200dp 宽，
     // 同样的 112dp 会把封面裁成横条，改成 1:1 与歌单卡的传统观感一致
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Column(
         modifier = modifier
             .glassCard(palette = palette, corner = 18)
@@ -483,6 +684,214 @@ private fun PlaylistRow(playlist: OnlinePlaylist, onClick: () -> Unit) {
             )
         }
     }
+}
+
+// ── 登录面板 ───────────────────────────────────────────────────
+
+@Composable
+private fun LoginOverlay(
+    accountName: String?,
+    state: NeteaseMusicViewModel.Login,
+    countdown: Int,
+    onSendSms: (String, String) -> Unit,
+    onLoginSms: (String, String, String) -> Unit,
+    onLoginPassword: (String, String, String) -> Unit,
+    onLogout: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val hint = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val fade = remember { MutableInteractionSource() }
+    var tab by remember { mutableStateOf(0) }
+    var phone by remember { mutableStateOf("") }
+    var captcha by remember { mutableStateOf("") }
+    var account by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val busy = state is NeteaseMusicViewModel.Login.Busy
+
+    // 面板必须是实心的：glassCard 在纯背景页上没有模糊层，透过去正好是推荐卡片的标题，
+    // 真机上两行字叠在一起没法读。深色主题压深、浅色主题压白，都是 94% 不透明。
+    val panelBg = if (isLightPalette(palette)) {
+        Color.White.copy(alpha = 0.94f)
+    } else {
+        Color(0xFF13161D).copy(alpha = 0.94f)
+    }
+    val shape = RoundedCornerShape(28.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(interactionSource = fade, indication = null, onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(if (landscape) 520.dp else 340.dp)
+                .clip(shape)
+                .background(panelBg)
+                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.14f), shape)
+                .clickable(interactionSource = fade, indication = null) { }
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.netease_login_title),
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = ink,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            if (accountName != null) {
+                Text(
+                    text = accountName,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(highlightOnGlassCard(palette)),
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    PillLabel(
+                        text = stringResource(R.string.netease_logout),
+                        onClick = onLogout,
+                        filled = false,
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassChip(
+                        label = stringResource(R.string.netease_login_tab_phone),
+                        selected = tab == 0,
+                        onClick = { tab = 0 },
+                    )
+                    GlassChip(
+                        label = stringResource(R.string.netease_login_tab_password),
+                        selected = tab == 1,
+                        onClick = { tab = 1 },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (tab == 0) {
+                    LoginField(
+                        value = phone,
+                        onChange = { phone = it },
+                        placeholder = stringResource(R.string.netease_phone_hint),
+                        keyboardType = KeyboardType.Phone,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        LoginField(
+                            value = captcha,
+                            onChange = { captcha = it },
+                            placeholder = stringResource(R.string.netease_captcha_hint),
+                            keyboardType = KeyboardType.Number,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PillLabel(
+                            text = if (countdown > 0) {
+                                stringResource(R.string.netease_resend_code, countdown)
+                            } else {
+                                stringResource(R.string.netease_send_code)
+                            },
+                            onClick = { onSendSms(phone, "86") },
+                            filled = false,
+                            enabled = phone.isNotBlank() && countdown == 0 && !busy,
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        PillLabel(
+                            text = stringResource(R.string.netease_login_action),
+                            onClick = { onLoginSms(phone, captcha, "86") },
+                            enabled = phone.isNotBlank() && captcha.isNotBlank() && !busy,
+                        )
+                    }
+                } else {
+                    LoginField(
+                        value = account,
+                        onChange = { account = it },
+                        placeholder = stringResource(R.string.netease_account_hint),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LoginField(
+                        value = password,
+                        onChange = { password = it },
+                        placeholder = stringResource(R.string.netease_password_hint),
+                        keyboardType = KeyboardType.Password,
+                        password = true,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        PillLabel(
+                            text = stringResource(R.string.netease_login_action),
+                            onClick = { onLoginPassword(account, password, "86") },
+                            enabled = account.isNotBlank() && password.isNotBlank() && !busy,
+                        )
+                    }
+                }
+
+                val failed = state as? NeteaseMusicViewModel.Login.Failed
+                if (failed != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = failed.message,
+                        fontSize = 11.sp,
+                        color = Color(highlightOnGlassCard(palette)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 登录表单的输入框：自绘胶囊，密码走掩码（项目视觉闸门不允许 stock TextField） */
+@Composable
+private fun LoginField(
+    value: String,
+    onChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    password: Boolean = false,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val hint = Color(palette.textSecondary)
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        textStyle = TextStyle(color = ink, fontSize = 13.sp),
+        cursorBrush = SolidColor(Color(palette.primary)),
+        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(ink.copy(alpha = 0.08f))
+                    .padding(horizontal = 12.dp, vertical = 11.dp),
+            ) {
+                if (value.isEmpty()) Text(placeholder, color = hint, fontSize = 13.sp)
+                inner()
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

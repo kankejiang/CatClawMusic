@@ -670,7 +670,7 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    itemsIndexed(fresh, key = { _, song -> song.id }) { index, song ->
+                    itemsIndexed(fresh, key = { index, song -> "fresh-$index-${song.id}" }) { index, song ->
                         RecentAddCard(song) { viewModel.playRows(fresh, index) }
                     }
                 }

@@ -96,7 +96,7 @@ fun QueueScreen(
                     EmptyState(hint = stringResource(R.string.queue_empty), iconRes = R.drawable.ic_playlist)
                 }
             }
-            itemsIndexed(songs, key = { _, s -> s.id }) { index, song ->
+            itemsIndexed(songs, key = { index, s -> "q-$index-${s.id}" }) { index, song ->
                 val isCurrent = song.id == state.currentSong?.id
                 Row(
                     modifier = Modifier

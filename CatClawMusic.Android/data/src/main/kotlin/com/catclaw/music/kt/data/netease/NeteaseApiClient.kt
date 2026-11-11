@@ -194,6 +194,115 @@ class NeteaseApiClient @Inject constructor(
     suspend fun searchArtistsOnly(keyword: String, limit: Int = 20): List<NeteaseArtist> =
         searchArtists(keyword, limit)
 
+    // ── 登录 / 我的音乐（移植自插件 GetAccountNameAsync / GetUserPlaylistsAsync / 红心系列） ──
+
+    data class Account(val userId: String, val nickname: String, val avatarUrl: String?)
+
+    /**
+     * 账号信息。插件里 `/api/nuser/account/get` 实测恒返回 `profile:null`，
+     * 所以按同样的顺序兜底：account/get → `user/detail/{uid}` → 上次缓存的昵称。
+     */
+    suspend fun account(): Account? {
+        if (!session.isLoggedIn) return null
+        val root = getJson(ACCOUNT_API)
+        val profile = root?.get("profile") as? JsonObject
+        val uid = profile?.get("userId")?.jsonPrimitive?.longOrNull
+            ?: session.userId?.toLongOrNull()
+        val nickname = profile?.get("nickname")?.jsonPrimitive?.contentOrNull
+        if (uid != null && uid > 0) session.userId = uid.toString()
+        if (!nickname.isNullOrBlank()) session.nickname = nickname
+
+        if (nickname.isNullOrBlank() && uid != null && uid > 0) {
+            val detail = getJson("$USER_DETAIL_API/$uid")
+            val p = detail?.get("profile") as? JsonObject
+            val name = p?.get("nickname")?.jsonPrimitive?.contentOrNull
+            if (!name.isNullOrBlank()) session.nickname = name
+            val avatar = p?.get("avatarUrl")?.jsonPrimitive?.contentOrNull
+            if (!name.isNullOrBlank()) return Account(uid.toString(), name, toHttps(avatar))
+        }
+        if (uid == null || uid <= 0) return null
+        return Account(uid.toString(), session.nickname.orEmpty(), null)
+    }
+
+    fun logout() {
+        session.clear()
+    }
+
+    /** 我的歌单（含「我喜欢的音乐」与收藏；需登录） */
+    suspend fun userPlaylists(): List<OnlinePlaylist> {
+        val uid = session.userId?.toLongOrNull() ?: account()?.userId?.toLongOrNull() ?: return emptyList()
+        val root = getJson("$USER_PLAYLIST_API?uid=$uid&offset=0&limit=200") ?: return emptyList()
+        val list = (root["playlist"] as? JsonArray) ?: return emptyList()
+        return list.mapIndexedNotNull { index, element ->
+            val obj = element as? JsonObject ?: return@mapIndexedNotNull null
+            val item = parsePlaylist(obj) ?: return@mapIndexedNotNull null
+            val subscribed = obj["subscribed"]?.toString() == "true"
+            item.copy(
+                description = when {
+                    index == 0 -> "我喜欢的音乐"
+                    subscribed -> "收藏的歌单"
+                    else -> "创建的歌单"
+                },
+            )
+        }
+    }
+
+    /** 「我喜欢的音乐」歌曲（需登录；走 eapi 全量歌单接口，超 1000 首也能拿全） */
+    suspend fun likedSongs(): List<OnlineSong> {
+        val liked = userPlaylists().firstOrNull() ?: return emptyList()
+        return playlistSongs(liked.id)
+    }
+
+    /** 红心/取消红心。csrf_token 必须带上（插件注释：缺它时"会员歌能播但红心失败"） */
+    suspend fun likeSong(songId: String, like: Boolean): Boolean {
+        val cookie = session.cookie ?: return false
+        val pid = userPlaylists().firstOrNull()?.id ?: return false
+        val root = postForm(
+            LIKE_API,
+            mapOf(
+                "csrf_token" to csrfToken(cookie),
+                "op" to if (like) "add" else "del",
+                "trackId" to songId,
+                "pid" to pid,
+                "trackIds" to "[$songId]",
+                "imme" to "true",
+            ),
+        ) ?: return false
+        return (root["code"]?.jsonPrimitive?.intOrNull ?: -1) == 200
+    }
+
+    private fun csrfToken(cookie: String): String =
+        cookie.split(';').firstNotNullOfOrNull { part ->
+            val kv = part.trim().split('=', limit = 2)
+            if (kv.size == 2 && (kv[0].trim() == "__csrf" || kv[0].trim() == "csrf_token")) kv[1].trim() else null
+        }.orEmpty()
+
+    // ── 私人 FM / 每日推荐 ─────────────────────────────────────
+
+    /**
+     * 私人 FM。接口返回的 `album` 是推荐引擎的"上下文关联专辑"，封面常与真实发行专辑不符，
+     * 所以按 id 批量调 eapi song/detail 覆盖（与插件 CorrectFmMetadataAsync 同一套修正）。
+     */
+    suspend fun privateFm(num: Int = 20): List<OnlineSong> {
+        val root = getJson(RADIO_API) ?: return emptyList()
+        val data = (root["data"] as? JsonArray) ?: return emptyList()
+        val songs = data.mapNotNull { parseSong(it as? JsonObject) }
+            .distinctBy { it.id }
+            .take(num)
+        if (songs.isEmpty()) return emptyList()
+        return correctFmMetadata(songs)
+    }
+
+    private suspend fun correctFmMetadata(songs: List<OnlineSong>): List<OnlineSong> {
+        val ids = songs.mapNotNull { it.id.toLongOrNull() }
+        if (ids.isEmpty()) return songs
+        val raw = eapi.songDetailRaw(ids, session.cookie) ?: return songs
+        val root = parseObject(raw) ?: return songs
+        val list = (root["songs"] as? JsonArray) ?: return songs
+        val fixed = list.mapNotNull { parseSong(it as? JsonObject) }.associateBy { it.id }
+        return songs.map { song -> fixed[song.id]?.copy(id = song.id) ?: song }
+    }
+
     // ── 歌词 / 播放 ────────────────────────────────────────────
 
     /**
@@ -363,6 +472,11 @@ class NeteaseApiClient @Inject constructor(
         private const val ARTIST_TOP_API = "https://music.163.com/api/artist/top/song"
         private const val ARTIST_ALBUM_API = "https://music.163.com/api/artist/albums"
         private const val LYRIC_API = "https://music.163.com/api/song/lyric"
+        private const val ACCOUNT_API = "https://music.163.com/api/nuser/account/get"
+        private const val USER_DETAIL_API = "https://music.163.com/api/v1/user/detail"
+        private const val USER_PLAYLIST_API = "https://music.163.com/api/user/playlist"
+        private const val LIKE_API = "https://music.163.com/api/playlist/manipulate/tracks"
+        private const val RADIO_API = "https://music.163.com/api/v1/radio/get"
 
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +

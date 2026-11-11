@@ -1069,7 +1069,7 @@ private fun PlaylistRows(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = if (compact) 2.dp else 96.dp),
     ) {
-        itemsIndexed(shownPlaylists, key = { _, p -> p.id }) { _, playlist ->
+        itemsIndexed(shownPlaylists, key = { index, p -> "pl-$index-${p.id}" }) { _, playlist ->
             if (editingId == playlist.id) {
                 RenameRow(
                     draft = draftName,
@@ -1179,7 +1179,8 @@ private fun PlaylistSongRows(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = if (compact) 80.dp else 96.dp),
     ) {
-        items(rows, key = { it.id }) { song ->
+        items(rows.size, key = { "row-$it" }) { index ->
+            val song = rows[index]
             val index = rows.indexOf(song)
             Row(
                 modifier = Modifier
