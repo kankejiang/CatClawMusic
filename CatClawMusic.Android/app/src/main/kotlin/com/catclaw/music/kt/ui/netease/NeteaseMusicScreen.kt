@@ -156,7 +156,7 @@ fun NeteaseMusicScreen(
                         loggedIn = account != null,
                         onOpenPlaylist = viewModel::openPlaylist,
                         onDaily = viewModel::openDaily,
-                        onPrivateFm = viewModel::openPrivateFm,
+                        onPrivateFm = viewModel::playPrivateFm,
                         onLiked = viewModel::openLiked,
                         onImport = { showImport = true },
                         onReload = viewModel::loadHome,

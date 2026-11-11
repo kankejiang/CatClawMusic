@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.model.ProtocolType
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.model.SongSource
+import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteaseLoginClient
@@ -115,6 +116,15 @@ class NeteaseMusicViewModel @Inject constructor(
     /** 私人 FM 续播的防重入闩：一次只拉一批，避免同一首末尾歌触发多次请求 */
     private var fmRefilling = false
 
+    /** 当前播放是否处于「私人漫游」模式：决定末尾是否自动续播（不是歌单，是功能态） */
+    private var fmMode = false
+
+    /** 进入私人漫游前的播放模式，退出时恢复（插件 LeaveFmMode 同规则） */
+    private var fmSavedMode: PlayMode? = null
+
+    /** 防连点「私人 FM」重复起播 */
+    private var fmStarting = false
+
     init {
         viewModelScope.launch {
             _account.value = api.account()
@@ -122,31 +132,15 @@ class NeteaseMusicViewModel @Inject constructor(
                 _myPlaylists.value = api.userPlaylists()
             }
         }
-        // 私人 FM 无限续播：当前曲已是队列最后一首时预取下一批并追加（addMediaItems 不打断播放）
+        // 私人 FM（无限电台）：播到本批最后一首时补 3 首。
+        // 与插件一致走双路径 —— 播放器事件 + 20 秒定时兜底，后者防止宿主没回调 PlaybackCompleted
         viewModelScope.launch {
-            controller.state.collect { state ->
-                val detail = _detail.value ?: return@collect
-                if (detail.playlist?.id != FM_ID) return@collect
-                val current = state.currentSong ?: return@collect
-                val queueSongs = controller.queueSongs.value
-                if (queueSongs.isEmpty() || queueSongs.last().id != current.id) return@collect
-                if (fmRefilling) return@collect
-                fmRefilling = true
-                try {
-                    val existing = queueSongs.map { it.id }.toSet()
-                    val next = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
-                        .filter { it.toSong(0).id !in existing }
-                    if (next.isNotEmpty()) {
-                        controller.appendSongs(next.mapIndexed { index, song -> song.toSong(index) })
-                        _detail.value = _detail.value?.copy(songs = detail.songs + next)
-                        com.catclaw.music.kt.core.diagnostic.AppLog.d(
-                            "NeteaseFm",
-                            "续播追加 ${next.size} 首，队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
-                        )
-                    }
-                } finally {
-                    fmRefilling = false
-                }
+            controller.state.collect { if (fmMode) ensureFmBuffer() }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(20_000)
+                if (fmMode) ensureFmBuffer()
             }
         }
     }
@@ -233,14 +227,71 @@ class NeteaseMusicViewModel @Inject constructor(
         }
     }
 
-    fun openPrivateFm() {
+    /**
+     * 私人漫游 = 电台按钮：点一下直接开播，**不进列表页**。
+     *
+     * 对齐插件 `LoadPrivateFmAsync` + `PlayFmSongAsync`：
+     * 初拉 3 首、整批解析直链入队、播放模式切顺序（不循环早期歌曲），
+     * 播到本批最后一首时再补 3 首。
+     */
+    fun playPrivateFm() {
+        if (fmStarting) return
         viewModelScope.launch {
-            val virtual = OnlinePlaylist(id = "fm", name = "私人 FM")
-            _detail.value = Detail(virtual, loading = true)
-            val songs = runCatching { api.privateFm(30) }.getOrDefault(emptyList())
-            _detail.value = Detail(virtual, songs, loading = false)
-            if (songs.isEmpty()) _toast.value = "私人 FM 需要登录后才能使用"
+            fmStarting = true
+            try {
+                val songs = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+                if (songs.isEmpty()) {
+                    _toast.value = "私人 FM 需要登录后才能使用"
+                    return@launch
+                }
+                val queue = songs.mapIndexed { index, song ->
+                    val base = song.toSong(index)
+                    val url = song.id.toLongOrNull()?.let {
+                        runCatching { playUrlResolver.resolve(it) }.getOrNull()
+                    }
+                    if (url.isNullOrBlank()) base else base.copy(filePath = url)
+                }
+                if (fmSavedMode == null) fmSavedMode = controller.state.value.mode
+                controller.setMode(PlayMode.Sequential)
+                playbackSession.ensure()
+                controller.playSongs(queue, 0)
+                fmMode = true
+                _toast.value = "私人漫游已开始"
+            } finally {
+                fmStarting = false
+            }
         }
+    }
+
+    /** 补一批 FM 歌曲（去重后追加到队尾，不打断播放） */
+    private suspend fun ensureFmBuffer() {
+        if (!fmMode || fmRefilling) return
+        val current = controller.state.value.currentSong ?: return
+        val queueSongs = controller.queueSongs.value
+        if (queueSongs.isEmpty() || queueSongs.last().id != current.id) return
+        fmRefilling = true
+        try {
+            val existing = queueSongs.map { it.id }.toSet()
+            val next = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+                .filter { it.toSong(0).id !in existing }
+            if (next.isNotEmpty()) {
+                controller.appendSongs(next.mapIndexed { index, song -> song.toSong(index) })
+                com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                    "NeteaseFm",
+                    "续播追加 ${next.size} 首，队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
+                )
+            }
+        } finally {
+            fmRefilling = false
+        }
+    }
+
+    /** 离开电台：恢复进入前的播放模式（插件 LeaveFmMode） */
+    private fun exitFmMode() {
+        if (!fmMode && fmSavedMode == null) return
+        fmMode = false
+        fmSavedMode?.let { controller.setMode(it) }
+        fmSavedMode = null
     }
 
     fun openLiked() {
@@ -349,8 +400,10 @@ class NeteaseMusicViewModel @Inject constructor(
         _detail.value = null
     }
 
-    fun playFrom(songs: List<OnlineSong>, index: Int) {
+    fun playFrom(songs: List<OnlineSong>, index: Int, fm: Boolean = false) {
         if (songs.isEmpty()) return
+        if (!fm) exitFmMode()
+        fmMode = fm
         viewModelScope.launch {
             val queue = songs.mapIndexed { position, online -> online.toSong(position) }.toMutableList()
             // 当前曲按偏好音质取链（20 分钟缓存 + 自动降档）；整队逐首取链会让点击后等很久
@@ -370,11 +423,11 @@ class NeteaseMusicViewModel @Inject constructor(
 
     fun playAll(songs: List<OnlineSong>) = playFrom(songs, 0)
 
+    /** 离开 FM（点别的歌单/搜索播放）时由 playFrom 的 fm=false 收尾 */
+
     private companion object {
         const val SEARCH_PAGE_SIZE = 20
-        /** 私人 FM 的虚拟歌单 id，与 openPrivateFm 里构造的一致 */
-        const val FM_ID = "fm"
-        const val FM_BATCH = 20
+        const val FM_BATCH = 3
     }
 
     /**
