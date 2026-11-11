@@ -1,7 +1,9 @@
 package com.catclaw.music.kt.data.di
 
+import com.catclaw.music.kt.data.lyrics.OnlineLyricsSource
 import com.catclaw.music.kt.data.netease.NeteaseEapi
 import com.catclaw.music.kt.data.netease.NeteaseEapiChannel
+import com.catclaw.music.kt.data.netease.NeteaseOnlineLyrics
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -17,4 +19,7 @@ abstract class NeteaseModule {
 
     @Binds
     abstract fun bindNeteaseEapi(impl: NeteaseEapi): NeteaseEapiChannel
+
+    @Binds
+    abstract fun bindOnlineLyrics(impl: NeteaseOnlineLyrics): OnlineLyricsSource
 }

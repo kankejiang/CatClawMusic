@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.data.netease
 
 import com.catclaw.music.kt.core.ai.SourceHttp
+import com.catclaw.music.kt.core.diagnostic.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
@@ -318,9 +319,12 @@ class NeteaseApiClient @Inject constructor(
                 rawCipherResponse = false,
                 cookie = session.cookie,
             )
+            AppLog.d("NeteaseLyrics", "eapi id=$id bodyLen=${raw?.length ?: -1}")
             parseLyrics(raw)?.let { return it }
         }
-        val root = getJson("$LYRIC_API?id=$songId&lv=-1&tv=-1&rv=-1") ?: return null
+        val root = getJson("$LYRIC_API?id=$songId&lv=-1&tv=-1&rv=-1")
+        AppLog.d("NeteaseLyrics", "official id=$songId ok=${root != null}")
+        if (root == null) return null
         val lrc = (root["lrc"] as? JsonObject)?.get("lyric")?.jsonPrimitive?.contentOrNull
         if (lrc.isNullOrBlank()) return null
         return NeteaseLyrics(

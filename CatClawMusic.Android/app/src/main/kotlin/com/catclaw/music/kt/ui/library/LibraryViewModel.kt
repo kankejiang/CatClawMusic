@@ -82,8 +82,13 @@ class LibraryViewModel @Inject constructor(
      * 空行剔掉：那是 LRC 的排版留白，在预览里只会变成一段一段的空档。
      */
     suspend fun lyricsFor(songId: Int): List<String> {
-        val entity = libraryDao.songById(songId) ?: return emptyList()
-        val lyrics = lyricsReader.loadFor(entity.toSong()) ?: return emptyList()
+        // 在线曲（负数 id）不在 Songs 表里：回落到当前播放队列里的那个 Song，
+        // 否则在线歌词永远走不到 LyricsReader（songById 直接 null 就 return 了）。
+        val entity = libraryDao.songById(songId)
+        val song = entity?.toSong()
+            ?: controller.state.value.currentSong?.takeIf { it.id == songId }
+            ?: return emptyList()
+        val lyrics = lyricsReader.loadFor(song) ?: return emptyList()
         return lyrics.lines.map { it.text }.filter { it.isNotBlank() }
     }
 

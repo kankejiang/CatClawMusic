@@ -33,7 +33,9 @@ object QueueSnapshotCodec {
             append(s.durationSeconds).append(SEP)
             append(esc(s.filePath)).append(SEP)
             append(s.source.name).append(SEP)
-            append(esc(s.coverArtPath ?: ""))
+            append(esc(s.coverArtPath ?: "")).append(SEP)
+            // 在线曲的来源标识（netease:xxx）：丢了它，恢复队列后歌词/取链都找不到原曲
+            append(esc(s.remoteId ?: ""))
             append('\n')
         }
     }
@@ -58,6 +60,7 @@ object QueueSnapshotCodec {
                 filePath = unesc(f[5]),
                 source = f.getOrNull(6)?.let { runCatching { SongSource.valueOf(it) }.getOrNull() } ?: SongSource.Local,
                 coverArtPath = unesc(f.getOrNull(7) ?: "").ifEmpty { null },
+                remoteId = unesc(f.getOrNull(8) ?: "").ifEmpty { null }.takeIf { f.size >= 9 },
             )
         }
         return PlayQueue.Snapshot(songs, currentIndex, mode)

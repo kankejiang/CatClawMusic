@@ -32,14 +32,30 @@ class LyricsReader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: LibraryDao,
     private val remoteLyrics: RemoteLyrics,
+    /** 在线音源歌词（网易云等）：本地文件与侧车都取不到时最后试一次 */
+    private val onlineLyrics: OnlineLyricsSource,
 ) {
 
     suspend fun loadFor(song: Song, sourceMode: LyricsSourceMode = LyricsSourceMode.Auto): Lyrics? =
         withContext(Dispatchers.IO) {
+            AppLog.d(TAG, "load '${song.title}' id=${song.id} remote=${song.isRemote} rid=${song.remoteId}")
             if (sourceMode != LyricsSourceMode.Embedded) {
                 dao.lyricsContent(song.id)?.let { cached ->
                     LrcParser.parse(cached) ?: LyricsEncoding.parseContent(cached)
                 }?.let { return@withContext it }
+
+                // 在线曲没有本地文件可读：先问平台歌词源，拿到就顺手落库（下次离线可复用）
+                if (song.isRemote) {
+                    val fetched = runCatching { onlineLyrics.lyricsFor(song) }
+                        .onFailure { AppLog.w(TAG, "online lyrics failed", it) }
+                        .getOrNull()
+                    AppLog.d(TAG, "online fetched=${fetched?.length ?: -1}")
+                    if (!fetched.isNullOrBlank()) {
+                        saveText(song.id, fetched)
+                        (LrcParser.parse(fetched) ?: LyricsEncoding.parseContent(fetched))
+                            ?.let { return@withContext it }
+                    }
+                }
 
                 val path = realPathOf(song) ?: return@withContext null
                 if (RemoteLyrics.isRemoteUrl(path)) {

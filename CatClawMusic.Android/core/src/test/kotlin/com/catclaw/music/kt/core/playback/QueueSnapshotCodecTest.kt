@@ -31,7 +31,13 @@ class QueueSnapshotCodecTest {
                     source = SongSource.Local,
                     coverArtPath = null,
                 ),
-                Song(id = 8, title = "", filePath = "https://x/y?sign=1", source = SongSource.WebDAV),
+                Song(
+                    id = 8,
+                    title = "",
+                    filePath = "https://x/y?sign=1",
+                    source = SongSource.WebDAV,
+                    remoteId = "netease:1234567",
+                ),
             ),
             currentIndex = 1,
             mode = PlayMode.Shuffle,
@@ -48,6 +54,8 @@ class QueueSnapshotCodecTest {
         assertEquals("content://media/external/audio/media/7", decoded.songs[0].filePath)
         assertEquals("https://x/y?sign=1", decoded.songs[1].filePath)
         assertEquals(SongSource.WebDAV, decoded.songs[1].source)
+        // 在线曲的 remoteId 必须往返保留：丢了它，恢复队列后歌词/取链找不到原曲
+        assertEquals("netease:1234567", decoded.songs[1].remoteId)
         assertNull(decoded.songs[0].coverArtPath)
     }
 
