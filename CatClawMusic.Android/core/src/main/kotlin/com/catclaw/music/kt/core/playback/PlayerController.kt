@@ -553,13 +553,33 @@ class PlayerController(
             publish(song)
             return
         }
-        // 在线曲直接流式起播（CacheDataSource 边下边播 + 落盘）。
-        // 旧实现要求 AudioCache 把整首歌下载完才允许 playWhenReady，这是切歌慢的主因；
-        // 而且 ExoPlayer 并不读那份缓存，同一首歌会被下载两遍。
+        // 在线曲流式起播（CacheDataSource 边下边播 + 落盘）。
+        // 但**不能播 outer 免登录外链**：它对 VIP 歌只给 30s 试听、CDN 限速（卡顿根源）。
+        // 命中 outer 时先等一次直链解析（单次请求 ~300ms，比整首下载快得多），再开播。
         preBufferedForId = -1
-        player.seekTo(index, resumeAtMs)
-        player.playWhenReady = true
-        publish(song)
+        if (song.isRemote && song.filePath.contains("outer/url") && uriUpgrader != null) {
+            scope.launch {
+                val better = runCatching { uriUpgrader?.invoke(song) }.getOrNull()
+                val idx = idToIndex[song.id] ?: return@launch
+                if (better.isNullOrBlank()) {
+                    // 取不到直链：退回 outer 流式（总比没声音强）
+                    player.seekTo(idx, resumeAtMs)
+                    player.playWhenReady = true
+                    publish(song)
+                    return@launch
+                }
+                val upgraded = song.copy(filePath = better)
+                queue.replaceSong(song.id, upgraded)
+                player.replaceMediaItem(idx, buildMediaItem(upgraded))
+                player.seekTo(idx, 0)
+                player.playWhenReady = true
+                publish(upgraded)
+            }
+        } else {
+            player.seekTo(index, resumeAtMs)
+            player.playWhenReady = true
+            publish(song)
+        }
     }
 
     private fun buildMediaItem(song: Song): MediaItem {
@@ -595,17 +615,30 @@ class PlayerController(
     private var upgradeJob: kotlinx.coroutines.Job? = null
     private var upgradedForId = -1
 
-    /** 当前曲 READY 后，把下一首的 outer 外链升级成 eapi 直链（后台，不打断播放） */
+    /**
+     * READY 后把「当前 + 后 5 首」里仍是 outer 免登录外链的在线曲批量升级成 eapi 直链。
+     *
+     * 只升级下一首不够：用户从队列里点任意歌、FM 切歌，命中 outer 时
+     * 该曲会被服务器限流成 30s 试听（VIP 歌也一样）且 CDN 限速（卡顿）。
+     */
     private fun upgradeUpcoming() {
-        val next = queue.peekNextSong() ?: return
-        if (!next.isRemote) return
-        if (!next.filePath.contains("outer/url")) return
-        if (upgradedForId == next.id) return
-        upgradedForId = next.id
-        upgradeJob?.cancel()
-        upgradeJob = scope.launch {
-            val better = uriUpgrader?.invoke(next) ?: return@launch
-            upgradeQueueItem(next.id, better)
+        val currentId = queue.currentSong?.id
+        val curIdx = idToIndex[currentId] ?: return
+        val all = queue.songs()
+        var launched = 0
+        for (offset in 0 until 5) {
+            val idx = curIdx + offset
+            if (idx >= all.size) break
+            val song = all[idx]
+            if (song.id == currentId) continue
+            if (!song.isRemote) continue
+            if (!song.filePath.contains("outer/url")) continue
+            if (launched >= 3) break
+            launched++
+            scope.launch {
+                val better = uriUpgrader?.invoke(song) ?: return@launch
+                upgradeQueueItem(song.id, better)
+            }
         }
     }
 

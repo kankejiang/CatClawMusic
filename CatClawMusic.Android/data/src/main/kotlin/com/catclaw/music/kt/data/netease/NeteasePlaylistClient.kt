@@ -92,6 +92,16 @@ class NeteasePlaylistClient @Inject constructor(
         val data = root["data"] as? JsonArray ?: return null
         return data.firstOrNull()
             ?.let { it as? JsonObject }
+            ?.also { obj ->
+                // freeTrialInfo 非空 = 服务器只给了试听片段（30s）：
+                // 常见于未登录/VIP 曲走免登录外链，eapi 带有效 cookie 不应出现
+                val trial = obj["freeTrialInfo"]
+                val realLevel = obj["level"]?.toString()
+                com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                    "NeteaseTiming",
+                    "playUrl id=$songId level=$realLevel trial=${trial != null && trial !is kotlinx.serialization.json.JsonNull}",
+                )
+            }
             ?.get("url")
             ?.jsonPrimitive
             ?.contentOrNull
