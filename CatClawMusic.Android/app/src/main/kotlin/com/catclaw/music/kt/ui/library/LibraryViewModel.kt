@@ -11,15 +11,11 @@ import com.catclaw.music.kt.core.library.defaultDescending
 import com.catclaw.music.kt.core.library.SongSourceFilter
 import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.library.filterBySource
-import com.catclaw.music.kt.core.playback.PlayerController
-import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.data.repository.library.LibraryRepository
+import com.catclaw.music.kt.data.repository.scan.ScanRepository
 import com.catclaw.music.kt.data.db.SongListItem
-import com.catclaw.music.kt.data.db.entity.FavoriteEntity
-import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.toSong
-import com.catclaw.music.kt.data.library.LibraryScanner
-import com.catclaw.music.kt.data.lyrics.LyricsReader
-import com.catclaw.music.kt.data.media.MediaPathResolver
+import com.catclaw.music.kt.data.db.entity.FavoriteEntity
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -35,27 +31,21 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val scanner: LibraryScanner,
-    private val controller: PlayerController,
-    private val session: PlaybackSessionStarter,
-    private val libraryDao: LibraryDao,
-    private val playlistDao: PlaylistDao,
-    private val paths: MediaPathResolver,
-    private val audioCache: AudioCache,
-    private val lyricsReader: LyricsReader,
+    private val library: LibraryRepository,
+    private val scanRepository: ScanRepository,
 ) : ViewModel() {
 
     /**
      * 音乐库 Hero 上那行「存储占用」的两个数：曲库文件与音频缓存**分开报**。
      * 合成一个总数就变成谁也对不上的数字（曲库是声明式大小，缓存是实际落盘字节）。
      */
-    suspend fun storage(): Pair<Long, Long> = libraryDao.localBytesTotal() to audioCache.totalBytes()
+    suspend fun storage(): Pair<Long, Long> = library.storage()
 
     /**
      * 「存储占用 / 数据洞察」的原料。与 storage() 分开：那个只要两个总数，
      * 这两张卡要按档分组（分组规则在 :core 的 sizeBuckets / qualityInsight / artistInsight）。
      */
-    suspend fun localSongStats(): List<SongStat> = libraryDao.localSongStats()
+    suspend fun localSongStats(): List<SongStat> = library.localSongStats()
 
     /**
      * 设备剩余空间。取不到就回 0，由界面显示 "--" —— 编一个数字比不显示更糟。
@@ -63,16 +53,18 @@ class LibraryViewModel @Inject constructor(
      * 用 availableBlocksLong * blockSizeLong：availableBlocks/blockSize 是 Int，
      * 在现在的容量下相乘会溢出成负数（C# 那边也踩过同一个坑，注释就写在 GetFreeSpaceText 里）。
      */
-    fun freeSpaceBytes(): Long = runCatching {
-        val path = context.getExternalFilesDir(null) ?: context.filesDir
-        val stat = android.os.StatFs(path.absolutePath)
-        stat.availableBlocksLong * stat.blockSizeLong
-    }.getOrDefault(0L)
+    suspend fun freeSpaceBytes(): Long = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        runCatching {
+            val path = context.getExternalFilesDir(null) ?: context.filesDir
+            val stat = android.os.StatFs(path.absolutePath)
+            stat.availableBlocksLong * stat.blockSizeLong
+        }.getOrDefault(0L)
+    }
 
     /** 下钻页要按艺人/专辑现读一次歌单 */
-    suspend fun songsOfArtist(artistId: Int) = libraryDao.songsOfArtist(artistId)
+    suspend fun songsOfArtist(artistId: Int) = library.songsOfArtist(artistId)
 
-    suspend fun songsOfAlbum(albumId: Int) = libraryDao.songsOfAlbum(albumId)
+    suspend fun songsOfAlbum(albumId: Int) = library.songsOfAlbum(albumId)
 
     /**
      * 歌曲详情页的歌词预览。走与歌词页**同一条**取词链路（DB 缓存 → 侧车文件 → 内嵌标签），
@@ -81,39 +73,30 @@ class LibraryViewModel @Inject constructor(
      * 只给行文本：逐字填充 / 译文 / 罗马音是歌词页的活，详情页要的是「有没有词、长什么样」。
      * 空行剔掉：那是 LRC 的排版留白，在预览里只会变成一段一段的空档。
      */
-    suspend fun lyricsFor(songId: Int): List<String> {
-        // 在线曲（负数 id）不在 Songs 表里：回落到当前播放队列里的那个 Song，
-        // 否则在线歌词永远走不到 LyricsReader（songById 直接 null 就 return 了）。
-        val entity = libraryDao.songById(songId)
-        val song = entity?.toSong()
-            ?: controller.state.value.currentSong?.takeIf { it.id == songId }
-            ?: return emptyList()
-        val lyrics = lyricsReader.loadFor(song) ?: return emptyList()
-        return lyrics.lines.map { it.text }.filter { it.isNotBlank() }
-    }
+    suspend fun lyricsFor(songId: Int): List<String> = library.lyricsFor(songId)
 
     /** 艺人页「专辑」Tab 的那份专辑。与 [songsOfArtist] 同一套成员判据（含挂名合作） */
-    suspend fun albumsOfArtist(artistId: Int) = libraryDao.albumsOfArtist(artistId)
+    suspend fun albumsOfArtist(artistId: Int) = library.albumsOfArtist(artistId)
 
     /** 专辑二级页的头卡：封面 / 歌手 / 年份 */
-    suspend fun albumHeader(albumId: Int) = libraryDao.albumHeader(albumId)
+    suspend fun albumHeader(albumId: Int) = library.albumHeader(albumId)
 
     /** 最近添加（资料库首页那张横滑卡）。限额与发现页的「新曲」段一致，两处看到的数是同一批 */
-    val newArrivals = libraryDao.observeNewArrivals(20)
+    val newArrivals = library.newArrivals
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * 详情页的一行。本地曲库里存的是 MediaStore 的 content URI，
      * 而 URI 里没有文件名与后缀 —— 不解回真实路径，「文件格式」这一格就永远是"无"。
      */
-    suspend fun songDetail(id: Int) = libraryDao.songDetail(id)?.let { it.copy(filePath = paths.resolve(it.filePath)) }
+    suspend fun songDetail(id: Int) = library.songDetail(id)
 
     /** 最近播放：歌单页顶部那个入口卡片与它点进去的列表，同一份数据源 */
-    val recent = libraryDao.observeRecentSongs(100).stateIn(
+    val recent = library.recent.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
-    fun playRows(rows: List<SongListItem>, index: Int) = playFrom(rows.map { it.toSong() }, index)
+    fun playRows(rows: List<SongListItem>, index: Int) = library.play(rows.map { it.toSong() }, index)
 
     /**
      * 从歌曲详情页起播某一首（MAUI `SongDetailPage.PlaySongAsync` 的对应物）。
@@ -121,8 +104,8 @@ class LibraryViewModel @Inject constructor(
      */
     fun playSongById(songId: Int) {
         viewModelScope.launch {
-            val row = libraryDao.songListItemById(songId) ?: return@launch
-            playFrom(listOf(row.toSong()), 0)
+            val row = library.songListItemById(songId) ?: return@launch
+            library.play(listOf(row.toSong()), 0)
         }
     }
 
@@ -131,10 +114,7 @@ class LibraryViewModel @Inject constructor(
      * 本端此前只有读没有写 —— "我喜欢的"这张表于是永远为空，点了统计格只会看到空页。
      */
     fun toggleFavorite(songId: Int) {
-        viewModelScope.launch {
-            if (libraryDao.isFavorite(songId)) libraryDao.removeFavorite(songId)
-            else libraryDao.upsertFavorite(FavoriteEntity(songId = songId, addedAt = System.currentTimeMillis()))
-        }
+        viewModelScope.launch { library.toggleFavorite(songId) }
     }
 
     /**
@@ -144,7 +124,7 @@ class LibraryViewModel @Inject constructor(
      * 于是从菜单加进去的歌，歌单卡上的数字一直不涨。
      */
     fun addToPlaylist(playlistId: Int, songId: Int) {
-        viewModelScope.launch { playlistDao.appendAll(playlistId, listOf(songId)) }
+        viewModelScope.launch { library.addToPlaylist(playlistId, songId) }
     }
 
     /**
@@ -156,10 +136,10 @@ class LibraryViewModel @Inject constructor(
      */
     fun addToPlaylist(playlistId: Int, songIds: List<Int>) {
         if (songIds.isEmpty()) return
-        viewModelScope.launch { playlistDao.appendAll(playlistId, songIds) }
+        viewModelScope.launch { library.addToPlaylist(playlistId, songIds) }
     }
 
-    val songs = libraryDao.observeLocalSongs().stateIn(
+    val songs = library.localSongs.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
@@ -205,7 +185,7 @@ class LibraryViewModel @Inject constructor(
      * 刻意与 [songs] 分开：hub 上「曲库时长 / 占用」报的是**本地曲库**，
      * 把网络曲混进去那两个数字会凭空空涨（网络曲的 FileSize 根本不是本地占用）。
      */
-    private val allSongs = libraryDao.observeAllSongs().stateIn(
+    private val allSongs = library.allSongs.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
@@ -233,11 +213,11 @@ class LibraryViewModel @Inject constructor(
             ) { it.source }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val artists = libraryDao.observeArtists().stateIn(
+    val artists = library.artists.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
-    val albums = libraryDao.observeAlbums().stateIn(
+    val albums = library.albums.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
@@ -271,11 +251,11 @@ class LibraryViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val favorites = libraryDao.observeFavorites().stateIn(
+    val favorites = library.favorites.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
-    val playlists = playlistDao.observePlaylists().stateIn(
+    val playlists = library.playlists.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList(),
     )
 
@@ -286,7 +266,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             scanning.value = true
             try {
-                kotlinx.coroutines.withContext(Dispatchers.IO) { scanner.scanFull() }
+                scanRepository.scanFull()
             } finally {
                 scanning.value = false
             }
@@ -299,24 +279,16 @@ class LibraryViewModel @Inject constructor(
      * 是因为那条评论误判成"播放器不支持定点插入"——查清了，接上。
      */
     fun playNext(song: com.catclaw.music.kt.core.model.Song) {
-        session.ensure()
-        controller.addToQueue(song, nextUp = true)
+        library.playNext(song)
     }
 
-    fun playFavoriteAt(index: Int) = playFrom(favorites.value.map { it.toSong() }, index)
+    fun playFavoriteAt(index: Int) = library.play(favorites.value.map { it.toSong() }, index)
 
     /** 「随机播放」按钮：MAUI `AllSongsViewModel.ShufflePlayAsync` 的对应物，规则在播放器那一侧 */
     fun playShuffled(rows: List<SongListItem>) {
-        if (rows.isEmpty()) return
-        session.ensure()
-        controller.playShuffled(rows.map { it.toSong() })
+        library.playShuffled(rows.map { it.toSong() })
     }
 
-    fun playRecentAt(index: Int) = playFrom(recent.value.map { it.toSong() }, index)
+    fun playRecentAt(index: Int) = library.play(recent.value.map { it.toSong() }, index)
 
-    private fun playFrom(list: List<com.catclaw.music.kt.core.model.Song>, index: Int) {
-        if (list.isEmpty()) return
-        session.ensure()
-        controller.playSongs(list, startIndex = index)
-    }
 }

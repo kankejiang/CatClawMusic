@@ -211,7 +211,10 @@ fun LibraryScreen(
         value = runCatching { viewModel.localSongStats() }.getOrDefault(value)
     }
     val buckets = remember(stats) { sizeBuckets(stats) }
-    val freeSpace = remember(songs.size) { viewModel.freeSpaceBytes() }
+    // StatFs 是磁盘调用：改走 produceState 在协程里读（IO），不再在组合期阻塞（MVVM 重构 B2）
+    val freeSpace by produceState(0L, songs.size) {
+        value = viewModel.freeSpaceBytes()
+    }
     // 数据洞察的分组（同样在 :core 算）与当前翻到第几组
     val qualityGroups = remember(stats) { qualityInsight(stats) }
     val artistGroups = remember(stats) { artistInsight(stats) }
