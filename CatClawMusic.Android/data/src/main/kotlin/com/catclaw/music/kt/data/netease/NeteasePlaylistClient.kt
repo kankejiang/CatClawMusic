@@ -1,6 +1,11 @@
 package com.catclaw.music.kt.data.netease
 
 import com.catclaw.music.kt.core.ai.SourceHttp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
@@ -59,8 +64,28 @@ class NeteasePlaylistClient @Inject constructor(
     }
 
     /** @return 拉取/解析失败返回 null，由调用方翻译成用户能读的错误文案 */
-    suspend fun fetch(playlistId: String, cookie: String? = null): Playlist? =
-        fetchViaEapi(playlistId, cookie) ?: fetchViaWeb(playlistId)
+    suspend fun fetch(playlistId: String, cookie: String? = null): Playlist? {
+        // 「我喜欢的音乐」874 首每次进入都全量拉一遍太慢：5 分钟内复用同一份结果。
+        // key 带 cookie 指纹，换账号不会串数据。
+        val key = "$playlistId@${cookie?.hashCode() ?: 0}"
+        val now = System.currentTimeMillis()
+        fetchCache[key]?.takeIf { now - it.first < FETCH_CACHE_TTL_MS }?.let { (_, cached) ->
+            com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                "NeteaseTiming", "playlist cache-hit id=$playlistId tracks=${cached.tracks.size}",
+            )
+            return cached
+        }
+        val t0 = System.currentTimeMillis()
+        val result = fetchViaEapi(playlistId, cookie) ?: fetchViaWeb(playlistId) ?: return null
+        fetchCache[key] = now to result
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "NeteaseTiming",
+            "playlist fetch id=$playlistId tracks=${result.tracks.size} ${System.currentTimeMillis() - t0}ms",
+        )
+        return result
+    }
+
+    private val fetchCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, Playlist>>()
 
     /**
      * 取播放直链。eapi 失败返回 null，调用方再退到 [playUrlFallback]。
@@ -129,10 +154,19 @@ class NeteasePlaylistClient @Inject constructor(
         val tracks = if (trackIds.size > quick.size) {
             // 两段式：先按 trackIds 建索引，缺的批量补，最后按歌单原顺序重排
             val byId = quick.associateBy { it.id }.toMutableMap()
-            trackIds.filter { it !in byId }.chunked(DETAIL_CHUNK).forEach { chunk ->
-                val detail = eapi.songDetailRaw(chunk, cookie) ?: return@forEach
-                val songs = parseObject(detail)?.get("songs") as? JsonArray ?: return@forEach
-                parseTracks(songs).forEach { byId[it.id] = it }
+            // 串行补全在 874 首的「我喜欢的音乐」上要跑 2~3 批 eapi，是打开慢的主因。
+            // 改 2 路并发（再多会被网易云限流），结果仍按 trackIds 原顺序重排。
+            kotlinx.coroutines.coroutineScope {
+                val permits = kotlinx.coroutines.sync.Semaphore(2)
+                trackIds.filter { it !in byId }.chunked(DETAIL_CHUNK).map { chunk ->
+                    async {
+                        permits.withPermit {
+                            val detail = eapi.songDetailRaw(chunk, cookie) ?: return@withPermit emptyList()
+                            val songs = parseObject(detail)?.get("songs") as? JsonArray ?: return@withPermit emptyList()
+                            parseTracks(songs)
+                        }
+                    }
+                }.awaitAll().forEach { list -> list.forEach { byId[it.id] = it } }
             }
             trackIds.mapNotNull { byId[it] }
         } else {
@@ -220,6 +254,7 @@ class NeteasePlaylistClient @Inject constructor(
         private const val DETAIL_API = "https://music.163.com/api/v6/playlist/detail"
         private const val MAX_TRACKS = 1000
         private const val DETAIL_CHUNK = 500
+        private const val FETCH_CACHE_TTL_MS = 5 * 60_000L
         private const val WEB_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/124.0 Safari/537.36"

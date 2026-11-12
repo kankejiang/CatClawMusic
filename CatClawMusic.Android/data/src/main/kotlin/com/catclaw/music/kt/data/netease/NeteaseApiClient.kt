@@ -284,8 +284,10 @@ class NeteaseApiClient @Inject constructor(
 
     /** 「我喜欢的音乐」歌曲（需登录；走 eapi 全量歌单接口，超 1000 首也能拿全） */
     suspend fun likedSongs(): List<OnlineSong> {
-        val liked = userPlaylists().firstOrNull() ?: return emptyList()
-        return playlistSongs(liked.id)
+        // 走带缓存的 likedPlaylistId()：红心刷新与页面打开共用一次 id 查询，
+        // 旧实现每次 likedSongs() 都先 request 一遍 user/playlist
+        val pid = likedPlaylistId() ?: return emptyList()
+        return playlistSongs(pid)
     }
 
     /** 红心/取消红心。csrf_token 必须带上（插件注释：缺它时"会员歌能播但红心失败"） */
