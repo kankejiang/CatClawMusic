@@ -678,6 +678,9 @@ private fun PlaylistEntryScreen(
             if (isFavorites) R.string.playlist_entry_favorites else R.string.playlist_entry_recent,
         ),
         countText = stringResource(R.string.playlist_count, rows.size),
+        cover = rows.firstOrNull()?.let {
+            CollectionCover(coverArtPath = it.coverArtPath, audioPath = it.filePath, fallback = "")
+        },
         onBack = onBack,
     ) {
         SongList(

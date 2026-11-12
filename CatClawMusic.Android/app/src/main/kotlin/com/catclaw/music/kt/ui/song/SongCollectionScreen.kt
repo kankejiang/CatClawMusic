@@ -254,6 +254,7 @@ private fun CollectionPortrait(
         PlaylistDetailHeader(
             title = title,
             cover = cover?.coverArtPath,
+            coverAudioPath = cover?.audioPath,
             creator = subtitle,
             playCount = null,
             countText = countText,

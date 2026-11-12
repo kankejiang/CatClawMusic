@@ -66,6 +66,8 @@ private fun durationText(seconds: Int): String {
 fun PlaylistDetailHeader(
     title: String,
     cover: String?,
+    /** 歌曲文件路径：歌单没封面图时，CoverTile 从它提取内嵌专辑图（网易云无此路径，本地歌单需要） */
+    coverAudioPath: String? = null,
     creator: String?,
     playCount: String?,
     songCount: Int,
@@ -87,7 +89,7 @@ fun PlaylistDetailHeader(
         ) {
             CoverTile(
                 coverArtPath = cover,
-                audioPath = null,
+                audioPath = coverAudioPath,
                 maxPx = 400,
                 modifier = Modifier
                     .size(160.dp)
@@ -124,7 +126,7 @@ fun PlaylistDetailHeader(
         ) {
             CoverTile(
                 coverArtPath = cover,
-                audioPath = null,
+                audioPath = coverAudioPath,
                 maxPx = 300,
                 modifier = Modifier
                     .size(104.dp)

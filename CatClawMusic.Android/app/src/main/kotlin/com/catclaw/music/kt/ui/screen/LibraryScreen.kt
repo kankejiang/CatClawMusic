@@ -990,9 +990,27 @@ fun LibraryListScreen(
         else -> null
     }
 
+    // 无歌单封面时用列表第一首歌的封面当头图（网易云同款行为）
+    val firstSongCover = when (kind) {
+        LibraryKind.Songs -> displayAll.firstOrNull()?.coverArtPath
+        LibraryKind.Favorites -> favorites.firstOrNull()?.coverArtPath
+        LibraryKind.Recent -> recent.firstOrNull()?.coverArtPath
+        else -> null
+    }
     SongCollectionScreen(
         title = title,
         countText = countText,
+        cover = firstSongCover?.let { path ->
+            CollectionCover(
+                coverArtPath = path,
+                audioPath = when (kind) {
+                    LibraryKind.Songs -> displayAll.firstOrNull()?.filePath
+                    LibraryKind.Favorites -> favorites.firstOrNull()?.filePath
+                    else -> recent.firstOrNull()?.filePath
+                },
+                fallback = title,
+            )
+        },
         onBack = onBack,
         actions = songRows?.let { rows ->
             listOf(

@@ -817,7 +817,7 @@ private fun NeteasePlaylistDetail(
         }
         PlaylistDetailHeader(
             title = detail.playlist?.name.orEmpty(),
-            cover = detail.playlist?.coverUrl,
+            cover = detail.playlist?.coverUrl ?: detail.songs.firstOrNull()?.coverUrl,
             creator = "网易云音乐",
             playCount = null,
             songCount = detail.songs.size,
