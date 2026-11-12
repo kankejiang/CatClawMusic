@@ -1,6 +1,9 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -265,6 +268,8 @@ private fun CollectionPortrait(
     val density = LocalDensity.current
     val headerMaxPx = with(density) { CollectionHeaderHeight.toPx() }
     var headerOffset by remember { mutableFloatStateOf(0f) }
+    // 搜索默认收起，点右上角图标展开（网易云同款）；已有搜索词时直接展开
+    var searchOpen by remember { mutableStateOf(!search?.query.isNullOrEmpty()) }
     val collapse = remember(headerMaxPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -285,6 +290,23 @@ private fun CollectionPortrait(
         ) {
             BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
             Spacer(Modifier.weight(1f))
+            if (search != null) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(primary.copy(alpha = 0.10f))
+                        .clickable { searchOpen = !searchOpen },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_search),
+                        contentDescription = search.hint,
+                        tint = primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
             trailing()
         }
         // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
@@ -314,7 +336,7 @@ private fun CollectionPortrait(
         )
         }
         }
-        search?.let {
+        if (searchOpen) search?.let {
             GlassSearchField(
                 query = it.query,
                 onChange = it.onChange,
