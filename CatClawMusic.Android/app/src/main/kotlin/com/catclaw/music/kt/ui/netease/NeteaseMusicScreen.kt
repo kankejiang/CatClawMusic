@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -57,6 +58,9 @@ import com.catclaw.music.kt.data.netease.NeteaseArtist
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
+import com.catclaw.music.kt.ui.screen.PlaylistDetailHeader
+import com.catclaw.music.kt.ui.screen.PlaylistSongRowUi
+import com.catclaw.music.kt.ui.screen.PlaylistSongUi
 import com.catclaw.music.kt.ui.library.NeteaseImportPanel
 import com.catclaw.music.kt.ui.library.NeteaseImportViewModel
 import com.catclaw.music.kt.ui.player.CoverTile
@@ -790,75 +794,79 @@ private fun NeteasePlaylistDetail(
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Column(Modifier.fillMaxSize()) {
+        // 顶栏：返回 + 歌单名（网易云同款结构）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 6.dp),
+                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-            CoverTile(
-                coverArtPath = detail.playlist?.coverUrl,
-                audioPath = null,
-                maxPx = 160,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(palette.primary).copy(alpha = 0.18f)),
-            ) {
-                Text(
-                    text = detail.playlist?.name?.take(1).orEmpty(),
-                    color = primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = detail.playlist?.name.orEmpty(),
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.netease_songs_unit, detail.songs.size),
-                    fontSize = 11.sp,
-                    color = secondary,
-                )
-            }
-            PillLabel(
-                text = stringResource(R.string.netease_play_all),
-                onClick = onPlayAll,
-                enabled = detail.songs.isNotEmpty(),
+            Text(
+                text = detail.playlist?.name.orEmpty(),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
         }
-
+        PlaylistDetailHeader(
+            title = detail.playlist?.name.orEmpty(),
+            cover = detail.playlist?.coverUrl,
+            creator = "网易云音乐",
+            playCount = null,
+            songCount = detail.songs.size,
+            isLandscape = landscape,
+            onPlayAll = onPlayAll,
+        )
+        if (landscape) {
+            // PC 端表头（对齐截图：# 标题 / 专辑 / 喜欢 / 时长）
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("#", fontSize = 10.sp, color = secondary, modifier = Modifier.width(26.dp))
+                Spacer(Modifier.width(44.dp))
+                Text(stringResource(R.string.TabSongs), fontSize = 10.sp, color = secondary, modifier = Modifier.weight(2f))
+                Text(stringResource(R.string.detail_album), fontSize = 10.sp, color = secondary, modifier = Modifier.weight(1.4f))
+                Text("", modifier = Modifier.width(18.dp))
+                Text(stringResource(R.string.sort_duration), fontSize = 10.sp, color = secondary, modifier = Modifier.width(48.dp))
+            }
+        }
         if (detail.loading) {
             HintText(stringResource(R.string.netease_loading), secondary)
         }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             itemsIndexed(detail.songs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
-                SongRow(
-                    song = song,
+                PlaylistSongRowUi(
+                    song = PlaylistSongUi(
+                        key = song.id,
+                        title = song.title,
+                        artist = song.artist,
+                        album = song.album,
+                        cover = song.coverUrl,
+                        durationSec = song.durationSeconds,
+                        vip = song.vip,
+                        blocked = song.blocked,
+                        favorite = song.id in likedIds,
+                    ),
                     index = index,
-                    liked = song.id in likedIds,
+                    isLandscape = landscape,
                     onClick = { onPlayAt(index) },
-                    onLike = { onLike(song, song.id !in likedIds) },
+                    onLongClick = { onLike(song, song.id !in likedIds) },
                 )
             }
-            item { Spacer(Modifier.height(96.dp)) }
         }
     }
 }
-
-// ── 组件 ───────────────────────────────────────────────────────
 
 @Composable
 private fun SongRow(

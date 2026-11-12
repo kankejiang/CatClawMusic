@@ -1285,64 +1285,29 @@ private fun PlaylistSongRows(
         items(rows.size, key = { "row-$it" }) { index ->
             val song = rows[index]
             val index = rows.indexOf(song)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = if (compact) 2.dp else 4.dp)
-                    .clip(RoundedCornerShape(if (compact) 14.dp else 18.dp))
-                    .combinedClickable(
-                        onClick = { onPlay(index) },
-                        onLongClick = {
-                            onOpenMenu(
-                                SongMenuTarget(
-                                    id = song.id,
-                                    title = song.title,
-                                    subtitle = songMenuSubtitle(song.artist, song.album),
-                                    song = song.toSong(),
-                                ),
-                            )
-                        },
+            PlaylistSongRowUi(
+                song = PlaylistSongUi(
+                    key = song.id,
+                    title = song.title,
+                    artist = song.artist.orEmpty(),
+                    album = song.album.orEmpty(),
+                    cover = song.coverArtPath,
+                    durationSec = song.durationSeconds,
+                ),
+                index = index,
+                isLandscape = compact,
+                onClick = { onPlay(index) },
+                onLongClick = {
+                    onOpenMenu(
+                        SongMenuTarget(
+                            id = song.id,
+                            title = song.title,
+                            subtitle = songMenuSubtitle(song.artist, song.album),
+                            song = song.toSong(),
+                        ),
                     )
-                    .padding(
-                        horizontal = if (compact) 10.dp else 12.dp,
-                        vertical = if (compact) 5.dp else 10.dp,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
-            ) {
-                CoverTile(
-                    coverArtPath = song.coverArtPath,
-                    audioPath = song.filePath,
-                    modifier = Modifier
-                        .size(if (compact) 36.dp else 40.dp)
-                        .clip(RoundedCornerShape(if (compact) 10.dp else 12.dp))
-                        .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                ) {
-                    Text(
-                        text = (index + 1).toString(),
-                        fontSize = if (compact) 12.sp else 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = secondary,
-                    )
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = song.title,
-                        fontSize = if (compact) 13.sp else 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = song.artist.orEmpty(),
-                        fontSize = if (compact) 10.5.sp else 12.sp,
-                        color = secondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+                },
+            )
         }
     }
 }
