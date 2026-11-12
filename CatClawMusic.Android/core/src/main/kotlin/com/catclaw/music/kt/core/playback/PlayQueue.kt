@@ -156,6 +156,15 @@ class PlayQueue {
         rebuildIndex()
     }
 
+    /** 原位替换某首歌（直链升级用）：id 不变，只换数据 */
+    fun replaceSong(id: Int, new: Song) {
+        val i = originalList.indexOfFirst { it.id == id }
+        if (i >= 0) originalList[i] = new
+        val j = shuffledList.indexOfFirst { it.id == id }
+        if (j >= 0) shuffledList[j] = new
+        rebuildIndex()
+    }
+
     /** 下一首播放：插到当前之后 */
     fun addNext(song: Song) {
         if (currentIndex >= 0 && currentIndex + 1 < originalList.size) {

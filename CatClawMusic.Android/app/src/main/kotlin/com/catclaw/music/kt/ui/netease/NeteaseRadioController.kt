@@ -75,25 +75,44 @@ class NeteaseRadioController @Inject constructor(
         scope.launch {
             starting = true
             try {
+                val fmT0 = System.currentTimeMillis()
                 val songs = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+                com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                    "NeteaseTiming", "fm privateFm=${System.currentTimeMillis() - fmT0}ms n=${songs.size}",
+                )
                 if (songs.isEmpty()) return@launch
+                // 只等第一首的直链（保证起播音质）；其余 outer 入队、READY 后并发升级 ——
+                // 旧实现串行等 3 次取链，FM 点开要 2.5 秒才出声
+                val firstUrl = songs.firstOrNull()?.id?.toLongOrNull()?.let {
+                    runCatching { resolver.resolve(it) }.getOrNull()
+                }
                 val queue = songs.mapIndexed { index, song ->
                     val fallback = NeteasePlaylistClient.playUrlFallback(
                         song.id.toLongOrNull() ?: 0L,
                     )
-                    val url = song.id.toLongOrNull()?.let {
-                        runCatching { resolver.resolve(it) }.getOrNull()
-                    }
-                    song.toQueueSong(index, url?.takeIf { it.isNotBlank() } ?: fallback)
+                    val url = if (index == 0) firstUrl?.takeIf { it.isNotBlank() } ?: fallback else fallback
+                    song.toQueueSong(index, url)
                 }
                 if (savedMode == null) savedMode = player.state.value.mode
                 playbackSession.ensure()
                 player.playSongs(queue, 0)
+                com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                    "NeteaseTiming", "fm playSongs done total=${System.currentTimeMillis() - fmT0}ms",
+                )
                 // playSongs 会清 FM 态，所以标记必须放在入队之后；
                 // 播放页随即显示「无限」，且循环只剩两档
                 player.setFmMode(true)
                 player.setMode(PlayMode.Sequential)
                 _fmMode.value = true
+                // 其余几首并发升级直链（upgradeQueueItem 会跳过正在播的第一首）
+                songs.drop(1).forEach { song ->
+                    scope.launch {
+                        val id = song.id.toLongOrNull() ?: return@launch
+                        runCatching { resolver.resolve(id) }.getOrNull()?.let { url ->
+                            player.upgradeQueueItem(song.toQueueSong(0, "").id, url)
+                        }
+                    }
+                }
             } finally {
                 starting = false
             }

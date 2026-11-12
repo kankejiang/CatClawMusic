@@ -584,6 +584,36 @@ class PlayerController(
         return if (path.contains("://")) Uri.parse(path) else Uri.fromFile(File(path))
     }
 
+    /** 数据层注入的直链升级器：给在线曲换更高音质的直链（缓存 key 不变） */
+    var uriUpgrader: (suspend (Song) -> String?)? = null
+
+    private var upgradeJob: kotlinx.coroutines.Job? = null
+    private var upgradedForId = -1
+
+    /** 当前曲 READY 后，把下一首的 outer 外链升级成 eapi 直链（后台，不打断播放） */
+    private fun upgradeUpcoming() {
+        val next = queue.peekNextSong() ?: return
+        if (!next.isRemote) return
+        if (!next.filePath.contains("outer/url")) return
+        if (upgradedForId == next.id) return
+        upgradedForId = next.id
+        upgradeJob?.cancel()
+        upgradeJob = scope.launch {
+            val better = uriUpgrader?.invoke(next) ?: return@launch
+            upgradeQueueItem(next.id, better)
+        }
+    }
+
+    /** 用直链替换队列中未在播放的那一首；正在播的 item 不换（替换会重头播） */
+    fun upgradeQueueItem(songId: Int, url: String) {
+        val currentIndex = idToIndex[queue.currentSong?.id] ?: -1
+        val index = idToIndex[songId] ?: return
+        if (index == currentIndex) return
+        val song = queue.songs()[index].copy(filePath = url)
+        queue.replaceSong(songId, song)
+        player.replaceMediaItem(index, buildMediaItem(song))
+    }
+
     var onListenStarted: ((Int) -> Unit)? = null
     private val listens = ListenCounter()
 
@@ -709,6 +739,8 @@ class PlayerController(
             when (playbackState) {
                 Player.STATE_BUFFERING -> _state.value = _state.value.copy(isBuffering = true)
                 Player.STATE_READY -> {
+                    AppLog.i(TAG, "READY song=${queue.currentSong?.title}")
+                    upgradeUpcoming()
                     _state.value = _state.value.copy(
                         isBuffering = false,
                         durationMs = if (player.duration > 0) player.duration else _state.value.durationMs,

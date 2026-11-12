@@ -1,6 +1,8 @@
 package com.catclaw.music.kt.data.netease
 
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,21 +36,57 @@ class NeteasePlayUrlResolver @Inject constructor(
      * 解析一首歌的可播放地址。永远不会返回 null：最差也会给免登录外链。
      */
     suspend fun resolve(songId: Long): String {
-        val now = System.currentTimeMillis()
-        for (quality in ladder(settings.quality)) {
+        val t0 = System.currentTimeMillis()
+        var hitCache = false
+        val preferred = settings.quality
+        // 任一档缓存命中直接回
+        for (quality in ladder(preferred)) {
             val key = "$songId:${quality.name}"
             cache[key]?.let { entry ->
-                if (entry.expireAt > now) return entry.url
+                if (entry.expireAt > System.currentTimeMillis()) {
+                    hitCache = true
+                    com.catclaw.music.kt.core.diagnostic.AppLog.d("NeteaseTiming", "resolve cache-hit id=$songId ${System.currentTimeMillis() - t0}ms")
+                    return entry.url
+                }
                 cache.remove(key)
             }
-            // 未登录时无损必然被风控：直接跳过这一档，省一次注定失败的请求
-            if (quality == NeteasePlaylistClient.Quality.Lossless && !session.isLoggedIn) continue
-            val url = runCatching { client.playUrl(songId, quality, session.cookie) }.getOrNull()
-            if (!url.isNullOrBlank()) {
-                cache[key] = Entry(url, now + CACHE_TTL_MS)
-                return url
+        }
+        if (preferred == NeteasePlaylistClient.Quality.Lossless && session.isLoggedIn) {
+            // 无损与极高**并行**发：旧实现串行降档，最坏要吃 3 次网络往返才出声
+            val (lossless, exhigh) = coroutineScope {
+                val l = async { runCatching { client.playUrl(songId, NeteasePlaylistClient.Quality.Lossless, session.cookie) }.getOrNull() }
+                val e = async { runCatching { client.playUrl(songId, NeteasePlaylistClient.Quality.Exhigh, session.cookie) }.getOrNull() }
+                (l.await() to e.await())
+            }
+            val pick = lossless?.takeIf { it.isNotBlank() } ?: exhigh?.takeIf { it.isNotBlank() }
+            if (!pick.isNullOrBlank()) {
+                val hitQuality = if (lossless?.takeIf { it.isNotBlank() } != null) {
+                    NeteasePlaylistClient.Quality.Lossless
+                } else {
+                    NeteasePlaylistClient.Quality.Exhigh
+                }
+                cache["$songId:${hitQuality.name}"] = Entry(pick, System.currentTimeMillis() + CACHE_TTL_MS)
+                com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                    "NeteaseTiming", "resolve id=$songId q=$hitQuality ${System.currentTimeMillis() - t0}ms cache=$hitCache",
+                )
+                return pick
+            }
+        } else {
+            for (quality in ladder(preferred)) {
+                if (quality == NeteasePlaylistClient.Quality.Lossless && !session.isLoggedIn) continue
+                val url = runCatching { client.playUrl(songId, quality, session.cookie) }.getOrNull()
+                if (!url.isNullOrBlank()) {
+                    cache["$songId:${quality.name}"] = Entry(url, System.currentTimeMillis() + CACHE_TTL_MS)
+                    com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                        "NeteaseTiming", "resolve id=$songId q=$quality ${System.currentTimeMillis() - t0}ms cache=$hitCache",
+                    )
+                    return url
+                }
             }
         }
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "NeteaseTiming", "resolve id=$songId fallback ${System.currentTimeMillis() - t0}ms",
+        )
         return NeteasePlaylistClient.playUrlFallback(songId)
     }
 
