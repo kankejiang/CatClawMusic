@@ -249,6 +249,17 @@ private fun CollectionPortrait(
     val primary = Color(LocalCatClawPalette.current.textPrimary)
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
     Column(modifier.fillMaxSize()) {
+        // 顶栏：返回必须留在头部之上（共享头不绑定导航）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
+            Spacer(Modifier.weight(1f))
+            trailing()
+        }
         // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
         // 封面 104 + 标题/副标题/计数 + 圆形播放键 + 其余动作胶囊
         PlaylistDetailHeader(
@@ -265,7 +276,6 @@ private fun CollectionPortrait(
                 actions.filter { !it.primary }.forEach { action ->
                     PillLabel(text = action.label, onClick = action.onClick, filled = false)
                 }
-                trailing()
             },
         )
         search?.let {
