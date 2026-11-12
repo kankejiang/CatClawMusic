@@ -70,7 +70,10 @@ fun PlaylistDetailHeader(
     playCount: String?,
     songCount: Int,
     isLandscape: Boolean,
-    onPlayAll: () -> Unit,
+    /** 可空：没有「播放全部」动作的页面（如专辑/艺人详情）圆键置灰但仍展示头部 */
+    onPlayAll: (() -> Unit)?,
+    /** 直接给计数文本（如「618 首」）；非空时优先于 songCount 显示 */
+    countText: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val palette = LocalCatClawPalette.current
@@ -101,7 +104,7 @@ fun PlaylistDetailHeader(
                     }
                     Text(
                         text = listOfNotNull(
-                            stringResourceSongs(songCount),
+                            countText ?: stringResourceSongs(songCount),
                             playCount,
                         ).joinToString(" · "),
                         fontSize = 12.sp,
@@ -109,7 +112,7 @@ fun PlaylistDetailHeader(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PillLabel(text = stringResource(R.string.netease_play_all), onClick = onPlayAll, filled = true)
+                    PillLabel(text = stringResource(R.string.netease_play_all), onClick = { onPlayAll?.invoke() }, enabled = onPlayAll != null, filled = true)
                     actions()
                 }
             }
@@ -140,7 +143,7 @@ fun PlaylistDetailHeader(
                         Text(creator, fontSize = 12.sp, color = primary, maxLines = 1)
                     }
                     Text(
-                        text = playCount ?: stringResourceSongs(songCount),
+                        text = playCount ?: countText ?: stringResourceSongs(songCount),
                         fontSize = 12.sp,
                         color = secondary,
                     )
@@ -161,7 +164,7 @@ fun PlaylistDetailHeader(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(Color(palette.primary))
-                    .clickable(onClick = onPlayAll),
+                    .clickable(enabled = onPlayAll != null) { onPlayAll?.invoke() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

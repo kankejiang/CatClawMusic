@@ -1,6 +1,8 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.screen.PlaylistDetailHeader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -247,60 +249,32 @@ private fun CollectionPortrait(
     val primary = Color(LocalCatClawPalette.current.textPrimary)
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
     Column(modifier.fillMaxSize()) {
-        // 与横屏一致：返回在左，动作靠右；标题行单独一行，封面放标题左侧
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.queue_back))
-            Spacer(Modifier.weight(1f))
-            actions.forEach { action ->
-                TextAction(action, primary, secondary, compact = false)
-            }
-            trailing()
-        }
-        // 标题与搜索同一行：竖屏上半部分原来「顶栏 + 标题 + 来源 + 排序 + 搜索」五行，
-        // 列表要到 349dp 才开始；合并后头部压到约 140dp，首屏多看 3～4 首
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            cover?.let { CollectionCoverTile(it, 56.dp) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                subtitle?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        text = it,
-                        fontSize = 12.sp,
-                        color = secondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+        // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
+        // 封面 104 + 标题/副标题/计数 + 圆形播放键 + 其余动作胶囊
+        PlaylistDetailHeader(
+            title = title,
+            cover = cover?.coverArtPath,
+            creator = subtitle,
+            playCount = null,
+            countText = countText,
+            songCount = -1,
+            isLandscape = false,
+            onPlayAll = actions.firstOrNull { it.primary }?.onClick,
+            actions = {
+                actions.filter { !it.primary }.forEach { action ->
+                    PillLabel(text = action.label, onClick = action.onClick, filled = false)
                 }
-                Text(text = countText, fontSize = 11.5.sp, color = secondary, maxLines = 1)
-            }
-            search?.let {
-                GlassSearchField(
-                    query = it.query,
-                    onChange = it.onChange,
-                    placeholder = it.hint,
-                    modifier = Modifier.width(196.dp),
-                    compact = true,
-                )
-            }
+                trailing()
+            },
+        )
+        search?.let {
+            GlassSearchField(
+                query = it.query,
+                onChange = it.onChange,
+                placeholder = it.hint,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                compact = true,
+            )
         }
         val groups = chipGroups.filter { it.isNotEmpty() }
         if (groups.isNotEmpty()) {
