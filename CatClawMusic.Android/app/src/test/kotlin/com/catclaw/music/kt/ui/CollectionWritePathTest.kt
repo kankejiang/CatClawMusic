@@ -30,6 +30,14 @@ class CollectionWritePathTest {
             .also { assertTrue("只读到 ${it.size} 个文件，八成路径错了", it.size >= 10) }
     }
 
+    /** 收藏写入口已下沉到 :data 的 Repository（MVVM B2），扫描根同步扩过去 */
+    private val repositorySources: Map<String, String> by lazy {
+        val root = File("../data/src/main/kotlin/com/catclaw/music/kt/data/repository")
+            .takeIf { it.isDirectory } ?: return@lazy emptyMap()
+        root.walkTopDown().filter { it.extension == "kt" }
+            .associate { it.name to it.readText() }
+    }
+
     /** 规则写成纯函数，好同时配正证与反证 */
     private fun favoritesAreWritable(sources: Map<String, String>): List<String> =
         sources.filter { (_, body) -> body.contains("upsertFavorite(") || body.contains("removeFavorite(") }
@@ -37,14 +45,14 @@ class CollectionWritePathTest {
 
     @Test
     fun favoriteTableHasAWritePathInTheAppLayer() {
-        val writers = favoritesAreWritable(appSources)
-        assertEquals("收藏表在 app 层没有写入口——「我喜欢的」会是永久空页", listOf("LibraryViewModel.kt"), writers)
+        val writers = favoritesAreWritable(appSources + repositorySources)
+        assertEquals("收藏表没有写入口——「我喜欢的」会是永久空页", listOf("LibraryRepository.kt"), writers)
     }
 
     @Test
     fun writePathRuleActuallyFailsWhenTheWriterIsGone() {
         // 反证：把写调用删掉，规则必须变红。规则若恒真，它就不是闸门。
-        val withoutWriter = appSources.filterKeys { it != "LibraryViewModel.kt" }
+        val withoutWriter = (appSources + repositorySources).filterKeys { it != "LibraryRepository.kt" }
         assertFalse("闸门抓不到「只剩读」的写法", favoritesAreWritable(withoutWriter).isNotEmpty())
     }
 

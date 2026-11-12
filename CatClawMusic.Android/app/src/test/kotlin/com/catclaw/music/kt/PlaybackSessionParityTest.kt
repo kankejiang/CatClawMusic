@@ -29,10 +29,10 @@ class PlaybackSessionParityTest {
             "toggle", "next", "previous", "playSongs", "playAt", "scanAndPlayAll",
         ),
         "com/catclaw/music/kt/ui/chat/ChatViewModel.kt" to listOf("play"),
-        // 音乐库页的出声入口全是「拿一份列表去播」这一族：playAt 已经并给 playRows
-        // （页面上有排序与搜索，可见列表才是播放的那一份，不能再用库里下标）
-        "com/catclaw/music/kt/ui/library/LibraryViewModel.kt" to listOf(
-            "playRows", "playFrom", "playFavoriteAt", "playRecentAt", "playShuffled", "playNext",
+        // 音乐库页的出声入口已全部下沉 LibraryRepository（MVVM B2）：
+        // VM 的 playRows/playFavoriteAt/playRecentAt/playSongById 只做映射，真正起播在 Repository
+        "com/catclaw/music/kt/data/repository/library/LibraryRepository.kt" to listOf(
+            "play", "playShuffled", "playNext",
         ),
         "com/catclaw/music/kt/ui/playlist/PlaylistViewModel.kt" to listOf("playAt", "playFrom"),
         "com/catclaw/music/kt/ui/remote/RemoteViewModel.kt" to listOf("playAt"),
@@ -41,8 +41,14 @@ class PlaybackSessionParityTest {
 
     private val funBodies = HashMap<String, Map<String, String>>()
 
+    /** Repository 在 :data 模块，源根按存在性回退 */
+    private fun resolveSource(rel: String): File =
+        File(srcRoot, rel).takeIf { it.isFile }
+            ?: File("../data/src/main/kotlin", rel).takeIf { it.isFile }
+            ?: error("$rel 在 :app 与 :data 都找不到")
+
     private fun bodiesOf(rel: String): Map<String, String> = funBodies.getOrPut(rel) {
-        val text = File(srcRoot, rel).readText()
+        val text = resolveSource(rel).readText()
         parseFunctions(text).also { require(it.isNotEmpty()) { "$rel 里一个函数都没解析到，八成是路径错了" } }
     }
 
