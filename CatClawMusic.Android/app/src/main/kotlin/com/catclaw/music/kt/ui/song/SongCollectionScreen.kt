@@ -1,6 +1,11 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import com.catclaw.music.kt.ui.theme.liquidGlass
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -364,29 +369,67 @@ private fun CollectionPortrait(
                             modifier = Modifier.size(20.dp),
                         )
                     }
-                    DropdownMenu(
-                        expanded = actionsMenuOpen,
-                        onDismissRequest = { actionsMenuOpen = false },
-                        modifier = Modifier.background(Color(LocalCatClawPalette.current.backgroundStops.last().argb)),
-                    ) {
-                        chipGroups.filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
-                            if (groupIndex > 0) {
-                                HorizontalDivider(color = primary.copy(alpha = 0.10f))
-                            }
-                            group.forEach { chip ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = (if (chip.selected) "✓ " else "") + chip.label,
-                                            fontSize = 14.sp,
-                                            color = if (chip.selected) Color(LocalCatClawPalette.current.primary) else primary,
+                    if (actionsMenuOpen) {
+                        Popup(
+                            alignment = Alignment.TopEnd,
+                            offset = IntOffset(0, with(LocalDensity.current) { 48.dp.roundToPx() }),
+                            onDismissRequest = { actionsMenuOpen = false },
+                            properties = PopupProperties(focusable = true),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .width(196.dp)
+                                    .shadow(18.dp, RoundedCornerShape(18.dp), clip = false)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    // Popup 是独立窗口，backdrop 采不到下层 → 用「磨砂玻璃」：
+                                    // 94% 主题底色打底 + 玻璃描边 + 顶部高光，保证文字可读
+                                    .background(Color(LocalCatClawPalette.current.backgroundStops.last().argb).copy(alpha = 0.94f))
+                                    .liquidGlass(palette = LocalCatClawPalette.current, corner = 18)
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
+                                        ),
+                                    )
+                                    .padding(vertical = 6.dp),
+                            ) {
+                                chipGroups.filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
+                                    if (groupIndex > 0) {
+                                        HorizontalDivider(
+                                            color = Color(LocalCatClawPalette.current.textPrimary).copy(alpha = 0.10f),
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                                         )
-                                    },
-                                    onClick = {
-                                        chip.onClick()
-                                        actionsMenuOpen = false
-                                    },
-                                )
+                                    }
+                                    group.forEach { chip ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    chip.onClick()
+                                                    actionsMenuOpen = false
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 11.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = chip.label,
+                                                fontSize = 14.sp,
+                                                color = if (chip.selected) {
+                                                    Color(LocalCatClawPalette.current.primary)
+                                                } else {
+                                                    primary
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            if (chip.selected) {
+                                                Text(
+                                                    text = "✓",
+                                                    fontSize = 14.sp,
+                                                    color = Color(LocalCatClawPalette.current.primary),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
