@@ -227,52 +227,72 @@ fun PlaylistScreen(
             secondary = secondary,
         )
     } else if (open != null) {
-        // 歌单详情横竖屏共用同一份骨架：头图 + 三颗动作 + 五档排序 + 搜索 + 歌曲列表。
-        // 横屏由 SongCollectionScreen 压成两行，竖屏仍是纵向堆叠。
+        // 歌单详情：与在线歌单同一套共享 UI（PlaylistDetailHeader + PlaylistSongRowUi）。
+        // 本地特有的五档排序与搜索保留在 header 与列表之间。
         open?.let { playlist ->
-            SongCollectionScreen(
-                title = playlist.name,
-                countText = stringResource(R.string.playlist_count, shown.size),
-                onBack = { viewModel.close() },
-                cover = CollectionCover(
-                    coverArtPath = covers[playlist.id]?.coverArtPath,
-                    audioPath = covers[playlist.id]?.filePath,
-                    fallback = playlist.name,
-                ),
-                actions = listOf(
-                    CollectionAction(
-                        label = stringResource(R.string.playlist_play_all),
-                        iconRes = R.drawable.ic_play,
-                        primary = true,
-                        onClick = { viewModel.playAll() },
-                    ),
-                    CollectionAction(
-                        label = stringResource(R.string.shuffle_play),
-                        iconRes = R.drawable.ic_shuffle,
-                        onClick = { viewModel.playAllShuffled() },
-                    ),
-                    CollectionAction(
-                        label = stringResource(R.string.playlist_add_current),
-                        iconRes = R.drawable.ic_add,
-                        onClick = { viewModel.addCurrentSong() },
-                    ),
-                ),
-                chipGroups = listOf(
-                    SongSortKey.entries.map { mode ->
-                        CollectionChip(
-                            label = stringResource(sortLabelRes(mode)) +
-                                if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
-                            selected = itemSort == mode,
-                            onClick = { viewModel.setItemSort(mode) },
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    BackTile(onBack = { viewModel.close() }, description = stringResource(R.string.GoBack))
+                    Text(
+                        text = playlist.name,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                PlaylistDetailHeader(
+                    title = playlist.name,
+                    cover = covers[playlist.id]?.coverArtPath,
+                    creator = null,
+                    playCount = null,
+                    songCount = shown.size,
+                    isLandscape = landscape,
+                    onPlayAll = { viewModel.playAll() },
+                    actions = {
+                        PillLabel(
+                            text = stringResource(R.string.shuffle_play),
+                            onClick = { viewModel.playAllShuffled() },
+                            filled = false,
+                        )
+                        PillLabel(
+                            text = stringResource(R.string.playlist_add_current),
+                            onClick = { viewModel.addCurrentSong() },
+                            filled = false,
                         )
                     },
-                ),
-                search = CollectionSearch(
-                    itemQuery,
-                    stringResource(R.string.playlist_search_hint),
-                    viewModel::setItemQuery,
-                ),
-            ) {
+                )
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(SongSortKey.entries.size) { index ->
+                        val mode = SongSortKey.entries[index]
+                        Text(
+                            text = stringResource(sortLabelRes(mode)) +
+                                if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
+                            fontSize = 12.sp,
+                            color = if (itemSort == mode) Color(palette.primary) else secondary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color(palette.textPrimary).copy(alpha = if (itemSort == mode) 0.16f else 0.06f))
+                                .clickable { viewModel.setItemSort(mode) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+                GlassSearchField(
+                    query = itemQuery,
+                    onChange = viewModel::setItemQuery,
+                    placeholder = stringResource(R.string.playlist_search_hint),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
+                )
                 PlaylistSongRows(
                     rows = shown,
                     query = itemQuery,
