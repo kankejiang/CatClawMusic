@@ -52,6 +52,9 @@ data class ToplistBlock(
     val topSongs: List<OnlineSong> = emptyList(),
 )
 
+/** 歌单广场官方分类分组（语种 / 风格 / 场景 / 情感 / 主题） */
+data class CatalogueGroup(val group: String, val names: List<String>)
+
 data class NeteaseArtist(
     val id: String,
     val name: String,

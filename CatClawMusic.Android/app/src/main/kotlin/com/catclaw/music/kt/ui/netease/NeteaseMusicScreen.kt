@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
+import com.catclaw.music.kt.data.netease.NeteaseArtist
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
@@ -88,6 +90,9 @@ fun NeteaseMusicScreen(
 ) {
     val palette = LocalCatClawPalette.current
     val home by viewModel.home.collectAsStateWithLifecycle()
+    val homeTab by viewModel.homeTab.collectAsStateWithLifecycle()
+    val square by viewModel.square.collectAsStateWithLifecycle()
+    val topArtists by viewModel.topArtists.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -150,17 +155,37 @@ fun NeteaseMusicScreen(
                         onLoadMore = viewModel::loadMoreSearch,
                     )
                 } else {
-                    HomeList(
-                        home = home,
-                        myPlaylists = myPlaylists,
-                        loggedIn = account != null,
-                        onOpenPlaylist = viewModel::openPlaylist,
-                        onDaily = viewModel::openDaily,
-                        onPrivateFm = viewModel::playPrivateFm,
-                        onLiked = viewModel::openLiked,
-                        onImport = { showImport = true },
-                        onReload = viewModel::loadHome,
-                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        HomeTabsBar(selected = homeTab, onSelect = viewModel::selectHomeTab)
+                        when (homeTab) {
+                            // ① 歌单广场：官方分类 + 2 列网格 + 分页
+                            1 -> SquareList(
+                                square = square,
+                                onSelectCategory = { viewModel.loadSquare(it) },
+                                onOpenPlaylist = viewModel::openPlaylist,
+                                onLoadMore = viewModel::loadMoreSquare,
+                            )
+                            // ② 排行榜：全量榜单卡片折行
+                            2 -> RankGrid(
+                                toplists = home.toplists,
+                                onOpenPlaylist = viewModel::openPlaylist,
+                            )
+                            // ③ 歌手：热门歌手网格
+                            3 -> ArtistGrid(artists = topArtists)
+                            // ④ 精选：原有推荐流
+                            else -> HomeList(
+                                home = home,
+                                myPlaylists = myPlaylists,
+                                loggedIn = account != null,
+                                onOpenPlaylist = viewModel::openPlaylist,
+                                onDaily = viewModel::openDaily,
+                                onPrivateFm = viewModel::playPrivateFm,
+                                onLiked = viewModel::openLiked,
+                                onImport = { showImport = true },
+                                onReload = viewModel::loadHome,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -347,6 +372,203 @@ private fun TopBar(
 }
 
 // ── 首页 ───────────────────────────────────────────────────────
+
+/** 顶部四个分页（对齐插件 HomeTabs：精选 / 歌单广场 / 排行榜 / 歌手） */
+@Composable
+private fun HomeTabsBar(selected: Int, onSelect: (Int) -> Unit) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    val tabs = listOf(
+        stringResource(R.string.netease_tab_featured),
+        stringResource(R.string.netease_tab_square),
+        stringResource(R.string.netease_tab_toplists),
+        stringResource(R.string.netease_tab_artists),
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        tabs.forEachIndexed { index, label ->
+            val active = index == selected
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 4.dp),
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 14.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    color = if (active) primary else secondary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .width(if (active) 18.dp else 0.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(palette.primary)),
+                )
+            }
+        }
+    }
+}
+
+/** 歌单广场：官方分类 chips + 2 列歌单网格 + 「加载更多」 */
+@Composable
+private fun SquareList(
+    square: NeteaseMusicViewModel.Square,
+    onSelectCategory: (String) -> Unit,
+    onOpenPlaylist: (OnlinePlaylist) -> Unit,
+    onLoadMore: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // 「推荐」+ 官方分类（catalogue 的顺序本身就是官方顺序）
+    val categories = listOf("推荐") + square.groups.flatMap { it.names }.distinct()
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item("square_chips") {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(categories.size) { index ->
+                    val name = categories[index]
+                    val active = name == square.selected
+                    Text(
+                        text = name,
+                        fontSize = 12.sp,
+                        color = if (active) Color(palette.primary) else secondary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(palette.textPrimary).copy(alpha = if (active) 0.16f else 0.06f))
+                            .clickable { onSelectCategory(name) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        val rows = square.playlists.chunked(2)
+        items(count = rows.size, key = { "sq-" + it }) { rowIndex ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rows[rowIndex].forEach { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        landscape = landscape,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpenPlaylist(playlist) },
+                    )
+                }
+                if (rows[rowIndex].size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        if (square.hasMore || square.loading) {
+            item("square_more") {
+                Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (square.loading) {
+                            stringResource(R.string.netease_loading)
+                        } else {
+                            stringResource(R.string.netease_load_more)
+                        },
+                        fontSize = 13.sp,
+                        color = primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(palette.textPrimary).copy(alpha = 0.08f))
+                            .clickable(enabled = !square.loading) { onLoadMore() }
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 排行榜：官方全量榜单两列卡片 */
+@Composable
+private fun RankGrid(toplists: List<OnlinePlaylist>, onOpenPlaylist: (OnlinePlaylist) -> Unit) {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val rows = toplists.chunked(2)
+        items(count = rows.size, key = { "rank-" + it }) { rowIndex ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rows[rowIndex].forEach { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        landscape = landscape,
+                        modifier = Modifier.weight(1f),
+                        subtitle = stringResource(R.string.netease_official_chart),
+                        onClick = { onOpenPlaylist(playlist) },
+                    )
+                }
+                if (rows[rowIndex].size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** 歌手：热门歌手三列圆形头像 */
+@Composable
+private fun ArtistGrid(artists: List<NeteaseArtist>) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        val rows = artists.chunked(3)
+        items(count = rows.size, key = { "ar-" + it }) { rowIndex ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                rows[rowIndex].forEach { artist ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CoverTile(
+                            coverArtPath = artist.picUrl,
+                            audioPath = null,
+                            maxPx = 256,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color(palette.primary).copy(alpha = 0.16f)),
+                        ) {
+                            Text(artist.name.take(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = artist.name,
+                            fontSize = 12.sp,
+                            color = primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (artist.albumCount > 0) {
+                            Text(
+                                text = stringResource(R.string.netease_albums_count, artist.albumCount),
+                                fontSize = 10.sp,
+                                color = secondary,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                repeat(3 - rows[rowIndex].size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -727,6 +949,7 @@ private fun PlaylistCard(
     playlist: OnlinePlaylist,
     landscape: Boolean,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     onClick: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -767,7 +990,7 @@ private fun PlaylistCard(
         )
         if (playlist.songCount > 0) {
             Text(
-                text = stringResource(R.string.netease_songs_unit, playlist.songCount),
+                text = subtitle ?: stringResource(R.string.netease_songs_unit, playlist.songCount),
                 fontSize = 10.sp,
                 color = secondary,
             )

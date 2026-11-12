@@ -125,6 +125,39 @@ class NeteaseApiClient @Inject constructor(
         }
     }
 
+    /**
+     * 歌单广场分类（官方分组）：`/api/playlist/catalogue` 的 `categories` 是 id→分组名，
+     * `sub[].category` 是分组 id —— 插件 `GetPlaylistCategoryGroupsAsync` 同源。
+     */
+    suspend fun playlistCatalogue(): List<CatalogueGroup> {
+        val root = getJson("https://music.163.com/api/playlist/catalogue") ?: return emptyList()
+        val cats = root["categories"] as? JsonObject ?: return emptyList()
+        val groups = linkedMapOf<String, MutableList<String>>()
+        (root["sub"] as? JsonArray)?.forEach { element ->
+            val obj = element as? JsonObject ?: return@forEach
+            val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val groupId = obj["category"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+            val group = cats[groupId]?.jsonPrimitive?.contentOrNull ?: "其他"
+            groups.getOrPut(group) { mutableListOf() }.add(name)
+        }
+        return groups.map { CatalogueGroup(it.key, it.value) }
+    }
+
+    /** 热门歌手（歌手 tab 首屏） */
+    suspend fun topArtists(limit: Int = 30, offset: Int = 0): List<NeteaseArtist> {
+        val root = getJson("https://music.163.com/api/artist/top?limit=$limit&offset=$offset") ?: return emptyList()
+        val list = (root["artists"] as? JsonArray) ?: return emptyList()
+        return list.mapNotNull { element ->
+            val obj = element as? JsonObject ?: return@mapNotNull null
+            NeteaseArtist(
+                id = obj["id"]?.jsonPrimitive?.longOrNull?.toString() ?: return@mapNotNull null,
+                name = obj["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                picUrl = cover(toHttps(obj["picUrl"]?.jsonPrimitive?.contentOrNull), 300),
+                albumCount = obj["albumSize"]?.jsonPrimitive?.intOrNull ?: 0,
+            )
+        }
+    }
+
     /** 推荐歌单（匿名可用；登录后更个性化） */
     suspend fun recommendPlaylists(): List<OnlinePlaylist> {
         val root = getJson("$PERSONALIZED_API?limit=30") ?: return emptyList()

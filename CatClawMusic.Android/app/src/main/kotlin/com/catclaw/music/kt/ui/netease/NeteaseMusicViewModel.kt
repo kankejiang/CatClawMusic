@@ -73,6 +73,86 @@ class NeteaseMusicViewModel @Inject constructor(
         data class Failed(val message: String) : Login
     }
 
+    /** 歌单广场状态（对齐插件 精选/歌单广场/排行榜/歌手 四个 HomeTab） */
+    data class Square(
+        val groups: List<com.catclaw.music.kt.data.netease.CatalogueGroup> = emptyList(),
+        val selected: String = "推荐",
+        val playlists: List<OnlinePlaylist> = emptyList(),
+        val loading: Boolean = false,
+        val page: Int = 1,
+        val hasMore: Boolean = false,
+    )
+
+    private val _square = MutableStateFlow(Square())
+    val square: StateFlow<Square> = _square.asStateFlow()
+
+    /** 0 精选 / 1 歌单广场 / 2 排行榜 / 3 歌手 */
+    private val _homeTab = MutableStateFlow(0)
+    val homeTab: StateFlow<Int> = _homeTab.asStateFlow()
+
+    private val _topArtists = MutableStateFlow<List<NeteaseArtist>>(emptyList())
+    val topArtists: StateFlow<List<NeteaseArtist>> = _topArtists.asStateFlow()
+
+    fun selectHomeTab(index: Int) {
+        _homeTab.value = index
+        when (index) {
+            1 -> if (_square.value.playlists.isEmpty() && !_square.value.loading) loadSquare()
+            3 -> if (_topArtists.value.isEmpty()) loadTopArtists()
+        }
+    }
+
+    fun loadSquare(category: String? = null) {
+        val name = category ?: _square.value.selected
+        if (_square.value.loading) return
+        viewModelScope.launch {
+            _square.value = _square.value.copy(selected = name, loading = true, playlists = emptyList(), page = 1)
+            val groups = if (_square.value.groups.isEmpty()) {
+                runCatching { api.playlistCatalogue() }.getOrDefault(emptyList())
+            } else {
+                _square.value.groups
+            }
+            val list = runCatching {
+                api.playlists(if (name == "推荐") null else name, page = 1, pageSize = SQUARE_PAGE_SIZE)
+            }.getOrDefault(emptyList())
+            _square.value = _square.value.copy(
+                groups = groups,
+                playlists = list,
+                loading = false,
+                page = 1,
+                hasMore = list.size >= SQUARE_PAGE_SIZE,
+            )
+        }
+    }
+
+    fun loadMoreSquare() {
+        val current = _square.value
+        if (current.loading || !current.hasMore) return
+        viewModelScope.launch {
+            _square.value = current.copy(loading = true)
+            val nextPage = current.page + 1
+            val list = runCatching {
+                api.playlists(
+                    if (current.selected == "推荐") null else current.selected,
+                    page = nextPage,
+                    pageSize = SQUARE_PAGE_SIZE,
+                )
+            }.getOrDefault(emptyList())
+            val existing = current.playlists.map { it.id }.toSet()
+            _square.value = _square.value.copy(
+                playlists = current.playlists + list.filter { it.id !in existing },
+                loading = false,
+                page = nextPage,
+                hasMore = list.size >= SQUARE_PAGE_SIZE,
+            )
+        }
+    }
+
+    fun loadTopArtists() {
+        viewModelScope.launch {
+            _topArtists.value = runCatching { api.topArtists(30) }.getOrDefault(emptyList())
+        }
+    }
+
     private val _home = MutableStateFlow(Home())
     val home: StateFlow<Home> = _home.asStateFlow()
 
@@ -347,6 +427,7 @@ class NeteaseMusicViewModel @Inject constructor(
 
     private companion object {
         const val SEARCH_PAGE_SIZE = 20
+        const val SQUARE_PAGE_SIZE = 20
     }
 
     /**
