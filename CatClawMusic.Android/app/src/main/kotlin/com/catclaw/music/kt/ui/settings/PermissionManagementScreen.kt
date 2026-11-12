@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +37,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import javax.inject.Inject
@@ -64,11 +66,12 @@ fun PermissionManagementScreen(
     onBack: () -> Unit,
     viewModel: PermissionViewModel = hiltViewModel(),
 ) {
-    val probe = viewModel.probe
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
     var tick by mutableIntStateOf(0)
-    var snapshot by remember(tick) { mutableStateOf(probe.snapshot()) }
+    val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
+    // 进页、权限弹窗返回、点刷新：都走 VM 在 IO 线程重读，不在组合期探测
+    LaunchedEffect(tick) { viewModel.refresh() }
     val title = Color(highlightOnGlassCard(palette))
 
     val requestAudio = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -114,15 +117,15 @@ fun PermissionManagementScreen(
                 row = row,
                 titleColor = title,
                 onAction = {
-                    val intent = probe.requestIntent(row.kind)
+                    val intent = viewModel.requestIntent(row.kind)
                     if (intent != null) runCatching { context.startActivity(intent) }
-                    else requestAudio.launch(probe.runtimePermissions(row.kind))
+                    else requestAudio.launch(viewModel.runtimePermissions(row.kind))
                 },
             )
         }
 
         Box(modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)) {
-            PillLabel(text = stringResource(R.string.OpenAppSettings), onClick = { runCatching { context.startActivity(probe.appSettingsIntent()) } }, filled = false)
+            PillLabel(text = stringResource(R.string.OpenAppSettings), onClick = { runCatching { context.startActivity(viewModel.appSettingsIntent()) } }, filled = false)
         }
     }
 }
@@ -200,7 +203,3 @@ private fun iconOf(row: PermissionRow) = when (row.kind) {
     PermissionKind.Overlay -> R.drawable.ic_equalizer
     PermissionKind.Notification -> R.drawable.ic_play
 }
-
-/** 页面只要一个能拿到 probe 的入口，状态本身留在 Compose 里（每次进页/刷新现读） */
-@HiltViewModel
-class PermissionViewModel @Inject constructor(val probe: AndroidPermissionProbe) : ViewModel()

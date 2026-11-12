@@ -1,77 +1,57 @@
 package com.catclaw.music.kt.ui.download
 
 import androidx.lifecycle.ViewModel
-import com.catclaw.music.kt.data.download.DownloadSettings
+import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.data.download.DownloadTask
-import com.catclaw.music.kt.data.download.MusicDownloader
+import com.catclaw.music.kt.data.repository.download.DownloadsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- * 下载管理 —— MAUI `DownloadsPage` 的对应物（磁力那半按既定判例不做）。
+ * 下载管理 —— MAUI `DownloadsPage` 的对应物。
  *
- * 任务表是 `MusicDownloader` 的内存 StateFlow，这里只补两件它没有的：
- * 下载目录的路径与占用（磁盘上的数，进页现读一次，不跟着任务流走）。
+ * 目录占用与删除后的重算全部走 [DownloadsRepository]（IO 线程）：
+ * 旧实现把 `walkTopDown().sumOf { length() }` 放在 LaunchedEffect 里同步跑，进页会卡首帧。
  */
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
-    private val downloader: MusicDownloader,
-    private val settings: DownloadSettings,
+    private val downloads: DownloadsRepository,
 ) : ViewModel() {
 
-    data class Snapshot(val directoryPath: String = "", val directoryBytes: Long = 0L)
+    val tasks: StateFlow<List<DownloadTask>> = downloads.tasks
 
-    /** 每任务限速档位（KB/s），0 = 不限。取于偏好、写在偏好，下载器每次读它 */
-    private val _speedKbps = MutableStateFlow(settings.speedKbps)
-    val speedKbps: StateFlow<Int> = _speedKbps.asStateFlow()
+    val speedKbps: StateFlow<Int> = downloads.speedKbps
 
-    /** 点一下切到下一档（档位表见 `DownloadLimits.SPEED_STEPS_KBPS`） */
-    fun cycleSpeedLimit() {
-        _speedKbps.value = settings.nextSpeedKbps()
-    }
+    fun cycleSpeedLimit() = downloads.cycleSpeedLimit()
 
-    /** 同时下载几首（1..5）。默认 2，与 C# `DefaultConcurrent` 同值 */
-    private val _concurrent = MutableStateFlow(settings.concurrent)
-    val concurrent: StateFlow<Int> = _concurrent.asStateFlow()
+    val concurrent: StateFlow<Int> = downloads.concurrent
 
-    /** 点一下调到下一档；调高会立刻唤醒排队中的任务 */
-    fun cycleConcurrent() {
-        _concurrent.value = settings.nextConcurrent()
-        downloader.setConcurrent(_concurrent.value)
-    }
+    fun cycleConcurrent() = downloads.cycleConcurrent()
 
-    val tasks: StateFlow<List<DownloadTask>> = downloader.tasks
-
-    private val _snapshot = MutableStateFlow(Snapshot())
-    val snapshot: StateFlow<Snapshot> = _snapshot.asStateFlow()
+    private val _snapshot = MutableStateFlow(DownloadsRepository.Snapshot())
+    val snapshot: StateFlow<DownloadsRepository.Snapshot> = _snapshot.asStateFlow()
 
     /**
-     * 进页时读一次。
-     *
-     * 不在 `init` 里读：这页是设置页里的一层覆盖层，`hiltViewModel()` 挂在设置的导航条目上，
-     * 覆盖层关掉 VM 也不死 —— 只在 init 读会让第二次进来看到第一次的目录占用。
+     * 进页时读一次（IO 线程）。
+     * 不在 init 里读：这页是设置页里的一层覆盖层，VM 不会随覆盖层销毁。
      */
     fun refresh() {
-        _snapshot.value = Snapshot(
-            directoryPath = downloader.directoryPath(),
-            directoryBytes = downloader.directorySizeBytes(),
-        )
+        viewModelScope.launch { _snapshot.value = downloads.snapshot() }
     }
 
-    fun pause(songId: Int) = downloader.pause(songId)
+    fun pause(songId: Int) = downloads.pause(songId)
 
-    fun resume(songId: Int) = downloader.resume(songId)
+    fun resume(songId: Int) = downloads.resume(songId)
 
-    fun cancel(songId: Int) = downloader.cancel(songId)
+    fun cancel(songId: Int) = downloads.cancel(songId)
 
-    fun dismiss(songId: Int) = downloader.dismiss(songId)
+    fun dismiss(songId: Int) = downloads.dismiss(songId)
 
     fun deleteFile(songId: Int) {
-        downloader.deleteFile(songId)
-        // 删完立刻重读目录占用，否则页面上那个数还留着刚删掉的字节
-        refresh()
+        viewModelScope.launch { _snapshot.value = downloads.deleteAndSnapshot(songId) }
     }
 }
