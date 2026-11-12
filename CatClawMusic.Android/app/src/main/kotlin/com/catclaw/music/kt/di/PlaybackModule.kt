@@ -54,6 +54,7 @@ object PlaybackModule {
 
     @Provides
     @Singleton
+    @com.catclaw.music.kt.data.di.AppScope
     fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @Provides
@@ -62,7 +63,7 @@ object PlaybackModule {
         @ApplicationContext context: Context,
         cache: AudioCache,
         store: KeyValueStore,
-        scope: CoroutineScope,
+        @com.catclaw.music.kt.data.di.AppScope scope: CoroutineScope,
         history: PlayHistoryRecorder,
         audioFx: AndroidAudioFx,
         fxPrefs: AudioFxPreferences,

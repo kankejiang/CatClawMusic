@@ -35,7 +35,7 @@ class PlayingViewModel @Inject constructor(
     private val desktopLyric: DesktopLyricSettings,
     private val lyricStatus: DesktopLyricStatus,
     private val session: PlaybackSessionStarter,
-    private val neteaseLikes: com.catclaw.music.kt.data.netease.NeteaseLikeRepository,
+    private val neteaseLikes: com.catclaw.music.kt.data.repository.netease.NeteaseLikeRepository,
 ) : ViewModel() {
 
     /** 标签要说的是**实况**：意图为开 **且** 窗口真的在屏幕上 */

@@ -18,10 +18,15 @@ class NeteaseSession @Inject constructor(
 ) {
     private val prefs = context.getSharedPreferences("netease_session", Context.MODE_PRIVATE)
 
+    /** 会话版本号：cookie 变化（登录/续期/登出）时自增，Repository 据此刷新身份与歌单 */
+    private val _revision = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val revision: kotlinx.coroutines.flow.StateFlow<Int> = _revision
+
     var cookie: String?
         get() = prefs.getString(KEY_COOKIE, null)?.takeIf { it.isNotBlank() }
         set(value) {
             prefs.edit().putString(KEY_COOKIE, value).apply()
+            _revision.value += 1
         }
 
     var userId: String?
@@ -51,6 +56,7 @@ class NeteaseSession @Inject constructor(
             if (kv.size == 2 && kv[0].isNotBlank()) map[kv[0]] = kv[1]
         }
         cookie = map.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        _revision.value += 1
     }
 
     fun clear() {

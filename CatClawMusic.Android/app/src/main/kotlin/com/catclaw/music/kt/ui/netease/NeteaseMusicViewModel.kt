@@ -8,12 +8,12 @@ import com.catclaw.music.kt.core.model.SongSource
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
-import com.catclaw.music.kt.data.netease.NeteaseLoginClient
+import com.catclaw.music.kt.data.repository.netease.NeteaseAccountRepository
 import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
-import com.catclaw.music.kt.data.netease.NeteaseLikeRepository
-import com.catclaw.music.kt.data.netease.NeteaseRadioRepository
+import com.catclaw.music.kt.data.repository.netease.NeteaseLikeRepository
+import com.catclaw.music.kt.data.repository.netease.NeteaseRadioRepository
 import com.catclaw.music.kt.data.netease.NeteaseArtist
-import com.catclaw.music.kt.data.netease.toQueueSong
+import com.catclaw.music.kt.data.netease.NeteaseSongMapper
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class NeteaseMusicViewModel @Inject constructor(
     private val api: NeteaseApiClient,
-    private val loginClient: NeteaseLoginClient,
+    private val accountRepo: NeteaseAccountRepository,
     private val playUrlResolver: NeteasePlayUrlResolver,
     private val radio: NeteaseRadioRepository,
     private val likes: NeteaseLikeRepository,
@@ -165,11 +165,9 @@ class NeteaseMusicViewModel @Inject constructor(
     private val _detail = MutableStateFlow<Detail?>(null)
     val detail: StateFlow<Detail?> = _detail.asStateFlow()
 
-    private val _account = MutableStateFlow<NeteaseApiClient.Account?>(null)
-    val account: StateFlow<NeteaseApiClient.Account?> = _account.asStateFlow()
-
-    private val _myPlaylists = MutableStateFlow<List<OnlinePlaylist>>(emptyList())
-    val myPlaylists: StateFlow<List<OnlinePlaylist>> = _myPlaylists.asStateFlow()
+    /** 账号唯一源在 NeteaseAccountRepository（登录态/身份/歌单），这里只转发 */
+    val account: StateFlow<NeteaseApiClient.Account?> = accountRepo.account
+    val myPlaylists: StateFlow<List<OnlinePlaylist>> = accountRepo.myPlaylists
 
     private val _login = MutableStateFlow<Login>(Login.Idle)
     val login: StateFlow<Login> = _login.asStateFlow()
@@ -178,9 +176,8 @@ class NeteaseMusicViewModel @Inject constructor(
     private val _smsCountdown = MutableStateFlow(0)
     val smsCountdown: StateFlow<Int> = _smsCountdown.asStateFlow()
 
-    /** 当前列表里已红心的歌（用于列表 ❤ 标记；登录后才有值） */
-    private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
-    val likedIds: StateFlow<Set<String>> = _likedIds.asStateFlow()
+    /** 红心唯一源在 NeteaseLikeRepository：列表页/播放页读同一份，不再持有空副本 */
+    val likedIds: StateFlow<Set<String>> = likes.likedIds
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
@@ -199,13 +196,8 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     init {
-        viewModelScope.launch {
-            _account.value = api.account()
-            likes.refresh()
-            if (_account.value != null) {
-                _myPlaylists.value = api.userPlaylists()
-            }
-        }
+        accountRepo.refresh()
+        likes.refresh()
     }
 
     fun loadHome() {
@@ -295,7 +287,6 @@ class NeteaseMusicViewModel @Inject constructor(
      * 电台是 [NeteaseRadioRepository] 单例，关掉本页也继续补货（插件的 VM 同为插件级单例）。
      */
     fun playPrivateFm() {
-        radio.refreshLogin()
         radio.start()
         _toast.value = "私人漫游已开始"
     }
@@ -312,9 +303,7 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     fun refreshMyPlaylists() {
-        viewModelScope.launch {
-            _myPlaylists.value = runCatching { api.userPlaylists() }.getOrDefault(emptyList())
-        }
+        accountRepo.refresh(force = true)
     }
 
     fun like(song: OnlineSong, like: Boolean) {
@@ -329,7 +318,7 @@ class NeteaseMusicViewModel @Inject constructor(
         if (_login.value is Login.Busy) return
         viewModelScope.launch {
             _login.value = Login.Busy
-            val outcome = runCatching { loginClient.sendSmsCode(phone, countryCode) }.getOrNull()
+            val outcome = runCatching { accountRepo.sendSms(phone, countryCode) }.getOrNull()
             if (outcome?.ok == true) {
                 _login.value = Login.SmsSent
                 _smsCountdown.value = 60
@@ -348,7 +337,7 @@ class NeteaseMusicViewModel @Inject constructor(
         if (_login.value is Login.Busy) return
         viewModelScope.launch {
             _login.value = Login.Busy
-            val outcome = runCatching { loginClient.loginWithSms(phone, captcha, countryCode) }.getOrNull()
+            val outcome = runCatching { accountRepo.loginWithSms(phone, captcha, countryCode) }.getOrNull()
             if (outcome?.ok == true) {
                 onLoggedIn()
             } else {
@@ -362,7 +351,7 @@ class NeteaseMusicViewModel @Inject constructor(
         viewModelScope.launch {
             _login.value = Login.Busy
             val outcome = runCatching {
-                loginClient.loginWithPassword(account, password, countryCode)
+                accountRepo.loginWithPassword(account, password, countryCode)
             }.getOrNull()
             if (outcome?.ok == true) {
                 onLoggedIn()
@@ -373,20 +362,14 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     private suspend fun onLoggedIn() {
-        radio.refreshLogin()
-        likes.refresh(force = true)
-        _account.value = runCatching { api.account() }.getOrNull()
+        // session.revision 自增会驱动 accountRepo 与 likes 自动刷新
+        accountRepo.refresh(force = true)
         _login.value = Login.Idle
-        _myPlaylists.value = runCatching { api.userPlaylists() }.getOrDefault(emptyList())
-        _toast.value = "已登录：${_account.value?.nickname.orEmpty()}"
+        _toast.value = "已登录：${accountRepo.account.value?.nickname.orEmpty()}"
     }
 
     fun logout() {
-        loginClient.logout()
-        radio.refreshLogin()
-        _account.value = null
-        _myPlaylists.value = emptyList()
-        likes.clear()
+        accountRepo.logout() // 登录态清空后 likes 由 Repository 自动 clear
         _login.value = Login.Idle
     }
 
@@ -407,7 +390,7 @@ class NeteaseMusicViewModel @Inject constructor(
         radio.stop()
         viewModelScope.launch {
             val queue = songs.mapIndexed { position, online ->
-                online.toQueueSong(position, api.fallbackPlayUrl(online.id).orEmpty())
+                NeteaseSongMapper.toQueueSong(online, position, api.fallbackPlayUrl(online.id).orEmpty())
             }.toMutableList()
             // 当前曲按偏好音质取链（20 分钟缓存 + 自动降档）；整队逐首取链会让点击后等很久
             if (index in queue.indices) {

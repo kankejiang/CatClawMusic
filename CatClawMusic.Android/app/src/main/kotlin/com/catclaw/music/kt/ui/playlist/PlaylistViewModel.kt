@@ -9,6 +9,7 @@ import com.catclaw.music.kt.core.library.filterAndSortSongs
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.PlaylistCover
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
+import com.catclaw.music.kt.data.repository.netease.NeteaseAccountRepository
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.db.PlaylistDao
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
@@ -34,18 +35,15 @@ class PlaylistViewModel @Inject constructor(
     private val playlistDao: PlaylistDao,
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
-    private val netease: NeteaseApiClient,
+    private val accountRepo: NeteaseAccountRepository,
 ) : ViewModel() {
 
     /**
-     * 网易云账号里的歌单（含「我喜欢的音乐」）。登录后这里才有值；
-     * 页面每次重新进入时调 [refreshNetease]，因为登录动作发生在网易云页。
+     * 网易云账号里的歌单（含「我喜欢的音乐」）：唯一源在 NeteaseAccountRepository，
+     * 登录动作发生在网易云页，回到歌单页时调 [refreshNetease] 触发一次共享刷新。
      */
-    private val _neteaseAccount = MutableStateFlow<NeteaseApiClient.Account?>(null)
-    val neteaseAccount: StateFlow<NeteaseApiClient.Account?> = _neteaseAccount.asStateFlow()
-
-    private val _neteasePlaylists = MutableStateFlow<List<OnlinePlaylist>>(emptyList())
-    val neteasePlaylists: StateFlow<List<OnlinePlaylist>> = _neteasePlaylists.asStateFlow()
+    val neteaseAccount: StateFlow<NeteaseApiClient.Account?> = accountRepo.account
+    val neteasePlaylists: StateFlow<List<OnlinePlaylist>> = accountRepo.myPlaylists
 
     val playlists = playlistDao.observePlaylists().stateIn(
         scope = viewModelScope,
@@ -86,15 +84,7 @@ class PlaylistViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun refreshNetease() {
-        viewModelScope.launch {
-            val me = runCatching { netease.account() }.getOrNull()
-            _neteaseAccount.value = me
-            _neteasePlaylists.value = if (me != null) {
-                runCatching { netease.userPlaylists() }.getOrDefault(emptyList())
-            } else {
-                emptyList()
-            }
-        }
+        accountRepo.refresh(force = true)
     }
 
     fun open(id: Int) {

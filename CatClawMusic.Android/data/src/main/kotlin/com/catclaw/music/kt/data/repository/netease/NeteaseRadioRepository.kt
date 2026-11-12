@@ -1,12 +1,12 @@
-package com.catclaw.music.kt.data.netease
+package com.catclaw.music.kt.data.repository.netease
 
 import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
+import com.catclaw.music.kt.data.netease.NeteaseSongMapper
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
-import com.catclaw.music.kt.data.netease.NeteaseSession
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,15 +34,14 @@ class NeteaseRadioRepository @Inject constructor(
     private val resolver: NeteasePlayUrlResolver,
     private val player: PlayerController,
     private val playbackSession: PlaybackSessionStarter,
-    private val session: NeteaseSession,
+    private val account: NeteaseAccountRepository,
+    @com.catclaw.music.kt.data.di.AppScope private val scope: CoroutineScope,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _fmMode = MutableStateFlow(false)
     val fmMode: StateFlow<Boolean> = _fmMode.asStateFlow()
 
-    private val _loggedIn = MutableStateFlow(session.isLoggedIn)
-    val loggedIn: StateFlow<Boolean> = _loggedIn.asStateFlow()
+    val loggedIn: StateFlow<Boolean> get() = account.loggedIn
 
     private var savedMode: PlayMode? = null
     private var refilling = false
@@ -63,11 +62,6 @@ class NeteaseRadioRepository @Inject constructor(
                 if (_fmMode.value) ensureBuffer()
             }
         }
-    }
-
-    /** 登录发生在网易云页，回到发现页时刷新一次 */
-    fun refreshLogin() {
-        _loggedIn.value = session.isLoggedIn
     }
 
     fun start() {
@@ -91,7 +85,7 @@ class NeteaseRadioRepository @Inject constructor(
                         song.id.toLongOrNull() ?: 0L,
                     )
                     val url = if (index == 0) firstUrl?.takeIf { it.isNotBlank() } ?: fallback else fallback
-                    song.toQueueSong(index, url)
+                    NeteaseSongMapper.toQueueSong(song, index, url)
                 }
                 if (savedMode == null) savedMode = player.state.value.mode
                 playbackSession.ensure()
@@ -109,7 +103,7 @@ class NeteaseRadioRepository @Inject constructor(
                     scope.launch {
                         val id = song.id.toLongOrNull() ?: return@launch
                         runCatching { resolver.resolve(id) }.getOrNull()?.let { url ->
-                            player.upgradeQueueItem(song.toQueueSong(0, "").id, url)
+                            player.upgradeQueueItem(NeteaseSongMapper.toQueueSong(song, 0, "").id, url)
                         }
                     }
                 }
@@ -137,10 +131,10 @@ class NeteaseRadioRepository @Inject constructor(
         try {
             val existing = queueSongs.map { it.id }.toSet()
             val next = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
-                .filter { it.toQueueSong(0, "").id !in existing }
+                .filter { NeteaseSongMapper.toQueueSong(it, 0, "").id !in existing }
             if (next.isNotEmpty()) {
                 player.appendSongs(next.mapIndexed { index, song ->
-                    song.toQueueSong(index, NeteasePlaylistClient.playUrlFallback(song.id.toLongOrNull() ?: 0L))
+                    NeteaseSongMapper.toQueueSong(song, index, NeteasePlaylistClient.playUrlFallback(song.id.toLongOrNull() ?: 0L))
                 })
                 AppLog.d(
                     "NeteaseFm",
