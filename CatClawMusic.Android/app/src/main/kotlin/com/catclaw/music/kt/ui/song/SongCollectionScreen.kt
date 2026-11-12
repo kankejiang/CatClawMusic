@@ -1,6 +1,16 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clipToBounds
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.screen.PlaylistDetailHeader
 import androidx.compose.foundation.background
@@ -117,6 +127,9 @@ fun SongCollectionScreen(
         )
     }
 }
+
+/** 竖屏大封面头的内容高度（收起动画的位移上限） */
+private val CollectionHeaderHeight = 190.dp
 
 /** 横屏信息列宽度：822dp 可用宽度里切出 240，列表留 582dp（≈ 每行歌名 380dp 可视） */
 private val LandscapeInfoWidth = 240.dp
@@ -248,7 +261,21 @@ private fun CollectionPortrait(
 ) {
     val primary = Color(LocalCatClawPalette.current.textPrimary)
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
-    Column(modifier.fillMaxSize()) {
+    // 网易云同款：上滑隐藏大封面头、下滑恢复；顶栏固定不动
+    val density = LocalDensity.current
+    val headerMaxPx = with(density) { CollectionHeaderHeight.toPx() }
+    var headerOffset by remember { mutableFloatStateOf(0f) }
+    val collapse = remember(headerMaxPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val next = (headerOffset + available.y).coerceIn(-headerMaxPx, 0f)
+                val consumed = next - headerOffset
+                headerOffset = next
+                return Offset(0f, consumed)
+            }
+        }
+    }
+    Column(modifier.fillMaxSize().nestedScroll(collapse)) {
         // 顶栏：返回必须留在头部之上（共享头不绑定导航）
         Row(
             modifier = Modifier
@@ -261,7 +288,14 @@ private fun CollectionPortrait(
             trailing()
         }
         // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
-        // 封面 104 + 标题/副标题/计数 + 圆形播放键 + 其余动作胶囊
+        // 封面 104 + 标题/副标题/计数 + 圆形播放键 + 其余动作胶囊；随上滑收缩
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(with(density) { (headerMaxPx + headerOffset).coerceIn(0f, headerMaxPx).toDp() })
+                .clipToBounds(),
+        ) {
+        Column(Modifier.height(CollectionHeaderHeight)) {
         PlaylistDetailHeader(
             title = title,
             cover = cover?.coverArtPath,
@@ -278,6 +312,8 @@ private fun CollectionPortrait(
                 }
             },
         )
+        }
+        }
         search?.let {
             GlassSearchField(
                 query = it.query,
