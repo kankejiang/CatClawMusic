@@ -1,6 +1,8 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
@@ -248,6 +250,35 @@ private fun CollectionLandscape(
     }
 }
 
+/** 独立搜索页：顶栏输入框（自动聚焦）+ 宿主列表（随 query 过滤） */
+@Composable
+private fun CollectionSearchPage(
+    search: CollectionSearch,
+    onClose: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            BackTile(onBack = onClose, description = stringResource(R.string.queue_back))
+            GlassSearchField(
+                query = search.query,
+                onChange = search.onChange,
+                placeholder = search.hint,
+                modifier = Modifier.weight(1f),
+                compact = true,
+                focusRequester = focus,
+            )
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) { content() }
+    }
+}
+
 @Composable
 private fun CollectionPortrait(
     title: String,
@@ -268,8 +299,8 @@ private fun CollectionPortrait(
     val density = LocalDensity.current
     val headerMaxPx = with(density) { CollectionHeaderHeight.toPx() }
     var headerOffset by remember { mutableFloatStateOf(0f) }
-    // 搜索默认收起，点右上角图标展开（网易云同款）；已有搜索词时直接展开
-    var searchOpen by remember { mutableStateOf(!search?.query.isNullOrEmpty()) }
+    // 点右上角图标进入独立搜索页（网易云同款）：整页输入框 + 结果列表，自动聚焦弹键盘
+    var searchPage by remember { mutableStateOf(false) }
     val collapse = remember(headerMaxPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -279,6 +310,10 @@ private fun CollectionPortrait(
                 return Offset(0f, consumed)
             }
         }
+    }
+    if (searchPage && search != null) {
+        CollectionSearchPage(search = search, onClose = { searchPage = false }) { content() }
+        return
     }
     Column(modifier.fillMaxSize().nestedScroll(collapse)) {
         // 顶栏：返回必须留在头部之上（共享头不绑定导航）
@@ -296,7 +331,7 @@ private fun CollectionPortrait(
                         .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(primary.copy(alpha = 0.10f))
-                        .clickable { searchOpen = !searchOpen },
+                        .clickable { searchPage = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -335,15 +370,6 @@ private fun CollectionPortrait(
             },
         )
         }
-        }
-        if (searchOpen) search?.let {
-            GlassSearchField(
-                query = it.query,
-                onChange = it.onChange,
-                placeholder = it.hint,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                compact = true,
-            )
         }
         val groups = chipGroups.filter { it.isNotEmpty() }
         if (groups.isNotEmpty()) {

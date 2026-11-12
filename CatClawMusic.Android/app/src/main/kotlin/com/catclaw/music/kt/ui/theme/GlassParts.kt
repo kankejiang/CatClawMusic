@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -221,6 +222,8 @@ fun GlassSearchField(
     palette: CatClawPalette = LocalCatClawPalette.current,
     /** 横屏信息列宽 208dp，底部还要放 chips：压到 42dp 并让提示单行省略 */
     compact: Boolean = false,
+    /** 独立搜索页进入时自动聚焦并弹键盘 */
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     val ink = Color(palette.textPrimary)
     val shape = RoundedCornerShape(22.dp)
@@ -234,7 +237,7 @@ fun GlassSearchField(
             singleLine = true,
             textStyle = TextStyle(color = ink, fontSize = 13.sp),
             cursorBrush = SolidColor(Color(palette.primary)),
-            modifier = modifier.fillMaxWidth(),
+            modifier = (if (focusRequester != null) modifier.focusRequester(focusRequester) else modifier).fillMaxWidth(),
             decorationBox = { inner ->
                 Box(
                     modifier = Modifier
@@ -285,7 +288,7 @@ fun GlassSearchField(
             cursorColor = Color(palette.primary),
         ),
         shape = RoundedCornerShape(22.dp),
-        modifier = modifier
+        modifier = (if (focusRequester != null) modifier.focusRequester(focusRequester) else modifier)
             .fillMaxWidth()
             .then(if (compact) Modifier.height(42.dp) else Modifier),
     )
