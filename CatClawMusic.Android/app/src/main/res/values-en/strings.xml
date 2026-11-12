@@ -40,6 +40,7 @@
     <string name="disc_artists_rec">Artists for you</string>
     <string name="disc_search_hint">Search songs, artists, albums, or online…</string>
     <string name="disc_empty">Library is empty — scan local music first</string>
+    <string name="mode_infinite">Infinite</string>
     <string name="mode_sequential">Sequential</string>
     <string name="mode_shuffle">Shuffle</string>
     <string name="mode_single">Repeat one</string>

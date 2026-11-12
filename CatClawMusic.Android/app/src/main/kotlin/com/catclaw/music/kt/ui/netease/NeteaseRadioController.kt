@@ -50,7 +50,13 @@ class NeteaseRadioController @Inject constructor(
 
     init {
         // 事件路径 + 定时兜底，与插件双路径一致（宿主可能不回调播完事件）
-        scope.launch { player.state.collect { if (_fmMode.value) ensureBuffer() } }
+        scope.launch {
+            player.state.collect { state ->
+                // 外部换了队列（playSongs 清了 FM 态）→ 与插件 LeaveFmMode 一样恢复原模式
+                if (!state.isFmMode && _fmMode.value) stop()
+                if (_fmMode.value) ensureBuffer()
+            }
+        }
         scope.launch {
             while (true) {
                 delay(20_000)
@@ -81,9 +87,12 @@ class NeteaseRadioController @Inject constructor(
                     song.toQueueSong(index, url?.takeIf { it.isNotBlank() } ?: fallback)
                 }
                 if (savedMode == null) savedMode = player.state.value.mode
-                player.setMode(PlayMode.Sequential)
                 playbackSession.ensure()
                 player.playSongs(queue, 0)
+                // playSongs 会清 FM 态，所以标记必须放在入队之后；
+                // 播放页随即显示「无限」，且循环只剩两档
+                player.setFmMode(true)
+                player.setMode(PlayMode.Sequential)
                 _fmMode.value = true
             } finally {
                 starting = false
@@ -95,6 +104,7 @@ class NeteaseRadioController @Inject constructor(
     fun stop() {
         if (!_fmMode.value && savedMode == null) return
         _fmMode.value = false
+        player.setFmMode(false)
         savedMode?.let { player.setMode(it) }
         savedMode = null
     }

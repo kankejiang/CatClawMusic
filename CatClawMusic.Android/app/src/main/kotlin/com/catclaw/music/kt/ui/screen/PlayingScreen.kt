@@ -226,6 +226,7 @@ fun PlayingScreen(
                 placeholder = song?.title?.take(1) ?: "♪",
                 isPlaying = state.isPlaying,
                 mode = state.mode,
+                isFmMode = state.isFmMode,
                 durationMs = state.durationMs,
                 positionMsFlow = viewModel.positionMs,
                 favorite = state.currentSong?.let { it.id in menu.favoriteIds } == true,
@@ -376,8 +377,8 @@ fun PlayingScreen(
         ) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 IconButton40(
-                    icon = modeIcon(state.mode),
-                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(state.mode)),
+                    icon = modeIcon(state.mode, state.isFmMode),
+                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(state.mode, state.isFmMode)),
                     tint = Color(palette.textSecondary),
                     onClick = { viewModel.cycleMode() },
                 )
@@ -666,16 +667,16 @@ private fun IconButton52(
 }
 
 @Composable
-private fun modeIcon(mode: PlayMode): PlayerIcon = when (mode) {
-    PlayMode.Sequential -> PlayerIcons.Sequential
+private fun modeIcon(mode: PlayMode, isFmMode: Boolean): PlayerIcon = when (mode) {
+    PlayMode.Sequential -> if (isFmMode) PlayerIcons.Infinite else PlayerIcons.Sequential
     PlayMode.Shuffle -> PlayerIcons.Shuffle
     PlayMode.SingleRepeat -> PlayerIcons.RepeatOne
     PlayMode.ListRepeat -> PlayerIcons.Repeat
 }
 
 /** 播报当前档位而不是只说「切换播放模式」，否则读屏听到的永远是同一句 */
-private fun modeLabelRes(mode: PlayMode): Int = when (mode) {
-    PlayMode.Sequential -> R.string.mode_sequential
+private fun modeLabelRes(mode: PlayMode, isFmMode: Boolean): Int = when (mode) {
+    PlayMode.Sequential -> if (isFmMode) R.string.mode_infinite else R.string.mode_sequential
     PlayMode.Shuffle -> R.string.mode_shuffle
     PlayMode.SingleRepeat -> R.string.mode_single
     PlayMode.ListRepeat -> R.string.mode_list
@@ -855,6 +856,7 @@ private fun LandscapeNowPlaying(
     placeholder: String,
     isPlaying: Boolean,
     mode: PlayMode,
+    isFmMode: Boolean = false,
     durationMs: Long,
     positionMsFlow: kotlinx.coroutines.flow.StateFlow<Long>,
     favorite: Boolean,
@@ -1048,8 +1050,8 @@ private fun LandscapeNowPlaying(
                 }
                 LandscapeIconButton(PlayerIcons.Next, stringResource(R.string.next_song), palette, onNext)
                 LandscapeIconButton(
-                    icon = modeIcon(mode),
-                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(mode)),
+                    icon = modeIcon(mode, isFmMode),
+                    description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(mode, isFmMode)),
                     palette = palette,
                     onClick = onCycleMode,
                 )

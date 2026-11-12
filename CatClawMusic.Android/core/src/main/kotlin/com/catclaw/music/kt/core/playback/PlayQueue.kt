@@ -18,6 +18,13 @@ class PlayQueue {
     private val songIdToIndex = HashMap<Int, Int>()
     private var currentIndex = -1
 
+    /**
+     * 是否处于私人漫游（FM）电台模式：激活时仅允许「单曲循环 ↔ 无限（Sequential）」切换，
+     * 禁用随机/列表循环；播放页模式按钮据此显示「无限」。
+     * 对齐 MAUI `Core/PlayQueue.IsFmMode`。
+     */
+    var isFmMode: Boolean = false
+
     var playMode: PlayMode = PlayMode.ListRepeat
         set(value) {
             val old = field

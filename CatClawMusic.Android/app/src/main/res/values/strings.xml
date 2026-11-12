@@ -40,6 +40,7 @@
     <string name="disc_artists_rec">推荐艺人</string>
     <string name="disc_search_hint">搜索歌曲、歌手、专辑，或在线音乐…</string>
     <string name="disc_empty">曲库为空，先在音乐库里扫描本地音乐</string>
+    <string name="mode_infinite">无限</string>
     <string name="mode_sequential">顺序</string>
     <string name="mode_shuffle">随机</string>
     <string name="mode_single">单曲循环</string>

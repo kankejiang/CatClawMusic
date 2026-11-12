@@ -33,6 +33,8 @@ data class PlaybackUiState(
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val mode: PlayMode = PlayMode.ListRepeat,
+    /** 私人漫游电台模式（决定模式档位与「无限」图标，见 MAUI PlayQueue.IsFmMode） */
+    val isFmMode: Boolean = false,
     val queueSize: Int = 0,
     val durationMs: Long = 0,
     val error: String? = null,
@@ -298,6 +300,8 @@ class PlayerController(
     /** 用一批歌替换队列并从 startIndex 播 */
     override fun playSongs(songs: List<Song>, startIndex: Int) {
         if (songs.isEmpty()) return
+        // 任何显式新队列都意味着离开私人漫游（FM 续播走 appendSongs，不经过这里）
+        queue.isFmMode = false
         queue.setSongs(songs)
         val start = songs.getOrNull(startIndex) ?: return
         queue.selectSong(start.id)
@@ -396,6 +400,12 @@ class PlayerController(
         save()
     }
 
+    /** 进入/退出私人漫游电台态（插件 PlayFmSongAsync / LeaveFmMode 对应物） */
+    fun setFmMode(enabled: Boolean) {
+        queue.isFmMode = enabled
+        publish()
+    }
+
     fun setMode(mode: PlayMode) {
         queue.playMode = mode
         syncPlayerList(resumeAtMs = player.currentPosition)
@@ -408,8 +418,14 @@ class PlayerController(
      *  「点一下图标纹丝不动」的档位（真机反馈 2026-10-01）；MAUI 也只在 FM 电台模式下用顺序播放。
      *  当前若是顺序播放（agent / FM 设进来的），下一跳落到列表循环。 */
     fun cycleMode() {
-        val order = listOf(PlayMode.ListRepeat, PlayMode.SingleRepeat, PlayMode.Shuffle)
-        setMode(order[(order.indexOf(queue.playMode) + 1) % order.size])
+        if (queue.isFmMode) {
+            // 私人漫游：只有「无限(Sequential) ↔ 单曲循环」两档，随机 / 列表循环禁用
+            // （MAUI NowPlayingViewModel.CyclePlayMode 同规则）
+            setMode(if (queue.playMode == PlayMode.SingleRepeat) PlayMode.Sequential else PlayMode.SingleRepeat)
+        } else {
+            val order = listOf(PlayMode.ListRepeat, PlayMode.SingleRepeat, PlayMode.Shuffle)
+            setMode(order[(order.indexOf(queue.playMode) + 1) % order.size])
+        }
     }
 
     override fun addToQueue(song: Song, nextUp: Boolean) {
@@ -638,6 +654,7 @@ class PlayerController(
         _state.value = _state.value.copy(
             currentSong = current,
             mode = queue.playMode,
+            isFmMode = queue.isFmMode,
             queueSize = _queueSongs.value.size,
             isPlaying = player.playWhenReady,
             isBuffering = player.playbackState == Player.STATE_BUFFERING,

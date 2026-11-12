@@ -37,6 +37,8 @@ object PlayerIcons {
     val Previous = PlayerIcon(R.drawable.ic_skip_previous)
     val Next = PlayerIcon(R.drawable.ic_skip_next)
     val Sequential = PlayerIcon(R.drawable.ic_repeat_all)
+    /** 私人漫游「无限」档：MAUI ic_infinite.svg 同款，现成 izetizer PNG 按 dpi 缩放 */
+    val Infinite = PlayerIcon(R.drawable.ic_infinite)
     val Shuffle = PlayerIcon(R.drawable.ic_shuffle)
     val Repeat = PlayerIcon(R.drawable.ic_repeat_all)
     val RepeatOne = PlayerIcon(R.drawable.ic_repeat_one)
