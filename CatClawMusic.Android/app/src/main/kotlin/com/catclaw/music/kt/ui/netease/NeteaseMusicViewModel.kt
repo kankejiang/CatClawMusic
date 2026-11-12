@@ -10,7 +10,10 @@ import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteaseLoginClient
 import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
+import com.catclaw.music.kt.data.netease.NeteaseLikeRepository
+import com.catclaw.music.kt.data.netease.NeteaseRadioRepository
 import com.catclaw.music.kt.data.netease.NeteaseArtist
+import com.catclaw.music.kt.data.netease.toQueueSong
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
@@ -35,8 +38,8 @@ class NeteaseMusicViewModel @Inject constructor(
     private val api: NeteaseApiClient,
     private val loginClient: NeteaseLoginClient,
     private val playUrlResolver: NeteasePlayUrlResolver,
-    private val radio: NeteaseRadioController,
-    private val likes: NeteaseLikeController,
+    private val radio: NeteaseRadioRepository,
+    private val likes: NeteaseLikeRepository,
     private val controller: PlayerController,
     private val playbackSession: PlaybackSessionStarter,
 ) : ViewModel() {
@@ -289,7 +292,7 @@ class NeteaseMusicViewModel @Inject constructor(
 
     /**
      * 私人漫游 = 电台按钮：点一下直接开播，不进列表页。
-     * 电台是 [NeteaseRadioController] 单例，关掉本页也继续补货（插件的 VM 同为插件级单例）。
+     * 电台是 [NeteaseRadioRepository] 单例，关掉本页也继续补货（插件的 VM 同为插件级单例）。
      */
     fun playPrivateFm() {
         radio.refreshLogin()

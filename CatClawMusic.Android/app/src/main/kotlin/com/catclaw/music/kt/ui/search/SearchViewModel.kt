@@ -27,7 +27,7 @@ class SearchViewModel @Inject constructor(
     private val dao: LibraryDao,
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
-    private val radio: com.catclaw.music.kt.ui.netease.NeteaseRadioController,
+    private val radio: com.catclaw.music.kt.data.netease.NeteaseRadioRepository,
 ) : ViewModel() {
 
     /** 网易云账号登录态：决定发现页是否出现「私人 FM」按钮 */

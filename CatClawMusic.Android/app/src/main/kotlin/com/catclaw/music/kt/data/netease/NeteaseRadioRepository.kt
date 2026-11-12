@@ -1,4 +1,4 @@
-package com.catclaw.music.kt.ui.netease
+package com.catclaw.music.kt.data.netease
 
 import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.core.playback.PlayMode
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
  * 播到本批最后一首再补 3 首、20 秒定时兜底、退出时恢复原播放模式。
  */
 @Singleton
-class NeteaseRadioController @Inject constructor(
+class NeteaseRadioRepository @Inject constructor(
     private val api: NeteaseApiClient,
     private val resolver: NeteasePlayUrlResolver,
     private val player: PlayerController,

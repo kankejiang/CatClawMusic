@@ -1,4 +1,4 @@
-package com.catclaw.music.kt.ui.netease
+package com.catclaw.music.kt.data.netease
 
 import com.catclaw.music.kt.core.model.ProtocolType
 import com.catclaw.music.kt.core.model.Song

@@ -1,4 +1,4 @@
-package com.catclaw.music.kt.ui.netease
+package com.catclaw.music.kt.data.netease
 
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
 import com.catclaw.music.kt.data.netease.NeteaseSession
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  * 任意一处切换，其它处立刻跟着变。
  */
 @Singleton
-class NeteaseLikeController @Inject constructor(
+class NeteaseLikeRepository @Inject constructor(
     private val api: NeteaseApiClient,
     private val session: NeteaseSession,
 ) {
