@@ -176,7 +176,7 @@ fun PlaylistDetailHeader(
             }
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.netease_play_all), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = primary)
-                Text(stringResourceSongs(songCount), fontSize = 11.sp, color = secondary)
+                Text(countText ?: stringResourceSongs(songCount), fontSize = 11.sp, color = secondary)
             }
         }
     }
