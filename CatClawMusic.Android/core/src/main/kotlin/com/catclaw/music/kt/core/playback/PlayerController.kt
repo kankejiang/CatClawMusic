@@ -548,24 +548,25 @@ class PlayerController(
             publish(song)
             return
         }
+        // 在线曲直接流式起播（CacheDataSource 边下边播 + 落盘）。
+        // 旧实现要求 AudioCache 把整首歌下载完才允许 playWhenReady，这是切歌慢的主因；
+        // 而且 ExoPlayer 并不读那份缓存，同一首歌会被下载两遍。
         preBufferedForId = -1
-        if (song.isRemote) {
-            scope.launch {
-                runCatching { cache.getOrCreate(song.filePath) }
-                    .onSuccess { player.seekTo(index, 0); player.playWhenReady = true }
-                    .onFailure { publish(song, error = it.message) }
-            }
-        } else {
-            player.seekTo(index, resumeAtMs)
-            player.playWhenReady = true
-        }
+        player.seekTo(index, resumeAtMs)
+        player.playWhenReady = true
         publish(song)
     }
 
-    private fun buildMediaItem(song: Song): MediaItem =
-        MediaItem.Builder()
+    private fun buildMediaItem(song: Song): MediaItem {
+        val builder = MediaItem.Builder()
             .setUri(uriOf(song))
             .setMediaId(song.id.toString())
+        // 网易云直链每次签名都不同：缓存 key 必须与 URL 解耦（对齐 customCacheKey 用法），
+        // 否则同一首歌两次播放是两个缓存条目，CacheDataSource 永远 miss
+        // "netease:" 前缀与 :data 的 NeteasePlaylistClient.REMOTE_PREFIX 保持一致（core 不依赖 data）
+        song.remoteId?.takeIf { it.startsWith("netease:") }
+            ?.let { builder.setCustomCacheKey(it) }
+        return builder
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(song.title)
@@ -576,33 +577,13 @@ class PlayerController(
                     .build(),
             )
             .build()
+    }
 
     private fun uriOf(song: Song): Uri {
         val path = song.filePath
         return if (path.contains("://")) Uri.parse(path) else Uri.fromFile(File(path))
     }
 
-    /**
-     * 下一首若是网络曲目，在其剩余 [AudioCache.PRE_BUFFER_SECONDS] 秒内提前落到磁盘缓存。
-     * 与 C# NowPlayingViewModel 一致：按"当前曲 id"加闩，一首歌只触发一次；本地曲目与已缓存的直接跳过。
-     */
-    private fun maybePrebufferNext() {
-        val current = queue.currentSong ?: return
-        if (preBufferedForId == current.id) return
-        val durationSec = _state.value.durationMs / 1000.0
-        if (durationSec <= 0) return
-        if (durationSec - player.currentPosition / 1000.0 > AudioCache.PRE_BUFFER_SECONDS) return
-        preBufferedForId = current.id
-        val upcoming = queue.peekNextSong() ?: return
-        if (!upcoming.isRemote) return
-        if (cache.cachedFile(upcoming.filePath) != null) return
-        scope.launch { runCatching { cache.getOrCreate(upcoming.filePath) } }
-    }
-
-    /**
-     * 每开始一次聆听回调一次。:core 不碰数据库，所以由 :data 侧（服务）接给播放历史记录器。
-     * 判定规则在 [ListenCounter] —— 挂错地方要么虚高要么漏记，两种都静默。
-     */
     var onListenStarted: ((Int) -> Unit)? = null
     private val listens = ListenCounter()
 
@@ -712,7 +693,6 @@ class PlayerController(
                 if (prebufferWatcher?.isActive != true) {
                     prebufferWatcher = scope.launch {
                         while (true) {
-                            maybePrebufferNext()
                             delay(PREBUFFER_POLL_MS)
                         }
                     }
