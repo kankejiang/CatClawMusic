@@ -35,6 +35,7 @@ class PlayingViewModel @Inject constructor(
     private val desktopLyric: DesktopLyricSettings,
     private val lyricStatus: DesktopLyricStatus,
     private val session: PlaybackSessionStarter,
+    private val neteaseLikes: com.catclaw.music.kt.ui.netease.NeteaseLikeController,
 ) : ViewModel() {
 
     /** 标签要说的是**实况**：意图为开 **且** 窗口真的在屏幕上 */
@@ -48,6 +49,16 @@ class PlayingViewModel @Inject constructor(
     }
 
     val state = controller.state
+
+    /** 网易云「我喜欢的音乐」镜像：在线曲的红心只读这里，不进本地 Favorites */
+    val neteaseLikedIds: kotlinx.coroutines.flow.StateFlow<Set<String>> = neteaseLikes.likedIds
+    val neteaseHint: kotlinx.coroutines.flow.StateFlow<String?> = neteaseLikes.hint
+
+    init { neteaseLikes.refresh() }
+
+    fun toggleNeteaseLike(songId: String) = neteaseLikes.toggle(songId)
+
+    fun consumeNeteaseHint() = neteaseLikes.consumeHint()
 
     /** 睡眠定时的实况（剩余秒、是否在等曲目播完）。倒计时与音量淡出都在播放器那一侧走，
      *  页面只是读它——关掉页面定时也该继续。 */

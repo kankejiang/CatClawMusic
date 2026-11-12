@@ -36,6 +36,7 @@ class NeteaseMusicViewModel @Inject constructor(
     private val loginClient: NeteaseLoginClient,
     private val playUrlResolver: NeteasePlayUrlResolver,
     private val radio: NeteaseRadioController,
+    private val likes: NeteaseLikeController,
     private val controller: PlayerController,
     private val playbackSession: PlaybackSessionStarter,
 ) : ViewModel() {
@@ -117,6 +118,7 @@ class NeteaseMusicViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _account.value = api.account()
+            likes.refresh()
             if (_account.value != null) {
                 _myPlaylists.value = api.userPlaylists()
             }
@@ -221,7 +223,7 @@ class NeteaseMusicViewModel @Inject constructor(
             _detail.value = Detail(virtual, loading = true)
             val songs = runCatching { api.likedSongs() }.getOrDefault(emptyList())
             _detail.value = Detail(virtual, songs, loading = false)
-            _likedIds.value = songs.map { it.id }.toSet()
+            likes.adopt(songs.map { it.id }.toSet())
             if (songs.isEmpty()) _toast.value = "还没有红心歌曲，或未登录"
         }
     }
@@ -233,15 +235,8 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     fun like(song: OnlineSong, like: Boolean) {
-        viewModelScope.launch {
-            val ok = runCatching { api.likeSong(song.id, like) }.getOrDefault(false)
-            if (ok) {
-                _likedIds.value = if (like) _likedIds.value + song.id else _likedIds.value - song.id
-                _toast.value = if (like) "已加入我喜欢的音乐" else "已取消红心"
-            } else {
-                _toast.value = "操作失败，先确认已登录"
-            }
-        }
+        // 目标态由单例镜像决定，成功后所有页面同步刷新；不碰本地收藏表
+        likes.toggle(song.id)
     }
 
     // ── 登录 ───────────────────────────────────────────────────
@@ -296,6 +291,7 @@ class NeteaseMusicViewModel @Inject constructor(
 
     private suspend fun onLoggedIn() {
         radio.refreshLogin()
+        likes.refresh(force = true)
         _account.value = runCatching { api.account() }.getOrNull()
         _login.value = Login.Idle
         _myPlaylists.value = runCatching { api.userPlaylists() }.getOrDefault(emptyList())
@@ -307,7 +303,7 @@ class NeteaseMusicViewModel @Inject constructor(
         radio.refreshLogin()
         _account.value = null
         _myPlaylists.value = emptyList()
-        _likedIds.value = emptySet()
+        likes.clear()
         _login.value = Login.Idle
     }
 

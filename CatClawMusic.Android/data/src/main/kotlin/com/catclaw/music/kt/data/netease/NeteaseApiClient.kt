@@ -226,6 +226,7 @@ class NeteaseApiClient @Inject constructor(
     }
 
     fun logout() {
+        likedPlaylistIdCache = null
         session.clear()
     }
 
@@ -255,9 +256,20 @@ class NeteaseApiClient @Inject constructor(
     }
 
     /** 红心/取消红心。csrf_token 必须带上（插件注释：缺它时"会员歌能播但红心失败"） */
+    /** 「我喜欢的音乐」歌单 id：红心是高频操作，没必要每次都先拉一遍 user/playlist */
+    @Volatile
+    private var likedPlaylistIdCache: String? = null
+
+    private suspend fun likedPlaylistId(): String? {
+        likedPlaylistIdCache?.let { return it }
+        val id = userPlaylists().firstOrNull()?.id
+        likedPlaylistIdCache = id
+        return id
+    }
+
     suspend fun likeSong(songId: String, like: Boolean): Boolean {
         val cookie = session.cookie ?: return false
-        val pid = userPlaylists().firstOrNull()?.id ?: return false
+        val pid = likedPlaylistId() ?: return false
         val root = postForm(
             LIKE_API,
             mapOf(

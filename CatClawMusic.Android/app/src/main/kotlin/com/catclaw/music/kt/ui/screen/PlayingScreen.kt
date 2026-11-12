@@ -111,9 +111,17 @@ fun PlayingScreen(
     viewModel: PlayingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val neteaseLikedIds by viewModel.neteaseLikedIds.collectAsStateWithLifecycle()
+    val neteaseHint by viewModel.neteaseHint.collectAsStateWithLifecycle()
     val lastScan by viewModel.lastScan.collectAsStateWithLifecycle()
     val palette = LocalCatClawPalette.current
     val context = LocalContext.current
+    LaunchedEffect(neteaseHint) {
+        neteaseHint?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.consumeNeteaseHint()
+        }
+    }
     // 「更多」菜单要的能力（收藏/加入歌单/下一首/详情/歌手·专辑）与列表页是同一份，
     // 都来自 LibraryViewModel；两个 VM 读的是同一批 Room 单例流，不会因为多拿一个 VM 而出现两份状态
     val libraryViewModel: LibraryViewModel = hiltViewModel()
@@ -131,6 +139,18 @@ fun PlayingScreen(
         onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
         onOpenDetail = { songDetailId = it },
     )
+    // 网易云曲红心只写「我喜欢的音乐」（服务器），本地曲才写本地 Favorites。
+    // 两套体系互不串台，播放页 / 列表页读同一个单例镜像。
+    fun favoriteOf(remoteId: String?, songId: Int?): Boolean {
+        val netease = remoteId?.takeIf { it.startsWith("netease:") }?.removePrefix("netease:")
+        return if (netease != null) netease in neteaseLikedIds
+        else songId != null && songId in menu.favoriteIds
+    }
+    fun toggleFavoriteOf(remoteId: String?, songId: Int?) {
+        val netease = remoteId?.takeIf { it.startsWith("netease:") }?.removePrefix("netease:")
+        if (netease != null) viewModel.toggleNeteaseLike(netease)
+        else if (songId != null) menu.onToggleFavorite(songId)
+    }
     val sleep by viewModel.sleep.collectAsStateWithLifecycle()
     val desktopLyricOn by viewModel.desktopLyricEnabled.collectAsStateWithLifecycle()
     // 两层都画了自己的返回方块，系统返回键也必须退它们。组合在后的那条优先，
@@ -229,13 +249,13 @@ fun PlayingScreen(
                 isFmMode = state.isFmMode,
                 durationMs = state.durationMs,
                 positionMsFlow = viewModel.positionMs,
-                favorite = state.currentSong?.let { it.id in menu.favoriteIds } == true,
+                favorite = favoriteOf(state.currentSong?.remoteId, state.currentSong?.id),
                 onToggle = { viewModel.toggle() },
                 onNext = { viewModel.next() },
                 onPrevious = { viewModel.previous() },
                 onCycleMode = { viewModel.cycleMode() },
                 onSeek = { viewModel.seekTo(it) },
-                onToggleFavorite = { state.currentSong?.let { menu.onToggleFavorite(it.id) } },
+                onToggleFavorite = { toggleFavoriteOf(state.currentSong?.remoteId, state.currentSong?.id) },
                 onOpenQueue = onOpenQueue,
                 onSleepTimer = openSleepTimer,
                 onMore = { songMenuOpen = true },
@@ -328,8 +348,8 @@ fun PlayingScreen(
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            val current = state.currentSong?.takeIf { it.id > 0 }
-            val favorite = current != null && current.id in menu.favoriteIds
+            val current = state.currentSong
+            val favorite = favoriteOf(current?.remoteId, current?.id)
             // 定时关闭 / 音效 / 桌面歌词 / 横竖屏 四颗图标已收进「更多」菜单（见下方 sections）：
             // 挤在角上时它们只能靠「点亮」表达状态，而菜单里每一行都能把状态写成字
             Icon(
@@ -343,7 +363,7 @@ fun PlayingScreen(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .clickable(enabled = current != null) { current?.let { menu.onToggleFavorite(it.id) } }
+                    .clickable(enabled = current != null) { toggleFavoriteOf(current?.remoteId, current?.id) }
                     .padding(9.dp),
             )
             Spacer(Modifier.width(6.dp))
