@@ -77,7 +77,12 @@ class PlayerController(
                     RemoteAuthDataSources.factory(appContext),
                 ),
             )
+            // 官方预加载：当前曲播放时自动把 timeline 下一首预加载 30s，
+            // 预加载数据走 CacheDataSource 直接落进 player_cache —— 切歌秒开。
+            // （替代旧 AudioCache 整首预取：那份缓存 ExoPlayer 不读，纯双份下载）
             .build().apply {
+            // setPreloadConfiguration 是 ExoPlayer 实例方法（1.4+），不在 Builder 上
+            setPreloadConfiguration(ExoPlayer.PreloadConfiguration(30_000_000L))
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
