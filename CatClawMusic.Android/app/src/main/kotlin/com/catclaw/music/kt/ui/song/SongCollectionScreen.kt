@@ -1,6 +1,9 @@
 package com.catclaw.music.kt.ui.song
 
 import android.content.res.Configuration
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -301,6 +304,8 @@ private fun CollectionPortrait(
     var headerOffset by remember { mutableFloatStateOf(0f) }
     // 点右上角图标进入独立搜索页（网易云同款）：整页输入框 + 结果列表，自动聚焦弹键盘
     var searchPage by remember { mutableStateOf(false) }
+    // 筛选 / 排序收进右上角「更多」下拉菜单（网易云同款）
+    var actionsMenuOpen by remember { mutableStateOf(false) }
     val collapse = remember(headerMaxPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -342,6 +347,51 @@ private fun CollectionPortrait(
                     )
                 }
             }
+            if (chipGroups.any { it.isNotEmpty() }) {
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(primary.copy(alpha = 0.10f))
+                            .clickable { actionsMenuOpen = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_more),
+                            contentDescription = null,
+                            tint = primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = actionsMenuOpen,
+                        onDismissRequest = { actionsMenuOpen = false },
+                        modifier = Modifier.background(Color(LocalCatClawPalette.current.backgroundStops.last().argb)),
+                    ) {
+                        chipGroups.filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
+                            if (groupIndex > 0) {
+                                HorizontalDivider(color = primary.copy(alpha = 0.10f))
+                            }
+                            group.forEach { chip ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = (if (chip.selected) "✓ " else "") + chip.label,
+                                            fontSize = 14.sp,
+                                            color = if (chip.selected) Color(LocalCatClawPalette.current.primary) else primary,
+                                        )
+                                    },
+                                    onClick = {
+                                        chip.onClick()
+                                        actionsMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             trailing()
         }
         // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
@@ -370,38 +420,6 @@ private fun CollectionPortrait(
             },
         )
         }
-        }
-        val groups = chipGroups.filter { it.isNotEmpty() }
-        if (groups.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                groups.forEachIndexed { index, group ->
-                    // 组间竖线：来源与排序合成一条轨道后仍能一眼分开
-                    if (index > 0) {
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(14.dp)
-                                .background(secondary.copy(alpha = 0.22f)),
-                        )
-                    }
-                    group.forEach { chip ->
-                        GlassChip(
-                            label = chip.label,
-                            selected = chip.selected,
-                            onClick = chip.onClick,
-                            compact = true,
-                        )
-                    }
-                }
-            }
         }
         Spacer(Modifier.height(2.dp))
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
