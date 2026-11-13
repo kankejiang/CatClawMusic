@@ -716,7 +716,7 @@ fun LibraryScreen(
  * 本端从 ⑬ 起所有卡片都能拿到真封面，没有理由退回占位色块。取不到图才落回音符。
  */
 @Composable
-private fun RecentAddCard(song: SongListItem, onClick: () -> Unit) {
+internal fun RecentAddCard(song: SongListItem, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(
         modifier = Modifier
@@ -767,7 +767,7 @@ private fun RecentAddCard(song: SongListItem, onClick: () -> Unit) {
  * 文字层级交给字号（数字 20sp / 标签 11sp），不再把次要色压到 2.7:1。
  */
 @Composable
-private fun RowScope.StatTile(
+internal fun RowScope.StatTile(
     value: String,
     label: String,
     palette: CatClawPalette,
@@ -794,7 +794,7 @@ private fun RowScope.StatTile(
 
 /** 入口格：图标 + 文字，四格一行（统计格回答「有多少」，这里回答「去哪」） */
 @Composable
-private fun RowScope.EntryTile(
+internal fun RowScope.EntryTile(
     iconRes: Int,
     label: String,
     palette: CatClawPalette,
@@ -827,7 +827,7 @@ private fun RowScope.EntryTile(
 
 /** 资料库卡的一行；徽标上那个数字就是这种行的条数 */
 /** 资料库卡的一行。副标题由调用处给全：计数行是「N 首」，导航行是功能说明 */
-private data class LibrarySourceRow(
+internal data class LibrarySourceRow(
     val iconRes: Int,
     val name: String,
     val subtitle: String,
@@ -837,7 +837,7 @@ private data class LibrarySourceRow(
 )
 
 @Composable
-private fun SourceRow(
+internal fun SourceRow(
     iconRes: Int,
     name: String,
     subtitle: String,
@@ -891,381 +891,7 @@ private fun SourceRow(
 
 /** 统计格点进去的独立列表页（MAUI 的 AllSongsPage / ArtistsPage / AlbumsPage） */
 @Composable
-fun LibraryListScreen(
-    kind: LibraryKind,
-    onBack: () -> Unit,
-    onOpen: (LibraryDetail) -> Unit,
-    onOpenSong: (Int) -> Unit,
-    viewModel: LibraryViewModel = hiltViewModel(),
-) {
-    val palette = LocalCatClawPalette.current
-    val songs by viewModel.songs.collectAsStateWithLifecycle()
-    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
-    val recent by viewModel.recent.collectAsStateWithLifecycle()
-    val displaySongs by viewModel.displaySongs.collectAsStateWithLifecycle()
-    val shownArtists by viewModel.displayArtists.collectAsStateWithLifecycle()
-    val shownAlbums by viewModel.displayAlbums.collectAsStateWithLifecycle()
-    val infoQuery by viewModel.infoQuery.collectAsStateWithLifecycle()
-    val sort by viewModel.songSort.collectAsStateWithLifecycle()
-    val sortDescending by viewModel.songSortDescending.collectAsStateWithLifecycle()
-    val query by viewModel.songQuery.collectAsStateWithLifecycle()
-    // 全部歌曲页的来源筛选与它真正显示的那份列表（含网络曲）
-    val songSource by viewModel.songSource.collectAsStateWithLifecycle()
-    val displayAll by viewModel.displayAllSongs.collectAsStateWithLifecycle()
-    // 艺人页与专辑页共用一个搜索词，换页要清掉：留着上一张页的关键词，
-    // 新页看起来像是「什么都没有」
-    LaunchedEffect(kind) { viewModel.setInfoQuery("") }
-    // 宫格 / 列表：两张页各记一份、默认值各按 MAUI 的初值（艺人默认宫格、专辑默认列表，
-    // 见 `ArtistsViewModel.IsGridView = true` / `AlbumsViewModel.IsGridView = false`）。
-    // 与 MAUI 的 ViewModel 字段一样只活在内存里，不落盘
-    var artistsGrid by remember { mutableStateOf(true) }
-    var albumsGrid by remember { mutableStateOf(false) }
-    val menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpen(it.toLibraryDetail()) }) { onOpenSong(it) }
-    // MAUI 的 AllSongsPage 顶部就是「播放全部 / 随机播放」两个按钮，本端此前只能一行一行点着播。
-    // 艺人/专辑页没有"整张表"这张列表，所以那两个按钮只在歌曲类页面上画。
-    // 这里绑的是**屏幕上那份列表**：搜索框里有字、或排的是时长时，「播放全部」要播的是看到的那些，
-    // 而不是数据库里的全部——否则按钮和列表就成了两件事
-    val songRows: List<SongListItem>? = when (kind) {
-        LibraryKind.Songs -> displayAll
-        LibraryKind.Favorites -> favorites
-        LibraryKind.Recent -> recent
-        else -> null
-    }
-
-    val title = stringResource(
-        when (kind) {
-            LibraryKind.Songs -> R.string.lib_stat_songs
-            LibraryKind.Artists -> R.string.lib_stat_artists
-            LibraryKind.Albums -> R.string.lib_stat_albums
-            LibraryKind.Favorites -> R.string.lib_favorites_name
-            LibraryKind.Recent -> R.string.playlist_entry_recent
-        },
-    )
-    val count = when (kind) {
-        // 头部那个数字跟着列表走：搜出 3 首却还写着「128 首」，读起来像是搜索没生效
-        LibraryKind.Songs -> displayAll.size
-        LibraryKind.Favorites -> favorites.size
-        LibraryKind.Recent -> recent.size
-        LibraryKind.Artists -> shownArtists.size
-        LibraryKind.Albums -> shownAlbums.size
-    }
-    val countText = when (kind) {
-        // 量词要跟着内容走：艺人页顶着一句「32 首」是把人当歌唱
-        LibraryKind.Artists -> stringResource(R.string.lib_count_artists, count)
-        LibraryKind.Albums -> stringResource(R.string.lib_count_albums, count)
-        else -> stringResource(R.string.playlist_count, count)
-    }
-
-    // 筛选 / 排序 / 搜索按 kind 配好交给通用二级页；横屏会合并成一条横滚轨道，
-    // 竖屏仍按组各占一行，行为与原来逐页堆的版本一致。
-    val sourceChips = if (kind == LibraryKind.Songs) {
-        SongSourceFilter.entries.map { mode ->
-            CollectionChip(
-                label = stringResource(sourceFilterLabelRes(mode)),
-                selected = songSource == mode,
-                onClick = { viewModel.setSongSource(mode) },
-            )
-        }
-    } else emptyList()
-    val sortChips = if (kind == LibraryKind.Songs) {
-        SongSortKey.entries.map { mode ->
-            CollectionChip(
-                label = stringResource(sortLabelRes(mode)) +
-                    if (sort == mode) (if (sortDescending) " ↓" else " ↑") else "",
-                selected = sort == mode,
-                onClick = { viewModel.setSongSort(mode) },
-            )
-        }
-    } else emptyList()
-    val collectionSearch = when (kind) {
-        LibraryKind.Songs -> CollectionSearch(
-            query, stringResource(R.string.library_search_hint), viewModel::setSongQuery,
-        )
-        LibraryKind.Artists -> CollectionSearch(
-            infoQuery, stringResource(R.string.library_search_artist_hint), viewModel::setInfoQuery,
-        )
-        LibraryKind.Albums -> CollectionSearch(
-            infoQuery, stringResource(R.string.library_search_album_hint), viewModel::setInfoQuery,
-        )
-        else -> null
-    }
-
-    // 无歌单封面时用列表第一首歌的封面当头图（网易云同款行为）。
-    // 注意不能拿 coverArtPath 判空：本地歌封面内嵌在音频文件里，该字段本来就是 null，
-    // 只有 filePath 有值（CoverTile 会从内嵌标签抽图）。
-    val firstSong = when (kind) {
-        LibraryKind.Songs -> displayAll.firstOrNull()
-        LibraryKind.Favorites -> favorites.firstOrNull()
-        LibraryKind.Recent -> recent.firstOrNull()
-        else -> null
-    }
-    val heroCover = firstSong?.let {
-        CollectionCover(coverArtPath = it.coverArtPath, audioPath = it.filePath, fallback = title)
-    }
-    SongCollectionScreen(
-        title = title,
-        countText = countText,
-        cover = heroCover,
-        onBack = onBack,
-        actions = songRows?.let { rows ->
-            listOf(
-                CollectionAction(
-                    label = stringResource(R.string.playlist_play_all),
-                    iconRes = R.drawable.ic_play,
-                    primary = true,
-                    onClick = {
-                        when (kind) {
-                            LibraryKind.Favorites -> viewModel.playFavoriteAt(0)
-                            else -> viewModel.playRows(rows, 0)
-                        }
-                    },
-                ),
-                CollectionAction(
-                    label = stringResource(R.string.shuffle_play),
-                    iconRes = R.drawable.ic_shuffle,
-                    onClick = { viewModel.playShuffled(rows) },
-                ),
-            )
-        } ?: emptyList(),
-        chipGroups = listOfNotNull(
-            sourceChips.takeIf { it.isNotEmpty() },
-            sortChips.takeIf { it.isNotEmpty() },
-        ),
-        search = collectionSearch,
-        trailing = {
-            when (kind) {
-                LibraryKind.Artists -> ViewModeToggle(grid = artistsGrid) { artistsGrid = it }
-                LibraryKind.Albums -> ViewModeToggle(grid = albumsGrid) { albumsGrid = it }
-                else -> Unit
-            }
-        },
-    ) {
-        when (kind) {
-            LibraryKind.Songs -> SongList(
-                displayAll, subtitleOf = { it.artist }, menu = menu,
-                emptyHint = when {
-                    // 搜出来是空的时候不能说"曲库为空"——那是两件事，用户会以为歌掉了
-                    query.isNotBlank() -> stringResource(R.string.search_none, query.trim())
-                    // 选了「网络」而一首都没有时同理：曲库不是空的，是这一档没有内容。
-                    // 这时候劝人去"点扫描曲库"是答非所问（网络曲本来就扫不出来）
-                    songSource != SongSourceFilter.All -> stringResource(R.string.library_none)
-                    else -> stringResource(R.string.library_empty, songs.size)
-                },
-            ) { viewModel.playRows(displayAll, it) }
-            LibraryKind.Favorites -> SongList(
-                favorites, subtitleOf = { it.artist }, menu = menu,
-                // 这句以前是「曲库为空，点扫描曲库」—— 收藏为空和曲库为空是两件事，
-                // 而且这里正是该教用户「长按」的地方（真机截图时发现的）
-                emptyHint = stringResource(R.string.favorite_empty_hint),
-            ) { viewModel.playFavoriteAt(it) }
-            // 最近播放：数据源与歌单页顶部那张入口卡同一条流（LibraryViewModel.recent），
-            // 所以两处的顺序与内容永远一致
-            LibraryKind.Recent -> SongList(
-                recent, subtitleOf = { it.artist }, menu = menu,
-                emptyHint = stringResource(R.string.recent_empty_hint),
-            ) { viewModel.playRecentAt(it) }
-            LibraryKind.Artists -> InfoList(
-                rows = shownArtists.map {
-                    InfoRow(
-                        title = it.name,
-                        subtitle = stringResource(R.string.playlist_count, it.songCount),
-                        coverArtPath = it.cover,
-                        sampleFilePath = it.sampleFilePath,
-                    )
-                },
-                emptyHint = if (infoQuery.isBlank()) {
-                    stringResource(R.string.library_none)
-                } else {
-                    stringResource(R.string.library_search_none, infoQuery.trim())
-                },
-                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Artists, shownArtists[index].id, shownArtists[index].name)) },
-                grid = artistsGrid,
-            )
-            LibraryKind.Albums -> InfoList(
-                rows = shownAlbums.map {
-                    InfoRow(
-                        title = it.title,
-                        // MAUI 的专辑行是「歌手 · N 首 · 年份」：年份在本端没有这一列，
-                        // 先把「歌手 · N 首」补齐 —— 只写歌手名，一眼看不出这张专辑有几首
-                        subtitle = listOf(it.artist, stringResource(R.string.playlist_count, it.songCount))
-                            .filter { part -> part.isNotBlank() }
-                            .joinToString(" · "),
-                        coverArtPath = it.coverArtPath,
-                        sampleFilePath = it.sampleFilePath,
-                    )
-                },
-                emptyHint = if (infoQuery.isBlank()) {
-                    stringResource(R.string.library_none)
-                } else {
-                    stringResource(R.string.library_search_none, infoQuery.trim())
-                },
-                onOpen = { index -> onOpen(LibraryDetail(LibraryKind.Albums, shownAlbums[index].id, shownAlbums[index].title)) },
-                grid = albumsGrid,
-            )
-        }
-    }
-
-}
-
-/**
- * 艺人 / 专辑二级页：进页现读一次歌单（刚扫完库要能看到新结果），点一行就是"从这个位置起播这张列表"。
- *
- * 副标题两种页故意不同：艺人页每首的歌手都一样，展示歌手等于没展示，所以给专辑名；
- * 专辑页反过来给歌手名。
- */
-@Composable
-internal fun LibraryDetailScreen(
-    detail: LibraryDetail,
-    onBack: () -> Unit,
-    onOpenSong: (Int) -> Unit,
-    /** 从下钻页里的歌再跳到它的另一个归属（专辑页 → 歌手页） */
-    onOpenDetail: (LibraryDetail) -> Unit,
-    viewModel: LibraryViewModel,
-) {
-    val palette = LocalCatClawPalette.current
-    val byArtist = detail.kind == LibraryKind.Artists
-    // 艺人页的第二个 Tab：MAUI `ArtistDetailPage` 是「专辑 / 歌曲」两栏，本端此前只有歌曲列表 ——
-    // 想知道"这个人出过哪几张专辑"只能退回艺人列表一张张翻。专辑 Tab 的成员判据与歌曲列表同源
-    // （见 `SQL_ALBUMS_OF_ARTIST`），两个 Tab 不会对"这是不是他的专辑"给出两个答案
-    var albumTab by remember(detail) { mutableStateOf(false) }
-    val rows by produceState<List<SongListItem>?>(initialValue = null, detail) {
-        value = if (byArtist) viewModel.songsOfArtist(detail.id) else viewModel.songsOfAlbum(detail.id)
-    }
-    val loaded = rows.orEmpty()
-    val artistAlbums by produceState<List<AlbumListItem>?>(initialValue = null, detail, albumTab) {
-        value = if (byArtist && albumTab) viewModel.albumsOfArtist(detail.id) else null
-    }
-    // 专辑头卡（封面 / 歌手 / 年份）。艺人页不取：艺人没有专辑封面这回事，那头像列一直是空的
-    val albumHeader by produceState<AlbumHeader?>(initialValue = null, detail) {
-        value = if (byArtist) null else viewModel.albumHeader(detail.id)
-    }
-    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    // 「＋ 添加到」的选择弹层。跟着 detail 重置：换了一张专辑不该还开着上一张的框
-    var addToPlaylistOpen by remember(detail) { mutableStateOf(false) }
-
-    val head = albumHeader
-    val subtitle = listOfNotNull(
-        head?.artist?.takeIf { it.isNotBlank() },
-        head?.year?.takeIf { it > 0 }?.toString(),
-    ).joinToString(" · ").takeIf { it.isNotBlank() }
-
-    SongCollectionScreen(
-        title = detail.name,
-        countText = stringResource(R.string.playlist_count, loaded.size),
-        subtitle = subtitle,
-        onBack = onBack,
-        cover = head?.let { CollectionCover(it.coverArtPath, it.sampleFilePath, detail.name) },
-        actions = if (loaded.isNotEmpty() && !(byArtist && albumTab)) {
-            listOfNotNull(
-                CollectionAction(
-                    label = stringResource(R.string.playlist_play_all),
-                    iconRes = R.drawable.ic_play,
-                    primary = true,
-                    onClick = { viewModel.playRows(loaded, 0) },
-                ),
-                CollectionAction(
-                    label = stringResource(R.string.shuffle_play),
-                    iconRes = R.drawable.ic_shuffle,
-                    onClick = { viewModel.playShuffled(loaded) },
-                ),
-                // 艺人页那份列表跨专辑，没有「整张加进歌单」的语义
-                if (!byArtist) {
-                    CollectionAction(
-                        label = stringResource(R.string.song_menu_add_to_playlist),
-                        iconRes = R.drawable.ic_add,
-                        onClick = { addToPlaylistOpen = true },
-                    )
-                } else null,
-            )
-        } else emptyList(),
-        chipGroups = if (byArtist) {
-            listOf(
-                listOf(
-                    CollectionChip(
-                        label = stringResource(R.string.disc_cat_album),
-                        selected = albumTab,
-                        onClick = { albumTab = true },
-                    ),
-                    CollectionChip(
-                        label = stringResource(R.string.TabSongs),
-                        selected = !albumTab,
-                        onClick = { albumTab = false },
-                    ),
-                ),
-            )
-        } else emptyList(),
-    ) {
-        if (byArtist && albumTab) {
-            val list = artistAlbums.orEmpty()
-            InfoList(
-                rows = list.map {
-                    InfoRow(
-                        title = it.title,
-                        // 这里是艺人页里的专辑 Tab：每张的歌手都是同一个人，写歌手等于没写
-                        subtitle = stringResource(R.string.playlist_count, it.songCount),
-                        coverArtPath = it.coverArtPath,
-                        sampleFilePath = it.sampleFilePath,
-                    )
-                },
-                emptyHint = stringResource(R.string.library_none),
-                // 点一行就是进这张专辑的二级页，与专辑 Tab 里的卡片同一条路径
-                onOpen = { index ->
-                    onOpenDetail(LibraryDetail(LibraryKind.Albums, list[index].id, list[index].title))
-                },
-            )
-        } else {
-            SongList(
-                rows = loaded,
-                subtitleOf = { if (byArtist) it.album else it.artist },
-                menu = rememberSongMenu(viewModel, onOpenBelongs = { onOpenDetail(it.toLibraryDetail()) }) { onOpenSong(it) },
-                emptyHint = stringResource(R.string.song_list_empty_hint),
-                onPlay = { viewModel.playRows(loaded, it) },
-            )
-        }
-    }
-
-    if (addToPlaylistOpen) {
-        AddToPlaylistDialog(
-            title = detail.name,
-            playlists = playlists.map { it.id to it.name },
-            onPick = { playlistId ->
-                // 加的是**屏幕上这份列表**（当前 Tab 的 loaded），不是库里那张专辑的全部歌
-                viewModel.addToPlaylist(playlistId, loaded.map { it.id })
-                addToPlaylistOpen = false
-            },
-            onDismiss = { addToPlaylistOpen = false },
-        )
-    }
-}
-
-/**
- * 「＋ 添加到」的歌单选择弹层曾在这里；现搬到 `ui/song/SongActionMenu.kt` 共用
- * （歌曲长按菜单也要用它，两份迟早分叉）。
- *
- * C# 那边 `AlbumDetailPage.xaml:55` 也有一颗同名按钮，但它绑的 `AddToPlaylistCommand`
- * 在整个 C# 工程里都不存在 —— MAUI 的绑定失败是静默的，于是那颗按钮点了没反应。
- * 本端做实它（不画点了不动的项，在这条上是把按钮修好）。
- */
-
-/**
- * 艺人 / 专辑列表的一行。
- *
- * [coverArtPath] 是本端库里存的那一列（专辑/艺人级封面一直是空的：本端没有 MAUI 那台抽图引擎），
- * [sampleFilePath] 是代表曲 —— 出图实际靠它读内嵌封面（与发现页的卡片同一条路子）。
- */
-private data class InfoRow(
-    val title: String,
-    val subtitle: String,
-    val coverArtPath: String? = null,
-    val sampleFilePath: String? = null,
-)
-
-/**
- * 宫格 / 列表切换 —— MAUI 列表页顶部那对图标按钮（选中项用主色底 + 对比墨色）。
- * 64dp 的两颗按钮挤不下，所以做成一个胶囊里并排两颗 34dp 的图标。
- */
-@Composable
-private fun ViewModeToggle(grid: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ViewModeToggle(grid: Boolean, onChange: (Boolean) -> Unit) {
     val palette = LocalCatClawPalette.current
     Row(
         modifier = Modifier
@@ -1301,7 +927,7 @@ private fun ViewModeToggle(grid: Boolean, onChange: (Boolean) -> Unit) {
  * 宫格模式一屏能扫过三倍的内容，封面也是真的（[CoverTile]）。
  */
 @Composable
-private fun InfoList(rows: List<InfoRow>, emptyHint: String, onOpen: (Int) -> Unit, grid: Boolean = false) {
+internal fun InfoList(rows: List<InfoRow>, emptyHint: String, onOpen: (Int) -> Unit, grid: Boolean = false) {
     val palette = LocalCatClawPalette.current
     if (rows.isEmpty()) {
         EmptyHint(emptyHint)
@@ -1420,29 +1046,29 @@ private fun InfoList(rows: List<InfoRow>, emptyHint: String, onOpen: (Int) -> Un
 }
 
 @Composable
-private fun EmptyHint(text: String) {
+internal fun EmptyHint(text: String) {
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
         EmptyState(hint = text, iconRes = R.drawable.ic_library)
     }
 }
 
 /** 环形图的一段 */
-private data class InsightSlice(val label: String, val count: Int, val color: Color)
+internal data class InsightSlice(val label: String, val count: Int, val color: Color)
 
 /** 艺人那组前 5 名的配色：定序取色，多一段也不会没有颜色 */
-private val ARTIST_SLICE_COLORS = listOf(
+internal val ARTIST_SLICE_COLORS = listOf(
     Color(0xFF8C7BFF), Color(0xFF55D6FF), Color(0xFF7ED8C3), Color(0xFFF56FA0), Color(0xFFFFB74D),
 )
-private val ARTIST_OTHER_COLOR = Color(0xFF8D93B7)
+internal val ARTIST_OTHER_COLOR = Color(0xFF8D93B7)
 
-private fun artistSliceColor(index: Int): Color = ARTIST_SLICE_COLORS[index % ARTIST_SLICE_COLORS.size]
+internal fun artistSliceColor(index: Int): Color = ARTIST_SLICE_COLORS[index % ARTIST_SLICE_COLORS.size]
 
 /**
  * 甜甜圈：用 Canvas 的 drawArc 逐段画，不给每一段建节点（六段环建六个 Box 是白搭）。
  * 调用方已经滤掉空集合，这里仍然兜一个 total >= 1，免得除零。
  */
 @Composable
-private fun InsightDonut(slices: List<InsightSlice>, diameter: Dp = 132.dp) {
+internal fun InsightDonut(slices: List<InsightSlice>, diameter: Dp = 132.dp) {
     val stroke = 20.dp
     Canvas(modifier = Modifier.size(diameter)) {
         val ring = diameter.toPx() - stroke.toPx()
@@ -1468,7 +1094,7 @@ private fun InsightDonut(slices: List<InsightSlice>, diameter: Dp = 132.dp) {
 
 /** 翻页小按钮（‹ ›）：触达 44dp、视觉 30dp 的圆 —— 可点节点在 padding 之外 */
 @Composable
-private fun DonutStep(glyph: String, onClick: () -> Unit) {
+internal fun DonutStep(glyph: String, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Box(
         modifier = Modifier
@@ -1491,7 +1117,7 @@ private fun DonutStep(glyph: String, onClick: () -> Unit) {
 
 /** 音质档位的文案。六档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
 @StringRes
-private fun qualityLabelRes(bucket: QualityBucket): Int = when (bucket) {
+internal fun qualityLabelRes(bucket: QualityBucket): Int = when (bucket) {
     QualityBucket.Unknown -> R.string.quality_unknown
     QualityBucket.Kbps320 -> R.string.quality_320
     QualityBucket.Kbps256 -> R.string.quality_256
@@ -1504,7 +1130,7 @@ private fun qualityLabelRes(bucket: QualityBucket): Int = when (bucket) {
  * 档位配色。按**档位**取色而不是按行序：行序会随占用变化，行序取色的话
  * 同一档今天紫、明天蓝，看着像数据变了。
  */
-private fun bucketColor(bucket: QualityBucket): Color = when (bucket) {
+internal fun bucketColor(bucket: QualityBucket): Color = when (bucket) {
     QualityBucket.Kbps320 -> Color(0xFF8C7BFF)
     QualityBucket.Kbps256 -> Color(0xFF55D6FF)
     QualityBucket.Kbps192 -> Color(0xFF7ED8C3)
@@ -1515,7 +1141,7 @@ private fun bucketColor(bucket: QualityBucket): Color = when (bucket) {
 
 /** 来源筛选 chip 的文案。三档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
 @StringRes
-private fun sourceFilterLabelRes(filter: SongSourceFilter): Int = when (filter) {
+internal fun sourceFilterLabelRes(filter: SongSourceFilter): Int = when (filter) {
     SongSourceFilter.All -> R.string.song_source_all
     SongSourceFilter.Local -> R.string.song_source_local
     SongSourceFilter.Network -> R.string.song_source_network
