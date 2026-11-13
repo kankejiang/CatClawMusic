@@ -267,6 +267,7 @@ private fun CollectionSearchPage(
 ) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    androidx.activity.compose.BackHandler(enabled = true, onBack = onClose)
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),

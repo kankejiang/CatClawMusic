@@ -74,6 +74,7 @@ import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.PillLabel
+import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.GlassSearchField
 import com.catclaw.music.kt.ui.theme.catClawBackground
 import com.catclaw.music.kt.ui.theme.inkOnGradient
@@ -131,11 +132,26 @@ fun SearchScreen(
     // 两层下钻也要逐层退，且歌曲详情在最上：组合在后者优先，所以先写 detail 再写 songDetailId
     BackHandler(enabled = detail != null && active) { detail = null }
     BackHandler(enabled = songDetailId != null && active) { songDetailId = null }
-    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    // 点搜索进独立搜索页（与二级页同一套行为），不再原地展开
+    var searchPage by rememberSaveable { mutableStateOf(false) }
+    // 独立搜索页也是整屏覆盖层：不接返回键会直接退出应用
+    BackHandler(enabled = searchPage && active) { searchPage = false }
 
     LaunchedEffect(active) { if (active) viewModel.activate() }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (searchPage) {
+            DiscoverSearchPage(
+                query = query,
+                results = results,
+                onQueryChange = viewModel::setQuery,
+                onClose = { searchPage = false },
+                onPlay = { viewModel.play(results, it) },
+                primary = primary,
+                secondary = secondary,
+            )
+            return@Box
+        }
         // 2026-11-06 用户要求：发现页那四个**固定的大圆点**（环境色斑层）删掉。
         // 它们原本是给玻璃卡透色用的，但现在外壳已经铺了雾面动态背景，这几团固定色斑
         // 反而像背景没洗干净；玻璃卡改由动态背景透色。
@@ -172,8 +188,8 @@ fun SearchScreen(
                         artists = artists,
                         primary = primary,
                         secondary = secondary,
-                        searchOpen = searchOpen,
-                        onToggleSearch = { searchOpen = !searchOpen },
+                        searchOpen = false,
+                        onToggleSearch = { searchPage = true },
                         onQueryChange = { viewModel.setQuery(it) },
                         onOpenStats = { statsOpen = true },
                         onAskYuki = { chatMode = true },
@@ -199,22 +215,11 @@ fun SearchScreen(
                         Text(greeting(), fontSize = 13.sp, color = secondary, modifier = Modifier.padding(top = 4.dp))
                     }
                     // 这里是竖屏头部：横屏在 LandscapeDiscover 里有自己的一条（图标更小、含搜索与统计）
-                    GlassIcon(R.drawable.ic_search, stringResource(R.string.TabSearch)) { searchOpen = !searchOpen }
+                    GlassIcon(R.drawable.ic_search, stringResource(R.string.TabSearch)) { searchPage = true }
                     Spacer(Modifier.width(10.dp))
                     GlassIcon(R.drawable.ic_stats, stringResource(R.string.lib_open_stats)) { statsOpen = true }
                     Spacer(Modifier.width(10.dp))
                     GlassIcon(R.drawable.ic_settings, stringResource(R.string.Settings), onClick = onOpenSettings)
-                }
-            }
-
-            if (searchOpen || query.isNotBlank()) {
-                item("search") {
-                    GlassSearchField(
-                        query = query,
-                        onChange = viewModel::setQuery,
-                        placeholder = stringResource(R.string.disc_search_hint),
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
-                    )
                 }
             }
 
@@ -1060,6 +1065,58 @@ private val LandscapeChromeReserve = 80.dp
  * 竖着堆到第四块就只能被迷你条遮住 —— 2026-11-09 真机截图里四个入口只剩图标头顶。
  * 这里把宽度用起来：左栏约 38% 是每日推荐的实图大卡，右栏上排四入口、下排推荐货架。
  */
+
+/** 发现页独立搜索页：返回 + 自动聚焦输入框 + 搜索结果（与二级页搜索同一套交互） */
+@Composable
+private fun DiscoverSearchPage(
+    query: String,
+    results: List<SongListItem>,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onPlay: (Int) -> Unit,
+    primary: Color,
+    secondary: Color,
+) {
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            BackTile(onBack = onClose, description = stringResource(R.string.queue_back))
+            GlassSearchField(
+                query = query,
+                onChange = onQueryChange,
+                placeholder = stringResource(R.string.disc_search_hint),
+                modifier = Modifier.weight(1f),
+                compact = true,
+                focusRequester = focus,
+            )
+        }
+        when {
+            query.isBlank() -> EmptyState(
+                hint = stringResource(R.string.disc_search_hint),
+                iconRes = R.drawable.ic_search,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 24.dp),
+            )
+            results.isEmpty() -> EmptyState(
+                hint = stringResource(R.string.search_none, query.trim()),
+                iconRes = R.drawable.ic_search,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            )
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                item {
+                    SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { onPlay(it) }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LandscapeDiscover(
     modifier: Modifier = Modifier,
