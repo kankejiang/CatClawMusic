@@ -134,23 +134,11 @@ fun SettingsScreen(
             Spacer(Modifier.height(8.dp))
         } else {
             // HeroCard：照 MAUI `SettingsPage.xaml` —— 渐变卡 + 左上返回 + 标题/副标题 + 右上深浅色切换
+            // 无卡片页头：标题/副标题直接铺在背景上（与歌单页、音乐库同一套层级）
             Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp, bottom = 6.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0x7A55D6FF), Color(0x4D7ED8C3)),
-                    ),
-                )
-                .border(1.dp, primary.copy(alpha = 0.16f), RoundedCornerShape(26.dp))
-                .padding(
-                    start = 10.dp,
-                    end = 12.dp,
-                    top = if (landscape) 4.dp else 12.dp,
-                    bottom = if (landscape) 4.dp else 12.dp,
-                ),
+                .padding(top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -176,15 +164,14 @@ fun SettingsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.Settings),
-                        fontSize = 28.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Bold,
                         color = primary,
                     )
                     Text(
                         text = stringResource(R.string.SettingsSubtitle),
-                        fontSize = 14.sp,
-                        // 渐变上的次要文字用正文墨色（层级靠字号），次要色压在半透明渐变上只有 3.56/3.93:1
-                        color = primary,
+                        fontSize = 13.sp,
+                        color = secondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
