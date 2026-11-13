@@ -342,6 +342,10 @@
     <string name="local_scan_remove_folder">移除文件夹</string>
     <string name="local_scan_status">扫描状态</string>
     <string name="local_scan_now">立即扫描</string>
+    <string name="local_scan_tip">同时开启时扫描结果为两者的并集；只用自定义文件夹时请关闭媒体库</string>
+    <string name="local_scan_folder_count">已添加 %1$d 个文件夹</string>
+    <string name="local_scan_ready">就绪，点击「扫描音乐」开始</string>
+
     <string name="lib_stat_storage">存储占用</string>
     <string name="lib_open_stats">听歌统计</string>
     <string name="remote_edit">编辑</string>

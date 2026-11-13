@@ -342,6 +342,10 @@ Download it from GitHub.</string>
     <string name="local_scan_remove_folder">Remove folder</string>
     <string name="local_scan_status">Scan status</string>
     <string name="local_scan_now">Scan now</string>
+    <string name="local_scan_tip">When both are on, results are their union; turn MediaStore off if you only scan custom folders</string>
+    <string name="local_scan_folder_count">%1$d folder(s) added</string>
+    <string name="local_scan_ready">Ready — tap "Scan music" to start</string>
+
     <string name="lib_stat_storage">Storage</string>
     <string name="lib_open_stats">Listening stats</string>
     <string name="remote_edit">Edit</string>
