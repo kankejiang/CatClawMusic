@@ -111,13 +111,13 @@ private const val LyricScrollMs = 380
  * 留 6 行是为了让目标行先落在视口内（否则 animateScrollBy 无从计算像素距离），
  * 同时这 6 行的位移刚好形成「歌词向上滑入就位」的观感。
  */
-private const val LyricIntroLeadRows = 6
+internal const val LyricIntroLeadRows = 6
 
 /** 进页飞入时长：比切句的 380ms 更快，是「快速跳转」而不是慢悠悠滚一屏 */
-private const val LyricIntroMs = 320
+internal const val LyricIntroMs = 320
 
 /** 进页后补钉一次的时长：只做小修正，短一点避免看起来像重新跳了一次 */
-private const val LyricRepinMs = 150
+internal const val LyricRepinMs = 150
 
 /**
  * 全屏歌词页 —— 完全对齐 MAUI `FullLyricsPage`（2026-10-03 重写，2026-10-07 对齐滚动/视觉细节）：
@@ -549,7 +549,7 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
 
 /** 歌词列表：行间距 14dp（MAUI LyricStack Spacing=14），当前行缩放 1.25 + 行距呼吸（380ms） */
 @Composable
-private fun LyricList(
+internal fun LyricList(
     lines: List<com.catclaw.music.kt.core.lyrics.LyricLine>,
     currentIndex: Int,
     positionMsState: androidx.compose.runtime.State<Long>,
@@ -688,7 +688,7 @@ internal fun pinnedScrollOffsetPx(
 
 /** 无歌词徽标（MAUI NoLyricsBadge：玻璃样式、贴底居中） */
 @Composable
-private fun NoLyricsBadge(text: String, modifier: Modifier = Modifier) {
+internal fun NoLyricsBadge(text: String, modifier: Modifier = Modifier) {
     val palette = LocalCatClawPalette.current
     Box(
         modifier = modifier
@@ -709,7 +709,7 @@ private fun NoLyricsBadge(text: String, modifier: Modifier = Modifier) {
  *  同尺寸同圆角 28、Opacity 0.35、Scale 1.08、TranslationY 10，颜色取封面均色（MAUI 那层
  *  BackgroundColor 停在 Transparent，按本移植的 how 取均色补上），叠 blur 做柔光。 */
 @Composable
-private fun CoverTileOrb(
+internal fun CoverTileOrb(
     coverArtPath: String?,
     audioPath: String?,
     title: String,

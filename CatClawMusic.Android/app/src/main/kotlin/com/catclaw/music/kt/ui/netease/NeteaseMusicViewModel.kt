@@ -40,13 +40,13 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class NeteaseMusicViewModel @Inject constructor(
-    private val api: NeteaseApiClient,
-    private val accountRepo: NeteaseAccountRepository,
-    private val playUrlResolver: NeteasePlayUrlResolver,
-    private val radio: NeteaseRadioRepository,
-    private val likes: NeteaseLikeRepository,
-    private val controller: PlayerController,
-    private val playbackSession: PlaybackSessionStarter,
+    internal val api: NeteaseApiClient,
+    internal val accountRepo: NeteaseAccountRepository,
+    internal val playUrlResolver: NeteasePlayUrlResolver,
+    internal val radio: NeteaseRadioRepository,
+    internal val likes: NeteaseLikeRepository,
+    internal val controller: PlayerController,
+    internal val playbackSession: PlaybackSessionStarter,
 ) : ViewModel() {
 
     data class Home(
@@ -91,14 +91,14 @@ class NeteaseMusicViewModel @Inject constructor(
         val hasMore: Boolean = false,
     )
 
-    private val _square = MutableStateFlow(Square())
+    internal val _square = MutableStateFlow(Square())
     val square: StateFlow<Square> = _square.asStateFlow()
 
     /** 0 精选 / 1 歌单广场 / 2 排行榜 / 3 歌手 */
-    private val _homeTab = MutableStateFlow(0)
+    internal val _homeTab = MutableStateFlow(0)
     val homeTab: StateFlow<Int> = _homeTab.asStateFlow()
 
-    private val _topArtists = MutableStateFlow<List<NeteaseArtist>>(emptyList())
+    internal val _topArtists = MutableStateFlow<List<NeteaseArtist>>(emptyList())
     val topArtists: StateFlow<List<NeteaseArtist>> = _topArtists.asStateFlow()
 
     fun selectHomeTab(index: Int) {
@@ -161,24 +161,24 @@ class NeteaseMusicViewModel @Inject constructor(
         }
     }
 
-    private val _home = MutableStateFlow(Home())
+    internal val _home = MutableStateFlow(Home())
     val home: StateFlow<Home> = _home.asStateFlow()
 
-    private val _search = MutableStateFlow(Search())
+    internal val _search = MutableStateFlow(Search())
     val search: StateFlow<Search> = _search.asStateFlow()
 
-    private val _detail = MutableStateFlow<Detail?>(null)
+    internal val _detail = MutableStateFlow<Detail?>(null)
     val detail: StateFlow<Detail?> = _detail.asStateFlow()
 
     // 详情页的过滤 / 排序属于页面态，归 VM（UI 只负责渲染，不再自己 remember 一套）
-    private val _detailQuery = MutableStateFlow("")
+    internal val _detailQuery = MutableStateFlow("")
     val detailQuery: StateFlow<String> = _detailQuery.asStateFlow()
 
     /** null = 保持歌单原始顺序 */
-    private val _detailSort = MutableStateFlow<com.catclaw.music.kt.core.library.SongSortKey?>(null)
+    internal val _detailSort = MutableStateFlow<com.catclaw.music.kt.core.library.SongSortKey?>(null)
     val detailSort: StateFlow<com.catclaw.music.kt.core.library.SongSortKey?> = _detailSort.asStateFlow()
 
-    private val _detailDescending = MutableStateFlow(false)
+    internal val _detailDescending = MutableStateFlow(false)
     val detailDescending: StateFlow<Boolean> = _detailDescending.asStateFlow()
 
     /** 屏幕上那份详情列表：先过滤再（可选）排序 */
@@ -209,21 +209,21 @@ class NeteaseMusicViewModel @Inject constructor(
     val account: StateFlow<NeteaseApiClient.Account?> = accountRepo.account
     val myPlaylists: StateFlow<List<OnlinePlaylist>> = accountRepo.myPlaylists
 
-    private val _login = MutableStateFlow<Login>(Login.Idle)
+    internal val _login = MutableStateFlow<Login>(Login.Idle)
     val login: StateFlow<Login> = _login.asStateFlow()
 
     /** 验证码重发倒计时（秒）；0 表示可以发送 */
-    private val _smsCountdown = MutableStateFlow(0)
+    internal val _smsCountdown = MutableStateFlow(0)
     val smsCountdown: StateFlow<Int> = _smsCountdown.asStateFlow()
 
     /** 红心唯一源在 NeteaseLikeRepository：列表页/播放页读同一份，不再持有空副本 */
     val likedIds: StateFlow<Set<String>> = likes.likedIds
 
-    private val _toast = MutableStateFlow<String?>(null)
+    internal val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
 
     /** 播放音质：无损 / 320k / 128k（点击顶部胶囊循环） */
-    private val _quality = MutableStateFlow(playUrlResolver.quality)
+    internal val _quality = MutableStateFlow(playUrlResolver.quality)
     val quality: StateFlow<NeteasePlaylistClient.Quality> = _quality.asStateFlow()
 
     fun setDetailQuery(value: String) {

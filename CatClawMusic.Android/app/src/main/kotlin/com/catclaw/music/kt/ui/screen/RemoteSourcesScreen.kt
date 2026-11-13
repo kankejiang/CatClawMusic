@@ -504,7 +504,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
 
 /** 分区玻璃卡：与设置页 Section 同一套面（圆角 26 / textPrimary α.10 / 描边 α.16） */
 @Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
+internal fun SectionCard(title: String, content: @Composable () -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(
         modifier = Modifier
@@ -527,7 +527,7 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
 
 /** 胶囊按钮：filled = 主色实底（深字），否则描边玻璃底 */
 @Composable
-private fun PillButton(label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun PillButton(label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     val alpha = if (enabled) 1f else 0.4f
     Text(
@@ -553,7 +553,7 @@ private fun PillButton(label: String, filled: Boolean, enabled: Boolean = true, 
  * 导库却是 0 首 —— 一个"看起来连上了"的空结果最难查。
  */
 @Composable
-private fun RemoteBrowserPanel(
+internal fun RemoteBrowserPanel(
     panel: RemoteViewModel.RemoteBrowser,
     onEnter: (RemoteFile) -> Unit,
     onUp: () -> Unit,
@@ -656,7 +656,7 @@ private fun RemoteBrowserPanel(
 
 /** 玻璃输入框：透明容器、无下划线，标签与光标走调色板 */
 @Composable
-private fun GlassField(value: String, onValue: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+internal fun GlassField(value: String, onValue: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
     val palette = LocalCatClawPalette.current
     TextField(
         value = value,

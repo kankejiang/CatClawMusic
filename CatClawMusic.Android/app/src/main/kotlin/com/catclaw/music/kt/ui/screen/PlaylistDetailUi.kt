@@ -56,7 +56,7 @@ data class PlaylistSongUi(
     val favorite: Boolean = false,
 )
 
-private fun durationText(seconds: Int): String {
+internal fun durationText(seconds: Int): String {
     if (seconds <= 0) return "--:--"
     val m = seconds / 60
     val s = seconds % 60
@@ -312,4 +312,4 @@ fun PlaylistSongRowUi(
 }
 
 @Composable
-private fun stringResourceSongs(count: Int): String = androidx.compose.ui.res.stringResource(R.string.netease_songs_unit, count)
+internal fun stringResourceSongs(count: Int): String = androidx.compose.ui.res.stringResource(R.string.netease_songs_unit, count)

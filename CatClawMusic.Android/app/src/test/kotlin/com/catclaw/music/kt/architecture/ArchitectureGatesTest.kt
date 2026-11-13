@@ -86,8 +86,8 @@ class ArchitectureGatesTest {
             "PlaylistViewModel.kt", "SearchViewModel.kt", "ListeningStatsViewModel.kt",
             "LocalMusicSettingsViewModel.kt", "DownloadsViewModel.kt", "SettingsViewModel.kt",
             "NeteaseImportViewModel.kt", "NeteaseMusicViewModel.kt",
-            // PlaylistScreen 直接用了 PlaylistEntity 做拖拽排序（B3 拆分时收口）
-            "PlaylistScreen.kt",
+            // 歌单页及其拆分文件直接用 PlaylistEntity 做拖拽排序（B3 收口）
+            "PlaylistScreen.kt", "PlaylistParts.kt", "PlaylistLandscape.kt", "PlaylistShelf.kt",
         )
         val offenders = kt(File(appRoot, "com/catclaw/music/kt/ui"))
             .filter { it.name !in allowlist }
