@@ -375,7 +375,7 @@ private fun LazyListScope.recommendItems(
                 QuickTile(R.drawable.ic_shuffle, stringResource(R.string.disc_tag_shuffle), Modifier.weight(1f), viewModel::shuffleAll)
                 if (neteaseLoggedIn) {
                     QuickTile(
-                        R.drawable.ic_netease_app,
+                        R.drawable.ic_private_fm,
                         stringResource(R.string.netease_private_fm),
                         Modifier.weight(1f),
                         viewModel::startNeteaseFm,
@@ -1206,7 +1206,7 @@ private fun LandscapeDiscover(
                         )
                         if (neteaseLoggedIn) {
                             LandscapeQuickTile(
-                                R.drawable.ic_netease_app,
+                                R.drawable.ic_private_fm,
                                 stringResource(R.string.netease_private_fm),
                                 QUICK_TEAL,
                                 Modifier.weight(1f),
