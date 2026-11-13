@@ -59,4 +59,14 @@ class MediaScanRulesTest {
             Rules.decodeFolders("content://x/tree/a%3Ab,1|content://x/tree/c%3Ad,2").size,
         )
     }
+
+    @Test
+    fun `标签缺失时从文件名拆出歌手`() {
+        assertEquals("田馥甄" to "爱着爱着就永远", Rules.splitArtistAndTitle("田馥甄 - 爱着爱着就永远"))
+        assertEquals("Aimer" to "7月の翼", Rules.splitArtistAndTitle("Aimer - 7月の翼"))
+        // 正常标题不乱拆
+        assertNull(Rules.splitArtistAndTitle("Love Story"))
+        assertNull(Rules.splitArtistAndTitle(" - "))
+    }
+
 }

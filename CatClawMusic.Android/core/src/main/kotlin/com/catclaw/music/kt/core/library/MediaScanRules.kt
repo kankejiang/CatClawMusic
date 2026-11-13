@@ -55,6 +55,30 @@ object MediaScanRules {
     }
 
     /** 文件名（去扩展名）→ 标题，与 C# 远程扫描的 Title 取法一致 */
+
+    /**
+     * 「歌手 - 歌名」文件名拆分（仅用于**标签缺失**时）。
+     *
+     * MediaStore 对没有 ID3 的文件会把文件名塞进 TITLE、ARTIST 给 null，
+     * 结果库里出现「田馥甄 - 爱着爱着就永远 / 未知艺术家 / Music(目录名)」这种记录。
+     * 这里只做保守拆分：分隔符两侧都非空、左侧不超过 40 字才认，避免把正常标题拆坏。
+     *
+     * @return (artist, title)；不像「歌手 - 歌名」时返回 null
+     */
+    fun splitArtistAndTitle(title: String): Pair<String, String>? {
+        val separators = listOf(" - ", " – ", " — ", "－", "—")
+        for (sep in separators) {
+            val index = title.indexOf(sep)
+            if (index <= 0) continue
+            val artist = title.substring(0, index).trim()
+            val name = title.substring(index + sep.length).trim()
+            if (artist.isEmpty() || name.isEmpty()) continue
+            if (artist.length > 40) continue
+            return artist to name
+        }
+        return null
+    }
+
     fun titleFromFileName(nameOrPath: String): String {
         val slash = nameOrPath.lastIndexOf('/')
         val name = if (slash >= 0) nameOrPath.substring(slash + 1) else nameOrPath

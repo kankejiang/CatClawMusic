@@ -205,12 +205,20 @@ class LibraryScanner @Inject constructor(
             buildList(c.count) {
                 while (c.moveToNext()) {
                     if (c.isNull(iDuration)) continue
+                    // 标签缺失（artist 为 null/未知）时，从「歌手 - 歌名」文件名里拆一手
+                    val rawTitle = c.getString(iTitle).orEmpty()
+                    val rawArtist = if (c.isNull(iArtist)) null else c.getString(iArtist)
+                    val split = if (MediaScanRules.normalizeArtist(rawArtist) == MediaScanRules.UNKNOWN_ARTIST) {
+                        MediaScanRules.splitArtistAndTitle(rawTitle)
+                    } else {
+                        null
+                    }
                     add(
                         ScanTrack(
                             path = MediaScanRules.contentUri(c.getLong(iId)),
                             mediaStoreId = c.getLong(iId),
-                            title = c.getString(iTitle).orEmpty(),
-                            artistRaw = if (c.isNull(iArtist)) null else c.getString(iArtist),
+                            title = split?.second ?: rawTitle,
+                            artistRaw = split?.first ?: rawArtist,
                             album = c.getString(iAlbum).orEmpty(),
                             durationMs = c.getLong(iDuration),
                             size = c.getLong(iSize),
