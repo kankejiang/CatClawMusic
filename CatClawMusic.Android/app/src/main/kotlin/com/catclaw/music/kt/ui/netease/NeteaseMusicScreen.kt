@@ -57,6 +57,12 @@ import com.catclaw.music.kt.R
 import com.catclaw.music.kt.data.netease.NeteaseArtist
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.catclaw.music.kt.core.library.SongSortFields
+import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.core.library.defaultDescending
+import com.catclaw.music.kt.core.library.filterAndSortSongs
+import com.catclaw.music.kt.ui.screen.sortLabelRes
 import com.catclaw.music.kt.data.netease.OnlineSong
 import com.catclaw.music.kt.ui.song.SongCollectionScreen
 import com.catclaw.music.kt.ui.screen.PlaylistDetailHeader
@@ -132,6 +138,7 @@ fun NeteaseMusicScreen(
                 likedIds = likedIds,
                 onBack = viewModel::closeDetail,
                 onPlayAll = { viewModel.playAll(currentDetail.songs) },
+                onPlayAllShuffled = { viewModel.playAll(currentDetail.songs.shuffled()) },
                 onPlayAt = { viewModel.playFrom(currentDetail.songs, it) },
                 onLike = { song, like -> viewModel.like(song, like) },
             )
@@ -789,11 +796,34 @@ private fun NeteasePlaylistDetail(
     likedIds: Set<String>,
     onBack: () -> Unit,
     onPlayAll: () -> Unit,
+    onPlayAllShuffled: () -> Unit,
     onPlayAt: (Int) -> Unit,
     onLike: (OnlineSong, Boolean) -> Unit,
 ) {
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // 在线歌单同样接满骨架能力：右上角搜索（歌单内过滤）+ 更多菜单（排序）+ 随机播放
+    var query by rememberSaveable { mutableStateOf("") }
+    // null = 保持网易云歌单原始顺序（默认）；选了档位才排序
+    var sort by rememberSaveable { mutableStateOf<SongSortKey?>(null) }
+    var desc by rememberSaveable { mutableStateOf(false) }
+    val displaySongs = remember(detail.songs, query, sort, desc) {
+        val filtered = if (query.isBlank()) {
+            detail.songs
+        } else {
+            val q = query.trim()
+            detail.songs.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+        sort?.let { key ->
+            filterAndSortSongs(filtered, key, "", descending = desc) {
+                SongSortFields(it.title, it.artist, it.album, it.durationSeconds, 0, it.id.hashCode())
+            }
+        } ?: filtered
+    }
     // 与本地歌单/音乐库二级页完全同一套骨架：大封面头、上滑收起、返回键、统一行组件
     SongCollectionScreen(
         title = detail.playlist?.name.orEmpty(),
@@ -811,6 +841,31 @@ private fun NeteasePlaylistDetail(
                 primary = true,
                 onClick = onPlayAll,
             ),
+            com.catclaw.music.kt.ui.song.CollectionAction(
+                label = stringResource(R.string.shuffle_play),
+                iconRes = R.drawable.ic_shuffle,
+                onClick = onPlayAllShuffled,
+            ),
+        ),
+        chipGroups = listOf(
+            SongSortKey.entries.map { key ->
+                com.catclaw.music.kt.ui.song.CollectionChip(
+                    label = stringResource(sortLabelRes(key)) +
+                        if (sort == key) (if (desc) " ↓" else " ↑") else "",
+                    selected = sort == key,
+                    onClick = {
+                        if (sort == key) desc = !desc else {
+                            sort = key
+                            desc = key.defaultDescending
+                        }
+                    },
+                )
+            },
+        ),
+        search = com.catclaw.music.kt.ui.song.CollectionSearch(
+            query,
+            stringResource(R.string.playlist_search_hint),
+            { query = it },
         ),
     ) {
         if (detail.loading) {
@@ -820,7 +875,7 @@ private fun NeteasePlaylistDetail(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
-            itemsIndexed(detail.songs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
+            itemsIndexed(displaySongs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
                 PlaylistSongRowUi(
                     song = PlaylistSongUi(
                         key = song.id,
@@ -835,7 +890,7 @@ private fun NeteasePlaylistDetail(
                     ),
                     index = index,
                     isLandscape = landscape,
-                    onClick = { onPlayAt(index) },
+                    onClick = { onPlayAt(detail.songs.indexOf(song).coerceAtLeast(0)) },
                     onLongClick = { onLike(song, song.id !in likedIds) },
                 )
             }
