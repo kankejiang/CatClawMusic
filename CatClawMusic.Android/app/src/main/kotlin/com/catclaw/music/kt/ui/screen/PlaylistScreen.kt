@@ -310,17 +310,17 @@ fun PlaylistScreen(
         Spacer(Modifier.height(14.dp))
         if (open == null) {
             // Hero：标题 + 副标题 + 加号（MAUI 的 GlassIconContainer #26FFFFFF）
+            // 无卡片底的页头：标题 + 副标题 + 加号（与发现页/音乐库同一套层级）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .glassCard(palette = palette, corner = 28)
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                    .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = stringResource(R.string.MyPlaylists),
-                        fontSize = 26.sp,
+                        fontSize = 30.sp,
                         fontWeight = FontWeight.Bold,
                         color = primary,
                     )
