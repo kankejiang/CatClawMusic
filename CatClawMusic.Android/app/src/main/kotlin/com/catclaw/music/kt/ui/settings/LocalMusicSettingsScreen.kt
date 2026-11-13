@@ -215,6 +215,7 @@ fun LocalMusicSettingsScreen(
                 ),
                 accent = accent,
                 enabled = canScan,
+                loading = view.scanning,
                 onClick = viewModel::scan,
             )
         }
@@ -316,6 +317,7 @@ internal fun PrimaryButton(
     text: String,
     accent: Color,
     enabled: Boolean = true,
+    loading: Boolean = false,
     onClick: () -> Unit,
 ) {
     Box(
@@ -323,10 +325,27 @@ internal fun PrimaryButton(
             .fillMaxWidth()
             .height(42.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) accent else accent.copy(alpha = 0.35f))
+            .background(if (enabled || loading) accent else accent.copy(alpha = 0.35f))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
+        if (loading) {
+            // 按钮内进度：一段浅色填充从左扫到右（indeterminate，扫描没有真实百分比）
+            val transition = rememberInfiniteTransition(label = "btn-progress")
+            val fraction by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(tween(durationMillis = 1400, easing = LinearEasing)),
+                label = "btn-progress-fraction",
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction)
+                    .background(Color.White.copy(alpha = 0.20f)),
+            )
+        }
         Text(text = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
     }
 }
