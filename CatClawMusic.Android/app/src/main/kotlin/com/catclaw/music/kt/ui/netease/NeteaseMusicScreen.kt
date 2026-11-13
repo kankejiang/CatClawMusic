@@ -130,6 +130,11 @@ fun NeteaseMusicScreen(
     BackHandler(enabled = showLogin) { showLogin = false }
     BackHandler(enabled = showImport) { showImport = false }
 
+    // 详情页的过滤 / 排序状态由 VM 提供（UI 不再自己维护）
+    val detailSongs by viewModel.detailDisplaySongs.collectAsStateWithLifecycle()
+    val detailQuery by viewModel.detailQuery.collectAsStateWithLifecycle()
+    val detailSort by viewModel.detailSort.collectAsStateWithLifecycle()
+    val detailDescending by viewModel.detailDescending.collectAsStateWithLifecycle()
     Box(modifier = Modifier.fillMaxSize()) {
         val currentDetail = detail
         if (currentDetail != null) {
@@ -139,6 +144,12 @@ fun NeteaseMusicScreen(
                 onBack = viewModel::closeDetail,
                 onPlayAll = { viewModel.playAll(currentDetail.songs) },
                 onPlayAllShuffled = { viewModel.playAll(currentDetail.songs.shuffled()) },
+                songs = detailSongs,
+                query = detailQuery,
+                sort = detailSort,
+                descending = detailDescending,
+                onQuery = viewModel::setDetailQuery,
+                onSort = viewModel::toggleDetailSort,
                 onPlayAt = { viewModel.playFrom(currentDetail.songs, it) },
                 onLike = { song, like -> viewModel.like(song, like) },
             )
@@ -797,33 +808,18 @@ private fun NeteasePlaylistDetail(
     onBack: () -> Unit,
     onPlayAll: () -> Unit,
     onPlayAllShuffled: () -> Unit,
+    songs: List<OnlineSong>,
+    query: String,
+    sort: SongSortKey?,
+    descending: Boolean,
+    onQuery: (String) -> Unit,
+    onSort: (SongSortKey) -> Unit,
     onPlayAt: (Int) -> Unit,
     onLike: (OnlineSong, Boolean) -> Unit,
 ) {
     val secondary = Color(LocalCatClawPalette.current.textSecondary)
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    // 在线歌单同样接满骨架能力：右上角搜索（歌单内过滤）+ 更多菜单（排序）+ 随机播放
-    var query by rememberSaveable { mutableStateOf("") }
-    // null = 保持网易云歌单原始顺序（默认）；选了档位才排序
-    var sort by rememberSaveable { mutableStateOf<SongSortKey?>(null) }
-    var desc by rememberSaveable { mutableStateOf(false) }
-    val displaySongs = remember(detail.songs, query, sort, desc) {
-        val filtered = if (query.isBlank()) {
-            detail.songs
-        } else {
-            val q = query.trim()
-            detail.songs.filter {
-                it.title.contains(q, ignoreCase = true) ||
-                    it.artist.contains(q, ignoreCase = true) ||
-                    it.album.contains(q, ignoreCase = true)
-            }
-        }
-        sort?.let { key ->
-            filterAndSortSongs(filtered, key, "", descending = desc) {
-                SongSortFields(it.title, it.artist, it.album, it.durationSeconds, 0, it.id.hashCode())
-            }
-        } ?: filtered
-    }
+
     // 与本地歌单/音乐库二级页完全同一套骨架：大封面头、上滑收起、返回键、统一行组件
     SongCollectionScreen(
         title = detail.playlist?.name.orEmpty(),
@@ -851,21 +847,16 @@ private fun NeteasePlaylistDetail(
             SongSortKey.entries.map { key ->
                 com.catclaw.music.kt.ui.song.CollectionChip(
                     label = stringResource(sortLabelRes(key)) +
-                        if (sort == key) (if (desc) " ↓" else " ↑") else "",
+                        if (sort == key) (if (descending) " ↓" else " ↑") else "",
                     selected = sort == key,
-                    onClick = {
-                        if (sort == key) desc = !desc else {
-                            sort = key
-                            desc = key.defaultDescending
-                        }
-                    },
+                    onClick = { onSort(key) },
                 )
             },
         ),
         search = com.catclaw.music.kt.ui.song.CollectionSearch(
             query,
             stringResource(R.string.playlist_search_hint),
-            { query = it },
+            onQuery,
         ),
     ) {
         if (detail.loading) {
@@ -875,7 +866,7 @@ private fun NeteasePlaylistDetail(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
-            itemsIndexed(displaySongs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
+            itemsIndexed(songs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
                 PlaylistSongRowUi(
                     song = PlaylistSongUi(
                         key = song.id,

@@ -20,6 +20,11 @@ import com.catclaw.music.kt.data.netease.OnlineSong
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.core.library.defaultDescending
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -165,6 +170,41 @@ class NeteaseMusicViewModel @Inject constructor(
     private val _detail = MutableStateFlow<Detail?>(null)
     val detail: StateFlow<Detail?> = _detail.asStateFlow()
 
+    // 详情页的过滤 / 排序属于页面态，归 VM（UI 只负责渲染，不再自己 remember 一套）
+    private val _detailQuery = MutableStateFlow("")
+    val detailQuery: StateFlow<String> = _detailQuery.asStateFlow()
+
+    /** null = 保持歌单原始顺序 */
+    private val _detailSort = MutableStateFlow<com.catclaw.music.kt.core.library.SongSortKey?>(null)
+    val detailSort: StateFlow<com.catclaw.music.kt.core.library.SongSortKey?> = _detailSort.asStateFlow()
+
+    private val _detailDescending = MutableStateFlow(false)
+    val detailDescending: StateFlow<Boolean> = _detailDescending.asStateFlow()
+
+    /** 屏幕上那份详情列表：先过滤再（可选）排序 */
+    val detailDisplaySongs: StateFlow<List<OnlineSong>> = combine(
+        _detail, _detailQuery, _detailSort, _detailDescending,
+    ) { detail: Detail?, query: String, sort: SongSortKey?, descending: Boolean ->
+        val songs = detail?.songs.orEmpty()
+        val filtered = if (query.isBlank()) {
+            songs
+        } else {
+            val q = query.trim()
+            songs.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+        sort?.let { key ->
+            com.catclaw.music.kt.core.library.filterAndSortSongs(filtered, key, "", descending = descending) {
+                com.catclaw.music.kt.core.library.SongSortFields(
+                    it.title, it.artist, it.album, it.durationSeconds, 0, it.id.hashCode(),
+                )
+            }
+        } ?: filtered
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** 账号唯一源在 NeteaseAccountRepository（登录态/身份/歌单），这里只转发 */
     val account: StateFlow<NeteaseApiClient.Account?> = accountRepo.account
     val myPlaylists: StateFlow<List<OnlinePlaylist>> = accountRepo.myPlaylists
@@ -185,6 +225,20 @@ class NeteaseMusicViewModel @Inject constructor(
     /** 播放音质：无损 / 320k / 128k（点击顶部胶囊循环） */
     private val _quality = MutableStateFlow(playUrlResolver.quality)
     val quality: StateFlow<NeteasePlaylistClient.Quality> = _quality.asStateFlow()
+
+    fun setDetailQuery(value: String) {
+        _detailQuery.value = value
+    }
+
+    /** 点同一档翻方向，换档取该档默认方向（与音乐库同一条规则） */
+    fun toggleDetailSort(key: com.catclaw.music.kt.core.library.SongSortKey) {
+        if (_detailSort.value == key) {
+            _detailDescending.value = !_detailDescending.value
+        } else {
+            _detailSort.value = key
+            _detailDescending.value = key.defaultDescending
+        }
+    }
 
     fun cycleQuality() {
         _quality.value = playUrlResolver.cycleQuality()
