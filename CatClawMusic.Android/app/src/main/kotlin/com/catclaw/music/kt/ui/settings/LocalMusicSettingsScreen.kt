@@ -3,6 +3,15 @@ package com.catclaw.music.kt.ui.settings
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -184,12 +193,22 @@ fun LocalMusicSettingsScreen(
         // ③ 扫描状态（状态文字 → 满宽扫描按钮）
         SectionCard(stringResource(R.string.local_scan_status)) {
             Text(
-                text = view.lastResult?.let {
-                    stringResource(R.string.scan_result, it.scanned, it.inserted, it.removed)
-                } ?: stringResource(R.string.local_scan_ready),
+                text = when {
+                    view.scanning -> stringResource(R.string.library_scanning)
+                    view.lastResult != null -> stringResource(
+                        R.string.scan_result,
+                        view.lastResult!!.scanned,
+                        view.lastResult!!.inserted,
+                        view.lastResult!!.removed,
+                    )
+                    else -> stringResource(R.string.local_scan_ready)
+                },
                 fontSize = 13.sp,
                 color = secondary,
             )
+            if (view.scanning) {
+                ScanProgressBar(accent)
+            }
             PrimaryButton(
                 text = stringResource(
                     if (view.scanning) R.string.library_scanning else R.string.local_scan_now,
@@ -251,6 +270,43 @@ private fun CheckRow(
             Text(text = label, fontSize = 14.sp, color = Color(palette.textPrimary))
             Text(text = subtitle, fontSize = 11.sp, color = Color(palette.textSecondary), lineHeight = 15.sp)
         }
+    }
+}
+
+/**
+ * 扫描进度光带：一条主色渐变从左流到右（indeterminate）。
+ * 扫描本身是 suspend 的一次性调用，没有真实进度可报，所以用流动感表达"正在跑"。
+ */
+@Composable
+private fun ScanProgressBar(color: Color) {
+    val transition = rememberInfiniteTransition(label = "scan-progress")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 1200, easing = LinearEasing)),
+        label = "scan-phase",
+    )
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.16f)),
+    ) {
+        val totalPx = constraints.maxWidth.toFloat()
+        val bandPx = totalPx * 0.38f
+        val offsetPx = ((totalPx - bandPx) * phase).toInt()
+        Box(
+            modifier = Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(offsetPx, 0) }
+                .width(with(androidx.compose.ui.platform.LocalDensity.current) { bandPx.toDp() })
+                .fillMaxHeight()
+                .background(
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        listOf(Color.Transparent, color, Color.Transparent),
+                    ),
+                ),
+        )
     }
 }
 
