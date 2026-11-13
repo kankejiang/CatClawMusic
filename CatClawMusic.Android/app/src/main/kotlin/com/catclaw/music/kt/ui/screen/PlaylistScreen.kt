@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -416,7 +417,43 @@ fun PlaylistScreen(
             }
 
             if (playlists.isEmpty() && !creating) {
-                EmptyState(hint = stringResource(R.string.playlist_none), iconRes = R.drawable.ic_playlist)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .glassCard(palette = palette, corner = 20)
+                        .clickable { creating = true }
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(palette.primary).copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_add),
+                            contentDescription = null,
+                            tint = Color(palette.primary),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.playlist_new),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primary,
+                        )
+                        Text(
+                            text = stringResource(R.string.playlist_none),
+                            fontSize = 11.5.sp,
+                            color = secondary,
+                        )
+                    }
+                }
             }
             // 竖屏与横屏共用同一份列表（拖拽排序、行内改名、打开/删除都在这里），
             // 横屏只是把它放进玻璃货架并让行更矮（compact）。
@@ -622,40 +659,47 @@ private fun EntryCard(
     onClick: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
-    Column(
+    val ink = Color(palette.textPrimary)
+    val sub = Color(palette.textSecondary)
+    // 横排紧凑卡：圆底图标 + 标题/数量 + 箭头（原来是竖排灰块，占地且廉价）
+    Row(
         modifier = modifier
-            .glassCard(palette = palette, corner = 22)
+            .glassCard(palette = palette, corner = 20)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(palette.primary).copy(alpha = 0.22f)),
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color(palette.primary).copy(alpha = 0.20f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                tint = Color(palette.textPrimary),
-                modifier = Modifier.size(19.dp),
+                tint = Color(palette.primary),
+                modifier = Modifier.size(20.dp),
             )
         }
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(palette.textPrimary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = stringResource(R.string.playlist_count, count),
-            fontSize = 12.sp,
-            color = Color(palette.textSecondary),
-        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = label,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.playlist_count, count),
+                fontSize = 11.5.sp,
+                color = sub,
+            )
+        }
+        Text(text = "›", fontSize = 20.sp, color = sub.copy(alpha = 0.65f))
     }
 }
 
@@ -1101,8 +1145,8 @@ private fun NeteaseShelf(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = stringResource(R.string.netease_playlist_section),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
                 color = primary,
             )
             if (accountName.isNotBlank()) {
@@ -1124,21 +1168,21 @@ private fun NeteaseShelf(
                 val playlist = playlists[index]
                 Column(
                     modifier = Modifier
-                        .width(96.dp)
+                        .width(132.dp)
                         .clickable { onOpen(playlist) },
                 ) {
                     CoverTile(
                         coverArtPath = playlist.coverUrl,
                         audioPath = null,
-                        maxPx = 256,
+                        maxPx = 320,
                         modifier = Modifier
-                            .size(96.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .size(132.dp)
+                            .clip(RoundedCornerShape(16.dp))
                             .background(Color(palette.primary).copy(alpha = 0.18f)),
                     ) {
                         Text(
                             text = playlist.name.take(1),
-                            fontSize = 24.sp,
+                            fontSize = 34.sp,
                             fontWeight = FontWeight.Bold,
                             color = primary,
                         )
