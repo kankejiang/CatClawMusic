@@ -296,7 +296,12 @@ class NeteaseMusicViewModel @Inject constructor(
             val virtual = OnlinePlaylist(id = "liked", name = "我喜欢的音乐")
             _detail.value = Detail(virtual, loading = true)
             val songs = runCatching { api.likedSongs() }.getOrDefault(emptyList())
-            _detail.value = Detail(virtual, songs, loading = false)
+            // 虚拟歌单没有独立封面：用首曲封面兜底（否则头部是大字母占位）
+            _detail.value = Detail(
+                virtual.copy(coverUrl = songs.firstOrNull()?.coverUrl),
+                songs,
+                loading = false,
+            )
             likes.adopt(songs.map { it.id }.toSet())
             if (songs.isEmpty()) _toast.value = "还没有红心歌曲，或未登录"
         }

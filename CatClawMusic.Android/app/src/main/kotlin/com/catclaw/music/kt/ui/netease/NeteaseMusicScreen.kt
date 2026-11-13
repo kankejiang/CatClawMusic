@@ -58,6 +58,7 @@ import com.catclaw.music.kt.data.netease.NeteaseArtist
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
 import com.catclaw.music.kt.data.netease.OnlinePlaylist
 import com.catclaw.music.kt.data.netease.OnlineSong
+import com.catclaw.music.kt.ui.song.SongCollectionScreen
 import com.catclaw.music.kt.ui.screen.PlaylistDetailHeader
 import com.catclaw.music.kt.ui.screen.PlaylistSongRowUi
 import com.catclaw.music.kt.ui.screen.PlaylistSongUi
@@ -791,58 +792,32 @@ private fun NeteasePlaylistDetail(
     onPlayAt: (Int) -> Unit,
     onLike: (OnlineSong, Boolean) -> Unit,
 ) {
-    val palette = LocalCatClawPalette.current
-    val primary = Color(palette.textPrimary)
-    val secondary = Color(palette.textSecondary)
+    val secondary = Color(LocalCatClawPalette.current.textSecondary)
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    Column(Modifier.fillMaxSize()) {
-        // 顶栏：返回 + 歌单名（网易云同款结构）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            BackTile(onBack = onBack, description = stringResource(R.string.GoBack))
-            Text(
-                text = detail.playlist?.name.orEmpty(),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        PlaylistDetailHeader(
-            title = detail.playlist?.name.orEmpty(),
-            cover = detail.playlist?.coverUrl ?: detail.songs.firstOrNull()?.coverUrl,
-            creator = "网易云音乐",
-            playCount = null,
-            songCount = detail.songs.size,
-            isLandscape = landscape,
-            onPlayAll = onPlayAll,
-        )
-        if (landscape) {
-            // PC 端表头（对齐截图：# 标题 / 专辑 / 喜欢 / 时长）
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("#", fontSize = 10.sp, color = secondary, modifier = Modifier.width(26.dp))
-                Spacer(Modifier.width(44.dp))
-                Text(stringResource(R.string.TabSongs), fontSize = 10.sp, color = secondary, modifier = Modifier.weight(2f))
-                Text(stringResource(R.string.detail_album), fontSize = 10.sp, color = secondary, modifier = Modifier.weight(1.4f))
-                Text("", modifier = Modifier.width(18.dp))
-                Text(stringResource(R.string.sort_duration), fontSize = 10.sp, color = secondary, modifier = Modifier.width(48.dp))
-            }
-        }
+    // 与本地歌单/音乐库二级页完全同一套骨架：大封面头、上滑收起、返回键、统一行组件
+    SongCollectionScreen(
+        title = detail.playlist?.name.orEmpty(),
+        countText = stringResource(R.string.playlist_count, detail.songs.size),
+        onBack = onBack,
+        cover = com.catclaw.music.kt.ui.song.CollectionCover(
+            coverArtPath = detail.playlist?.coverUrl,
+            audioPath = null,
+            fallback = detail.playlist?.name.orEmpty(),
+        ),
+        actions = listOf(
+            com.catclaw.music.kt.ui.song.CollectionAction(
+                label = stringResource(R.string.netease_play_all),
+                iconRes = R.drawable.ic_play,
+                primary = true,
+                onClick = onPlayAll,
+            ),
+        ),
+    ) {
         if (detail.loading) {
             HintText(stringResource(R.string.netease_loading), secondary)
         }
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             itemsIndexed(detail.songs, key = { index, song -> "d-$index-${song.id}" }) { index, song ->
@@ -867,7 +842,6 @@ private fun NeteasePlaylistDetail(
         }
     }
 }
-
 @Composable
 private fun SongRow(
     song: OnlineSong,
