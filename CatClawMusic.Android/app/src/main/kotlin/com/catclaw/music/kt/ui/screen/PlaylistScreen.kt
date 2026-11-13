@@ -104,6 +104,7 @@ fun PlaylistScreen(
     /** 点开网易云账号里的歌单：整页在线音乐由壳层导航，这里只把歌单对象交出去 */
     onOpenNeteasePlaylist: (OnlinePlaylist) -> Unit = {},
     viewModel: PlaylistViewModel = hiltViewModel(),
+    detailViewModel: com.catclaw.music.kt.ui.playlist.PlaylistDetailViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -112,11 +113,11 @@ fun PlaylistScreen(
     // 登录发生在网易云页；从那里返回时本页会重新 START，借这个时机刷新歌单列表
     LaunchedEffect(Unit) { viewModel.refreshNetease() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.refreshNetease() }
-    val shown by viewModel.displayItems.collectAsStateWithLifecycle()
-    val itemSort by viewModel.itemSort.collectAsStateWithLifecycle()
-    val itemSortDescending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
-    val itemQuery by viewModel.itemQuery.collectAsStateWithLifecycle()
-    val openId by viewModel.openId.collectAsStateWithLifecycle()
+    val shown by detailViewModel.displayItems.collectAsStateWithLifecycle()
+    val itemSort by detailViewModel.itemSort.collectAsStateWithLifecycle()
+    val itemSortDescending by detailViewModel.itemSortDescending.collectAsStateWithLifecycle()
+    val itemQuery by detailViewModel.itemQuery.collectAsStateWithLifecycle()
+    val openId by detailViewModel.openId.collectAsStateWithLifecycle()
     val covers by viewModel.covers.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
@@ -138,13 +139,13 @@ fun PlaylistScreen(
     val detailMenu = rememberSongMenu(
         viewModel = libraryViewModel,
         onOpenBelongs = { belongsDetail = it.toLibraryDetail() },
-        onRemoveFromPlaylist = { viewModel.removeItem(it) },
+        onRemoveFromPlaylist = { detailViewModel.removeItem(it) },
         onOpenDetail = { songDetailId = it },
     )
     // 这四层整屏覆盖层各自画了返回方块，系统返回键必须逐层退掉而不是直接退出应用
     // （真机验过：在歌单详情按返回是掉回桌面）。组合在后的优先，所以按「下层 → 上层」排。
     // 歌单详情这一层别漏：它是 VM 的 openId，不像另外三层是页面里的 var
-    BackHandler(enabled = openId != null) { viewModel.close() }
+    BackHandler(enabled = openId != null) { detailViewModel.close() }
     BackHandler(enabled = entry != null) { entry = null }
     BackHandler(enabled = belongsDetail != null) { belongsDetail = null }
     BackHandler(enabled = songDetailId != null) { songDetailId = null }
@@ -217,7 +218,7 @@ fun PlaylistScreen(
             onSaveRename = { id ->
                 if (viewModel.rename(id, draftName)) editing = null else renameTaken = true
             },
-            onOpen = { viewModel.open(it) },
+            onOpen = { detailViewModel.open(it) },
             onDelete = { viewModel.delete(it) },
             onStartRename = { id, name ->
                 draftName = name
@@ -244,17 +245,17 @@ fun PlaylistScreen(
                         label = stringResource(R.string.playlist_play_all),
                         iconRes = R.drawable.ic_play,
                         primary = true,
-                        onClick = { viewModel.playAll() },
+                        onClick = { detailViewModel.playAll() },
                     ),
                     CollectionAction(
                         label = stringResource(R.string.shuffle_play),
                         iconRes = R.drawable.ic_shuffle,
-                        onClick = { viewModel.playAllShuffled() },
+                        onClick = { detailViewModel.playAllShuffled() },
                     ),
                     CollectionAction(
                         label = stringResource(R.string.playlist_add_current),
                         iconRes = R.drawable.ic_add,
-                        onClick = { viewModel.addCurrentSong() },
+                        onClick = { detailViewModel.addCurrentSong() },
                     ),
                 ),
                 sortChips = SongSortKey.entries.map { mode ->
@@ -262,19 +263,19 @@ fun PlaylistScreen(
                         label = stringResource(sortLabelRes(mode)) +
                             if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
                         selected = itemSort == mode,
-                        onClick = { viewModel.setItemSort(mode) },
+                        onClick = { detailViewModel.setItemSort(mode) },
                     )
                 },
                 search = CollectionSearch(
                     itemQuery,
                     stringResource(R.string.playlist_search_hint),
-                    viewModel::setItemQuery,
+                    detailViewModel::setItemQuery,
                 ),
                 rows = shown,
                 query = itemQuery,
                 landscape = landscape,
-                onBack = { viewModel.close() },
-                onPlay = { viewModel.playAt(it) },
+                onBack = { detailViewModel.close() },
+                onPlay = { detailViewModel.playAt(it) },
                 onOpenMenu = { rowMenu = it },
             )
         }
@@ -442,7 +443,7 @@ fun PlaylistScreen(
                     // 改成才收框：同名/空名时留着编辑框并给原因，不然用户以为改好了
                     if (viewModel.rename(id, draftName)) editing = null else renameTaken = true
                 },
-                onOpen = { viewModel.open(it) },
+                onOpen = { detailViewModel.open(it) },
                 onDelete = { viewModel.delete(it) },
                 onStartRename = { id, name ->
                     draftName = name

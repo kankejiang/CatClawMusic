@@ -34,7 +34,8 @@ class PlaybackSessionParityTest {
         "com/catclaw/music/kt/data/repository/library/LibraryRepository.kt" to listOf(
             "play", "playShuffled", "playNext",
         ),
-        "com/catclaw/music/kt/ui/playlist/PlaylistViewModel.kt" to listOf("playAt", "playFrom"),
+        // 歌单详情的播放入口已拆到 PlaylistDetailViewModel（MVVM B3）
+        "com/catclaw/music/kt/ui/playlist/PlaylistDetailViewModel.kt" to listOf("playAt", "playFrom"),
         "com/catclaw/music/kt/ui/remote/RemoteViewModel.kt" to listOf("playAt"),
         "com/catclaw/music/kt/ui/search/SearchViewModel.kt" to listOf("play"),
     )
