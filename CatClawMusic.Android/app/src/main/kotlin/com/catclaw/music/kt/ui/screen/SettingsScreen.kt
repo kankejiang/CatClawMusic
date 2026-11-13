@@ -347,357 +347,7 @@ fun SettingsScreen(
 
 /** 外观子页 —— MAUI `AppearanceSettingsPage`：主题、启动页、自定义背景、三种动态背景 */
 @Composable
-private fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel) {
-    val palette = LocalCatClawPalette.current
-    val primary = Color(palette.textPrimary)
-    val secondary = Color(palette.textSecondary)
-    val mode by viewModel.mode.collectAsStateWithLifecycle()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-    ) {
-        SubHeader(title = stringResource(R.string.Appearance), onBack = onBack)
-
-        Section(title = stringResource(R.string.Appearance), color = secondary) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppearanceMode.entries.forEach { option ->
-                    ChoiceChip(
-                        label = appearanceLabel(option),
-                        selected = option == mode,
-                        onClick = { viewModel.setMode(option) },
-                    )
-                }
-            }
-        }
-
-        Section(title = stringResource(R.string.appearance_bg_startup), color = secondary) {
-            val startupIndex by viewModel.startupIndex.collectAsStateWithLifecycle()
-            val hasCustomBg by viewModel.hasCustomBackground.collectAsStateWithLifecycle()
-            val discoverBg by viewModel.discoverBackground.collectAsStateWithLifecycle()
-            val picker = androidx.activity.compose.rememberLauncherForActivityResult(
-                androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-            ) { uri -> uri?.let { viewModel.importCustomBackground(it) } }
-
-            Text(stringResource(R.string.startup_page), style = MaterialTheme.typography.bodyMedium, color = primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                listOf(
-                    stringResource(R.string.startup_library) to 0,
-                    stringResource(R.string.startup_explore) to 1,
-                    stringResource(R.string.startup_playing) to 2,
-                ).forEach { (label, value) ->
-                    GlassChip(label = label, selected = value == startupIndex, onClick = { viewModel.setStartupIndex(value) })
-                }
-            }
-
-            // 发现页背景：三选一（2026-11-07 用户要求：三者互斥、只作用于发现页）。
-            // 以前是三个独立开关，可以同时打开 → 「自定义图上再叠流光、再套莫奈配色」，背景到底是哪一层说不清。
-            Text(
-                text = stringResource(R.string.discover_bg_title),
-                style = MaterialTheme.typography.bodyMedium,
-                color = primary,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            Text(
-                text = stringResource(R.string.discover_bg_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = secondary,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple(
-                        DiscoverBackground.CUSTOM,
-                        R.string.discover_bg_custom,
-                        R.string.discover_bg_custom_desc,
-                    ),
-                    Triple(
-                        DiscoverBackground.FROSTED,
-                        R.string.discover_bg_frosted,
-                        R.string.discover_bg_frosted_desc,
-                    ),
-                    Triple(
-                        DiscoverBackground.MONET,
-                        R.string.discover_bg_monet,
-                        R.string.discover_bg_monet_desc,
-                    ),
-                ).forEach { (mode, title, desc) ->
-                    BackgroundOptionRow(
-                        title = stringResource(title),
-                        desc = stringResource(desc),
-                        selected = discoverBg == mode,
-                        onClick = { viewModel.setDiscoverBackground(mode) },
-                    )
-                }
-            }
-            // 自定义图只在选到「自定义图片」时才出现图片操作，避免它看起来像常驻开关
-            if (discoverBg == DiscoverBackground.CUSTOM) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                ) {
-                    Text(
-                        text = if (hasCustomBg) "" else stringResource(R.string.custom_bg_none),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = secondary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    PillLabel(
-                        text = stringResource(R.string.custom_bg_change),
-                        onClick = { picker.launch(arrayOf("image/*")) },
-                        filled = false,
-                    )
-                    if (hasCustomBg) {
-                        PillLabel(
-                            text = stringResource(R.string.custom_bg_clear),
-                            onClick = { viewModel.clearCustomBackground() },
-                            filled = false,
-                        )
-                    }
-                }
-            }
-        }
-
-    }
-}
-
-/** 通用子页 —— MAUI `GeneralSettingsPage` 里本端已实现的那部分：语言 + 音频缓存 */
-@Composable
-private fun GeneralSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel) {
-    val palette = LocalCatClawPalette.current
-    val context = LocalContext.current
-    val primary = Color(palette.textPrimary)
-    val secondary = Color(palette.textSecondary)
-    var languageDialog by remember { mutableStateOf(false) }
-    var resetDialog by remember { mutableStateOf(false) }
-    var resetNotice by remember { mutableStateOf<String?>(null) }
-    val resetDone = stringResource(R.string.reset_all_settings_done)
-    // 语言生效 = 存 tag + 重建 Activity（attachBaseContext 会按 tag 重贴 Configuration）
-    val activity = context.findActivity()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-    ) {
-        SubHeader(title = stringResource(R.string.GeneralSettings), onBack = onBack)
-
-        Section(title = stringResource(R.string.Language), color = secondary) {
-            ClickableRow(
-                title = stringResource(R.string.language_dialog_title),
-                value = currentLanguageLabel(context),
-                onClick = { languageDialog = true },
-                hint = stringResource(R.string.LanguageHint),
-            )
-        }
-
-        Section(title = stringResource(R.string.CacheSize), color = secondary) {
-            LaunchedEffect(Unit) { viewModel.refreshCacheUsage() }
-            val usage by viewModel.cacheUsageBytes.collectAsStateWithLifecycle()
-            val limitMb by viewModel.cacheSizeMb.collectAsStateWithLifecycle()
-            Text(
-                text = stringResource(
-                    R.string.cache_used,
-                    String.format(java.util.Locale.getDefault(), "%.1f", usage / 1048576.0),
-                    limitMb,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = secondary,
-            )
-            SliderRow(
-                title = stringResource(R.string.CacheSize),
-                value = limitMb.toFloat(),
-                valueRange = CacheSettings.MIN_MB.toFloat()..CacheSettings.MAX_MB.toFloat(),
-                steps = (CacheSettings.MAX_MB - CacheSettings.MIN_MB) / 100 - 1,
-                label = "$limitMb MB",
-                onValue = { viewModel.setCacheSizeMb(it.toInt()) },
-            )
-            ClickableRow(
-                title = stringResource(R.string.ClearCache),
-                value = "",
-                hint = stringResource(R.string.cache_dir, viewModel.downloadDirectory()),
-                onClick = { viewModel.clearCaches() },
-            )
-        }
-
-        Section(title = stringResource(R.string.DangerZone), color = secondary) {
-            ClickableRow(
-                title = stringResource(R.string.reset_all_settings),
-                value = "",
-                hint = stringResource(R.string.reset_all_settings_hint),
-                onClick = { resetDialog = true },
-            )
-            resetNotice?.let {
-                Text(it, fontSize = 12.sp, color = secondary, modifier = Modifier.padding(top = 6.dp))
-            }
-        }
-    }
-
-    val chooseLanguage: (String) -> Unit = { tag ->
-        languageDialog = false
-        AppLocale.apply(context, tag)
-        activity?.recreate()
-    }
-    if (languageDialog) {
-        AlertDialog(
-            onDismissRequest = { languageDialog = false },
-            containerColor = Color(palette.backgroundStops.last().argb),
-            title = { Text(stringResource(R.string.language_dialog_title), color = primary) },
-            text = {
-                LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp)) {
-                    item {
-                        LanguageOption(
-                            label = stringResource(R.string.language_system),
-                            selected = AppLocale.current(context).isEmpty(),
-                            onClick = { chooseLanguage(AppLocale.SYSTEM) },
-                        )
-                    }
-                    items(AppLocale.SUPPORTED) { (tag, selfName) ->
-                        LanguageOption(
-                            label = selfName,
-                            selected = AppLocale.current(context) == tag,
-                            onClick = { chooseLanguage(tag) },
-                        )
-                    }
-                }
-            },
-            confirmButton = {},
-        )
-    }
-
-    if (resetDialog) {
-        // MAUI 那颗按钮是**没有确认**直接 Preferences.Clear() 的；不可撤销的批量清空
-        // 至少该问一次。按钮走 PillLabel：TextButton 是 stock 控件，闸门会拦
-        AlertDialog(
-            onDismissRequest = { resetDialog = false },
-            containerColor = Color(palette.backgroundStops.last().argb),
-            title = { Text(stringResource(R.string.reset_all_settings), color = primary) },
-            text = { Text(stringResource(R.string.reset_all_settings_confirm), color = secondary) },
-            confirmButton = {
-                PillLabel(
-                    text = stringResource(R.string.reset_all_settings_ok),
-                    onClick = {
-                        resetDialog = false
-                        viewModel.resetAllSettings { n -> resetNotice = resetDone.format(n) }
-                    },
-                )
-            },
-            dismissButton = {
-                PillLabel(
-                    text = stringResource(R.string.playlist_rename_cancel),
-                    onClick = { resetDialog = false },
-                    filled = false,
-                )
-            },
-        )
-    }
-}
-
-/** 桌面歌词子页 —— MAUI `DesktopLyricPage` 里本端已实现的那几项：开关、锁定、字号、背景不透明度 */
-@Composable
-private fun DesktopLyricSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel) {
-    val palette = LocalCatClawPalette.current
-    val context = LocalContext.current
-    val secondary = Color(palette.textSecondary)
-    val desktopWanted by viewModel.desktopLyricWanted.collectAsStateWithLifecycle()
-    val desktopAttached by viewModel.desktopLyricAttached.collectAsStateWithLifecycle()
-    val locked by viewModel.desktopLyricLocked.collectAsStateWithLifecycle()
-    val fontSp by viewModel.desktopLyricFontSize.collectAsStateWithLifecycle()
-    val bgOpacity by viewModel.desktopLyricBgOpacity.collectAsStateWithLifecycle()
-    val textColor by viewModel.desktopLyricTextColor.collectAsStateWithLifecycle()
-    val highlightColor by viewModel.desktopLyricHighlightColor.collectAsStateWithLifecycle()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-    ) {
-        SubHeader(title = stringResource(R.string.PageTitleDesktopLyric), onBack = onBack)
-
-        Section(title = stringResource(R.string.DesktopLyricEnable), color = secondary) {
-            SwitchRow(
-                title = stringResource(R.string.DesktopLyricEnable),
-                subtitle = stringResource(R.string.DesktopLyricDesc),
-                // 这里读的是**意图**：窗口没起来时若也显示"关"，用户点一下写成开、界面却仍是关，
-                // 开关就成了一个怎么点都不动的控件，而下面那些样式行还被它挡住进不去
-                checked = desktopWanted,
-                onChecked = { want ->
-                    if (!viewModel.setDesktopLyric(want)) {
-                        context.startActivity(viewModel.overlayPermissionIntent())
-                    }
-                },
-            )
-            if (desktopWanted && !desktopAttached) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.desktop_lyric_not_attached),
-                        fontSize = 12.sp,
-                        color = secondary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    PillLabel(
-                        text = stringResource(R.string.perm_go_grant),
-                        onClick = { context.startActivity(viewModel.overlayPermissionIntent()) },
-                        filled = false,
-                    )
-                }
-            }
-            if (desktopWanted) {
-                SwitchRow(
-                    title = stringResource(R.string.DesktopLyricLockPosition),
-                    subtitle = stringResource(R.string.DesktopLyricLockPositionDesc),
-                    checked = locked,
-                    onChecked = { viewModel.setDesktopLyricLocked(it) },
-                )
-                SliderRow(
-                    title = stringResource(R.string.DesktopLyricFontSize),
-                    value = fontSp,
-                    valueRange = DesktopLyricSettings.MIN_FONT..DesktopLyricSettings.MAX_FONT,
-                    steps = (DesktopLyricSettings.MAX_FONT - DesktopLyricSettings.MIN_FONT).toInt() - 1,
-                    label = fontSp.toInt().toString(),
-                    onValue = { viewModel.setDesktopLyricFontSize(it) },
-                )
-                SliderRow(
-                    title = stringResource(R.string.DesktopLyricBgOpacity),
-                    value = bgOpacity,
-                    valueRange = 0f..1f,
-                    steps = 19,
-                    label = "${(bgOpacity * 100).toInt()}%",
-                    onValue = { viewModel.setDesktopLyricBgOpacity(it) },
-                )
-                // 这两个颜色悬浮窗一直在读（DesktopLyricController 的 textBase / textFill），
-                // 之前设置页没有入口，等于"引擎可配、用户不可配"
-                ColorRow(
-                    title = stringResource(R.string.DesktopLyricTextColor),
-                    current = textColor,
-                    onPick = { viewModel.setDesktopLyricTextColor(it) },
-                )
-                ColorRow(
-                    title = stringResource(R.string.DesktopLyricHighlightColor),
-                    current = highlightColor,
-                    onPick = { viewModel.setDesktopLyricHighlightColor(it) },
-                )
-            }
-        }
-    }
-}
-
-/**
- * 插件管理子页 —— 插件协议 v2 的第一个消费者。
- *
- * 坏掉的安装不会被静默吞掉：每条都带自己的拒绝原因（协议版本 / 平台 / 宿主版本 / 清单不合法），
- * 这正是 v2 把「以清单为唯一事实」写进 [com.catclaw.music.kt.core.plugin.PluginRegistry] 的目的。
- */
-@Composable
-private fun PluginSettingsScreen(onBack: () -> Unit, viewModel: PluginSettingsViewModel = hiltViewModel()) {
+internal fun PluginSettingsScreen(onBack: () -> Unit, viewModel: PluginSettingsViewModel = hiltViewModel()) {
     val palette = LocalCatClawPalette.current
     val secondary = Color(palette.textSecondary)
     val rows by viewModel.rows.collectAsStateWithLifecycle()
@@ -746,7 +396,7 @@ private fun PluginSettingsScreen(onBack: () -> Unit, viewModel: PluginSettingsVi
 }
 
 @Composable
-private fun PluginEntryRow(row: PluginRow) {
+internal fun PluginEntryRow(row: PluginRow) {
     val palette = LocalCatClawPalette.current
     val status = if (row.usable) Color(highlightOnGlassCard(palette)) else Color(palette.textSecondary)
     Column(
@@ -784,7 +434,7 @@ private fun PluginEntryRow(row: PluginRow) {
 
 /** 枢纽分组标题：MAUI 是「✦」小标 + 12sp Bold、CharacterSpacing 2 */
 @Composable
-private fun SectionHeader(title: String) {
+internal fun SectionHeader(title: String) {
     val palette = LocalCatClawPalette.current
     Row(
         modifier = Modifier
@@ -813,7 +463,7 @@ private fun SectionHeader(title: String) {
  * 分隔线从图标右侧起（14+38+14），iOS 设置页那种缩进分隔。
  */
 @Composable
-private fun HubRow(
+internal fun HubRow(
     iconRes: Int,
     title: String,
     desc: String,
@@ -876,7 +526,7 @@ private fun HubRow(
  * 以前每行各是一张卡，四行就是四张剪影叠着；现在一组一张，行间用细线分隔。
  */
 @Composable
-private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+internal fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val palette = LocalCatClawPalette.current
     Text(
         text = title,
@@ -895,7 +545,7 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
 
 /** 子页页头：返回块 + 标题（MAUI 子页是各自 push 出去的整屏） */
 @Composable
-private fun SubHeader(title: String, onBack: () -> Unit) {
+internal fun SubHeader(title: String, onBack: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Row(
         modifier = Modifier
@@ -911,7 +561,7 @@ private fun SubHeader(title: String, onBack: () -> Unit) {
 
 /** 带当前值标签的滑杆：桌面歌词字号与背景不透明度用 */
 @Composable
-private fun SliderRow(
+internal fun SliderRow(
     title: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
@@ -954,7 +604,7 @@ private fun SliderRow(
  * 44dp 的触达壳套 26dp 的色块，色块本身小到能一眼排成一排。
  */
 @Composable
-private fun ColorRow(title: String, current: Int, onPick: (Int) -> Unit) {
+internal fun ColorRow(title: String, current: Int, onPick: (Int) -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(
@@ -992,14 +642,14 @@ private fun ColorRow(title: String, current: Int, onPick: (Int) -> Unit) {
 }
 
 /** LocalContext 未必就是 Activity（可能是 ContextThemeWrapper），逐层剥到底 */
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
 
 @Composable
-private fun Section(title: String, color: Color, content: @Composable () -> Unit) {
+internal fun Section(title: String, color: Color, content: @Composable () -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(
         modifier = Modifier
@@ -1022,12 +672,12 @@ private fun Section(title: String, color: Color, content: @Composable () -> Unit
 }
 
 @Composable
-private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     GlassChip(label = label, selected = selected, onClick = onClick)
 }
 
 @Composable
-private fun ClickableRow(title: String, value: String, hint: String, onClick: () -> Unit) {
+internal fun ClickableRow(title: String, value: String, hint: String, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -1061,7 +711,7 @@ fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boo
 }
 
 @Composable
-private fun LanguageOption(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun LanguageOption(label: String, selected: Boolean, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
     Box(
         modifier = Modifier
@@ -1078,7 +728,7 @@ private fun LanguageOption(label: String, selected: Boolean, onClick: () -> Unit
 }
 
 @Composable
-private fun appearanceLabel(mode: AppearanceMode): String = stringResource(
+internal fun appearanceLabel(mode: AppearanceMode): String = stringResource(
     when (mode) {
         AppearanceMode.System -> R.string.appearance_system
         AppearanceMode.Light -> R.string.appearance_light
@@ -1087,7 +737,7 @@ private fun appearanceLabel(mode: AppearanceMode): String = stringResource(
 )
 
 @Composable
-private fun currentLanguageLabel(context: Context): String {
+internal fun currentLanguageLabel(context: Context): String {
     val tag = AppLocale.current(context)
     val system = stringResource(R.string.language_system)
     return if (tag.isEmpty()) system else AppLocale.displayName(tag)
@@ -1100,7 +750,7 @@ private fun currentLanguageLabel(context: Context): String {
  * 单选把约束写进交互本身，比在代码里互斥更不容易被后来的改动破坏。
  */
 @Composable
-private fun BackgroundOptionRow(
+internal fun BackgroundOptionRow(
     title: String,
     desc: String,
     selected: Boolean,
