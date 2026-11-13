@@ -107,6 +107,8 @@ fun SearchScreen(
     LaunchedEffect(active) { if (active) viewModel.refreshNeteaseLogin() }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
+    val onlineResults by viewModel.onlineResults.collectAsStateWithLifecycle()
+    val onlineLoading by viewModel.onlineLoading.collectAsStateWithLifecycle()
     val sections by viewModel.sections.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
@@ -144,9 +146,12 @@ fun SearchScreen(
             DiscoverSearchPage(
                 query = query,
                 results = results,
+                online = onlineResults,
+                onlineLoading = onlineLoading,
                 onQueryChange = viewModel::setQuery,
                 onClose = { searchPage = false },
                 onPlay = { viewModel.play(results, it) },
+                onPlayOnline = { viewModel.playOnline(onlineResults, it) },
                 primary = primary,
                 secondary = secondary,
             )
@@ -1066,14 +1071,62 @@ private val LandscapeChromeReserve = 80.dp
  * 这里把宽度用起来：左栏约 38% 是每日推荐的实图大卡，右栏上排四入口、下排推荐货架。
  */
 
+
+/** 在线搜索结果行：封面 + 标题 + 歌手-专辑 + 时长（点击即播） */
+@Composable
+private fun OnlineResultRow(
+    song: com.catclaw.music.kt.data.netease.OnlineSong,
+    primary: Color,
+    secondary: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        com.catclaw.music.kt.ui.player.CoverTile(
+            coverArtPath = song.coverUrl,
+            audioPath = null,
+            maxPx = 140,
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(8.dp)),
+        ) { }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(song.title, fontSize = 14.sp, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" - "),
+                fontSize = 11.sp,
+                color = secondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            text = if (song.durationMs > 0) {
+                "%02d:%02d".format(song.durationMs / 60000, (song.durationMs / 1000) % 60)
+            } else "--:--",
+            fontSize = 11.sp,
+            color = secondary,
+        )
+    }
+}
+
 /** 发现页独立搜索页：返回 + 自动聚焦输入框 + 搜索结果（与二级页搜索同一套交互） */
 @Composable
 private fun DiscoverSearchPage(
     query: String,
     results: List<SongListItem>,
+    online: List<com.catclaw.music.kt.data.netease.OnlineSong>,
+    onlineLoading: Boolean,
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit,
     onPlay: (Int) -> Unit,
+    onPlayOnline: (Int) -> Unit,
     primary: Color,
     secondary: Color,
 ) {
@@ -1103,14 +1156,40 @@ private fun DiscoverSearchPage(
                 iconRes = R.drawable.ic_search,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 24.dp),
             )
-            results.isEmpty() -> EmptyState(
+            results.isEmpty() && online.isEmpty() && !onlineLoading -> EmptyState(
                 hint = stringResource(R.string.search_none, query.trim()),
                 iconRes = R.drawable.ic_search,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
             )
             else -> LazyColumn(Modifier.fillMaxSize()) {
-                item {
-                    SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { onPlay(it) }
+                if (results.isNotEmpty()) {
+                    item {
+                        SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { onPlay(it) }
+                    }
+                }
+                if (onlineLoading && online.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.netease_loading),
+                            fontSize = 12.sp,
+                            color = secondary,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                        )
+                    }
+                }
+                if (online.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "在线音乐",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primary,
+                            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 4.dp),
+                        )
+                    }
+                    itemsIndexed(online, key = { i, song -> "online-$i-${song.id}" }) { index, song ->
+                        OnlineResultRow(song, primary, secondary) { onPlayOnline(index) }
+                    }
                 }
             }
         }

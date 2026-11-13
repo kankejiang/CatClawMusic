@@ -28,6 +28,8 @@ class SearchViewModel @Inject constructor(
     private val controller: PlayerController,
     private val session: PlaybackSessionStarter,
     private val radio: com.catclaw.music.kt.data.repository.netease.NeteaseRadioRepository,
+    private val catalog: com.catclaw.music.kt.data.repository.netease.NeteaseCatalogRepository,
+    private val resolver: com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver,
 ) : ViewModel() {
 
     /** 网易云账号登录态：决定发现页是否出现「私人 FM」按钮 */
@@ -49,6 +51,13 @@ class SearchViewModel @Inject constructor(
 
     private val _results = MutableStateFlow<List<SongListItem>>(emptyList())
     val results: StateFlow<List<SongListItem>> = _results.asStateFlow()
+
+    /** 在线音乐结果（与本地结果并列展示；未登录/无网络时为空） */
+    private val _onlineResults = MutableStateFlow<List<com.catclaw.music.kt.data.netease.OnlineSong>>(emptyList())
+    val onlineResults: StateFlow<List<com.catclaw.music.kt.data.netease.OnlineSong>> = _onlineResults.asStateFlow()
+
+    private val _onlineLoading = MutableStateFlow(false)
+    val onlineLoading: StateFlow<Boolean> = _onlineLoading.asStateFlow()
 
     private val _sections = MutableStateFlow(Sections())
     val sections: StateFlow<Sections> = _sections.asStateFlow()
@@ -80,9 +89,21 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch { dao.observeAllSongs().collect { _allSongs.value = it } }
         viewModelScope.launch { dao.observeAlbums().collect { _albums.value = it } }
         viewModelScope.launch {
-            _query.debounce(220L).collect { text ->
+            _query.debounce(350L).collect { text ->
                 val trimmed = text.trim()
                 _results.value = if (trimmed.isEmpty()) emptyList() else dao.searchSongs(trimmed)
+                if (trimmed.isEmpty()) {
+                    _onlineResults.value = emptyList()
+                    _onlineLoading.value = false
+                } else {
+                    // 不依赖登录态：网易云 web 搜索允许匿名（登录后音质更好）
+                    com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                        "NeteaseSearch", "start q=$trimmed loggedIn=${radio.loggedIn.value}",
+                    )
+                    _onlineLoading.value = true
+                    _onlineResults.value = catalog.searchSongs(trimmed)
+                    _onlineLoading.value = false
+                }
             }
         }
     }
@@ -102,6 +123,21 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             _sections.value = loadSections()
             _stats.value = dao.playStats()
+        }
+    }
+
+    /** 播放在线搜索结果：当前曲先取直链，其余用 outer URL 兜底（与网易云页同规则） */
+    fun playOnline(list: List<com.catclaw.music.kt.data.netease.OnlineSong>, index: Int) {
+        if (index !in list.indices) return
+        viewModelScope.launch {
+            session.ensure()
+            val songs = list.map { com.catclaw.music.kt.data.netease.NeteaseSongMapper.toSong(it) }.toMutableList()
+            val picked = list[index]
+            val url = picked.id.toLongOrNull()?.let { runCatching { resolver.resolve(it) }.getOrNull() }
+            if (!url.isNullOrBlank()) {
+                songs[index] = com.catclaw.music.kt.data.netease.NeteaseSongMapper.toQueueSong(picked, index, url)
+            }
+            controller.playSongs(songs, startIndex = index)
         }
     }
 
