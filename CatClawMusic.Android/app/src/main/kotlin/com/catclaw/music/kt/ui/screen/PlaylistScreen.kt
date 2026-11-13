@@ -251,6 +251,8 @@ fun PlaylistScreen(
                 PlaylistDetailHeader(
                     title = playlist.name,
                     cover = covers[playlist.id]?.coverArtPath,
+                    // 本地歌封面多为内嵌图：歌单没有独立封面时用首曲 filePath 兜底
+                    coverAudioPath = covers[playlist.id]?.filePath ?: shown.firstOrNull()?.filePath,
                     creator = null,
                     playCount = null,
                     songCount = shown.size,
