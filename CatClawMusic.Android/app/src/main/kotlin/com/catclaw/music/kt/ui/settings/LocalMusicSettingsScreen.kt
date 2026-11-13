@@ -1,8 +1,6 @@
 package com.catclaw.music.kt.ui.settings
 
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +23,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,9 +63,8 @@ fun LocalMusicSettingsScreen(
     val accent = Color(palette.primary)
     val duplicateHint = stringResource(R.string.local_scan_folder_duplicate)
     val canScan = !view.scanning && (view.useMediaStore || view.useSafScan)
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { viewModel.addFolder(it) }
-    }
+    // 自研文件夹管理器（SAF 拿不到真实路径，改标签要整文件重写）
+    var showPicker by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -121,7 +121,7 @@ fun LocalMusicSettingsScreen(
             PrimaryButton(
                 text = stringResource(R.string.local_scan_add_folder),
                 accent = accent,
-                onClick = { picker.launch(null) },
+                onClick = { showPicker = true },
             )
             Text(
                 text = if (view.folders.isEmpty()) {
@@ -145,15 +145,16 @@ fun LocalMusicSettingsScreen(
                         modifier = Modifier.size(18.dp),
                     )
                     Column(Modifier.weight(1f)) {
+                        // 旧版本的 SAF 树 URI 在新扫描器里会被跳过：就地标出来，别让人以为扫描没读到
                         Text(
-                            text = folderLabel(uri),
+                            text = if (uri.startsWith("/")) java.io.File(uri).name else "旧 SAF 文件夹（请删除后重新添加）",
                             fontSize = 13.sp,
                             color = primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = folderPath(uri),
+                            text = if (uri.startsWith("/")) uri else folderPath(uri),
                             fontSize = 10.sp,
                             color = secondary.copy(alpha = 0.8f),
                             maxLines = 1,
@@ -200,6 +201,16 @@ fun LocalMusicSettingsScreen(
         }
         Spacer(Modifier.height(40.dp))
     }
+
+    if (showPicker) {
+        FolderPickerDialog(
+            onDismiss = { showPicker = false },
+            onPick = { path ->
+                viewModel.addFolder(path)
+                showPicker = false
+            },
+        )
+    }
 }
 
 @Composable
@@ -245,7 +256,7 @@ private fun CheckRow(
 
 /** 满宽主色按钮（MAUI：Primary 底 / 白字 / 高 40 / 圆角 16） */
 @Composable
-private fun PrimaryButton(
+internal fun PrimaryButton(
     text: String,
     accent: Color,
     enabled: Boolean = true,
@@ -270,6 +281,7 @@ private fun PrimaryButton(
  * 非主存储（SD 卡）保留 `XXXX-XXXX:Folder` 形式。
  */
 private fun folderPath(uri: String): String {
+    if (uri.startsWith("/")) return uri
     val decoded = runCatching { Uri.decode(uri) }.getOrDefault(uri)
     val docId = decoded.substringAfter("tree/", decoded).substringBefore("/document/")
     return when {

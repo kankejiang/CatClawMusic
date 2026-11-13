@@ -39,7 +39,7 @@ class LibraryScanner @Inject constructor(
     private val db: CatClawDatabase,
     private val dao: LibraryDao,
     private val settings: LocalScanSettings,
-    private val saf: SafMusicScanner,
+    private val fileScanner: FileMusicScanner,
 ) {
 
     suspend fun scanFull(): ScanResult = withContext(Dispatchers.IO) {
@@ -51,7 +51,7 @@ class LibraryScanner @Inject constructor(
         // 只按 MediaStore 的结果裁剪，会把 SAF 文件夹里那几首判成"文件已消失"而删掉
         val tracks = buildList {
             if (settings.useMediaStore) addAll(queryMediaStore())
-            if (settings.useSafScan) addAll(saf.scan(settings.folders()))
+            if (settings.useSafScan) addAll(fileScanner.scan(settings.folders()))
         }
 
         com.catclaw.music.kt.core.diagnostic.AppLog.d(

@@ -337,6 +337,13 @@ Download it from GitHub.</string>
     <string name="local_scan_none">Both scan methods are off — a scan would read nothing</string>
     <string name="local_scan_folders">Music folders</string>
     <string name="local_scan_add_folder">Add folder</string>
+    <string name="folder_picker_title">Choose music folder</string>
+    <string name="folder_picker_need_permission">"All files access" permission is required to browse folders</string>
+    <string name="folder_picker_grant">Grant access</string>
+    <string name="folder_picker_up">Up</string>
+    <string name="folder_picker_pick">Use this folder</string>
+    <string name="folder_picker_cancel">Cancel</string>
+
     <string name="local_scan_no_folder">No folders added yet</string>
     <string name="local_scan_folder_duplicate">That folder is already in the list</string>
     <string name="local_scan_remove_folder">Remove folder</string>

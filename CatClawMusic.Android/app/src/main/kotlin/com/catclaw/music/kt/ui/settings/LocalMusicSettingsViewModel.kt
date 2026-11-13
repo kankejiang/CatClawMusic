@@ -64,9 +64,9 @@ class LocalMusicSettingsViewModel @Inject constructor(
         reload()
     }
 
-    /** 记住一个 SAF 文件夹（持久授权在 store 里一起要到手） */
-    fun addFolder(uri: Uri) {
-        val added = settings.addFolder(uri)
+    /** 记住一个真实路径文件夹（自研文件夹管理器选出来的） */
+    fun addFolder(path: String) {
+        val added = settings.addFolder(path)
         _view.update { it.copy(duplicateFolder = !added) }
         reload()
     }

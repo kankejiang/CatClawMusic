@@ -51,17 +51,19 @@ class LocalScanSettings @Inject constructor(
      *
      * @return false 表示这个文件夹已经在清单里
      */
-    fun addFolder(uri: Uri): Boolean {
-        val value = uri.toString()
+    /**
+     * 记住一个**真实路径**文件夹（自研文件夹管理器选出来的）。
+     *
+     * 与旧 SAF 版本的差别：不再 `takePersistableUriPermission` —— 走 MANAGE_EXTERNAL_STORAGE
+     * 之后直接按 `File` 读写，改标签也不需要整文件重写。
+     *
+     * @return false 表示这个文件夹已经在清单里
+     */
+    fun addFolder(path: String): Boolean {
+        val value = path.trim().trimEnd('/')
+        if (value.isEmpty()) return false
         val current = folders()
         if (value in current) return false
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }.onFailure {
-            // 拿不到持久授权也要存：可能是这个 URI 本来就可读（同签名的 DocumentsUI），
-            // 也可能是用户撤销过授权 —— 扫描那侧读不到会自己报数，这里不替它下结论
-            AppLog.w(TAG, "takePersistableUriPermission failed for $value: ${it.message}")
-        }
         prefs.edit().putString(KEY_FOLDERS, MediaScanRules.encodeFolders(current + value)).apply()
         return true
     }
