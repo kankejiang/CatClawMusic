@@ -83,6 +83,7 @@ import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.data.db.PlaylistCover
 import com.catclaw.music.kt.data.db.entity.PlaylistEntity
 import com.catclaw.music.kt.ui.playlist.PlaylistViewModel
+import com.catclaw.music.kt.ui.playlist.PlaylistDetailContent
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.BackTile
 import com.catclaw.music.kt.ui.theme.inkOn
@@ -228,13 +229,11 @@ fun PlaylistScreen(
             secondary = secondary,
         )
     } else if (open != null) {
-        // 自定义歌单详情：完全走音乐库二级页的骨架（SongCollectionScreen）——
-        // 右上角搜索进独立页、排序收进「更多」菜单、上滑收起大封面头、返回键常驻
+        // 自定义歌单详情：交给可复用的 PlaylistDetailContent（与音乐库二级页同构）
         open?.let { playlist ->
-            SongCollectionScreen(
+            PlaylistDetailContent(
                 title = playlist.name,
                 countText = stringResource(R.string.playlist_count, shown.size),
-                onBack = { viewModel.close() },
                 cover = CollectionCover(
                     coverArtPath = covers[playlist.id]?.coverArtPath,
                     audioPath = covers[playlist.id]?.filePath ?: shown.firstOrNull()?.filePath,
@@ -258,32 +257,26 @@ fun PlaylistScreen(
                         onClick = { viewModel.addCurrentSong() },
                     ),
                 ),
-                chipGroups = listOf(
-                    SongSortKey.entries.map { mode ->
-                        CollectionChip(
-                            label = stringResource(sortLabelRes(mode)) +
-                                if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
-                            selected = itemSort == mode,
-                            onClick = { viewModel.setItemSort(mode) },
-                        )
-                    },
-                ),
+                sortChips = SongSortKey.entries.map { mode ->
+                    CollectionChip(
+                        label = stringResource(sortLabelRes(mode)) +
+                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
+                        selected = itemSort == mode,
+                        onClick = { viewModel.setItemSort(mode) },
+                    )
+                },
                 search = CollectionSearch(
                     itemQuery,
                     stringResource(R.string.playlist_search_hint),
                     viewModel::setItemQuery,
                 ),
-            ) {
-                PlaylistSongRows(
-                    rows = shown,
-                    query = itemQuery,
-                    compact = landscape,
-                    primary = primary,
-                    secondary = secondary,
-                    onPlay = { viewModel.playAt(it) },
-                    onOpenMenu = { rowMenu = it },
-                )
-            }
+                rows = shown,
+                query = itemQuery,
+                landscape = landscape,
+                onBack = { viewModel.close() },
+                onPlay = { viewModel.playAt(it) },
+                onOpenMenu = { rowMenu = it },
+            )
         }
     } else {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
@@ -1303,58 +1296,3 @@ private fun PlaylistRows(
  * 歌单详情的歌曲行：横竖屏共用一份，长按菜单由页面托管（菜单里带「从歌单移除」）。
  * 只有行高按 compact 收一档 —— 横屏 411dp 的画布要尽量多露几行。
  */
-@Composable
-private fun PlaylistSongRows(
-    rows: List<SongListItem>,
-    query: String,
-    compact: Boolean,
-    primary: Color,
-    secondary: Color,
-    onPlay: (Int) -> Unit,
-    onOpenMenu: (SongMenuTarget) -> Unit,
-) {
-    val palette = LocalCatClawPalette.current
-    if (rows.isEmpty()) {
-        EmptyState(
-            hint = if (query.isBlank()) {
-                stringResource(R.string.playlist_empty)
-            } else {
-                stringResource(R.string.search_none, query.trim())
-            },
-            iconRes = R.drawable.ic_add,
-        )
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = if (compact) 80.dp else 96.dp),
-    ) {
-        items(rows.size, key = { "row-$it" }) { index ->
-            val song = rows[index]
-            val index = rows.indexOf(song)
-            PlaylistSongRowUi(
-                song = PlaylistSongUi(
-                    key = song.id,
-                    title = song.title,
-                    artist = song.artist.orEmpty(),
-                    album = song.album.orEmpty(),
-                    cover = song.coverArtPath,
-                    durationSec = song.durationSeconds,
-                ),
-                index = index,
-                isLandscape = compact,
-                onClick = { onPlay(index) },
-                onLongClick = {
-                    onOpenMenu(
-                        SongMenuTarget(
-                            id = song.id,
-                            title = song.title,
-                            subtitle = songMenuSubtitle(song.artist, song.album),
-                            song = song.toSong(),
-                        ),
-                    )
-                },
-            )
-        }
-    }
-}

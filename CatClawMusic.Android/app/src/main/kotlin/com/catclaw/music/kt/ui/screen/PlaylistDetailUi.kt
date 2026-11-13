@@ -48,6 +48,8 @@ data class PlaylistSongUi(
     val artist: String,
     val album: String,
     val cover: String?,
+    /** 本地歌封面内嵌在音频文件里：cover 为空时用它抽图 */
+    val coverAudioPath: String? = null,
     val durationSec: Int,
     val vip: Boolean = false,
     val blocked: Boolean = false,
@@ -217,7 +219,7 @@ fun PlaylistSongRowUi(
             )
             CoverTile(
                 coverArtPath = song.cover,
-                audioPath = null,
+                audioPath = song.coverAudioPath,
                 maxPx = 96,
                 modifier = Modifier.size(34.dp).clip(RoundedCornerShape(6.dp)),
             ) { }
@@ -260,7 +262,7 @@ fun PlaylistSongRowUi(
         ) {
             CoverTile(
                 coverArtPath = song.cover,
-                audioPath = null,
+                audioPath = song.coverAudioPath,
                 maxPx = 140,
                 modifier = Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
             ) { }
