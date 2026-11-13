@@ -1180,7 +1180,9 @@ private fun DiscoverSearchPage(
                 if (online.isNotEmpty()) {
                     item {
                         Text(
-                            text = "在线音乐",
+                            // 按来源命名（当前接入的是网易云）：未来多源时直接跟 platformName 走
+                            text = online.firstOrNull()?.platformName?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.netease_music_title),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = primary,
