@@ -201,7 +201,7 @@ fun SearchScreen(
                     // 这里是竖屏头部：横屏在 LandscapeDiscover 里有自己的一条（图标更小、含搜索与统计）
                     GlassIcon(R.drawable.ic_search, stringResource(R.string.TabSearch)) { searchOpen = !searchOpen }
                     Spacer(Modifier.width(10.dp))
-                    GlassIcon(R.drawable.ic_equalizer, stringResource(R.string.lib_open_stats)) { statsOpen = true }
+                    GlassIcon(R.drawable.ic_stats, stringResource(R.string.lib_open_stats)) { statsOpen = true }
                     Spacer(Modifier.width(10.dp))
                     GlassIcon(R.drawable.ic_settings, stringResource(R.string.Settings), onClick = onOpenSettings)
                 }
@@ -1119,7 +1119,7 @@ private fun LandscapeDiscover(
             )
             Spacer(Modifier.width(8.dp))
             GlassIcon(
-                R.drawable.ic_equalizer,
+                R.drawable.ic_stats,
                 stringResource(R.string.lib_open_stats),
                 size = 38.dp,
                 onClick = onOpenStats,
