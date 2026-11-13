@@ -44,6 +44,9 @@ class LibraryScanner @Inject constructor(
 
     suspend fun scanFull(): ScanResult = withContext(Dispatchers.IO) {
         val startedAt = System.currentTimeMillis()
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LibraryScan", "start mediaStore=${settings.useMediaStore} saf=${settings.useSafScan}",
+        )
         // 两条来源合起来才是"这次扫描看到的全部"。裁剪必须拿这个并集当 seen ——
         // 只按 MediaStore 的结果裁剪，会把 SAF 文件夹里那几首判成"文件已消失"而删掉
         val tracks = buildList {
@@ -51,6 +54,9 @@ class LibraryScanner @Inject constructor(
             if (settings.useSafScan) addAll(saf.scan(settings.folders()))
         }
 
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LibraryScan", "queried ${tracks.size} tracks in ${System.currentTimeMillis() - startedAt}ms",
+        )
         val result = db.withTransaction {
             val existingSongs = dao.allLocalSongs().associateBy { it.filePath }
             val artistIds = dao.artistNames().associate { it.name to it.id }.toMutableMap()
