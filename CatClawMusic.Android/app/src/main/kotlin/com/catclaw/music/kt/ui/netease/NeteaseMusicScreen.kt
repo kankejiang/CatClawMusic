@@ -96,6 +96,8 @@ fun NeteaseMusicScreen(
     /** 从歌单 tab 的「网易云歌单」货架进来时，直接打开这个歌单 */
     initialPlaylist: OnlinePlaylist? = null,
     onInitialPlaylistConsumed: () -> Unit = {},
+    /** true：详情页返回时直接退出整个在线音乐路由（从歌单 tab 深链进来时用） */
+    exitOnDetailClose: Boolean = false,
     viewModel: NeteaseMusicViewModel = hiltViewModel(),
     importViewModel: NeteaseImportViewModel = hiltViewModel(),
 ) {
@@ -126,7 +128,9 @@ fun NeteaseMusicScreen(
     }
 
     // 详情页在页内切换而不是导航路由：返回键应当先退回列表，再退整页
-    BackHandler(enabled = detail != null) { viewModel.closeDetail() }
+    BackHandler(enabled = detail != null) {
+        if (exitOnDetailClose) onBack() else viewModel.closeDetail()
+    }
     BackHandler(enabled = showLogin) { showLogin = false }
     BackHandler(enabled = showImport) { showImport = false }
 
@@ -141,7 +145,7 @@ fun NeteaseMusicScreen(
             NeteasePlaylistDetail(
                 detail = currentDetail,
                 likedIds = likedIds,
-                onBack = viewModel::closeDetail,
+                onBack = { if (exitOnDetailClose) onBack() else viewModel.closeDetail() },
                 onPlayAll = { viewModel.playAll(currentDetail.songs) },
                 onPlayAllShuffled = { viewModel.playAll(currentDetail.songs.shuffled()) },
                 songs = detailSongs,

@@ -190,6 +190,8 @@ fun CatClawRoot() {
     val rootNavController = rememberNavController()
     // 从歌单 tab 点网易云歌单时，先把歌单对象带到在线音乐路由，进来后由该页消费掉
     var pendingNeteasePlaylist by remember { mutableStateOf<OnlinePlaylist?>(null) }
+    // 从歌单 tab 深链进网易云详情：详情页按返回应当直接回歌单 tab，而不是先退到网易云列表
+    var neteaseDeepLink by remember { mutableStateOf(false) }
     // 设置路由一进来落在哪一页。用提升的状态而不是导航参数：只有「从别处直接跳某个子页」才需要它，
     // 而那条路径目前只有一个调用点（音乐库的资料库卡 → 下载管理）
     var settingsDest by remember { mutableStateOf(SettingsDest.Hub) }
@@ -218,6 +220,7 @@ fun CatClawRoot() {
                 onOpenNeteaseMusic = { rootNavController.navigate(ROUTE_NETEASE) },
                 onOpenNeteasePlaylist = { playlist ->
                     pendingNeteasePlaylist = playlist
+                    neteaseDeepLink = true
                     rootNavController.navigate(ROUTE_NETEASE)
                 },
                 onOpenDownloads = {
@@ -245,9 +248,13 @@ fun CatClawRoot() {
         composable(ROUTE_NETEASE) {
             ThemedSurface {
                 NeteaseMusicScreen(
-                    onBack = { rootNavController.popBackStack() },
+                    onBack = {
+                        neteaseDeepLink = false
+                        rootNavController.popBackStack()
+                    },
                     initialPlaylist = pendingNeteasePlaylist,
                     onInitialPlaylistConsumed = { pendingNeteasePlaylist = null },
+                    exitOnDetailClose = neteaseDeepLink,
                 )
             }
         }
