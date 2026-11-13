@@ -41,6 +41,15 @@ class PlaylistDetailViewModel @Inject constructor(
     private val _openId = MutableStateFlow<Int?>(null)
     val openId: StateFlow<Int?> = _openId.asStateFlow()
 
+    /** 当前打开的歌单实体与封面（独立页面组件自己就能取，不用调用方传） */
+    val playlist: StateFlow<com.catclaw.music.kt.data.db.entity.PlaylistEntity?> =
+        combine(playlists.playlists, _openId) { list, id -> list.firstOrNull { it.id == id } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val cover: StateFlow<com.catclaw.music.kt.data.db.PlaylistCover?> =
+        combine(playlists.covers, _openId) { rows, id -> rows.firstOrNull { it.playlistId == id } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     /** 打开某个歌单才订阅它的曲目，没打开时给空流 */
     val items: StateFlow<List<SongListItem>> = _openId
         .flatMapLatest { id -> playlists.items(id) }

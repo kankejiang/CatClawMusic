@@ -229,56 +229,14 @@ fun PlaylistScreen(
             primary = primary,
             secondary = secondary,
         )
-    } else if (open != null) {
-        // 自定义歌单详情：交给可复用的 PlaylistDetailContent（与音乐库二级页同构）
-        open?.let { playlist ->
-            PlaylistDetailContent(
-                title = playlist.name,
-                countText = stringResource(R.string.playlist_count, shown.size),
-                cover = CollectionCover(
-                    coverArtPath = covers[playlist.id]?.coverArtPath,
-                    audioPath = covers[playlist.id]?.filePath ?: shown.firstOrNull()?.filePath,
-                    fallback = playlist.name,
-                ),
-                actions = listOf(
-                    CollectionAction(
-                        label = stringResource(R.string.playlist_play_all),
-                        iconRes = R.drawable.ic_play,
-                        primary = true,
-                        onClick = { detailViewModel.playAll() },
-                    ),
-                    CollectionAction(
-                        label = stringResource(R.string.shuffle_play),
-                        iconRes = R.drawable.ic_shuffle,
-                        onClick = { detailViewModel.playAllShuffled() },
-                    ),
-                    CollectionAction(
-                        label = stringResource(R.string.playlist_add_current),
-                        iconRes = R.drawable.ic_add,
-                        onClick = { detailViewModel.addCurrentSong() },
-                    ),
-                ),
-                sortChips = SongSortKey.entries.map { mode ->
-                    CollectionChip(
-                        label = stringResource(sortLabelRes(mode)) +
-                            if (itemSort == mode) (if (itemSortDescending) " ↓" else " ↑") else "",
-                        selected = itemSort == mode,
-                        onClick = { detailViewModel.setItemSort(mode) },
-                    )
-                },
-                search = CollectionSearch(
-                    itemQuery,
-                    stringResource(R.string.playlist_search_hint),
-                    detailViewModel::setItemQuery,
-                ),
-                rows = shown,
-                query = itemQuery,
-                landscape = landscape,
-                onBack = { detailViewModel.close() },
-                onPlay = { detailViewModel.playAt(it) },
-                onOpenMenu = { rowMenu = it },
-            )
-        }
+    } else if (openId != null) {
+        // 独立歌单详情页：一行调用，内部自己收集状态
+        com.catclaw.music.kt.ui.playlist.PlaylistDetailScreen(
+            playlistId = openId!!,
+            onBack = { detailViewModel.close() },
+            onOpenMenu = { rowMenu = it },
+            viewModel = detailViewModel,
+        )
     } else {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(14.dp))

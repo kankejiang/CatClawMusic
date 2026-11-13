@@ -3,6 +3,14 @@ package com.catclaw.music.kt.ui.playlist
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.catclaw.music.kt.core.library.SongSortKey
+import com.catclaw.music.kt.ui.screen.sortLabelRes
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -121,4 +129,75 @@ internal fun PlaylistSongRows(
             )
         }
     }
+}
+
+/**
+ * 独立歌单详情页（开箱即用）：任何页面一行 `PlaylistDetailScreen(playlistId, onBack, onOpenMenu)` 即可。
+ *
+ * 内部自己 hiltViewModel + 收集状态，调用方不需要传歌单实体、封面、actions、排序 chips、搜索。
+ * 返回时调用方负责 `viewModel.close()`（页内嵌场景由外层 BackHandler 处理）。
+ */
+@Composable
+fun PlaylistDetailScreen(
+    playlistId: Int,
+    onBack: () -> Unit,
+    onOpenMenu: (SongMenuTarget) -> Unit,
+    viewModel: PlaylistDetailViewModel = hiltViewModel(),
+) {
+    LaunchedEffect(playlistId) { viewModel.open(playlistId) }
+    val playlist by viewModel.playlist.collectAsStateWithLifecycle()
+    val cover by viewModel.cover.collectAsStateWithLifecycle()
+    val rows by viewModel.displayItems.collectAsStateWithLifecycle()
+    val sort by viewModel.itemSort.collectAsStateWithLifecycle()
+    val descending by viewModel.itemSortDescending.collectAsStateWithLifecycle()
+    val query by viewModel.itemQuery.collectAsStateWithLifecycle()
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val entity = playlist ?: return
+
+    PlaylistDetailContent(
+        title = entity.name,
+        countText = stringResource(R.string.playlist_count, rows.size),
+        cover = CollectionCover(
+            coverArtPath = cover?.coverArtPath,
+            audioPath = cover?.filePath ?: rows.firstOrNull()?.filePath,
+            fallback = entity.name,
+        ),
+        actions = listOf(
+            CollectionAction(
+                label = stringResource(R.string.playlist_play_all),
+                iconRes = R.drawable.ic_play,
+                primary = true,
+                onClick = { viewModel.playAll() },
+            ),
+            CollectionAction(
+                label = stringResource(R.string.shuffle_play),
+                iconRes = R.drawable.ic_shuffle,
+                onClick = { viewModel.playAllShuffled() },
+            ),
+            CollectionAction(
+                label = stringResource(R.string.playlist_add_current),
+                iconRes = R.drawable.ic_add,
+                onClick = { viewModel.addCurrentSong() },
+            ),
+        ),
+        sortChips = SongSortKey.entries.map { key ->
+            CollectionChip(
+                label = stringResource(sortLabelRes(key)) +
+                    if (sort == key) (if (descending) " ↓" else " ↑") else "",
+                selected = sort == key,
+                onClick = { viewModel.setItemSort(key) },
+            )
+        },
+        search = CollectionSearch(
+            query,
+            stringResource(R.string.playlist_search_hint),
+            viewModel::setItemQuery,
+        ),
+        rows = rows,
+        query = query,
+        landscape = landscape,
+        onBack = onBack,
+        onPlay = viewModel::playAt,
+        onOpenMenu = onOpenMenu,
+    )
 }
