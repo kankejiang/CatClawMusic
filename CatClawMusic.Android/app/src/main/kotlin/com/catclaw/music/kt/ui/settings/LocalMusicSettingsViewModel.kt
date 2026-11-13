@@ -1,6 +1,5 @@
 package com.catclaw.music.kt.ui.settings
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.data.library.LibraryScanner
@@ -86,10 +85,4 @@ class LocalMusicSettingsViewModel @Inject constructor(
             _view.update { it.copy(scanning = false, lastResult = result ?: it.lastResult) }
         }
     }
-}
-
-/** 树 URI → 给人看的文件夹名（`…/tree/primary%3AMusic` → `Music`） */
-internal fun folderLabel(uri: String): String {
-    val tail = runCatching { Uri.parse(uri).lastPathSegment }.getOrNull().orEmpty()
-    return tail.substringAfter(':').ifBlank { tail.ifBlank { uri } }
 }
