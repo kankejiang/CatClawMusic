@@ -36,7 +36,10 @@ class NeteaseRadioRepository @Inject constructor(
     private val playbackSession: PlaybackSessionStarter,
     private val account: NeteaseAccountRepository,
     @com.catclaw.music.kt.data.di.AppScope private val scope: CoroutineScope,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) {
+
+    private val prefs = context.getSharedPreferences("netease_fm", android.content.Context.MODE_PRIVATE)
 
     private val _fmMode = MutableStateFlow(false)
     val fmMode: StateFlow<Boolean> = _fmMode.asStateFlow()
@@ -50,13 +53,27 @@ class NeteaseRadioRepository @Inject constructor(
     private var savedMode: PlayMode? = null
     private var refilling = false
     private var starting = false
+    /** 上次退出时仍在漫游：等播放器第一次发状态时恢复，避免与队列 restore 抢顺序 */
+    private var restoring = prefs.getBoolean(KEY_ACTIVE, false)
 
     init {
+        _mode.value = FmMode.entries.firstOrNull { it.code == prefs.getString(KEY_MODE, "DEFAULT") }
+            ?: FmMode.DEFAULT
         // 事件路径 + 定时兜底，与插件双路径一致（宿主可能不回调播完事件）
         scope.launch {
             player.state.collect { state ->
-                // 外部换了队列（playSongs 清了 FM 态）→ 与插件 LeaveFmMode 一样恢复原模式
-                if (!state.isFmMode && _fmMode.value) stop()
+                if (restoring) {
+                    // 冷启动：队列由 PlayerController.restore() 恢复，这里只补回 FM 身份，
+                    // 不自动起播（不扰民），按播放/切歌即继续电台与补货
+                    restoring = false
+                    _fmMode.value = true
+                    player.setFmMode(true)
+                    player.setMode(PlayMode.Sequential)
+                    return@collect
+                }
+                // 播放任意歌单（本地/在线）都会走 playSongs → 清 isFmMode：
+                // 被动退出时不恢复旧播放模式，否则会覆盖新歌单刚设的随机/单曲循环
+                if (!state.isFmMode && _fmMode.value) stop(restoreMode = false)
                 if (_fmMode.value) ensureBuffer()
             }
         }
@@ -71,6 +88,7 @@ class NeteaseRadioRepository @Inject constructor(
     /** 插件 TrySetFmModeAsync：切模式 → 重新拉一批（保留电台态） */
     fun setMode(mode: FmMode) {
         _mode.value = mode
+        prefs.edit().putString(KEY_MODE, mode.code).apply()
         refresh()
     }
 
@@ -126,6 +144,10 @@ class NeteaseRadioRepository @Inject constructor(
                 player.setFmMode(true)
                 player.setMode(PlayMode.Sequential)
                 _fmMode.value = true
+                prefs.edit()
+                    .putBoolean(KEY_ACTIVE, true)
+                    .putString(KEY_MODE, _mode.value.code)
+                    .apply()
                 // 其余几首并发升级直链（upgradeQueueItem 会跳过正在播的第一首）
                 songs.drop(1).forEach { song ->
                     scope.launch {
@@ -142,11 +164,12 @@ class NeteaseRadioRepository @Inject constructor(
     }
 
     /** 播放非 FM 歌曲时退出电台，恢复进入前的播放模式（插件 LeaveFmMode） */
-    fun stop() {
+    fun stop(restoreMode: Boolean = true) {
         if (!_fmMode.value && savedMode == null) return
         _fmMode.value = false
+        prefs.edit().putBoolean(KEY_ACTIVE, false).apply()
         player.setFmMode(false)
-        savedMode?.let { player.setMode(it) }
+        if (restoreMode) savedMode?.let { player.setMode(it) }
         savedMode = null
     }
 
@@ -189,6 +212,8 @@ class NeteaseRadioRepository @Inject constructor(
     private companion object {
         /** 插件 FmBatchSize：官方 3 首一批 */
         const val FM_BATCH = 3
+        const val KEY_ACTIVE = "fm_active"
+        const val KEY_MODE = "fm_mode"
     }
 }
 

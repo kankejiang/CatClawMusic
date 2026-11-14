@@ -49,6 +49,7 @@ class SettingsReset @Inject constructor(
             "netease_session",
             // 网易云播放音质偏好（无损/320k/128k）
             "netease_quality",
+            "netease_fm",
         )
     }
 }
