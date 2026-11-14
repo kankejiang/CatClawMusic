@@ -94,6 +94,7 @@ import com.catclaw.music.kt.ui.song.SongMenuTarget
 import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
+import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.artworkBackdrop
 import com.catclaw.music.kt.ui.theme.VinylCover
 import com.catclaw.music.kt.ui.theme.artworkWash
@@ -109,8 +110,11 @@ fun PlayingScreen(
     manualLandscape: Boolean = false,
     onToggleLandscape: () -> Unit = {},
     viewModel: PlayingViewModel = hiltViewModel(),
+    neteaseViewModel: com.catclaw.music.kt.ui.netease.NeteaseMusicViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val fmMode by neteaseViewModel.radioMode.collectAsStateWithLifecycle()
+    var fmPickerOpen by remember { mutableStateOf(false) }
     val neteaseLikedIds by viewModel.neteaseLikedIds.collectAsStateWithLifecycle()
     val neteaseHint by viewModel.neteaseHint.collectAsStateWithLifecycle()
     val lastScan by viewModel.lastScan.collectAsStateWithLifecycle()
@@ -253,7 +257,7 @@ fun PlayingScreen(
                 onToggle = { viewModel.toggle() },
                 onNext = { viewModel.next() },
                 onPrevious = { viewModel.previous() },
-                onCycleMode = { viewModel.cycleMode() },
+                onCycleMode = { if (state.isFmMode) fmPickerOpen = true else viewModel.cycleMode() },
                 onSeek = { viewModel.seekTo(it) },
                 onToggleFavorite = { toggleFavoriteOf(state.currentSong?.remoteId, state.currentSong?.id) },
                 onOpenQueue = onOpenQueue,
@@ -400,7 +404,7 @@ fun PlayingScreen(
                     icon = modeIcon(state.mode, state.isFmMode),
                     description = stringResource(R.string.mode_change) + "：" + stringResource(modeLabelRes(state.mode, state.isFmMode)),
                     tint = Color(palette.textSecondary),
-                    onClick = { viewModel.cycleMode() },
+                    onClick = { if (state.isFmMode) fmPickerOpen = true else viewModel.cycleMode() },
                 )
             }
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -522,6 +526,58 @@ fun PlayingScreen(
             onDismiss = { songMenuOpen = false },
         )
     }
+    if (fmPickerOpen) {
+        FmModePickerDialog(
+            current = fmMode,
+            onPick = {
+                neteaseViewModel.setRadioMode(it)
+                fmPickerOpen = false
+            },
+            onDismiss = { fmPickerOpen = false },
+        )
+    }
 }
 
 /** 播放页的封面方块：竖屏与横屏同一形状（小圆角 + 重投影），只是边长不同 */
+
+/** FM 推荐模式选择（插件 FmModeSelectPage 的 3 档简版） */
+@Composable
+private fun FmModePickerDialog(
+    current: com.catclaw.music.kt.data.repository.netease.FmMode,
+    onPick: (com.catclaw.music.kt.data.repository.netease.FmMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val primary = Color(palette.textPrimary)
+    val secondary = Color(palette.textSecondary)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(palette.backgroundStops.last().argb).copy(alpha = 0.96f))
+                .glassCard(palette = palette, corner = 24)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("私人漫游模式", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = primary)
+            Text("切换后重新加载电台", fontSize = 11.5.sp, color = secondary)
+            com.catclaw.music.kt.data.repository.netease.FmMode.entries.forEach { mode ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onPick(mode) }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(mode.label, fontSize = 15.sp, color = primary)
+                        Text(mode.code, fontSize = 11.sp, color = secondary)
+                    }
+                    if (mode == current) Text("✓", fontSize = 16.sp, color = Color(com.catclaw.music.kt.ui.theme.highlightOnGlassCard(palette)))
+                }
+            }
+        }
+    }
+}

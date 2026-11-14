@@ -41,6 +41,10 @@ class NeteaseRadioRepository @Inject constructor(
     private val _fmMode = MutableStateFlow(false)
     val fmMode: StateFlow<Boolean> = _fmMode.asStateFlow()
 
+    /** 推荐模式（插件 `_currentFmMode`）：DEFAULT/FAMILIAR/EXPLORE，切换后重新加载电台 */
+    private val _mode = MutableStateFlow(FmMode.DEFAULT)
+    val mode: StateFlow<FmMode> = _mode.asStateFlow()
+
     val loggedIn: StateFlow<Boolean> get() = account.loggedIn
 
     private var savedMode: PlayMode? = null
@@ -64,13 +68,32 @@ class NeteaseRadioRepository @Inject constructor(
         }
     }
 
+    /** 插件 TrySetFmModeAsync：切模式 → 重新拉一批（保留电台态） */
+    fun setMode(mode: FmMode) {
+        _mode.value = mode
+        stop()
+        start()
+    }
+
+    /** 插件 FmLikeAsync：FM 曲红心影响推荐，不走普通歌单 like */
+    fun like(songId: String, liked: Boolean) {
+        scope.launch { runCatching { api.fmLike(songId, liked) } }
+    }
+
+    /** 插件 FmTrashAsync：垃圾桶 + 立刻切下一首 */
+    fun trash(songId: String) {
+        scope.launch {
+            if (runCatching { api.fmTrash(songId) }.getOrDefault(false)) player.next()
+        }
+    }
+
     fun start() {
         if (starting) return
         scope.launch {
             starting = true
             try {
                 val fmT0 = System.currentTimeMillis()
-                val songs = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+                val songs = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
                 com.catclaw.music.kt.core.diagnostic.AppLog.d(
                     "NeteaseTiming", "fm privateFm=${System.currentTimeMillis() - fmT0}ms n=${songs.size}",
                 )
@@ -137,8 +160,13 @@ class NeteaseRadioRepository @Inject constructor(
         refilling = true
         try {
             val existing = queueSongs.map { it.id }.toSet()
-            val next = runCatching { api.privateFm(FM_BATCH) }.getOrDefault(emptyList())
+            var next = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
                 .filter { NeteaseSongMapper.toQueueSong(it, 0, "").id !in existing }
+            if (next.isEmpty()) {
+                // 插件：网易云常返回固定候选集，一批全被去重时放宽重试，保证电台不断
+                AppLog.w("NeteaseFm", "补货首批全部被去重，放宽重试")
+                next = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
+            }
             if (next.isNotEmpty()) {
                 player.appendSongs(next.mapIndexed { index, song ->
                     NeteaseSongMapper.toQueueSong(song, index, NeteasePlaylistClient.playUrlFallback(song.id.toLongOrNull() ?: 0L))
@@ -157,4 +185,11 @@ class NeteaseRadioRepository @Inject constructor(
         /** 插件 FmBatchSize：官方 3 首一批 */
         const val FM_BATCH = 3
     }
+}
+
+/** 私人漫游推荐模式（插件 GetFmModesAsync 的 3 档 mode） */
+enum class FmMode(val code: String, val label: String) {
+    DEFAULT("DEFAULT", "默认模式"),
+    FAMILIAR("FAMILIAR", "熟悉模式"),
+    EXPLORE("EXPLORE", "探索模式"),
 }

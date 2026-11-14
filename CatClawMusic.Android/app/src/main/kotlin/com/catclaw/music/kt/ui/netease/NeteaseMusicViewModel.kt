@@ -366,9 +366,17 @@ class NeteaseMusicViewModel @Inject constructor(
     }
 
     fun like(song: OnlineSong, like: Boolean) {
-        // 目标态由单例镜像决定，成功后所有页面同步刷新；不碰本地收藏表
+        // 插件：FM 曲红心走 /api/radio/like 影响推荐；普通 like 同时维护「我喜欢的音乐」镜像
+        if (radio.fmMode.value) radio.like(song.id, like)
         likes.toggle(song.id)
     }
+
+    /** 插件 FmTrashAsync：电台里不想听这首 */
+    fun trashFm(song: OnlineSong) = radio.trash(song.id)
+
+    /** 插件 GetFmModeLabelAsync / GetFmModesAsync 的 3 档推荐模式 */
+    val radioMode get() = radio.mode
+    fun setRadioMode(mode: com.catclaw.music.kt.data.repository.netease.FmMode) = radio.setMode(mode)
 
     // ── 登录 ───────────────────────────────────────────────────
 

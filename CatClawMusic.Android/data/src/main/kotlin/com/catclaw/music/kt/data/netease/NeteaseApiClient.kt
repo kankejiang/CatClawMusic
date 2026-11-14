@@ -331,24 +331,66 @@ class NeteaseApiClient @Inject constructor(
      * 私人 FM。接口返回的 `album` 是推荐引擎的"上下文关联专辑"，封面常与真实发行专辑不符，
      * 所以按 id 批量调 eapi song/detail 覆盖（与插件 CorrectFmMetadataAsync 同一套修正）。
      */
-    suspend fun privateFm(num: Int = 20): List<OnlineSong> {
-        val root = getJson(RADIO_API) ?: return emptyList()
-        val data = (root["data"] as? JsonArray) ?: return emptyList()
-        val songs = data.mapNotNull { parseSong(it as? JsonObject) }
-            .distinctBy { it.id }
-            .take(num)
-        if (songs.isEmpty()) return emptyList()
-        return correctFmMetadata(songs)
+    /**
+     * 私人 FM（/api/v1/radio/get）。
+     *
+     * 移植插件 `NetEaseOpenApiClient.GetPrivateFmAsync`：该接口**一次通常只返回 1 首**，
+     * 所以循环拉取并按 id 去重，直到凑齐 num 首（安全上限 num*3 次），否则 FM 每批只有一首、
+     * 切歌就断。mode 对齐插件：DEFAULT 不带 query；推荐模式直接 mode=；场景码用 SCENE_RCMD+submode。
+     */
+    suspend fun privateFm(num: Int = 20, mode: String = "DEFAULT"): List<OnlineSong> {
+        val query = when {
+            mode.isBlank() || mode == "DEFAULT" -> ""
+            mode in FM_SCENE_CODES -> "?mode=SCENE_RCMD&submode=$mode"
+            else -> "?mode=$mode"
+        }
+        val collected = mutableListOf<OnlineSong>()
+        val seen = HashSet<String>()
+        var attempts = 0
+        val maxAttempts = num * 3
+        while (collected.size < num && attempts < maxAttempts) {
+            attempts++
+            val root = getJson(RADIO_API + query) ?: break
+            val data = (root["data"] as? JsonArray) ?: break
+            data.forEach { element ->
+                val song = parseSong(element as? JsonObject) ?: return@forEach
+                if (song.id.isNotBlank() && seen.add(song.id)) collected += song
+            }
+        }
+        if (collected.isEmpty()) return emptyList()
+        AppLog.d("NeteaseFm", "privateFm mode=$mode 拉取 $attempts 次凑到 ${collected.size}/$num 首")
+        return correctFmMetadata(collected)
     }
 
+    /** 插件 CorrectFmMetadataAsync：eapi 失败再回落官方 /api/song/detail（带 cookie） */
     private suspend fun correctFmMetadata(songs: List<OnlineSong>): List<OnlineSong> {
         val ids = songs.mapNotNull { it.id.toLongOrNull() }
         if (ids.isEmpty()) return songs
-        val raw = eapi.songDetailRaw(ids, session.cookie) ?: return songs
-        val root = parseObject(raw) ?: return songs
+        val raw = eapi.songDetailRaw(ids, session.cookie)
+        val root = if (raw != null) {
+            parseObject(raw)
+        } else {
+            getJson("https://music.163.com/api/song/detail?ids=[${ids.joinToString(",")}]")
+        } ?: return songs
         val list = (root["songs"] as? JsonArray) ?: return songs
         val fixed = list.mapNotNull { parseSong(it as? JsonObject) }.associateBy { it.id }
         return songs.map { song -> fixed[song.id]?.copy(id = song.id) ?: song }
+    }
+
+    /** 插件 FmLikeAsync：FM 曲红心走 /api/radio/like（不是普通歌单 like，会影响推荐） */
+    suspend fun fmLike(songId: String, like: Boolean): Boolean {
+        if (session.cookie.isNullOrBlank()) return false
+        val root = getJson(
+            "https://music.163.com/api/radio/like?alg=itembased&songId=$songId&time=25&like=$like",
+        ) ?: return false
+        return (root["code"]?.jsonPrimitive?.intOrNull ?: -1) == 200
+    }
+
+    /** 插件 FmTrashAsync：垃圾桶（不再推荐这首） */
+    suspend fun fmTrash(songId: String): Boolean {
+        if (session.cookie.isNullOrBlank()) return false
+        val root = getJson("https://music.163.com/api/radio/trash?songId=$songId&time=25") ?: return false
+        return (root["code"]?.jsonPrimitive?.intOrNull ?: -1) == 200
     }
 
     /**
@@ -550,6 +592,16 @@ class NeteaseApiClient @Inject constructor(
         private const val USER_DETAIL_API = "https://music.163.com/api/v1/user/detail"
         private const val USER_PLAYLIST_API = "https://music.163.com/api/user/playlist"
         private const val LIKE_API = "https://music.163.com/api/playlist/manipulate/tracks"
+        /** 插件 FmSceneCodes：场景模式码（36 种，切场景时走 SCENE_RCMD+submode） */
+        private val FM_SCENE_CODES = setOf(
+            "LATE_NIGHT_EMO", "EXERCISE", "SLEEP_HELP", "RELAX", "HAPPINESS", "LYRICAL",
+            "CURE", "FOCUS", "ROMANTIC", "RHYTHM_BLUES", "RAINY", "GAMES", "RAP", "K_POP",
+            "ORIGINAL_MUSICAL", "ELECTRONIC", "COMMUTE", "BATH", "COFFEE_SHOP", "ROCK",
+            "INSPIRATIONAL", "CHINESE", "EUROPE_AMERICA", "CANTONESE", "DJ", "CLASSIC",
+            "LIGHT_MUSIC", "CHINESE_STYLE", "FOLK", "ACG", "CLASSICAL", "JAZZ", "JAPANESE",
+            "WORLD", "FRENCH", "BLUES",
+        )
+
         private const val RADIO_API = "https://music.163.com/api/v1/radio/get"
 
         private const val UA =
