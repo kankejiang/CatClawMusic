@@ -591,6 +591,12 @@ class PlayerController(
         // "netease:" 前缀与 :data 的 NeteasePlaylistClient.REMOTE_PREFIX 保持一致（core 不依赖 data）
         song.remoteId?.takeIf { it.startsWith("netease:") }
             ?.let { builder.setCustomCacheKey(it) }
+        // 通知栏/锁屏/蓝牙歌词页的封面：在线曲是 http URL、本地曲是文件路径，都要塞进 metadata，
+        // 否则状态栏媒体条只有一个灰块（media3 的 BitmapLoader 自己会去加载 http 或 file）
+        val cover = song.coverArtPath?.takeIf { it.isNotBlank() } ?: song.remoteCoverPath?.takeIf { it.isNotBlank() }
+        val artworkUri = cover?.let { path ->
+            if (path.startsWith("http", ignoreCase = true)) Uri.parse(path) else runCatching { Uri.fromFile(File(path)) }.getOrNull()
+        }
         return builder
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -599,6 +605,7 @@ class PlayerController(
                     .setAlbumTitle(song.album)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                     .setDurationMs(if (song.durationSeconds > 0) song.durationSeconds * 1000L else null)
+                    .apply { artworkUri?.let { setArtworkUri(it) } }
                     .build(),
             )
             .build()
