@@ -82,4 +82,24 @@ class QueueSnapshotCodecTest {
         assertEquals(order, restored.songs().map { it.id })
         assertEquals(3, restored.currentSong?.id)
     }
+
+    @Test
+    fun `网易云在线曲快照不落过期直链`() {
+        val online = Song(
+            id = -123,
+            title = "有形的翅膀",
+            filePath = "https://m801.music.126.net/old-trial-30s.mp3",
+            source = SongSource.WebDAV,
+            remoteId = "netease:1366052804",
+        )
+        val local = Song(id = 7, title = "本地曲", filePath = "/storage/emulated/0/Music/a.mp3")
+        val snapshot = PlayQueue.Snapshot(listOf(online, local), 0, PlayMode.ListRepeat)
+        val decoded = QueueSnapshotCodec.decode(QueueSnapshotCodec.encode(snapshot)).songs
+        // 恢复后必须是 outer 占位，PlayerController 才会实时取链
+        org.junit.Assert.assertTrue(decoded[0].filePath.contains("outer/url?id=1366052804.mp3"))
+        assertEquals("netease:1366052804", decoded[0].remoteId)
+        // 本地曲不受影响
+        assertEquals("/storage/emulated/0/Music/a.mp3", decoded[1].filePath)
+    }
+
 }

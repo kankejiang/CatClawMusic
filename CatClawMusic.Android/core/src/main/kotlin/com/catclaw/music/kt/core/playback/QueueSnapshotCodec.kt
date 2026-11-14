@@ -31,7 +31,11 @@ object QueueSnapshotCodec {
             append(esc(s.artist)).append(SEP)
             append(esc(s.album)).append(SEP)
             append(s.durationSeconds).append(SEP)
-            append(esc(s.filePath)).append(SEP)
+            // MAUI 版队列快照只存 song id，不存会过期的直链；恢复后由插件实时取链。
+            // 这里等价处理：网易云在线曲的 filePath 换成 outer 占位，恢复时
+            // PlayerController.moveToCurrent 命中 outer 会走 uriUpgrader 实时取新链，
+            // 避免把修复前缓存的 30s 试听 URL 永久写进快照（旧队列一直听到试听的根因）。
+            append(esc(persistedPath(s))).append(SEP)
             append(s.source.name).append(SEP)
             append(esc(s.coverArtPath ?: "")).append(SEP)
             // 在线曲的来源标识（netease:xxx）：丢了它，恢复队列后歌词/取链都找不到原曲
@@ -64,6 +68,13 @@ object QueueSnapshotCodec {
             )
         }
         return PlayQueue.Snapshot(songs, currentIndex, mode)
+    }
+
+    /** 网易云 CDN 直链（带时效，也可能只有 30s 试听）→ outer 占位；其它来源原样保存 */
+    private fun persistedPath(s: Song): String {
+        val remoteId = s.remoteId?.takeIf { it.startsWith("netease:") } ?: return s.filePath
+        if (!s.filePath.contains("music.126.net")) return s.filePath
+        return "https://music.163.com/song/media/outer/url?id=${remoteId.substringAfter(':')}.mp3"
     }
 
     private fun esc(v: String) = v.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n")
