@@ -100,7 +100,7 @@ class NeteaseEapi @Inject constructor(
                 "User-Agent" to UA,
                 "Referer" to "https://music.163.com/",
                 "Accept" to "*/*",
-                "Cookie" to (cookie?.takeIf { it.isNotBlank() } ?: anonymousCookie()),
+                "Cookie" to cookieWithClientIdentity(cookie),
             ),
         ) ?: return null
 
@@ -138,7 +138,7 @@ class NeteaseEapi @Inject constructor(
                 .header("User-Agent", UA)
                 .header("Referer", "https://music.163.com/")
                 .header("Accept", "*/*")
-                .header("Cookie", cookie?.takeIf { it.isNotBlank() } ?: anonymousCookie())
+                .header("Cookie", cookieWithClientIdentity(cookie))
                 .build()
             client.newCall(request).execute().use { response ->
                 val sets = response.headers("Set-Cookie")
@@ -184,6 +184,28 @@ class NeteaseEapi @Inject constructor(
         .readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(25, TimeUnit.SECONDS)
         .build()
+
+    /**
+     * 登录态 Cookie 常常只有 `MUSIC_U / MUSIC_A / __csrf / NMTID`（扫码/手机号登录回填的），
+     * 缺 `os=pc / appver / osver / deviceId`。此时服务端把请求当**普通网页访客**，
+     * 黑胶会员也常只给 128k 或 30 秒试听片段（`freeTrialInfo`）。
+     *
+     * 这里把 [anonymousCookie] 的客户端身份字段补进登录 Cookie（已有同名字段以登录态为准），
+     * 不动 MUSIC_U 等会话凭据。
+     */
+    private fun cookieWithClientIdentity(cookie: String?): String {
+        if (cookie.isNullOrBlank()) return anonymousCookie()
+        val map = linkedMapOf<String, String>()
+        cookie.split(';').forEach { part ->
+            val kv = part.trim().split('=', limit = 2)
+            if (kv.size == 2 && kv[0].isNotBlank()) map[kv[0]] = kv[1]
+        }
+        anonymousCookie().split(';').forEach { part ->
+            val kv = part.trim().split('=', limit = 2)
+            if (kv.size == 2 && kv[0].isNotBlank() && kv[0] !in map) map[kv[0]] = kv[1]
+        }
+        return map.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    }
 
     private fun anonymousCookie(): String =
         "os=pc; deviceId=$deviceId; osver=$osVer; clientSign=$clientSign; " +
