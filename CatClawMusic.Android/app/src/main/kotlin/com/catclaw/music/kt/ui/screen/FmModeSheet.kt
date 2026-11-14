@@ -35,7 +35,6 @@ import com.catclaw.music.kt.data.repository.netease.FmMode
  *
  * 数据侧：推荐模式走 /api/v1/radio/get 的 mode 参数；场景模式按插件
  * `FillSceneBatchAsync` 用中文名当关键词搜歌建池（官方 SCENE_RCMD 原生接口无效）。
- * 「拼图模式」是官方互动玩法：接口没有对应 mode，取歌走 DEFAULT，播放页把封面换成 3×3 拼图。
  */
 private data class FmScene(val label: String, val icon: String, val isNew: Boolean = false)
 
@@ -123,12 +122,6 @@ fun FmModeSheet(
                     subtitle = "偏好曲风与潜力好歌",
                     selected = recommendModeSelected(FmMode.EXPLORE),
                     onClick = { onPickMode(FmMode.EXPLORE) },
-                )
-                ModeCard(
-                    title = "拼图模式",
-                    subtitle = "边听歌边拼歌曲封面",
-                    selected = recommendModeSelected(FmMode.PUZZLE),
-                    onClick = { onPickMode(FmMode.PUZZLE) },
                 )
 
                 Spacer(Modifier.height(10.dp))

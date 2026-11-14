@@ -108,10 +108,7 @@ class NeteaseRadioRepository @Inject constructor(
      */
     private suspend fun nextBatch(n: Int): List<OnlineSong> {
         val keyword = _scene.value
-        if (keyword.isNullOrBlank()) {
-            val apiMode = if (_mode.value == FmMode.PUZZLE) "DEFAULT" else _mode.value.code
-            return runCatching { api.privateFm(n, apiMode) }.getOrDefault(emptyList())
-        }
+        if (keyword.isNullOrBlank()) return runCatching { api.privateFm(n, _mode.value.code) }.getOrDefault(emptyList())
         if (poolKeyword != keyword) {
             scenePool.clear()
             sceneServed.clear()
@@ -276,6 +273,4 @@ enum class FmMode(val code: String, val label: String) {
     DEFAULT("DEFAULT", "默认模式"),
     FAMILIAR("FAMILIAR", "熟悉模式"),
     EXPLORE("EXPLORE", "探索模式"),
-    /** 官方互动玩法：接口没有对应 mode，取歌仍用 DEFAULT，只在播放页换成拼图封面 */
-    PUZZLE("PUZZLE", "拼图模式"),
 }

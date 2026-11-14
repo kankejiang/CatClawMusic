@@ -357,18 +357,6 @@ fun PlayingScreen(
                         error = state.error,
                         positionMsFlow = viewModel.positionMs,
                     )
-                } else if (
-                    state.isFmMode &&
-                    fmMode == com.catclaw.music.kt.data.repository.netease.FmMode.PUZZLE &&
-                    cover != null
-                ) {
-                    // 官方拼图模式：封面切 3×3 打乱，边听边拼
-                    FmCoverPuzzle(
-                        cover = cover,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .fillMaxWidth(0.76f),
-                    )
                 } else if (cover == null) {
                     // 没封面：把**唱片碟放大居中**摆在这块区域中央，而不是沉底放一个小方块。
                     // 有封面的歌，这整片是被封面铺满的（`artworkBackdrop` 全屏背景）；
