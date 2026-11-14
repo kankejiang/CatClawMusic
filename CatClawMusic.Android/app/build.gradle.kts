@@ -15,8 +15,8 @@ android {
         applicationId = "com.catclaw.music.kt"
         minSdk = 31
         targetSdk = 37
-        versionCode = 201
-        versionName = "2.0.1"
+        versionCode = 202
+        versionName = "2.0.2"
 
         // 清单原本只写 arm64-v8a；这里额外留 x86_64 是给 x86_64 安卓模拟器的安装路径，
         // 因为包里唯一的原生库（libandroidx.graphics.path.so）一旦只剩 arm64，
