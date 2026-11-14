@@ -126,7 +126,14 @@ class NeteaseRadioRepository @Inject constructor(
         if (!_fmMode.value || refilling) return
         val current = player.state.value.currentSong ?: return
         val queueSongs = player.queueSongs.value
-        if (queueSongs.isEmpty() || queueSongs.last().id != current.id) return
+        if (queueSongs.isEmpty()) return
+        val currentIndex = queueSongs.indexOfFirst { it.id == current.id }
+        if (currentIndex < 0) return
+        // MAUI 插件维持「当前 + 后 3 首」的缓冲深度：不能等播到最后一首才补，
+        // 否则一次取链 + 网络往返很容易赶不上切歌，表现成 FM 偶尔卡住/断档。
+        // 剩 0~1 首就提前补，补完队列重新回到 3~4 首待播。
+        val remaining = queueSongs.size - currentIndex - 1
+        if (remaining >= 2) return
         refilling = true
         try {
             val existing = queueSongs.map { it.id }.toSet()
@@ -138,7 +145,7 @@ class NeteaseRadioRepository @Inject constructor(
                 })
                 AppLog.d(
                     "NeteaseFm",
-                    "续播追加 ${next.size} 首，队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
+                    "续播追加 ${next.size} 首（剩余 $remaining 首时触发），队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
                 )
             }
         } finally {
