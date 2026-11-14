@@ -1,7 +1,8 @@
 package com.catclaw.music.kt.ui.equalizer
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +28,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -125,8 +128,15 @@ fun SoundEffectsScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // 页头钉住，只滚内容：这页比屏幕高，整列一起滚会把「返回」和「重置」滚出屏幕
-        Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+        // 页头钉住，只滚内容：这页比屏幕高，整列一起滚会把「返回」和「重置」滚出屏幕。
+        // 拖推子时临时关掉外层滚动：verticalScroll 会抢垂直手势，不关就变成「拖推子只滚页面」
+        var faderDragging by remember { mutableStateOf(false) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState(), enabled = !faderDragging),
+        ) {
 
             // ── 均衡器页头：标题 + 总开关
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -177,6 +187,7 @@ fun SoundEffectsScreen(
                         ),
                     ),
                     onGain = { i, db -> viewModel.setGain(i, db) },
+                    onDragStateChange = { faderDragging = it },
                 )
 
                 // ── 预设：两行分组（常用 4 / 更多 5），全部可见，不横滑
@@ -282,6 +293,7 @@ private fun FaderPanel(
     enabled: Boolean,
     summary: String,
     onGain: (Int, Double) -> Unit,
+    onDragStateChange: (Boolean) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
     val accent = Color(palette.primary)
@@ -402,10 +414,22 @@ private fun FaderPanel(
                                         val db = hi - tt * (hi - lo)
                                         onGain(index, (db * 2f).toInt() / 2.0)
                                     }
-                                    detectVerticalDragGestures(
-                                        onDragStart = { offset -> update(offset.y) },
-                                        onVerticalDrag = { change, _ -> update(change.position.y) },
-                                    )
+                                    // 主动消费按下事件：否则外层 verticalScroll 会把手势抢走，
+                                    // 表现成「拖推子只滚动页面、增益不动」
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        down.consume()
+                                        onDragStateChange(true)
+                                        update(down.position.y)
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                            if (!change.pressed) break
+                                            update(change.position.y)
+                                            change.consume()
+                                        }
+                                        onDragStateChange(false)
+                                    }
                                 },
                         ) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
