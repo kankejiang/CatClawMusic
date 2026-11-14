@@ -380,7 +380,6 @@ class NeteaseMusicViewModel @Inject constructor(
     val radioLabel get() = radio.label
     fun setRadioMode(mode: com.catclaw.music.kt.data.repository.netease.FmMode) = radio.setMode(mode)
     fun setRadioScene(code: String, label: String) = radio.setScene(code, label)
-    fun refreshRadio() = radio.refresh()
 
     // ── 登录 ───────────────────────────────────────────────────
 

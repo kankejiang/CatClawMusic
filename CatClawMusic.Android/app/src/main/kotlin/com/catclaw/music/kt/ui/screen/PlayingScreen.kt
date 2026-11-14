@@ -280,19 +280,6 @@ fun PlayingScreen(
                 TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
             }
             Spacer(Modifier.width(8.dp))
-            // 官方右上 ↻：换一批
-            if (state.isFmMode) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_refresh),
-                    contentDescription = "换一批",
-                    tint = Color(palette.textPrimary),
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .clickable { neteaseViewModel.refreshRadio() }
-                        .padding(10.dp),
-                )
-            }
             Icon(
                 painter = painterResource(R.drawable.ic_collapse),
                 contentDescription = stringResource(R.string.player_collapse),
