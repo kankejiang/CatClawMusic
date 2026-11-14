@@ -102,29 +102,49 @@ class NeteasePlaylistClient @Inject constructor(
         } else {
             quality.eapiLevel
         }
+        // 官方口径：exhigh/standard 用 aac，无损/Hi-Res 才用 flac。
+        // 之前所有档位都固定 flac，与 level 不匹配时容易被判成试听。
+        val encodeType = if (quality == Quality.Lossless) "flac" else "aac"
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "NeteaseVip",
+            "playUrl req id=$songId level=$level enc=$encodeType " +
+                "loggedIn=${!cookie.isNullOrBlank()} osPc=${cookie?.contains("os=pc") == true} " +
+                "appver=${cookie?.contains("appver") == true}",
+        )
         val raw = eapi.request(
             path = "/eapi/song/enhance/player/url/v1",
             params = linkedMapOf(
                 // 官方客户端发的是字符串 "[123]"，不是数组
                 "ids" to "[$songId]",
                 "level" to level,
-                "encodeType" to "flac",
+                "encodeType" to encodeType,
             ),
             rawCipherResponse = true,
             cookie = cookie,
-        ) ?: return null
-        val root = parseObject(raw) ?: return null
-        val data = root["data"] as? JsonArray ?: return null
+        )
+        if (raw == null) {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl eapi 失败 id=$songId")
+            return null
+        }
+        val root = parseObject(raw)
+        if (root == null) {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl 解析失败 id=$songId")
+            return null
+        }
+        val data = root["data"] as? JsonArray
+        if (data == null) {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl 无 data id=$songId code=${root["code"]}")
+            return null
+        }
         return data.firstOrNull()
             ?.let { it as? JsonObject }
             ?.also { obj ->
-                // freeTrialInfo 非空 = 服务器只给了试听片段（30s）：
-                // 常见于未登录/VIP 曲走免登录外链，eapi 带有效 cookie 不应出现
-                val trial = obj["freeTrialInfo"]
-                val realLevel = obj["level"]?.toString()
+                val trialValue = obj["freeTrialInfo"]
+                val trial = trialValue != null && trialValue !is kotlinx.serialization.json.JsonNull
                 com.catclaw.music.kt.core.diagnostic.AppLog.d(
-                    "NeteaseTiming",
-                    "playUrl id=$songId level=$realLevel trial=${trial != null && trial !is kotlinx.serialization.json.JsonNull}",
+                    "NeteaseVip",
+                    "playUrl resp id=$songId level=${obj["level"]} br=${obj["br"]} " +
+                        "trial=$trial code=${obj["code"]} urlLen=${obj["url"]?.jsonPrimitive?.contentOrNull?.length ?: 0}",
                 )
             }
             ?.get("url")

@@ -74,7 +74,10 @@ class NeteasePlayUrlResolver @Inject constructor(
         } else {
             for (quality in ladder(preferred)) {
                 if (quality == NeteasePlaylistClient.Quality.Lossless && !session.isLoggedIn) continue
-                val url = runCatching { client.playUrl(songId, quality, session.cookie) }.getOrNull()
+                val url = runCatching { client.playUrl(songId, quality, session.cookie) }
+                    .onFailure { com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl 异常 id=$songId q=$quality: ${it.message}") }
+                    .getOrNull()
+                com.catclaw.music.kt.core.diagnostic.AppLog.d("NeteaseVip", "resolve try id=$songId q=$quality got=${!url.isNullOrBlank()}")
                 if (!url.isNullOrBlank()) {
                     cache["$songId:${quality.name}"] = Entry(url, System.currentTimeMillis() + CACHE_TTL_MS)
                     com.catclaw.music.kt.core.diagnostic.AppLog.d(
@@ -84,8 +87,8 @@ class NeteasePlayUrlResolver @Inject constructor(
                 }
             }
         }
-        com.catclaw.music.kt.core.diagnostic.AppLog.d(
-            "NeteaseTiming", "resolve id=$songId fallback ${System.currentTimeMillis() - t0}ms",
+        com.catclaw.music.kt.core.diagnostic.AppLog.w(
+            "NeteaseVip", "resolve 全档失败 → outer 兜底 id=$songId ${System.currentTimeMillis() - t0}ms",
         )
         return NeteasePlaylistClient.playUrlFallback(songId)
     }
