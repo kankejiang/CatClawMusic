@@ -56,6 +56,10 @@ class MediaPlaybackService : MediaSessionService() {
     @Inject
     lateinit var libraryDao: LibraryDao
 
+    /** 网易云曲红心走服务器镜像，与播放页同一个单例（通知栏与页面必须同源） */
+    @Inject
+    lateinit var neteaseLikes: com.catclaw.music.kt.data.repository.netease.NeteaseLikeRepository
+
     @Inject
     lateinit var icons: NotificationIcons
 
@@ -98,6 +102,8 @@ class MediaPlaybackService : MediaSessionService() {
             launch {
                 runCatching { libraryDao.observeFavorites().collect { refreshNotificationButtons() } }
             }
+            // 网易云红心（服务器镜像）变化同样要重摆：通知栏点、播放页点都经过这里
+            launch { neteaseLikes.likedIds.collect { refreshNotificationButtons() } }
             launch {
                 controller.state.collect {
                     refreshNotificationButtons()
@@ -188,8 +194,15 @@ class MediaPlaybackService : MediaSessionService() {
         val target = session ?: return
         serviceScope.launch {
             val song = controller.state.value.currentSong
-            val favorited = song != null &&
-                runCatching { libraryDao.isFavorite(song.id) }.getOrDefault(false)
+            val neteaseId = song?.remoteId
+                ?.takeIf { it.startsWith("netease:") }
+                ?.removePrefix("netease:")
+            // 在线曲看网易云红心镜像，本地曲看收藏表 —— 与播放页 favoriteOf() 同一套判定
+            val favorited = if (neteaseId != null) {
+                neteaseId in neteaseLikes.likedIds.value
+            } else {
+                song != null && runCatching { libraryDao.isFavorite(song.id) }.getOrDefault(false)
+            }
             val lyricsOn = desktopLyric.enabled.value
             target.setCustomLayout(
                 listOf(
@@ -246,6 +259,14 @@ class MediaPlaybackService : MediaSessionService() {
     /** 通知栏那颗「收藏」：与歌曲菜单同一个 DAO 写入口，列表页与它看到的永远是同一份 */
     private fun toggleFavoriteFromNotification() {
         val song = controller.state.value.currentSong ?: return
+        val neteaseId = song.remoteId
+            ?.takeIf { it.startsWith("netease:") }
+            ?.removePrefix("netease:")
+        if (neteaseId != null) {
+            // 与播放页同一条链路：写服务器红心，likedIds 变化会重摆通知按钮
+            neteaseLikes.toggle(neteaseId)
+            return
+        }
         serviceScope.launch {
             runCatching {
                 if (libraryDao.isFavorite(song.id)) {
