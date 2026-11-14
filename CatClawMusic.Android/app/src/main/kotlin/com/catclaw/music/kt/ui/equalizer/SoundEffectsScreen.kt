@@ -215,7 +215,9 @@ fun SoundEffectsScreen(
             Spacer(Modifier.height(18.dp))
             val hasBass = !caps.probed || caps.bassSupported
             val hasLoudness = !caps.probed || caps.loudnessSupported
-            val hasSpatial = !caps.probed || caps.spatialSupported
+            // 只在真探测到支持时显示：Virtualizer 在部分机型被系统音效占用，
+            // 探测失败时摆一个开关等于假控件（点了没声音变化）
+            val hasSpatial = caps.probed && caps.spatialSupported
 
             // ── 播放效果：环绕声 / 淡入淡出 / 时长
             SectionCard(title = stringResource(R.string.soundfx_section_playback)) {

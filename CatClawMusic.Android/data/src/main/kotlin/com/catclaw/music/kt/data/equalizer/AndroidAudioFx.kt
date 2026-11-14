@@ -109,6 +109,8 @@ class AndroidAudioFx @Inject constructor() {
     }
 
     fun apply(settings: AudioFxSettings) {
+        // 这行必须在 equalizer?.let 之外：没播过歌时实例全是 null，否则排查时什么日志都看不到
+        AppLog.i(TAG, "apply spatial=${settings.spatial} hasVirtualizer=${virtualizer != null} hasEq=${equalizer != null}")
         equalizer?.let { eq ->
             val deviceFreqs = if (caps.frequencies.isEmpty()) EqualizerRules.NATIVE_FREQUENCIES else caps.frequencies
             val curve = EqualizerRules.resample(settings.gains, EqualizerRules.NATIVE_FREQUENCIES, deviceFreqs)
@@ -135,8 +137,27 @@ class AndroidAudioFx @Inject constructor() {
         // 虚拟环绕独立于总开关：C# 同理（它是空间效果，与频段曲线是两件事）。
         // 强度 900/1000 沿用 C# 实测值——太弱在很多设备上听不出来；先 enable 再调强度，部分设备要求这个顺序。
         runCatching {
-            virtualizer?.enabled = settings.spatial
-            if (settings.spatial) virtualizer?.setStrength(900.toShort())
+            val v = virtualizer ?: return@runCatching
+            if (settings.spatial) {
+                v.enabled = true
+                v.setStrength(1000.toShort())
+                // 只开 enabled + strength 在多数机型上听不出变化：默认 virtualizationMode 是 NONE，
+                // 必须显式强制双耳虚拟化才会真正处理声场。失败（设备不支持强制）也不崩，退回 AUTO。
+                val forced = runCatching {
+                    v.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_BINAURAL)
+                }.getOrDefault(false)
+                if (!forced) {
+                    runCatching { v.forceVirtualizationMode(Virtualizer.VIRTUALIZATION_MODE_AUTO) }
+                }
+                AppLog.w(
+                    TAG,
+                    "spatial on forced=$forced mode=${runCatching { v.virtualizationMode }.getOrDefault(-1)} " +
+                        "strength=${runCatching { v.roundedStrength }.getOrDefault(-1)}",
+                )
+            } else {
+                v.enabled = false
+                AppLog.i(TAG, "spatial off")
+            }
         }
     }
 
