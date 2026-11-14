@@ -491,11 +491,13 @@ fun PlayingScreen(
 
     // 菜单指向当前曲目。用 takeIf 而不是 `if (songMenuOpen)`：菜单项点完即 dismiss，
     // 目标歌在这一刻取，滑到别的歌上时不会把菜单留给上一首
-    state.currentSong?.takeIf { songMenuOpen && it.id > 0 }?.let { song ->
+    state.currentSong?.takeIf { songMenuOpen && it.id != 0 }?.let { song ->
         SongMenuFor(
             // isCurrent = true：这是「正在播放的这首」的菜单，不摆「下一首播放」
             target = SongMenuTarget(song.id, song.title, songMenuSubtitle(song.artist, song.album), song, isCurrent = true),
             menu = menu,
+            // 在线曲 id 为负、也不在本地库：只保留播放页专属项（定时/音效/歌词/横屏）
+            libraryActions = song.remoteId?.startsWith("netease:") != true,
             // 播放页专属的一节。每项都点完即关菜单（与内置那些项一致），
             // 所以开弹窗的那两项自己把 songMenuOpen 收掉
             sections = listOf(

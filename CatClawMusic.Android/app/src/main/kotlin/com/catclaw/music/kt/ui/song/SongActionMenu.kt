@@ -130,6 +130,8 @@ fun SongActionMenu(
     onRemoveFromPlaylist: (() -> Unit)?,
     /** 播放页专属的那一节（定时停止/音效/桌面歌词/横竖屏）；列表页传空 */
     sections: List<SongMenuSection> = emptyList(),
+    /** 在线曲（id 为负数、不在本地库）关掉本地专属项：收藏/歌单/详情/歌手/专辑 */
+    libraryActions: Boolean = true,
     onDismiss: () -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -200,12 +202,14 @@ fun SongActionMenu(
                         PanelGrabber()
                         SongHeader(target = target, onClose = onDismiss)
                         // 快捷区：播着歌最常做的三件事。旧版把它们混在 11 行平铺里，没有主次
-                        QuickActions(
-                            isFavorite = isFavorite,
-                            onToggleFavorite = { onToggleFavorite(); onDismiss() },
-                            onSongInfo = { onOpenDetail(); onDismiss() },
-                            onShare = onShare?.let { share -> { share(); onDismiss() } },
-                        )
+                        if (libraryActions) {
+                            QuickActions(
+                                isFavorite = isFavorite,
+                                onToggleFavorite = { onToggleFavorite(); onDismiss() },
+                                onSongInfo = { onOpenDetail(); onDismiss() },
+                                onShare = onShare?.let { share -> { share(); onDismiss() } },
+                            )
+                        }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -214,7 +218,8 @@ fun SongActionMenu(
                                 .weight(1f, fill = false)
                                 .verticalScroll(rememberScrollState()),
                         ) {
-                        MenuSection(stringResource(R.string.song_menu_section_song)) {
+                        // 在线曲的当前曲两样都没有（没有「下一首播放」也没有本地歌单），整块不画
+                        if (!target.isCurrent || libraryActions) MenuSection(stringResource(R.string.song_menu_section_song)) {
                             // 「下一首播放」只在**不是当前播放的这首**时出现：歌已经在播了，
                             // 再让「下一首播它」没有意义（2026-10-20 用户指出的设计错误）。
                             // 队列/歌单/搜索里点开别的歌时 isCurrent=false，这一项照常出现。
@@ -227,7 +232,7 @@ fun SongActionMenu(
                                     ),
                                 )
                             }
-                            MenuRow(
+                            if (libraryActions) MenuRow(
                                 SongMenuItem(
                                     label = stringResource(R.string.song_menu_add_to_playlist),
                                     icon = R.drawable.ic_playlist,
@@ -245,7 +250,7 @@ fun SongActionMenu(
                             }
                         }
 
-                        MenuSection(stringResource(R.string.song_menu_section_about)) {
+                        if (libraryActions) MenuSection(stringResource(R.string.song_menu_section_about)) {
                             onOpenArtist?.let { open ->
                                 MenuRow(
                                     SongMenuItem(
@@ -579,6 +584,7 @@ fun SongMenuFor(
     target: SongMenuTarget,
     menu: SongMenuActions,
     sections: List<SongMenuSection> = emptyList(),
+    libraryActions: Boolean = true,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -619,6 +625,7 @@ fun SongMenuFor(
         onOpenDetail = { menu.onOpenDetail(target.id) },
         onRemoveFromPlaylist = menu.onRemoveFromPlaylist?.let { remove -> { remove(target.id) } },
         sections = sections,
+        libraryActions = libraryActions,
         onDismiss = onDismiss,
     )
 }
