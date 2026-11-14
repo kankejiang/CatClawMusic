@@ -371,9 +371,11 @@ private fun FaderPanel(
                         }
                     }
                     if (!enabled || gains.size < 2) return@Canvas
+                    // x 取每根推子的中心（Row 里是等宽 weight，中心在 (i+0.5)/n 处），
+                    // 不能用 i/(n-1)：那样端点会贴到画布左右边缘，看着「线没落点上」
                     val pts = gains.mapIndexed { i, g ->
                         val t = ((g.toFloat() - lo) / (hi - lo)).coerceIn(0f, 1f)
-                        Offset(x = w * i / (gains.size - 1), y = (1f - t) * h)
+                        Offset(x = w * (i + 0.5f) / gains.size, y = (1f - t) * h)
                     }
                     val path = Path().apply {
                         moveTo(pts.first().x, pts.first().y)
