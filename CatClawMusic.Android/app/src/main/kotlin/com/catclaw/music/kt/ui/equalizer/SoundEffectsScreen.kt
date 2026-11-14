@@ -377,13 +377,26 @@ private fun FaderPanel(
                         val t = ((g.toFloat() - lo) / (hi - lo)).coerceIn(0f, 1f)
                         Offset(x = w * (i + 0.5f) / gains.size, y = (1f - t) * h)
                     }
+                    // Catmull-Rom → 三次贝塞尔：每段起终点都是真实节点。
+                    // 之前用「二次贝塞尔到中点」的写法，曲线只被控制点拉扯、**不经过节点**，
+                    // 看起来就是「线没落点上」。控制点 y 夹在画布内，避免极值时冲出卡片。
                     val path = Path().apply {
                         moveTo(pts.first().x, pts.first().y)
-                        for (i in 1 until pts.size) {
-                            val mid = Offset((pts[i - 1].x + pts[i].x) / 2f, (pts[i - 1].y + pts[i].y) / 2f)
-                            quadraticBezierTo(pts[i - 1].x, pts[i - 1].y, mid.x, mid.y)
+                        for (i in 0 until pts.size - 1) {
+                            val p0 = pts.getOrElse(i - 1) { pts[i] }
+                            val p1 = pts[i]
+                            val p2 = pts[i + 1]
+                            val p3 = pts.getOrElse(i + 2) { p2 }
+                            val c1 = Offset(
+                                p1.x + (p2.x - p0.x) / 6f,
+                                (p1.y + (p2.y - p0.y) / 6f).coerceIn(0f, h),
+                            )
+                            val c2 = Offset(
+                                p2.x - (p3.x - p1.x) / 6f,
+                                (p2.y - (p3.y - p1.y) / 6f).coerceIn(0f, h),
+                            )
+                            cubicTo(c1.x, c1.y, c2.x, c2.y, p2.x, p2.y)
                         }
-                        lineTo(pts.last().x, pts.last().y)
                     }
                     val area = Path().apply {
                         addPath(path)
