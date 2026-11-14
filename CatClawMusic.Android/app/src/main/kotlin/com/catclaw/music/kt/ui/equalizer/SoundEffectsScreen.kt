@@ -1,14 +1,20 @@
 package com.catclaw.music.kt.ui.equalizer
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -24,9 +30,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,6 +56,7 @@ import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.PillLabel
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
+import java.util.Locale
 
 /** 预设 key → 文案。名字属于文案，所以走 strings.xml，不留在 :core 里当硬编码中文 */
 internal fun presetNameRes(key: String): Int = when (key) {
@@ -60,12 +75,14 @@ internal fun presetNameRes(key: String): Int = when (key) {
 /**
  * 音效页 —— 对应 MAUI 的 `SoundEffectsPage` + `EqualizerPage`，两页合一。
  *
- * 合一的理由：这页在安卓侧只出现一次，中间多一跳不省版面，而频段曲线和低频/响度
- * 本来就在改同一只耳朵听到的东西。
+ * 版式照 2026-11 的原型重做：
+ * - 总开关提到页头（不再占卡内一行）；
+ * - 5 根**竖向推子**与响应曲线共用一套坐标系，曲线节点就是推子中心；
+ * - 预设分「常用 / 更多」两组，全部可见，不再横向滚动；
+ * - 与频段无关的环绕声 / 淡入淡出单独成「播放效果」，低音与响度归「音效增强」。
  *
  * 能力没给的行**直接不画**，不摆一排拉了没反应的滑杆。没播过歌时 `probed=false`，
  * 这时只说"播放一首歌后自动检测"——把"还没试过"报成"不支持"是假话。
- * 设置照常落盘，会话就绪时由播放器那条接线一次性应用。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -107,63 +124,123 @@ fun SoundEffectsScreen(
             Text(text = capLine, fontSize = 12.sp, color = Color(palette.textSecondary))
         }
         Spacer(Modifier.height(12.dp))
-        // 页头钉住，只滚内容：这页比屏幕高，整列一起滚会把「返回」和「重置」滚出屏幕，
-        // 真机上滑到频段滑杆之后就只能靠系统返回键离开一页（覆盖层没有自己的 back 处理）
+
+        // 页头钉住，只滚内容：这页比屏幕高，整列一起滚会把「返回」和「重置」滚出屏幕
         Column(modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
-            SectionCard(title = stringResource(R.string.soundfx_section_eq)) {
-                GlassSwitch(
-                    label = stringResource(R.string.soundfx_switch),
-                    subtitle = stringResource(R.string.soundfx_switch_sub),
+
+            // ── 均衡器页头：标题 + 总开关
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.soundfx_section_eq),
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(palette.textPrimary),
+                    )
+                    Text(
+                        text = stringResource(R.string.soundfx_switch_sub),
+                        fontSize = 11.5.sp,
+                        color = Color(palette.textSecondary),
+                    )
+                }
+                Switch(
                     checked = settings.enabled,
-                    onChange = { viewModel.setEnabled(it) },
+                    onCheckedChange = { viewModel.setEnabled(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color(palette.backgroundStops.last().argb),
+                        checkedTrackColor = Color(palette.primary),
+                        uncheckedThumbColor = Color(palette.textSecondary),
+                        uncheckedTrackColor = Color(palette.textPrimary).copy(alpha = 0.12f),
+                    ),
                 )
-                if (caps.probed && !caps.supported) {
+            }
+            Spacer(Modifier.height(14.dp))
+
+            if (caps.probed && !caps.supported) {
+                SectionCard(title = stringResource(R.string.soundfx_section_eq)) {
                     Text(
                         text = stringResource(R.string.soundfx_eq_unsupported),
                         fontSize = 13.sp,
                         color = Color(palette.textSecondary),
-                        modifier = Modifier.padding(top = 10.dp),
                     )
-                } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        // 存的名字不在这 9 格里（例如「重置」后是 flat）就高亮「自定义」：
-                        // 一条谁都没亮着的芯片组会让人以为重置没生效（C# 同规则）
-                        val selectedKey = if (settings.preset in EqualizerRules.PRESET_KEYS) {
-                            settings.preset
-                        } else {
-                            SoundEffectsViewModel.PRESET_CUSTOM
-                        }
-                        EqualizerRules.PRESET_KEYS.forEach { key ->
-                            GlassChip(
-                                label = stringResource(presetNameRes(key)),
-                                selected = key == selectedKey,
-                                onClick = { viewModel.selectPreset(key) },
-                            )
-                        }
-                    }
-                    labels.forEachIndexed { i, name ->
-                        ValueSlider(
-                            title = name,
-                            valueLabel = String.format("%+.1f dB", settings.gains.getOrElse(i) { 0.0 }),
-                            value = settings.gains.getOrElse(i) { 0.0 }.toFloat(),
-                            valueRange = range.start.toFloat()..range.endInclusive.toFloat(),
-                            steps = 24,
-                            onValue = { viewModel.setGain(i, it.toDouble()) },
-                        )
-                    }
                 }
-            }
-            Spacer(Modifier.height(12.dp))
+            } else {
+                FaderPanel(
+                    labels = labels,
+                    gains = settings.gains,
+                    range = range,
+                    enabled = settings.enabled,
+                    summary = stringResource(
+                        presetNameRes(
+                            if (settings.preset in EqualizerRules.PRESET_KEYS) settings.preset
+                            else SoundEffectsViewModel.PRESET_CUSTOM,
+                        ),
+                    ),
+                    onGain = { i, db -> viewModel.setGain(i, db) },
+                )
 
-            // 设备没给的能力就不画那一行；淡入淡出是纯音量曲线，任何设备都有，所以恒在
+                // ── 预设：两行分组（常用 4 / 更多 5），全部可见，不横滑
+                val selectedKey = if (settings.preset in EqualizerRules.PRESET_KEYS) {
+                    settings.preset
+                } else {
+                    SoundEffectsViewModel.PRESET_CUSTOM
+                }
+                Spacer(Modifier.height(14.dp))
+                PresetGroup(
+                    title = stringResource(R.string.soundfx_preset_common),
+                    keys = EqualizerRules.PRESET_KEYS.take(4),
+                    selected = selectedKey,
+                    onPick = viewModel::selectPreset,
+                )
+                Spacer(Modifier.height(8.dp))
+                PresetGroup(
+                    title = stringResource(R.string.soundfx_preset_more),
+                    keys = EqualizerRules.PRESET_KEYS.drop(4),
+                    selected = selectedKey,
+                    onPick = viewModel::selectPreset,
+                )
+            }
+
+            Spacer(Modifier.height(18.dp))
             val hasBass = !caps.probed || caps.bassSupported
             val hasLoudness = !caps.probed || caps.loudnessSupported
             val hasSpatial = !caps.probed || caps.spatialSupported
-            SectionCard(title = stringResource(R.string.soundfx_section_other)) {
+
+            // ── 播放效果：环绕声 / 淡入淡出 / 时长
+            SectionCard(title = stringResource(R.string.soundfx_section_playback)) {
+                if (hasSpatial) {
+                    GlassSwitch(
+                        label = stringResource(R.string.soundfx_spatial),
+                        subtitle = stringResource(R.string.soundfx_spatial_sub),
+                        checked = settings.spatial,
+                        onChange = { viewModel.setSpatial(it) },
+                    )
+                }
+                GlassSwitch(
+                    label = stringResource(R.string.soundfx_crossfade),
+                    subtitle = stringResource(R.string.soundfx_crossfade_sub),
+                    checked = settings.crossfade,
+                    onChange = { viewModel.setCrossfade(it) },
+                )
+                ValueSlider(
+                    title = stringResource(R.string.soundfx_crossfade_dur),
+                    valueLabel = if (settings.crossfade) {
+                        stringResource(R.string.soundfx_seconds, settings.crossfadeSec)
+                    } else {
+                        "—"
+                    },
+                    value = settings.crossfadeSec.toFloat(),
+                    valueRange = 0f..CrossfadeRules.MAX_WINDOW_SEC.toFloat(),
+                    steps = CrossfadeRules.MAX_WINDOW_SEC - 1,
+                    enabled = settings.crossfade,
+                    onValue = { viewModel.setCrossfadeSec(it.toInt()) },
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── 音效增强：低音 / 响度
+            SectionCard(title = stringResource(R.string.soundfx_section_enhance)) {
                 if (hasBass) {
                     ValueSlider(
                         title = stringResource(R.string.soundfx_bass),
@@ -184,32 +261,247 @@ fun SoundEffectsScreen(
                         onValue = { viewModel.setLoudness(it.toInt()) },
                     )
                 }
-                // 虚拟环绕独立于总开关：它是空间效果，与频段曲线是两件事（C# 同规则）
-                if (hasSpatial) {
-                    GlassSwitch(
-                        label = stringResource(R.string.soundfx_spatial),
-                        subtitle = stringResource(R.string.soundfx_spatial_sub),
-                        checked = settings.spatial,
-                        onChange = { viewModel.setSpatial(it) },
-                    )
-                }
-                GlassSwitch(
-                    label = stringResource(R.string.soundfx_crossfade),
-                    subtitle = stringResource(R.string.soundfx_crossfade_sub),
-                    checked = settings.crossfade,
-                    onChange = { viewModel.setCrossfade(it) },
-                )
-                ValueSlider(
-                    title = stringResource(R.string.soundfx_crossfade_dur),
-                    valueLabel = stringResource(R.string.soundfx_seconds, settings.crossfadeSec),
-                    value = settings.crossfadeSec.toFloat(),
-                    valueRange = 0f..CrossfadeRules.MAX_WINDOW_SEC.toFloat(),
-                    steps = CrossfadeRules.MAX_WINDOW_SEC - 1,
-                    onValue = { viewModel.setCrossfadeSec(it.toInt()) },
-                )
             }
             // 这页在播放页覆盖层里，底部那两栏是浮着的，不留白最后一段滑杆就永远滚不出来
             Spacer(Modifier.height(120.dp))
+        }
+    }
+}
+
+/**
+ * 均衡器主体：响应曲线 + 5 根竖向推子共用同一坐标系。
+ *
+ * 曲线节点就是推子中心，0 dB 与虚线基准重合；推子只改增益，重绘交给 Compose。
+ * 关闭时曲线整条不画、推子降透明度，但**保留位置**（下次打开即恢复）。
+ */
+@Composable
+private fun FaderPanel(
+    labels: List<String>,
+    gains: DoubleArray,
+    range: ClosedFloatingPointRange<Double>,
+    enabled: Boolean,
+    summary: String,
+    onGain: (Int, Double) -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val accent = Color(palette.primary)
+    val lo = range.start.toFloat()
+    val hi = range.endInclusive.toFloat()
+    val total = gains.sum()
+    val ink = Color(palette.textPrimary)
+    val sub = Color(palette.textSecondary)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassCard(palette = palette, corner = 26)
+            .padding(16.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.soundfx_eq_curve),
+                fontSize = 10.5.sp,
+                letterSpacing = 1.1.sp,
+                color = sub,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = String.format(Locale.US, "%+.1f dB · %s", total, summary),
+                fontSize = 10.5.sp,
+                color = if (enabled) sub else sub.copy(alpha = 0.5f),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Row(modifier = Modifier.fillMaxWidth().height(224.dp)) {
+            // 刻度列
+            Column(
+                modifier = Modifier.width(30.dp).fillMaxHeight().padding(vertical = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End,
+            ) {
+                listOf(hi, hi / 2f, 0f, lo / 2f, lo).forEach { v ->
+                    Text(
+                        text = when {
+                            v == 0f -> "0"
+                            v % 1f == 0f -> if (v > 0f) "+${v.toInt()}" else "−${(-v).toInt()}"
+                            else -> String.format(Locale.US, "%+.1f", v).replace("-", "−")
+                        },
+                        fontSize = 9.sp,
+                        color = sub.copy(alpha = 0.75f),
+                    )
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(vertical = 16.dp),
+            ) {
+                val plotH: Dp = maxHeight
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val h = size.height
+                    val w = size.width
+                    listOf(0f, 0.25f, 0.5f, 0.75f, 1f).forEach { f ->
+                        val y = h * f
+                        if (f == 0.5f) {
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.16f),
+                                start = Offset(0f, y),
+                                end = Offset(w, y),
+                                strokeWidth = 1f,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f)),
+                            )
+                        } else {
+                            drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, y), Offset(w, y), 1f)
+                        }
+                    }
+                    if (!enabled || gains.size < 2) return@Canvas
+                    val pts = gains.mapIndexed { i, g ->
+                        val t = ((g.toFloat() - lo) / (hi - lo)).coerceIn(0f, 1f)
+                        Offset(x = w * i / (gains.size - 1), y = (1f - t) * h)
+                    }
+                    val path = Path().apply {
+                        moveTo(pts.first().x, pts.first().y)
+                        for (i in 1 until pts.size) {
+                            val mid = Offset((pts[i - 1].x + pts[i].x) / 2f, (pts[i - 1].y + pts[i].y) / 2f)
+                            quadraticBezierTo(pts[i - 1].x, pts[i - 1].y, mid.x, mid.y)
+                        }
+                        lineTo(pts.last().x, pts.last().y)
+                    }
+                    val area = Path().apply {
+                        addPath(path)
+                        lineTo(w, h)
+                        lineTo(0f, h)
+                        close()
+                    }
+                    drawPath(
+                        path = area,
+                        brush = Brush.verticalGradient(
+                            listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0f)),
+                        ),
+                    )
+                    drawPath(path, color = accent, style = Stroke(width = 2.4.dp.toPx()))
+                }
+
+                Row(modifier = Modifier.fillMaxSize()) {
+                    labels.forEachIndexed { index, label ->
+                        val g = gains.getOrElse(index) { 0.0 }.toFloat()
+                        val t = ((g - lo) / (hi - lo)).coerceIn(0f, 1f)
+                        val thumbY: Dp = plotH * (1f - t)
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .pointerInput(index, lo, hi, enabled) {
+                                    if (!enabled) return@pointerInput
+                                    fun update(y: Float) {
+                                        val tt = (y / size.height).coerceIn(0f, 1f)
+                                        val db = hi - tt * (hi - lo)
+                                        onGain(index, (db * 2f).toInt() / 2.0)
+                                    }
+                                    detectVerticalDragGestures(
+                                        onDragStart = { offset -> update(offset.y) },
+                                        onVerticalDrag = { change, _ -> update(change.position.y) },
+                                    )
+                                },
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val cx = size.width / 2f
+                                val zeroY = size.height * (hi / (hi - lo))
+                                val ty = size.height * (1f - t)
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    start = Offset(cx, 0f),
+                                    end = Offset(cx, size.height),
+                                    strokeWidth = 4.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                )
+                                drawLine(
+                                    color = accent.copy(alpha = if (enabled) 0.85f else 0.25f),
+                                    start = Offset(cx, zeroY),
+                                    end = Offset(cx, ty),
+                                    strokeWidth = 4.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                )
+                                drawCircle(
+                                    Color.White.copy(alpha = if (enabled) 1f else 0.55f),
+                                    radius = 9.dp.toPx(),
+                                    center = Offset(cx, ty),
+                                )
+                                drawCircle(
+                                    accent,
+                                    radius = 9.dp.toPx(),
+                                    center = Offset(cx, ty),
+                                    style = Stroke(width = 2.dp.toPx()),
+                                )
+                            }
+                            Text(
+                                text = String.format(Locale.US, "%+.1f", g),
+                                fontSize = 9.5.sp,
+                                color = if (enabled) ink.copy(alpha = 0.72f) else sub.copy(alpha = 0.45f),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset(y = (thumbY - 30.dp).coerceAtLeast(0.dp)),
+                            )
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                color = sub.copy(alpha = 0.85f),
+                                modifier = Modifier.align(Alignment.BottomCenter).offset(y = 12.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf(
+                stringResource(R.string.soundfx_band_low) to (gains.getOrElse(0) { 0.0 } + gains.getOrElse(1) { 0.0 }) / 2,
+                stringResource(R.string.soundfx_band_mid) to gains.getOrElse(2) { 0.0 },
+                stringResource(R.string.soundfx_band_high) to (gains.getOrElse(3) { 0.0 } + gains.getOrElse(4) { 0.0 }) / 2,
+            ).forEach { (name, v) ->
+                Text(
+                    text = "$name ${String.format(Locale.US, "%+.1f", v)}",
+                    fontSize = 10.sp,
+                    color = sub,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetGroup(
+    title: String,
+    keys: List<String>,
+    selected: String,
+    onPick: (String) -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            fontSize = 10.sp,
+            letterSpacing = 0.8.sp,
+            color = Color(palette.textSecondary).copy(alpha = 0.8f),
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            keys.forEach { key ->
+                GlassChip(
+                    label = stringResource(presetNameRes(key)),
+                    selected = key == selected,
+                    onClick = { onPick(key) },
+                )
+            }
         }
     }
 }
@@ -228,12 +520,12 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
-
 /**
  * 带当前值标签的滑杆。值标签落在玻璃卡上，所以走 highlightOnGlassCard 而不是次要色。
  *
  * 滑杆**不因总开关关闭而禁用**：调曲线这件事本来就该在听不到的时候先摆好，
  * 而且禁用态的 M3 滑杆画成一根竖条（真机截图里五根一排，看着像坏了）。
+ * 只有「淡入淡出时长」这种依赖另一个开关的项才传 enabled=false。
  */
 @Composable
 private fun ValueSlider(
@@ -242,6 +534,7 @@ private fun ValueSlider(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
+    enabled: Boolean = true,
     onValue: (Float) -> Unit,
 ) {
     val palette = LocalCatClawPalette.current
@@ -250,13 +543,13 @@ private fun ValueSlider(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(palette.textPrimary),
+                color = Color(palette.textPrimary).copy(alpha = if (enabled) 1f else 0.45f),
                 modifier = Modifier.weight(1f),
             )
             Text(
                 text = valueLabel,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(highlightOnGlassCard(palette)),
+                color = if (enabled) Color(highlightOnGlassCard(palette)) else Color(palette.textSecondary).copy(alpha = 0.5f),
             )
         }
         Slider(
@@ -264,6 +557,7 @@ private fun ValueSlider(
             onValueChange = onValue,
             valueRange = valueRange,
             steps = steps,
+            enabled = enabled,
             colors = SliderDefaults.colors(
                 thumbColor = Color(palette.primary),
                 activeTrackColor = Color(palette.primary),
