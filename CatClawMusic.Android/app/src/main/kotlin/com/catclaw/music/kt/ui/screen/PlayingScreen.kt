@@ -275,25 +275,6 @@ fun PlayingScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                // 官方私人漫游：顶部「私人漫游 · 默认模式 ⌄」，点开切模式
-                if (state.isFmMode) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .clickable { fmPickerOpen = true }
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "私人漫游 · ${fmMode.label}",
-                            fontSize = 12.sp,
-                            color = Color(highlightOnGlassCard(palette)),
-                        )
-                        Text("⌄", fontSize = 12.sp, color = Color(highlightOnGlassCard(palette)))
-                    }
-                    Spacer(Modifier.height(2.dp))
-                }
                 TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
             }
             Spacer(Modifier.width(8.dp))
@@ -320,6 +301,31 @@ fun PlayingScreen(
                     .clickable(onClick = onCollapse)
                     .padding(10.dp),
             )
+        }
+        // 官方私人漫游：歌名/歌手**下方**、整屏居中的模式标签，点开切模式
+        if (state.isFmMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable { fmPickerOpen = true }
+                        .padding(horizontal = 10.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "私人漫游 · ${fmMode.label}",
+                        fontSize = 12.sp,
+                        color = Color(highlightOnGlassCard(palette)),
+                    )
+                    Text("⌄", fontSize = 12.sp, color = Color(highlightOnGlassCard(palette)))
+                }
+            }
         }
         Spacer(Modifier.height(2.dp))
 
