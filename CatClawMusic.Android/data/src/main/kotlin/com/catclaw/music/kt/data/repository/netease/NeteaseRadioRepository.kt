@@ -4,6 +4,7 @@ import com.catclaw.music.kt.core.diagnostic.AppLog
 import com.catclaw.music.kt.core.playback.PlayMode
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.netease.NeteaseApiClient
+import com.catclaw.music.kt.data.netease.OnlineSong
 import com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver
 import com.catclaw.music.kt.data.netease.NeteaseSongMapper
 import com.catclaw.music.kt.data.netease.NeteasePlaylistClient
@@ -17,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -44,9 +46,18 @@ class NeteaseRadioRepository @Inject constructor(
     private val _fmMode = MutableStateFlow(false)
     val fmMode: StateFlow<Boolean> = _fmMode.asStateFlow()
 
-    /** 推荐模式（插件 `_currentFmMode`）：DEFAULT/FAMILIAR/EXPLORE，切换后重新加载电台 */
+    /** 推荐模式（插件 `_currentFmMode`）：DEFAULT/FAMILIAR/EXPLORE */
     private val _mode = MutableStateFlow(FmMode.DEFAULT)
     val mode: StateFlow<FmMode> = _mode.asStateFlow()
+
+    /** 场景模式关键词（插件 `_currentFmMode` 为场景码时走关键词搜索池） */
+    private val _scene = MutableStateFlow<String?>(null)
+    val scene: StateFlow<String?> = _scene.asStateFlow()
+
+    /** 顶部「私人漫游 · XXX」显示名 */
+    val label: StateFlow<String> = kotlinx.coroutines.flow.combine(_mode, _scene) { mode, scene ->
+        scene?.takeIf { it.isNotBlank() } ?: mode.label
+    }.stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, FmMode.DEFAULT.label)
 
     val loggedIn: StateFlow<Boolean> get() = account.loggedIn
 
@@ -55,10 +66,15 @@ class NeteaseRadioRepository @Inject constructor(
     private var starting = false
     /** 上次退出时仍在漫游：等播放器第一次发状态时恢复，避免与队列 restore 抢顺序 */
     private var restoring = prefs.getBoolean(KEY_ACTIVE, false)
+    private val scenePool = ArrayDeque<OnlineSong>()
+    private val sceneServed = HashSet<String>()
+    private var scenePage = 1
+    private var poolKeyword: String? = null
 
     init {
         _mode.value = FmMode.entries.firstOrNull { it.code == prefs.getString(KEY_MODE, "DEFAULT") }
             ?: FmMode.DEFAULT
+        _scene.value = prefs.getString(KEY_SCENE, null)?.takeIf { it.isNotBlank() }
         // 事件路径 + 定时兜底，与插件双路径一致（宿主可能不回调播完事件）
         scope.launch {
             player.state.collect { state ->
@@ -85,10 +101,42 @@ class NeteaseRadioRepository @Inject constructor(
         }
     }
 
+    /**
+     * 插件 FillSceneBatchAsync：场景模式用中文名当关键词搜歌建池、按页增量取、已播过去重；
+     * 推荐模式仍走 /api/v1/radio/get（带 mode）。两种都凑 FM_BATCH 首。
+     */
+    private suspend fun nextBatch(n: Int): List<OnlineSong> {
+        val keyword = _scene.value
+        if (keyword.isNullOrBlank()) return runCatching { api.privateFm(n, _mode.value.code) }.getOrDefault(emptyList())
+        if (poolKeyword != keyword) {
+            scenePool.clear()
+            sceneServed.clear()
+            scenePage = 1
+            poolKeyword = keyword
+        }
+        var attempts = 0
+        while (scenePool.size < n && attempts < 6) {
+            val before = scenePool.size
+            val found = runCatching { api.searchSongs(keyword, scenePage++, 50) }.getOrNull().orEmpty()
+            found.forEach { song -> if (song.id.isNotBlank() && sceneServed.add(song.id)) scenePool.addLast(song) }
+            if (scenePool.size == before) break
+            attempts++
+        }
+        return buildList { repeat(n) { scenePool.removeFirstOrNull()?.let(::add) } }
+    }
+
     /** 插件 TrySetFmModeAsync：切模式 → 重新拉一批（保留电台态） */
     fun setMode(mode: FmMode) {
         _mode.value = mode
-        prefs.edit().putString(KEY_MODE, mode.code).apply()
+        _scene.value = null
+        prefs.edit().putString(KEY_MODE, mode.code).putString(KEY_SCENE, "").apply()
+        refresh()
+    }
+
+    /** 切场景：清池换关键词、重新拉一批（插件 TrySetFmModeAsync → FillSceneBatchAsync） */
+    fun setScene(keyword: String?) {
+        _scene.value = keyword
+        prefs.edit().putString(KEY_SCENE, keyword ?: "").apply()
         refresh()
     }
 
@@ -116,7 +164,7 @@ class NeteaseRadioRepository @Inject constructor(
             starting = true
             try {
                 val fmT0 = System.currentTimeMillis()
-                val songs = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
+                val songs = nextBatch(FM_BATCH)
                 com.catclaw.music.kt.core.diagnostic.AppLog.d(
                     "NeteaseTiming", "fm privateFm=${System.currentTimeMillis() - fmT0}ms n=${songs.size}",
                 )
@@ -147,6 +195,7 @@ class NeteaseRadioRepository @Inject constructor(
                 prefs.edit()
                     .putBoolean(KEY_ACTIVE, true)
                     .putString(KEY_MODE, _mode.value.code)
+                    .putString(KEY_SCENE, _scene.value ?: "")
                     .apply()
                 // 其余几首并发升级直链（upgradeQueueItem 会跳过正在播的第一首）
                 songs.drop(1).forEach { song ->
@@ -188,12 +237,12 @@ class NeteaseRadioRepository @Inject constructor(
         refilling = true
         try {
             val existing = queueSongs.map { it.id }.toSet()
-            var next = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
+            var next = nextBatch(FM_BATCH)
                 .filter { NeteaseSongMapper.toQueueSong(it, 0, "").id !in existing }
             if (next.isEmpty()) {
                 // 插件：网易云常返回固定候选集，一批全被去重时放宽重试，保证电台不断
                 AppLog.w("NeteaseFm", "补货首批全部被去重，放宽重试")
-                next = runCatching { api.privateFm(FM_BATCH, _mode.value.code) }.getOrDefault(emptyList())
+                next = nextBatch(FM_BATCH)
             }
             if (next.isNotEmpty()) {
                 player.appendSongs(next.mapIndexed { index, song ->
@@ -214,6 +263,7 @@ class NeteaseRadioRepository @Inject constructor(
         const val FM_BATCH = 3
         const val KEY_ACTIVE = "fm_active"
         const val KEY_MODE = "fm_mode"
+        const val KEY_SCENE = "fm_scene"
     }
 }
 

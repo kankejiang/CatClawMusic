@@ -115,6 +115,8 @@ fun PlayingScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val fmMode by neteaseViewModel.radioMode.collectAsStateWithLifecycle()
+    val fmScene by neteaseViewModel.radioScene.collectAsStateWithLifecycle()
+    val fmLabel by neteaseViewModel.radioLabel.collectAsStateWithLifecycle()
     var fmPickerOpen by remember { mutableStateOf(false) }
     val neteaseLikedIds by viewModel.neteaseLikedIds.collectAsStateWithLifecycle()
     val neteaseHint by viewModel.neteaseHint.collectAsStateWithLifecycle()
@@ -319,7 +321,7 @@ fun PlayingScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        text = "私人漫游 · ${fmMode.label}",
+                        text = "私人漫游 · $fmLabel",
                         fontSize = 12.sp,
                         color = Color(highlightOnGlassCard(palette)),
                     )
@@ -566,10 +568,16 @@ fun PlayingScreen(
         )
     }
     if (fmPickerOpen) {
-        FmModePickerDialog(
-            current = fmMode,
-            onPick = {
+        FmModeSheet(
+            label = fmLabel,
+            currentMode = fmMode,
+            currentScene = fmScene,
+            onPickMode = {
                 neteaseViewModel.setRadioMode(it)
+                fmPickerOpen = false
+            },
+            onPickScene = {
+                neteaseViewModel.setRadioScene(it)
                 fmPickerOpen = false
             },
             onDismiss = { fmPickerOpen = false },
@@ -578,45 +586,3 @@ fun PlayingScreen(
 }
 
 /** 播放页的封面方块：竖屏与横屏同一形状（小圆角 + 重投影），只是边长不同 */
-
-/** FM 推荐模式选择（插件 FmModeSelectPage 的 3 档简版） */
-@Composable
-private fun FmModePickerDialog(
-    current: com.catclaw.music.kt.data.repository.netease.FmMode,
-    onPick: (com.catclaw.music.kt.data.repository.netease.FmMode) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val palette = LocalCatClawPalette.current
-    val primary = Color(palette.textPrimary)
-    val secondary = Color(palette.textSecondary)
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(palette.backgroundStops.last().argb).copy(alpha = 0.96f))
-                .glassCard(palette = palette, corner = 24)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text("私人漫游模式", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = primary)
-            Text("切换后重新加载电台", fontSize = 11.5.sp, color = secondary)
-            com.catclaw.music.kt.data.repository.netease.FmMode.entries.forEach { mode ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onPick(mode) }
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(mode.label, fontSize = 15.sp, color = primary)
-                        Text(mode.code, fontSize = 11.sp, color = secondary)
-                    }
-                    if (mode == current) Text("✓", fontSize = 16.sp, color = Color(com.catclaw.music.kt.ui.theme.highlightOnGlassCard(palette)))
-                }
-            }
-        }
-    }
-}
