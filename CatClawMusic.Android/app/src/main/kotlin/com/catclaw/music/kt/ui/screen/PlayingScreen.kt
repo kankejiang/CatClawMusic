@@ -576,8 +576,8 @@ fun PlayingScreen(
                 neteaseViewModel.setRadioMode(it)
                 fmPickerOpen = false
             },
-            onPickScene = {
-                neteaseViewModel.setRadioScene(it)
+            onPickScene = { code, label ->
+                neteaseViewModel.setRadioScene(code, label)
                 fmPickerOpen = false
             },
             onDismiss = { fmPickerOpen = false },

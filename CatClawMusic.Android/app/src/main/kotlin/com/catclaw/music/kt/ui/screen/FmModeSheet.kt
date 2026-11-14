@@ -33,24 +33,39 @@ import com.catclaw.music.kt.data.repository.netease.FmMode
  * 私人漫游模式选择抽屉 —— 1:1 对齐网易云官方客户端：
  * 顶部「私人漫游 · 当前模式 ⌃」+ 推荐模式大卡 + 场景模式 4 列图标网格。
  *
- * 数据侧：推荐模式走 /api/v1/radio/get 的 mode 参数；场景模式按插件
- * `FillSceneBatchAsync` 用中文名当关键词搜歌建池（官方 SCENE_RCMD 原生接口无效）。
+ * 数据侧：全部走官方 /api/v1/radio/get —— 推荐模式用 mode，场景模式用
+ * mode=SCENE_RCMD + subMode=<官方场景码>（插件把 subMode 拼错才误判无效）。
  */
-private data class FmScene(val label: String, val icon: String, val isNew: Boolean = false)
+private data class FmScene(
+    val code: String,
+    val label: String,
+    val icon: String,
+    val isNew: Boolean = false,
+)
 
-/** 官方客户端场景模式全表（43 项，前 36 项与插件 FmSceneCodes 一致） */
+/** 官方 42 个场景码（YesPlayMusic `src/utils/personalFM.js` 的 PERSONAL_FM_SCENES，逐项对上中文名） */
 private val FM_SCENES = listOf(
-    FmScene("伤感", "🌙"), FmScene("运动", "🏃"), FmScene("助眠", "😴"), FmScene("放松", "🧘"),
-    FmScene("欢快", "😄"), FmScene("抒情", "🌸"), FmScene("治愈", "💊"), FmScene("专注", "📖"),
-    FmScene("情歌", "💕"), FmScene("R&B", "🎵", true), FmScene("下雨天", "☔", true), FmScene("打游戏", "🎮", true),
-    FmScene("说唱", "🎤"), FmScene("K-Pop", "✨"), FmScene("宝藏原创", "💎"), FmScene("电音", "⚡"),
-    FmScene("出行", "🚇"), FmScene("洗澡", "🛁"), FmScene("咖啡馆", "☕"), FmScene("摇滚", "🎸"),
-    FmScene("励志", "💪"), FmScene("华语", "🇨🇳"), FmScene("欧美", "🌍"), FmScene("粤语", "🗣️"),
-    FmScene("慢摇DJ", "🎧"), FmScene("经典", "🎼"), FmScene("轻音乐", "🍃"), FmScene("国风", "🏮"),
-    FmScene("民谣", "🪕"), FmScene("二次元", "🌸"), FmScene("古典", "🎻"), FmScene("爵士", "🎷"),
-    FmScene("日语", "🗾"), FmScene("全球", "🌐"), FmScene("法语", "🥐"), FmScene("蓝调", "🎹"),
-    FmScene("舞蹈", "💃"), FmScene("拉丁", "🕺"), FmScene("放克", "🪩"), FmScene("乡村乐", "🤠"),
-    FmScene("音乐剧", "🎭"), FmScene("影视", "🎬"), FmScene("热歌", "🔥"),
+    FmScene("NIGHT_EMO", "伤感", "🌙"), FmScene("EXERCISE", "运动", "🏃"),
+    FmScene("SLEEP_HELP", "助眠", "😴"), FmScene("RELAX", "放松", "🧘"),
+    FmScene("CHEERFUL", "欢快", "😄"), FmScene("LYRICAL", "抒情", "🌸"),
+    FmScene("CURE", "治愈", "💊"), FmScene("FOCUS", "专注", "📖"),
+    FmScene("SWEET", "情歌", "💕"), FmScene("RHYTHM_BLUES", "R&B", "🎵", true),
+    FmScene("RAINY", "下雨天", "☔", true), FmScene("GAMES", "打游戏", "🎮", true),
+    FmScene("RAP", "说唱", "🎤"), FmScene("K_POP", "K-Pop", "✨"),
+    FmScene("ORIGINAL_MUSICIAL", "宝藏原创", "💎"), FmScene("ELECTRONIC", "电音", "⚡"),
+    FmScene("COMMUTE", "出行", "🚇"), FmScene("TAKE_SHOWER", "洗澡", "🛁"),
+    FmScene("COFFEE_SHOP", "咖啡馆", "☕"), FmScene("ROCK", "摇滚", "🎸"),
+    FmScene("INSPIRATIONAL", "励志", "💪"), FmScene("CHINESE", "华语", "🇨🇳"),
+    FmScene("ENGLISH", "欧美", "🌍"), FmScene("YUEYU", "粤语", "🗣️"),
+    FmScene("MANYAO", "慢摇DJ", "🎧"), FmScene("JINGDIAN", "经典", "🎼"),
+    FmScene("LIGHT", "轻音乐", "🍃"), FmScene("GUOFENG", "国风", "🏮"),
+    FmScene("FOLK", "民谣", "🪕"), FmScene("ACG", "二次元", "🌸"),
+    FmScene("GUDIAN", "古典", "🎻"), FmScene("JAZZ", "爵士", "🎷"),
+    FmScene("JAPANESE", "日语", "🗾"), FmScene("GLOBAL", "全球", "🌐"),
+    FmScene("FRANCH", "法语", "🥐"), FmScene("BLUE", "蓝调", "🎹"),
+    FmScene("DANCE", "舞蹈", "💃"), FmScene("LATIN", "拉丁", "🕺"),
+    FmScene("PUNK", "放克", "🪩"), FmScene("COUNTRY", "乡村乐", "🤠"),
+    FmScene("MUSICAL", "音乐剧", "🎭"), FmScene("YINGSHI", "影视", "🎬"),
 )
 
 private val SheetBg = Color(0xF5202023)
@@ -65,7 +80,7 @@ fun FmModeSheet(
     currentMode: FmMode,
     currentScene: String?,
     onPickMode: (FmMode) -> Unit,
-    onPickScene: (String) -> Unit,
+    onPickScene: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Dialog(
@@ -133,8 +148,8 @@ fun FmModeSheet(
                         row.forEach { scene ->
                             SceneTile(
                                 scene = scene,
-                                selected = currentScene == scene.label,
-                                onClick = { onPickScene(scene.label) },
+                                selected = currentScene == scene.code,
+                                onClick = { onPickScene(scene.code, scene.label) },
                                 modifier = Modifier.weight(1f),
                             )
                         }

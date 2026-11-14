@@ -338,11 +338,20 @@ class NeteaseApiClient @Inject constructor(
      * 所以循环拉取并按 id 去重，直到凑齐 num 首（安全上限 num*3 次），否则 FM 每批只有一首、
      * 切歌就断。mode 对齐插件：DEFAULT 不带 query；推荐模式直接 mode=；场景码用 SCENE_RCMD+submode。
      */
-    suspend fun privateFm(num: Int = 20, mode: String = "DEFAULT"): List<OnlineSong> {
-        val query = when {
-            mode.isBlank() || mode == "DEFAULT" -> ""
-            mode in FM_SCENE_CODES -> "?mode=SCENE_RCMD&submode=$mode"
-            else -> "?mode=$mode"
+    suspend fun privateFm(
+        num: Int = 20,
+        mode: String = "DEFAULT",
+        sceneCode: String? = null,
+    ): List<OnlineSong> {
+        // 官方私人漫游：场景模式 = /api/v1/radio/get?mode=SCENE_RCMD&subMode=<CODE>&limit=N
+        // 注意是 subMode（大写 M）—— 插件写成 submode 才误判「原生场景无效」，改用关键词搜索。
+        // 依据 YesPlayMusic `src/mobile/neteaseApi.js` 的 /personal/fm/mode 映射（42 个官方场景码）。
+        val query = buildString {
+            append("?limit=$num")
+            when {
+                !sceneCode.isNullOrBlank() -> append("&mode=SCENE_RCMD&subMode=$sceneCode")
+                mode == "FAMILIAR" || mode == "EXPLORE" -> append("&mode=$mode")
+            }
         }
         val collected = mutableListOf<OnlineSong>()
         val seen = HashSet<String>()
@@ -358,7 +367,7 @@ class NeteaseApiClient @Inject constructor(
             }
         }
         if (collected.isEmpty()) return emptyList()
-        AppLog.d("NeteaseFm", "privateFm mode=$mode 拉取 $attempts 次凑到 ${collected.size}/$num 首")
+        AppLog.d("NeteaseFm", "privateFm mode=$mode scene=$sceneCode 拉取 $attempts 次凑到 ${collected.size}/$num 首: ${collected.take(3).joinToString(" / ") { it.title }}")
         return correctFmMetadata(collected)
     }
 
@@ -592,16 +601,6 @@ class NeteaseApiClient @Inject constructor(
         private const val USER_DETAIL_API = "https://music.163.com/api/v1/user/detail"
         private const val USER_PLAYLIST_API = "https://music.163.com/api/user/playlist"
         private const val LIKE_API = "https://music.163.com/api/playlist/manipulate/tracks"
-        /** 插件 FmSceneCodes：场景模式码（36 种，切场景时走 SCENE_RCMD+submode） */
-        private val FM_SCENE_CODES = setOf(
-            "LATE_NIGHT_EMO", "EXERCISE", "SLEEP_HELP", "RELAX", "HAPPINESS", "LYRICAL",
-            "CURE", "FOCUS", "ROMANTIC", "RHYTHM_BLUES", "RAINY", "GAMES", "RAP", "K_POP",
-            "ORIGINAL_MUSICAL", "ELECTRONIC", "COMMUTE", "BATH", "COFFEE_SHOP", "ROCK",
-            "INSPIRATIONAL", "CHINESE", "EUROPE_AMERICA", "CANTONESE", "DJ", "CLASSIC",
-            "LIGHT_MUSIC", "CHINESE_STYLE", "FOLK", "ACG", "CLASSICAL", "JAZZ", "JAPANESE",
-            "WORLD", "FRENCH", "BLUES",
-        )
-
         private const val RADIO_API = "https://music.163.com/api/v1/radio/get"
 
         private const val UA =

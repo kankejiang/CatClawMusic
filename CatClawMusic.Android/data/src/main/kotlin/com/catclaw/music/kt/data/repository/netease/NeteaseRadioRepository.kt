@@ -50,12 +50,13 @@ class NeteaseRadioRepository @Inject constructor(
     private val _mode = MutableStateFlow(FmMode.DEFAULT)
     val mode: StateFlow<FmMode> = _mode.asStateFlow()
 
-    /** 场景模式关键词（插件 `_currentFmMode` 为场景码时走关键词搜索池） */
-    private val _scene = MutableStateFlow<String?>(null)
-    val scene: StateFlow<String?> = _scene.asStateFlow()
+    /** 官方场景码（SCENE_RCMD 的 subMode），如 ROCK / FOCUS / RAINY */
+    private val _sceneCode = MutableStateFlow<String?>(null)
+    val sceneCode: StateFlow<String?> = _sceneCode.asStateFlow()
+    private val _sceneLabel = MutableStateFlow<String?>(null)
 
     /** 顶部「私人漫游 · XXX」显示名 */
-    val label: StateFlow<String> = kotlinx.coroutines.flow.combine(_mode, _scene) { mode, scene ->
+    val label: StateFlow<String> = kotlinx.coroutines.flow.combine(_mode, _sceneLabel) { mode, scene ->
         scene?.takeIf { it.isNotBlank() } ?: mode.label
     }.stateIn(scope, kotlinx.coroutines.flow.SharingStarted.Eagerly, FmMode.DEFAULT.label)
 
@@ -66,16 +67,16 @@ class NeteaseRadioRepository @Inject constructor(
     private var starting = false
     /** 上次退出时仍在漫游：等播放器第一次发状态时恢复，避免与队列 restore 抢顺序 */
     private var restoring = prefs.getBoolean(KEY_ACTIVE, false)
-    private val scenePool = ArrayDeque<OnlineSong>()
-    private val sceneServed = HashSet<String>()
-    private var scenePage = 1
-    private var poolKeyword: String? = null
 
     init {
         val savedMode = prefs.getString(KEY_MODE, "DEFAULT")
         _mode.value = FmMode.entries.firstOrNull { it.code == savedMode || it.name == savedMode }
             ?: FmMode.DEFAULT
-        _scene.value = prefs.getString(KEY_SCENE, null)?.takeIf { it.isNotBlank() }
+        // 旧版本把中文名直接存进 fm_scene（关键词搜索时代），官方 subMode 只认大写码：过滤掉
+        _sceneCode.value = prefs.getString(KEY_SCENE, null)?.takeIf { saved ->
+            saved.isNotBlank() && saved.all { it.isUpperCase() || it.isDigit() || it == '_' }
+        }
+        _sceneLabel.value = prefs.getString(KEY_SCENE_LABEL, null)?.takeIf { it.isNotBlank() }
         // 事件路径 + 定时兜底，与插件双路径一致（宿主可能不回调播完事件）
         scope.launch {
             player.state.collect { state ->
@@ -102,42 +103,25 @@ class NeteaseRadioRepository @Inject constructor(
         }
     }
 
-    /**
-     * 插件 FillSceneBatchAsync：场景模式用中文名当关键词搜歌建池、按页增量取、已播过去重；
-     * 推荐模式仍走 /api/v1/radio/get（带 mode）。两种都凑 FM_BATCH 首。
-     */
-    private suspend fun nextBatch(n: Int): List<OnlineSong> {
-        val keyword = _scene.value
-        if (keyword.isNullOrBlank()) return runCatching { api.privateFm(n, _mode.value.code) }.getOrDefault(emptyList())
-        if (poolKeyword != keyword) {
-            scenePool.clear()
-            sceneServed.clear()
-            scenePage = 1
-            poolKeyword = keyword
-        }
-        var attempts = 0
-        while (scenePool.size < n && attempts < 6) {
-            val before = scenePool.size
-            val found = runCatching { api.searchSongs(keyword, scenePage++, 50) }.getOrNull().orEmpty()
-            found.forEach { song -> if (song.id.isNotBlank() && sceneServed.add(song.id)) scenePool.addLast(song) }
-            if (scenePool.size == before) break
-            attempts++
-        }
-        return buildList { repeat(n) { scenePool.removeFirstOrNull()?.let(::add) } }
-    }
+    /** 官方 /api/v1/radio/get：模式/场景都交给推荐引擎，不再自己搜关键词拼池 */
+    private suspend fun nextBatch(n: Int): List<OnlineSong> =
+        runCatching { api.privateFm(n, _mode.value.code, _sceneCode.value) }.getOrDefault(emptyList())
 
     /** 插件 TrySetFmModeAsync：切模式 → 重新拉一批（保留电台态） */
     fun setMode(mode: FmMode) {
         _mode.value = mode
-        _scene.value = null
-        prefs.edit().putString(KEY_MODE, mode.code).putString(KEY_SCENE, "").apply()
+        _sceneCode.value = null
+        _sceneLabel.value = null
+        prefs.edit().putString(KEY_MODE, mode.code)
+            .putString(KEY_SCENE, "").putString(KEY_SCENE_LABEL, "").apply()
         refresh()
     }
 
-    /** 切场景：清池换关键词、重新拉一批（插件 TrySetFmModeAsync → FillSceneBatchAsync） */
-    fun setScene(keyword: String?) {
-        _scene.value = keyword
-        prefs.edit().putString(KEY_SCENE, keyword ?: "").apply()
+    /** 切官方场景码：SCENE_RCMD + subMode，重新拉一批 */
+    fun setScene(code: String, label: String) {
+        _sceneCode.value = code
+        _sceneLabel.value = label
+        prefs.edit().putString(KEY_SCENE, code).putString(KEY_SCENE_LABEL, label).apply()
         refresh()
     }
 
@@ -196,7 +180,8 @@ class NeteaseRadioRepository @Inject constructor(
                 prefs.edit()
                     .putBoolean(KEY_ACTIVE, true)
                     .putString(KEY_MODE, _mode.value.code)
-                    .putString(KEY_SCENE, _scene.value ?: "")
+                    .putString(KEY_SCENE, _sceneCode.value ?: "")
+                    .putString(KEY_SCENE_LABEL, _sceneLabel.value ?: "")
                     .apply()
                 // 其余几首并发升级直链（upgradeQueueItem 会跳过正在播的第一首）
                 songs.drop(1).forEach { song ->
@@ -265,6 +250,7 @@ class NeteaseRadioRepository @Inject constructor(
         const val KEY_ACTIVE = "fm_active"
         const val KEY_MODE = "fm_mode"
         const val KEY_SCENE = "fm_scene"
+        const val KEY_SCENE_LABEL = "fm_scene_label"
     }
 }
 
