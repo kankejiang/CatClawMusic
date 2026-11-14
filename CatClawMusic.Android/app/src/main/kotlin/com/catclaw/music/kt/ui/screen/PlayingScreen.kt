@@ -95,6 +95,7 @@ import com.catclaw.music.kt.ui.song.rememberSongMenu
 import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.ui.theme.artworkBackdrop
 import com.catclaw.music.kt.ui.theme.VinylCover
 import com.catclaw.music.kt.ui.theme.artworkWash
@@ -274,9 +275,41 @@ fun PlayingScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                // 官方私人漫游：顶部「私人漫游 · 默认模式 ⌄」，点开切模式
+                if (state.isFmMode) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable { fmPickerOpen = true }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "私人漫游 · ${fmMode.label}",
+                            fontSize = 12.sp,
+                            color = Color(highlightOnGlassCard(palette)),
+                        )
+                        Text("⌄", fontSize = 12.sp, color = Color(highlightOnGlassCard(palette)))
+                    }
+                    Spacer(Modifier.height(2.dp))
+                }
                 TitleBlock(title = state.currentSong?.title, artist = state.currentSong?.artist, error = state.error)
             }
             Spacer(Modifier.width(8.dp))
+            // 官方右上 ↻：换一批
+            if (state.isFmMode) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_refresh),
+                    contentDescription = "换一批",
+                    tint = Color(palette.textPrimary),
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { neteaseViewModel.refreshRadio() }
+                        .padding(10.dp),
+                )
+            }
             Icon(
                 painter = painterResource(R.drawable.ic_collapse),
                 contentDescription = stringResource(R.string.player_collapse),

@@ -71,6 +71,11 @@ class NeteaseRadioRepository @Inject constructor(
     /** 插件 TrySetFmModeAsync：切模式 → 重新拉一批（保留电台态） */
     fun setMode(mode: FmMode) {
         _mode.value = mode
+        refresh()
+    }
+
+    /** 官方私人漫游右上 ↻：立刻换一批 */
+    fun refresh() {
         stop()
         start()
     }

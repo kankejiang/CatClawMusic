@@ -377,6 +377,7 @@ class NeteaseMusicViewModel @Inject constructor(
     /** 插件 GetFmModeLabelAsync / GetFmModesAsync 的 3 档推荐模式 */
     val radioMode get() = radio.mode
     fun setRadioMode(mode: com.catclaw.music.kt.data.repository.netease.FmMode) = radio.setMode(mode)
+    fun refreshRadio() = radio.refresh()
 
     // ── 登录 ───────────────────────────────────────────────────
 
