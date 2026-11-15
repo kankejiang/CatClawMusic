@@ -5,6 +5,10 @@ import java.io.IOException
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -68,7 +72,26 @@ internal fun resolve(base: String, location: String): String =
  */
 object UrlHttpFetcher : HttpFetcher {
 
+    /**
+     * NAS 上的 WebDAV 基本是自签证书（群晖/QNAP/极空间都一样），系统的信任库校验必然失败。
+     * MAUI 端 `WebDavCertPolicy.TrustAllCertificates` 默认就是「信任所有」，这里对齐同一策略，
+     * 否则会出现「MAUI 能连、原生连不上」。
+     *
+     * 代价：HTTPS 失去中间人防护。这个 client 只服务用户**自己显式配置**的私有服务器，
+     * 不用于网易云等公网接口（那些走各自带校验的 client）。
+     */
+    private val trustAllManager = object : X509TrustManager {
+        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+        override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+    }
+    private val trustAllSsl = SSLContext.getInstance("TLS").apply {
+        init(null, arrayOf(trustAllManager), SecureRandom())
+    }.socketFactory
+
     private val client = OkHttpClient.Builder()
+        .sslSocketFactory(trustAllSsl, trustAllManager)
+        .hostnameVerifier { _, _ -> true }
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         // 重定向交给上层按方法语义重放（PROPFIND 被降级成 GET 是很多 NAS 的常见坑）
