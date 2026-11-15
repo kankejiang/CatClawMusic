@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -93,6 +94,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     // 正在改哪一条（null = 新增）。只活在内存里：ConnectionProfile 不是 Saveable，
     // 进程被杀后表单字段还在但会退回"新增"档——那正是安全的方向（不会把 id 弄丢去覆盖另一条）
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
+    // 新增/编辑走独立页面（不再把表单堆在列表页底部）
+    var editorOpen by remember { mutableStateOf(false) }
 
     /**
      * 表单当前这份 → 连接配置。「保存」与「浏览目录」共用同一个构造口：
@@ -137,6 +140,143 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             },
             onClose = { viewModel.closeWebDavBrowser() },
         )
+        return
+    }
+
+    // ── 新增 / 编辑：独立整页（表单不再堆在列表页底部）
+    if (editorOpen) {
+        val editingProfile = editing
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+        ) {
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BackTile(onBack = { editorOpen = false }, description = stringResource(R.string.GoBack))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (editingProfile == null) {
+                            stringResource(R.string.remote_add_server)
+                        } else {
+                            stringResource(R.string.remote_edit_server, editingProfile.name)
+                        },
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.remote_editor_sub),
+                        fontSize = 12.sp,
+                        color = secondary,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+
+            val editingProfile = editing
+            SectionCard(title = stringResource(R.string.remote_editor_section)) {
+                GlassField(value = name, onValue = { name = it }, label = stringResource(R.string.Name))
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassField(value = host, onValue = { host = it }, label = stringResource(R.string.HostAddress), modifier = Modifier.weight(1.6f))
+                    GlassField(value = port, onValue = { port = it }, label = stringResource(R.string.Port), modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassField(value = user, onValue = { user = it }, label = stringResource(R.string.Username), modifier = Modifier.weight(1f))
+                    GlassField(value = pass, onValue = { pass = it }, label = stringResource(R.string.Password), modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ProtocolType.entries.forEach { option ->
+                        GlassChip(label = option.name, selected = option.name == protocol, onClick = { protocol = option.name })
+                    }
+                }
+                // 协议这一格决定 origin 的 scheme，而 origin 是每条请求的前缀——没有这开关时
+                // 用户只能存进一条 http 的连接，对端只上 TLS 就连不上（字段一直在，只是没人能填）
+                if (protocol != ProtocolType.SMB.name) {
+                    Spacer(Modifier.height(6.dp))
+                    GlassSwitch(
+                        label = stringResource(R.string.remote_use_https),
+                        subtitle = stringResource(R.string.remote_use_https_sub),
+                        checked = useHttps,
+                        onChange = { useHttps = it },
+                    )
+                }
+                if (protocol == ProtocolType.Navidrome.name) {
+                    Spacer(Modifier.height(8.dp))
+                    GlassField(
+                        value = apiVersion,
+                        onValue = { apiVersion = it },
+                        label = stringResource(R.string.remote_api_version),
+                    )
+                }
+                if (protocol == ProtocolType.SMB.name) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlassField(value = share, onValue = { share = it }, label = stringResource(R.string.SmbShareName), modifier = Modifier.weight(1f))
+                        GlassField(value = domain, onValue = { domain = it }, label = stringResource(R.string.SmbDomain), modifier = Modifier.weight(1f))
+                    }
+                }
+                // 只有 WebDAV 有"目录"这个概念：Subsonic/猫爪服务器给的是曲库不是路径树，
+                // 摆在这几档上会是一个填了没用的格子
+                if (protocol == ProtocolType.WebDAV.name) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GlassField(
+                            value = basePath,
+                            onValue = { basePath = it },
+                            label = stringResource(R.string.remote_base_path),
+                            modifier = Modifier.weight(1f),
+                        )
+                        PillLabel(
+                            text = stringResource(R.string.remote_browse),
+                            onClick = { viewModel.browseWebDav(buildDraft(), basePath.ifBlank { "/" }) },
+                            filled = false,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PillButton(label = stringResource(R.string.Save), filled = true) {
+                        // 从正在改的那条出发 copy：id / apiVersion / serverType / useHttps 都不在这个表单里，
+                        // 重新 new 一个会把它们悄悄抹回默认值
+                        viewModel.save(buildDraft())
+                        editing = null
+                        editorOpen = false
+                        name = ""
+                        host = ""
+                        user = ""
+                        pass = ""
+                        share = ""
+                        domain = ""
+                        basePath = ""
+                        useHttps = false
+                        apiVersion = ""
+                        port = "4535"
+                    }
+                    PillButton(label = stringResource(R.string.remote_cancel_edit), filled = false) {
+                        editorOpen = false
+                        editing = null
+                        name = ""
+                        host = ""
+                        user = ""
+                        pass = ""
+                        share = ""
+                        domain = ""
+                        basePath = ""
+                        useHttps = false
+                        apiVersion = ""
+                        port = "4535"
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(30.dp))
+        }
         return
     }
 
@@ -274,6 +414,27 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
         Spacer(Modifier.height(12.dp))
 
         SectionCard(title = stringResource(R.string.ConfiguredConnections)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                PillButton(
+                    label = stringResource(R.string.remote_new_connection),
+                    filled = true,
+                ) {
+                    editing = null
+                    name = ""
+                    host = ""
+                    port = "4535"
+                    user = ""
+                    pass = ""
+                    protocol = ProtocolType.Navidrome.name
+                    share = ""
+                    domain = ""
+                    basePath = ""
+                    useHttps = false
+                    apiVersion = ""
+                    editorOpen = true
+                }
+            }
+            Spacer(Modifier.height(6.dp))
             if (profiles.isEmpty()) {
                 EmptyState(hint = stringResource(R.string.NoConnectionsHint), iconRes = R.drawable.ic_library)
             }
@@ -324,6 +485,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         // 此前只能删了重填：改一个密码要把整条连接删掉，而删掉会连带丢 basePath
                         PillButton(label = stringResource(R.string.remote_edit), filled = false) {
                             editing = profile
+                            editorOpen = true
                             name = profile.name
                             host = profile.host
                             port = profile.port.toString()
@@ -387,110 +549,7 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             )
         }
 
-        val editingProfile = editing
-        SectionCard(
-            title = if (editingProfile == null) {
-                stringResource(R.string.remote_add_server)
-            } else {
-                stringResource(R.string.remote_edit_server, editingProfile.name)
-            },
-        ) {
-            GlassField(value = name, onValue = { name = it }, label = stringResource(R.string.Name))
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlassField(value = host, onValue = { host = it }, label = stringResource(R.string.HostAddress), modifier = Modifier.weight(1.6f))
-                GlassField(value = port, onValue = { port = it }, label = stringResource(R.string.Port), modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlassField(value = user, onValue = { user = it }, label = stringResource(R.string.Username), modifier = Modifier.weight(1f))
-                GlassField(value = pass, onValue = { pass = it }, label = stringResource(R.string.Password), modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProtocolType.entries.forEach { option ->
-                    GlassChip(label = option.name, selected = option.name == protocol, onClick = { protocol = option.name })
-                }
-            }
-            // 协议这一格决定 origin 的 scheme，而 origin 是每条请求的前缀——没有这开关时
-            // 用户只能存进一条 http 的连接，对端只上 TLS 就连不上（字段一直在，只是没人能填）
-            if (protocol != ProtocolType.SMB.name) {
-                Spacer(Modifier.height(6.dp))
-                GlassSwitch(
-                    label = stringResource(R.string.remote_use_https),
-                    subtitle = stringResource(R.string.remote_use_https_sub),
-                    checked = useHttps,
-                    onChange = { useHttps = it },
-                )
-            }
-            if (protocol == ProtocolType.Navidrome.name) {
-                Spacer(Modifier.height(8.dp))
-                GlassField(
-                    value = apiVersion,
-                    onValue = { apiVersion = it },
-                    label = stringResource(R.string.remote_api_version),
-                )
-            }
-            if (protocol == ProtocolType.SMB.name) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlassField(value = share, onValue = { share = it }, label = stringResource(R.string.SmbShareName), modifier = Modifier.weight(1f))
-                    GlassField(value = domain, onValue = { domain = it }, label = stringResource(R.string.SmbDomain), modifier = Modifier.weight(1f))
-                }
-            }
-            // 只有 WebDAV 有"目录"这个概念：Subsonic/猫爪服务器给的是曲库不是路径树，
-            // 摆在这几档上会是一个填了没用的格子
-            if (protocol == ProtocolType.WebDAV.name) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GlassField(
-                        value = basePath,
-                        onValue = { basePath = it },
-                        label = stringResource(R.string.remote_base_path),
-                        modifier = Modifier.weight(1f),
-                    )
-                    PillLabel(
-                        text = stringResource(R.string.remote_browse),
-                        onClick = { viewModel.browseWebDav(buildDraft(), basePath.ifBlank { "/" }) },
-                        filled = false,
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillButton(label = stringResource(R.string.Save), filled = true) {
-                    // 从正在改的那条出发 copy：id / apiVersion / serverType / useHttps 都不在这个表单里，
-                    // 重新 new 一个会把它们悄悄抹回默认值
-                    viewModel.save(buildDraft())
-                    editing = null
-                    name = ""
-                    host = ""
-                    user = ""
-                    pass = ""
-                    share = ""
-                    domain = ""
-                    basePath = ""
-                    useHttps = false
-                    apiVersion = ""
-                    port = "4535"
-                }
-                if (editingProfile != null) {
-                    PillButton(label = stringResource(R.string.remote_cancel_edit), filled = false) {
-                        editing = null
-                        name = ""
-                        host = ""
-                        user = ""
-                        pass = ""
-                        share = ""
-                        domain = ""
-                        basePath = ""
-                        useHttps = false
-                        apiVersion = ""
-                        port = "4535"
-                    }
-                }
-            }
-        }
+
 
         SectionCard(title = stringResource(R.string.RemoteMusic) + " · " + stringResource(R.string.playlist_count, songs.size)) {
             songs.forEachIndexed { index, song ->

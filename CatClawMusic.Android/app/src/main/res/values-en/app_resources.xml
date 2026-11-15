@@ -25,6 +25,9 @@
     <string name="ClearImageCache">Clear Image Cache</string>
     <string name="ClearingCache">Clearing…</string>
     <string name="ConfiguredConnections">Configured Connections</string>
+    <string name="remote_new_connection">+ New connection</string>
+    <string name="remote_editor_sub">Test the connection before saving</string>
+    <string name="remote_editor_section">Connection</string>
     <string name="remote_cache_title">Offline cache</string>
     <string name="remote_cache_count">%1$d network songs cached</string>
     <string name="remote_cache_desc">Played remote tracks stay on device for offline playback</string>
