@@ -7,6 +7,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
@@ -14,6 +15,12 @@ import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.database.StandaloneDatabaseProvider
 import com.catclaw.music.kt.core.net.UrlCredentials
 import java.io.File
+import java.security.SecureRandom
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import okhttp3.OkHttpClient
 
 /**
  * 远程音源的取流工厂。
@@ -38,11 +45,31 @@ object RemoteAuthDataSources {
 
     private var playerCache: SimpleCache? = null
 
+    /**
+     * 与 WebDAV 列目录同一套 TLS 策略：NAS 的自签证书（群晖/QNAP/Trim 都是）在系统信任库里
+     * 校验必失败 —— DefaultHttpDataSource 走 HttpURLConnection，塞不进自定义 TrustManager，
+     * 所以这里换 OkHttpDataSource，信任用户**自己配置**的服务器证书。
+     */
+    private val trustAllManager = object : X509TrustManager {
+        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+        override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+    }
+    private val trustAllClient: OkHttpClient by lazy {
+        val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustAllManager), SecureRandom()) }
+        OkHttpClient.Builder()
+            .sslSocketFactory(ssl.socketFactory, trustAllManager)
+            .hostnameVerifier { _, _ -> true }
+            // DefaultHttpDataSource 的 allowCrossProtocolRedirects 对应物：重定向交给 OkHttp
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun factory(context: Context): DataSource.Factory {
-        val http = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10_000)
-            .setReadTimeoutMs(30_000)
+        val http = OkHttpDataSource.Factory(trustAllClient)
         // 本地 file:// 与 content:// 也得能开：DefaultDataSource 按 scheme 分派，
         // 直接把解析器挂在 Http 工厂上会让本地曲全部播不出来
         val switching = DefaultDataSource.Factory(context, http)

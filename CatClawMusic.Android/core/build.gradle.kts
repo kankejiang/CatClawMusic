@@ -28,6 +28,7 @@ dependencies {
     implementation(libs.nextlib.media3ext)
     api(libs.androidx.media3.session)
     api(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.datasource.okhttp)
     api(libs.kotlinx.coroutines.android)
     api(libs.kotlinx.serialization.json)
 
