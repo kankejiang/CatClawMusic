@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.catclaw.music.kt.core.model.ConnectionProfile
 import com.catclaw.music.kt.core.model.ProtocolType
+import com.catclaw.music.kt.core.model.SongSource
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.db.ConnectionDao
 import com.catclaw.music.kt.data.download.MusicDownloader
@@ -22,6 +23,7 @@ import com.catclaw.music.kt.data.remote.SubsonicImporter
 import com.catclaw.music.kt.data.remote.RemoteMetadataBackfiller
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +89,26 @@ class RemoteViewModel @Inject constructor(
 
     val remoteSongs: StateFlow<List<SongListItem>> = libraryDao.observeRemoteSongs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * 播放到 WebDAV 曲且元数据还缺着（时长没填）→ 自动补一轮。
+     * 用户不该需要知道「补全元数据」是个手动按钮；一次会话只自动触发一次，
+     * 补完库就干净了，后面播放到的歌如果还缺，说明上一轮没跑完或断网，手动按钮兜底。
+     */
+    private val autoBackfillStarted = AtomicBoolean(false)
+
+    init {
+        viewModelScope.launch {
+            controller.state.collect { state ->
+                val song = state.currentSong ?: return@collect
+                if (song.source != SongSource.WebDAV || song.durationSeconds > 0) return@collect
+                if (autoBackfillStarted.getAndSet(true)) return@collect
+                profiles.value.filter { it.protocol == ProtocolType.WebDAV }
+                    .firstOrNull()
+                    ?.let { backfillAll() }
+            }
+        }
+    }
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy

@@ -584,59 +584,6 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
 
 
 
-        SectionCard(title = stringResource(R.string.RemoteMusic) + " · " + stringResource(R.string.playlist_count, songs.size)) {
-            songs.forEachIndexed { index, song ->
-                val task = downloadTasks.firstOrNull { it.songId == song.id }
-                val cached = song.id in cachedIds
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CoverTile(
-                        coverArtPath = song.coverArtPath,
-                        audioPath = song.filePath,
-                        maxPx = 96,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(palette.textPrimary).copy(alpha = 0.10f))
-                            .clickable { viewModel.playAt(index) },
-                    ) {
-                        Text(text = song.title.take(1), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = primary)
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f).clickable { viewModel.playAt(index) },
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(song.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            text = when {
-                                task != null && task.state == DownloadState.Running -> stringResource(
-                                    R.string.downloads_bytes,
-                                    SongDetailFormat.bytes(task.downloaded),
-                                    SongDetailFormat.bytes(task.total),
-                                )
-                                task != null && task.state == DownloadState.Paused ->
-                                    stringResource(R.string.downloads_state_paused)
-                                task != null && task.state == DownloadState.Failed -> stringResource(R.string.download_failed)
-                                cached -> stringResource(R.string.download_done)
-                                else -> listOf(song.artist, song.album).filter { it.isNotBlank() }.joinToString(" · ")
-                            },
-                            fontSize = 12.sp,
-                            color = secondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (task != null && task.state == DownloadState.Running) {
-                        PillButton(label = stringResource(R.string.download_cancel), filled = false) { viewModel.cancelDownload(song.id) }
-                    } else if (!cached) {
-                        PillButton(label = stringResource(R.string.download), filled = true) { viewModel.download(song.toSong()) }
-                    }
-                }
-            }
-        }
         Spacer(Modifier.height(24.dp))
     }
 }

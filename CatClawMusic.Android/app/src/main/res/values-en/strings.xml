@@ -160,7 +160,6 @@
     <string name="remote_backfill_all_hint">%1$d connection(s) may still have songs without duration or artist</string>
     <string name="remote_backfill_result">Metadata: %1$d candidates, %2$d written, %3$d without useful tags, %4$d failed (%5$d ms)</string>
     <string name="remote_add_server">Add server</string>
-    <string name="download">Download</string>
     <string name="download_cancel">Cancel</string>
     <string name="download_done">Downloaded</string>
     <string name="download_failed">Download failed</string>
