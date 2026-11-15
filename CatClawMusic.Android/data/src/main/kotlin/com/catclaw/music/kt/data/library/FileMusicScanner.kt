@@ -65,7 +65,9 @@ class FileMusicScanner @Inject constructor() {
             trackNumber = tags.trackNumber,
             year = tags.year,
             genre = tags.genre,
-            dateModified = file.lastModified(),
+            // 库里 DateAdded/DateModified 一律存 epoch **秒**（MediaStore 也是秒）；
+            // File.lastModified() 给的是毫秒，不除 1000 详情页会显示成 +58606 年
+            dateModified = file.lastModified() / 1000L,
         )
     }
 

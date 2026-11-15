@@ -58,7 +58,11 @@ object SongDetailFormat {
      */
     fun date(seconds: Long, zone: ZoneId = ZoneId.systemDefault()): String {
         if (seconds <= 0L) return ""
-        return Instant.ofEpochSecond(seconds).atZone(zone).toLocalDate().toString()
+        // 兼容历史脏数据：早期 FileMusicScanner 直接写了毫秒（file.lastModified()），
+        // 1.786e12 当秒算会得到 +58606 年。阈值取 1e11 秒（≈5138 年），
+        // 正常 epoch 秒（1.7e9）与毫秒（1.7e12）分得很开，不会误判。
+        val instant = if (seconds > 100_000_000_000L) Instant.ofEpochMilli(seconds) else Instant.ofEpochSecond(seconds)
+        return instant.atZone(zone).toLocalDate().toString()
     }
 
     /** 歌词一栏：有侧车/内嵌路径就说有，否则空串（详情页据此显示"无"） */

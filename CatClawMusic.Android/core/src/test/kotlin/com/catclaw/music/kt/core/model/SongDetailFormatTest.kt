@@ -58,4 +58,16 @@ class SongDetailFormatTest {
         assertEquals("0 是「没这个信息」，不能画成 1970-01-01", "", SongDetailFormat.date(0, ZoneOffset.UTC))
         assertEquals("", SongDetailFormat.date(-1, ZoneOffset.UTC))
     }
+
+    @Test
+    fun legacyMillisDoNotTurnIntoYear58606() {
+        // 早期 FileMusicScanner 存的是 file.lastModified()（毫秒）。同一个时刻按毫秒传进来，
+        // 必须给出和秒一样的结果，而不是 +58606-06-28。
+        val seconds = 1_786_000_000L
+        val millis = seconds * 1000L
+        assertEquals(
+            SongDetailFormat.date(seconds, ZoneOffset.UTC),
+            SongDetailFormat.date(millis, ZoneOffset.UTC),
+        )
+    }
 }
