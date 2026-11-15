@@ -7,6 +7,10 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import okhttp3.OkHttpClient
 
 /**
@@ -35,7 +39,17 @@ interface AudioBytesReader {
 class HttpAudioBytesReader @Inject constructor() : AudioBytesReader {
 
     private val client by lazy {
+        // 与列目录/播放同一套 TLS 策略：NAS 的自签证书在这里不信任的话，
+        // 「补全元数据」的每个 head/tail 请求都会 SSLHandshake，整轮全军覆没
+        val tm = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), SecureRandom()) }
         OkHttpClient.Builder()
+            .sslSocketFactory(ssl.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true }
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .build()
