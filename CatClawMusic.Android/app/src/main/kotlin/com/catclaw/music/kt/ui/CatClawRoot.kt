@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,6 +50,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -318,7 +320,9 @@ private fun TabsHost(
     val discoverBg by themeViewModel.appearance.discoverBackground.collectAsStateWithLifecycle()
     // 2026-11-07 用户反馈「歌单页和音乐库没应用成功」：三选一的背景要覆盖**三个页签**
     // （发现 / 歌单 / 音乐库），不是只有发现页——之前只在发现页生效，另两页就退回纯渐变，看起来像没生效。
-    val onTabs = pagerState.settledPage >= 2
+    // 背景跟随 currentPage 而不是 settledPage：settledPage 要等滑动停稳才更新，
+    // 期间背景仍是上一页那套，停稳后再换 → 用户看到「先莫奈、再雾面」的两段跳。
+    val onTabs = pagerState.currentPage >= 2
     val monetHere = onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.MONET
     val paletteHere = remember(mode, systemDark, monetTick, monetHere) {
         AppearancePalette.resolve(mode, systemDark, themeViewModel.appearance, monet = monetHere)
@@ -445,18 +449,27 @@ private fun TabsHost(
                     // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     // 2026-11-07：雾面背景只给「发现页 + 选中雾面」与全屏歌词页；其它页只有主题渐变。
-                    val frostedHere = pagerState.settledPage == PAGE_FULL_LYRICS ||
+                    val frostedHere = pagerState.currentPage == PAGE_FULL_LYRICS ||
                         (onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.FROSTED) ||
                         // 2026-11-09 用户：横屏播放页也要雾面动态背景（原来是纯主题渐变）
-                        (landscape && pagerState.settledPage == PAGE_NOW_PLAYING)
-                    if (frostedHere) FrostedFlowBackground(
+                        (landscape && pagerState.currentPage == PAGE_NOW_PLAYING)
+                    // 2026-11-15 用户反馈「切页先莫奈再雾面」：原来用 if(frostedHere) 增删实例，
+                    // 重新组合时 shader 首帧还没上屏，先露出底下的主题渐变（莫奈/纯色）——就是那一下闪。
+                    // 现在实例常驻，只用 alpha 淡入淡出；帧缓存一直热，换页不再重建。
+                    // 不做淡入：实例常驻、帧缓存是热的，直接切过去就是那一帧雾面。
+                    // 之前加过 260ms 淡入，结果底层主题渐变在这段时间里透出来 —— 正是用户说的「先莫奈」
+                    val frostedAlpha = if (frostedHere) 1f else 0f
+                    FrostedFlowBackground(
                         // 2026-11-07 用户要求：**暂停就冻结**、播放才流动。
                         // FrostedFlowBackground 在暂停时会先渲染一帧再停（见那里的注释），
                         // 所以启动/暂停态背景仍然可见，只是不再流动。
-                        isActive = playState.isPlaying,
+                        // 隐形时停掉渲染：alpha=0 也跑 shader 是白烧 GPU
+                        isActive = frostedAlpha > 0.01f && playState.isPlaying,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .alpha(frostedAlpha),
                         isDark = !isLightPalette(palette),
                         coverSource = coverFlowSource,
                         accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
