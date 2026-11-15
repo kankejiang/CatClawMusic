@@ -94,7 +94,7 @@ class WebDavClient(
         for (candidate in candidates.distinct()) {
             davPrefix = candidate
             serverType = ServerType.Standard
-            if (tryPropFind(buildUrl(candidate.ifEmpty { "/" }, isDirectory = true), depth = 0)) {
+            if (tryPropFind(buildUrl(candidate.ifEmpty { "/" }, isDirectory = true), depth = "0")) {
                 return TestResult(true, "webdav $candidate", ServerType.Standard, candidate)
             }
             davPrefix = ""
@@ -107,23 +107,54 @@ class WebDavClient(
     }
 
     /** Depth 1：列当前目录的直接子项 */
-    fun list(path: String): List<RemoteFile> = propFindEntries(buildUrl(path, isDirectory = true), depth = 1)
+    fun list(path: String): List<RemoteFile> = propFindEntries(buildUrl(path, isDirectory = true), depth = "1")
 
-    /** Depth 899：一次拿全库；404/405 视为 OpenList 特征并自动切换 */
+    /**
+     * 一次拿全库。
+     *
+     * 这里只能用标准 Depth 值：`infinity` 是规范里唯一的"递归"取值。
+     * 早先写的是 `Depth: 899`（非标准），群晖一类宽松实现会当 1 处理，
+     * 但严格实现的服务器（例如这台 Trim NAS）直接回 **HTTP 400**，
+     * 表现就是「测试连接成功、导入曲库失败」。
+     *
+     * 服务器禁用 infinity（403/501）或干脆不认（400）时，回退成逐层 list：
+     * 慢一些，但不会把一个能连上的库判死。
+     */
     fun listAll(path: String): List<RemoteFile> = try {
-        propFindEntries(buildUrl(path, isDirectory = true), depth = DEPTH_ALL)
+        propFindEntries(buildUrl(path, isDirectory = true), depth = DEPTH_INFINITY)
     } catch (e: IOException) {
         val message = e.message.orEmpty()
-        if (serverType == ServerType.Standard && (message.contains("404") || message.contains("405"))) {
-            if (openListLogin()) {
+        when {
+            // 404/405 → 可能是 OpenList/Alist，先按它的协议试一次
+            serverType == ServerType.Standard &&
+                (message.contains("404") || message.contains("405")) && openListLogin() -> {
                 serverType = ServerType.OpenList
                 openListList(path)
-            } else {
-                throw e
             }
-        } else {
-            throw e
+            // 深度被拒 → 自己一层层走
+            DEPTH_REJECTED.any { message.contains(it) } -> listRecursive(path)
+            else -> throw e
         }
+    }
+
+    /** 逐层广度优先：深度递归被服务器拒绝时的兜底，带上限避免把超大目录走穿 */
+    private fun listRecursive(root: String): List<RemoteFile> {
+        val files = mutableListOf<RemoteFile>()
+        val queue = ArrayDeque<String>()
+        queue.add(root.ifBlank { "/" })
+        var visited = 0
+        while (queue.isNotEmpty() && visited < MAX_SCAN_DIRS && files.size < MAX_SCAN_FILES) {
+            val dir = queue.removeFirst()
+            visited++
+            list(dir).forEach { entry ->
+                if (entry.isDirectory) {
+                    if (queue.size + visited < MAX_SCAN_DIRS) queue.add(entry.path)
+                } else {
+                    files.add(entry)
+                }
+            }
+        }
+        return files
     }
 
     /** OpenList/Alist：/api/fs/get 优先给 raw_url，没有就退到 `/d/{path}?sign=` */
@@ -213,26 +244,26 @@ class WebDavClient(
         return json.parseToJsonElement(result.body).jsonObject
     }
 
-    private fun tryPropFind(url: String, depth: Int): Boolean = try {
+    private fun tryPropFind(url: String, depth: String): Boolean = try {
         val result = propFind(url, depth)
         result.status in 200..299
     } catch (e: IOException) {
         false
     }
 
-    private fun propFindEntries(url: String, depth: Int): List<RemoteFile> {
+    private fun propFindEntries(url: String, depth: String): List<RemoteFile> {
         val result = propFind(url, depth)
         if (result.status !in 200..299) throw IOException("HTTP ${result.status} for ${url.substringBefore('?')}")
         return parseMultistatus(result.body)
     }
 
     /** PROPFIND + 手动重放：每跳都重发同样的方法与请求体 */
-    private fun propFind(url: String, depth: Int): HttpResult {
+    private fun propFind(url: String, depth: String): HttpResult {
         var current = url
         var redirects = 0
         while (true) {
             val headers = mutableMapOf(
-                "Depth" to depth.toString(),
+                "Depth" to depth,
                 // C# 的 StringContent(body, UTF8, "application/xml") 会带上 charset，逐字对齐
                 "Content-Type" to "application/xml; charset=utf-8",
                 "Accept" to "text/xml",
@@ -250,7 +281,11 @@ class WebDavClient(
     }
 
     private companion object {
-        const val DEPTH_ALL = 899
+        /** 规范里唯一的递归取值；非标准值会被严格实现的服务器判 400 */
+        const val DEPTH_INFINITY = "infinity"
+        val DEPTH_REJECTED = listOf("400", "403", "405", "501")
+        const val MAX_SCAN_DIRS = 800
+        const val MAX_SCAN_FILES = 30_000
         const val DAV = "DAV:"
     }
 }
