@@ -21,6 +21,7 @@ import com.catclaw.music.kt.data.smb.SmbImporter
 import com.catclaw.music.kt.data.smb.SmbProbe
 import com.catclaw.music.kt.data.remote.SubsonicImporter
 import com.catclaw.music.kt.data.remote.RemoteMetadataBackfiller
+import com.catclaw.music.kt.data.media.RemoteCoverBackfiller
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.concurrent.atomic.AtomicBoolean
@@ -72,6 +73,7 @@ class RemoteViewModel @Inject constructor(
     private val session: PlaybackSessionStarter,
     private val downloader: MusicDownloader,
     private val backfiller: RemoteMetadataBackfiller,
+    private val coverBackfiller: RemoteCoverBackfiller,
 ) : ViewModel() {
 
     val downloadTasks = downloader.tasks
@@ -91,9 +93,13 @@ class RemoteViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * 播放到 WebDAV 曲且元数据还缺着（时长没填）→ 自动补一轮。
-     * 用户不该需要知道「补全元数据」是个手动按钮；一次会话只自动触发一次，
+     * 播放到远程曲、且这首歌还缺东西（时长/歌手 或 封面）→ 自动补一轮。
+     *
+     * 用户不该需要知道「补全」是个手动按钮。一次会话只自动触发一次：
      * 补完库就干净了，后面播放到的歌如果还缺，说明上一轮没跑完或断网，手动按钮兜底。
+     *
+     * **封面与元数据是两轮**：判据不同（前者看 CoverArtPath 空，后者看 Duration/ArtistId），
+     * 而且封面要落盘 —— 合成一轮会让「元数据早已齐全但没封面」的歌被整批漏掉。
      */
     private val autoBackfillStarted = AtomicBoolean(false)
 
@@ -101,11 +107,14 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch {
             controller.state.collect { state ->
                 val song = state.currentSong ?: return@collect
-                if (song.source != SongSource.WebDAV || song.durationSeconds > 0) return@collect
+                if (song.source == SongSource.Local) return@collect
+                val needsMeta = song.durationSeconds <= 0
+                val needsCover = song.coverArtPath.isNullOrBlank()
+                if (!needsMeta && !needsCover) return@collect
                 if (autoBackfillStarted.getAndSet(true)) return@collect
-                profiles.value.filter { it.protocol == ProtocolType.WebDAV }
-                    .firstOrNull()
-                    ?.let { backfillAll() }
+                if (profiles.value.none { it.protocol != ProtocolType.Navidrome }) return@collect
+                // 先补元数据（便宜、快），再补封面（要落盘、按首归位）
+                backfillAll(thenCovers = true)
             }
         }
     }
@@ -299,8 +308,11 @@ class RemoteViewModel @Inject constructor(
      * 那要连着点十几条连接，而用户不知道哪几条有欠账。
      * 进度沿用「每条连接各自从 0 走到满」的形状（C# 也是复用同一个状态栏），
      * 结果把四条连接的数字合并成一句。
+     *
+     * @param thenCovers 元数据补完后接着补封面。封面是独立一轮（判据不同），
+     *   自动触发时希望一次做完，手动按钮也走同一条链。
      */
-    fun backfillAll() {
+    fun backfillAll(thenCovers: Boolean = false) {
         if (_busy.value) return
         val targets = profiles.value.filter { it.protocol != ProtocolType.Navidrome }
         if (targets.isEmpty()) return
@@ -320,6 +332,14 @@ class RemoteViewModel @Inject constructor(
                     failed += one.failed
                     elapsed += one.elapsedMs
                 }
+                if (thenCovers) {
+                    val cover = runCovers(targets)
+                    total += cover.total
+                    updated += cover.updated
+                    skipped += cover.skipped
+                    failed += cover.failed
+                    elapsed += cover.elapsedMs
+                }
                 _message.value = RemoteMessage.BackfillResult(total, updated, skipped, failed, elapsed)
             } catch (e: CancellationException) {
                 throw e
@@ -331,6 +351,54 @@ class RemoteViewModel @Inject constructor(
                 _busy.value = false
             }
         }
+    }
+
+    /**
+     * 只补封面（手动入口）。与 [backfillAll] 分开，因为封面这轮可能几百首、
+     * 而元数据那轮通常一次就完；两者进度条含义不一样。
+     */
+    fun backfillCovers() {
+        if (_busy.value) return
+        val targets = profiles.value.filter { it.protocol != ProtocolType.Navidrome }
+        if (targets.isEmpty()) return
+        viewModelScope.launch {
+            _busy.value = true
+            try {
+                val one = runCovers(targets)
+                _message.value = RemoteMessage.BackfillResult(one.total, one.updated, one.skipped, one.failed, one.elapsedMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _message.value = RemoteMessage.Failed(e.message ?: e.javaClass.simpleName)
+            } finally {
+                _progress.value = null
+                _busy.value = false
+            }
+        }
+    }
+
+    /** 按连接逐条补封面；进度沿用同一个状态栏（每条连接从 0 走到满） */
+    private suspend fun runCovers(targets: List<ConnectionProfile>): RemoteCoverBackfiller.Result {
+        var total = 0
+        var updated = 0
+        var skipped = 0
+        var failed = 0
+        var elapsed = 0L
+        for (profile in targets) {
+            val source = when (profile.protocol) {
+                ProtocolType.SMB -> SongSource.SMB.ordinal
+                // Subsonic/Navidrome 的曲目自带封面 URL，没有可抽的内嵌图
+                ProtocolType.Navidrome -> continue
+                ProtocolType.WebDAV -> SongSource.WebDAV.ordinal
+            }
+            val one = coverBackfiller.run(source) { done, count -> _progress.value = SyncProgress(done, count) }
+            total += one.total
+            updated += one.updated
+            skipped += one.skipped
+            failed += one.failed
+            elapsed += one.elapsedMs
+        }
+        return RemoteCoverBackfiller.Result(total, updated, skipped, failed, elapsed)
     }
 
     fun playAt(index: Int) {

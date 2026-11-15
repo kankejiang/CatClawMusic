@@ -1,15 +1,10 @@
 package com.catclaw.music.kt.data.remote
 
-import com.catclaw.music.kt.core.net.UrlCredentials
+import com.catclaw.music.kt.core.net.RemoteHttp
 import java.io.IOException
 import java.net.URL
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
@@ -22,13 +17,8 @@ data class HttpResult(val status: Int, val location: String?, val body: String)
  * 单点在这而不是各调用点各写一遍：`java.net` 与 okhttp 都不会替你把 userinfo 变成凭据，
  * 而这一处此前写错过一次（把已经拼好的头当用户名又编码了一层），表现是每次 401 且不报错。
  */
-internal fun authorizedRequest(url: String, rangeBytes: Int? = null): Request {
-    val (clean, authorization) = UrlCredentials.split(url)
-    return Request.Builder().url(clean).apply {
-        if (authorization != null) header("Authorization", authorization)
-        if (rangeBytes != null && rangeBytes > 0) header("Range", "bytes=0-${rangeBytes - 1}")
-    }.build()
-}
+internal fun authorizedRequest(url: String, rangeBytes: Int? = null): Request =
+    RemoteHttp.request(url, rangeBytes)
 
 /**
  * 远程音源共用的取数口子：单测塞假响应，真机走 [UrlHttpFetcher]。
@@ -73,28 +63,14 @@ internal fun resolve(base: String, location: String): String =
 object UrlHttpFetcher : HttpFetcher {
 
     /**
-     * NAS 上的 WebDAV 基本是自签证书（群晖/QNAP/极空间都一样），系统的信任库校验必然失败。
-     * MAUI 端 `WebDavCertPolicy.TrustAllCertificates` 默认就是「信任所有」，这里对齐同一策略，
-     * 否则会出现「MAUI 能连、原生连不上」。
+     * TLS 策略与凭据都来自 [RemoteHttp] —— 那是全项目唯一的远程音乐 HTTP 入口。
      *
-     * 代价：HTTPS 失去中间人防护。这个 client 只服务用户**自己显式配置**的私有服务器，
-     * 不用于网易云等公网接口（那些走各自带校验的 client）。
+     * 这里唯一的不同是**自己管重定向**：PROPFIND 被 302 之后 OkHttp 会按 GET 处理，
+     * 而 WebDAV 要求每一跳都用原方法重放，所以关掉自动跟随后由 [call] 循环处理。
+     * 此前这段 trust-all 是复制粘贴在这里的，结果侧车歌词与封面那两条链路各自漏写了一份。
      */
-    private val trustAllManager = object : X509TrustManager {
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-        override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-    }
-    private val trustAllSsl = SSLContext.getInstance("TLS").apply {
-        init(null, arrayOf(trustAllManager), SecureRandom())
-    }.socketFactory
-
-    private val client = OkHttpClient.Builder()
-        .sslSocketFactory(trustAllSsl, trustAllManager)
-        .hostnameVerifier { _, _ -> true }
-        .connectTimeout(10, TimeUnit.SECONDS)
+    private val client = RemoteHttp.builder()
         .readTimeout(30, TimeUnit.SECONDS)
-        // 重定向交给上层按方法语义重放（PROPFIND 被降级成 GET 是很多 NAS 的常见坑）
         .followRedirects(false)
         .followSslRedirects(false)
         .build()

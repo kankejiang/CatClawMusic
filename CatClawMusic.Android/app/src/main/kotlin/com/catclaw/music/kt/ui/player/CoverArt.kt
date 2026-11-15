@@ -15,10 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import com.catclaw.music.kt.core.net.UrlCredentials
+import com.catclaw.music.kt.data.media.RemoteImages
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -60,24 +58,15 @@ private fun decodeFile(file: File, maxPx: Int): Bitmap? {
     return BitmapFactory.decodeFile(file.absolutePath, opts)
 }
 
-private fun fetchUrl(url: String): ByteArray? = runCatching {
-    // WebDAV / OpenList 的封面 URL 形如 `http://user:pass@host/dav/cover.jpg`，而 `HttpURLConnection`
-    // **不会**把 userinfo 变成 Authorization 头（真机表现：每次都 401，封面永远出不来）。
-    // 取流与下载两条路早就统一走 `UrlCredentials.split`，封面这条一直漏在外面
-    val (cleanUrl, authorization) = UrlCredentials.split(url)
-    val connection = (URL(cleanUrl).openConnection() as HttpURLConnection).apply {
-        connectTimeout = 8_000
-        readTimeout = 8_000
-        instanceFollowRedirects = true
-        if (authorization != null) setRequestProperty("Authorization", authorization)
-    }
-    try {
-        if (connection.responseCode !in 200..299) return null
-        connection.inputStream.use { it.readBytes() }
-    } finally {
-        connection.disconnect()
-    }
-}.getOrNull()
+/**
+ * 取一张远程图。真正的 HTTP 细节（自签证书、URL 内嵌凭据）全在
+ * [com.catclaw.music.kt.data.media.RemoteImages]，UI 层不再自己建客户端 ——
+ * 之前正是「每条链路各建一个」让封面与侧车歌词各自漏掉了一整套 TLS 配置。
+ */
+private fun fetchUrl(url: String): ByteArray? = RemoteImages.fetchBytes(url)
+
+/** 远程音频的**内嵌**封面：NAS 上没有侧车图时，图就在标签里（FLAC PICTURE / MP3 APIC） */
+private fun remoteEmbeddedPicture(url: String): ByteArray? = RemoteImages.fetchEmbeddedCover(url)
 
 /** 从音频文件里抠内嵌封面。content:// 与裸路径两种都要支持，因为本地曲两种都存在库里。 */
 private fun embeddedPicture(context: Context, audioPath: String, maxPx: Int): Bitmap? = runCatching {
@@ -96,6 +85,16 @@ private fun embeddedPicture(context: Context, audioPath: String, maxPx: Int): Bi
     }
 }.getOrNull()
 
+/**
+ * 远程音频的**内嵌**封面：只在 [audioPath] 是 http(s) 时有意义。
+ *
+ * 为什么单列一条：远程曲库入库时没有侧车图（实测某台 NAS 1227 个文件里图片扩展名为 0），
+ * `CoverArtPath` 因此为空。但图就在音频标签里（FLAC 的 PICTURE / MP3 的 APIC）——
+ * 定位与 Range 补取都在 [RemoteImages] 里，这里只负责解码成 Bitmap。
+ */
+private fun remoteEmbeddedPicture(url: String, maxPx: Int): Bitmap? =
+    remoteEmbeddedPicture(url)?.let { decodeBytes(it, maxPx) }
+
 private suspend fun load(
     context: Context,
     coverArtPath: String?,
@@ -104,7 +103,7 @@ private suspend fun load(
 ): Bitmap? = withContext(Dispatchers.IO) {
     val key = "$coverArtPath|$audioPath|$maxPx"
     memoryCache.get(key)?.let { return@withContext it }
-    val attempts = ArrayList<Bitmap?>(2)
+    val attempts = ArrayList<Bitmap?>(3)
     coverArtPath?.takeIf { it.isNotBlank() }?.let { path ->
         attempts += when {
             path.startsWith("http") -> fetchUrl(path)?.let { decodeBytes(it, maxPx) }
@@ -112,7 +111,13 @@ private suspend fun load(
             else -> null
         }
     }
-    audioPath?.takeIf { it.isNotBlank() }?.let { attempts += embeddedPicture(context, it, maxPx) }
+    audioPath?.takeIf { it.isNotBlank() }?.let { path ->
+        attempts += if (path.startsWith("http")) {
+            remoteEmbeddedPicture(path, maxPx)
+        } else {
+            embeddedPicture(context, path, maxPx)
+        }
+    }
     val bitmap = attempts.firstOrNull { it != null } ?: return@withContext null
     memoryCache.put(key, bitmap)
     bitmap

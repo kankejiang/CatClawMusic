@@ -10,8 +10,10 @@ import com.catclaw.music.kt.core.lyrics.LyricsEncoding
 import com.catclaw.music.kt.core.lyrics.LyricsFileLocator
 import com.catclaw.music.kt.core.lyrics.RemoteLyrics
 import com.catclaw.music.kt.core.model.Song
+import com.catclaw.music.kt.core.net.RemoteHttp
 import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.db.entity.LyricsEntity
+import com.catclaw.music.kt.data.media.TagPicture
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -59,8 +61,16 @@ class LyricsReader @Inject constructor(
 
                 val path = realPathOf(song) ?: return@withContext null
                 if (RemoteLyrics.isRemoteUrl(path)) {
-                    // 远程曲目没有本地标签可读，只剩远程地址这一条路。
-                    return@withContext remoteLyrics.load(song.lyricsPath)
+                    // 远程曲目：先读**侧车** .lrc（入库时配对好、地址在 LyricsPath 里），
+                    // 侧车没有再回落到**音频标签里的内嵌歌词** —— 有些库没整理侧车，
+                    // 但 FLAC 的 LYRICS / MP3 的 USLT 一直跟着文件走。
+                    remoteLyrics.load(song.lyricsPath)?.let { return@withContext it }
+                    AppLog.d(TAG, "remote sidecar miss, trying embedded tag of ${song.title}")
+                    fetchRemoteEmbeddedLyrics(path)?.let { text ->
+                        saveText(song.id, text)
+                        return@withContext (LrcParser.parse(text) ?: LyricsEncoding.parseContent(text))
+                    }
+                    return@withContext null
                 }
                 // 自动模式：**内嵌标签优先于外挂侧车**（2026-11-04 用户要求，原来与 C# 一样是侧车优先）。
                 // 理由：内嵌的是跟着文件走的、与整理出的 .lrc 可能不同步；侧车作为兜底。
@@ -98,6 +108,26 @@ class LyricsReader @Inject constructor(
     /** 把在线歌词等文本落到 DB，供离线复用 */
     suspend fun saveText(songId: Int, content: String, lrcPath: String? = null) = withContext(Dispatchers.IO) {
         dao.upsertLyrics(LyricsEntity(songId = songId, lrcPath = lrcPath, content = content))
+    }
+
+    /**
+     * 远程音频的**内嵌歌词**：取头部窗口，按容器解 USLT / LYRICS 标签。
+     *
+     * 为什么需要它：`LyricsPath` 只有入库时配对到的侧车 `.lrc`。没整理侧车的那批歌，
+     * 库里这一列是空的，而歌词其实就在标签里（实测 FLAC 带 `LYRICS`、MP3 带 `USLT`）。
+     * 此前远程分支只读侧车，于是「本地有词、同一首在远程没词」。
+     *
+     * 不复用 `RemoteLyrics`：那个只把 URL 当文本取回来，不碰二进制标签。
+     */
+    private suspend fun fetchRemoteEmbeddedLyrics(url: String): String? {
+        val head = RemoteHttp.client
+            .newCall(RemoteHttp.request(url, TagPicture.HEAD_WINDOW))
+            .execute().use { response ->
+                if (!response.isSuccessful) null else response.body?.bytes()
+            } ?: return null
+        return AudioTagLyrics.readWindow(head)
+            ?.takeIf { it.isNotBlank() }
+            ?.also { AppLog.i(TAG, "remote embedded lyrics ${it.lineSequence().count()} lines") }
     }
 
     private fun realPathOf(song: Song): String? {

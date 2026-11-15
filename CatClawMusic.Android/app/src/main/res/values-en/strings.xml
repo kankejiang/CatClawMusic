@@ -158,6 +158,8 @@
     <string name="remote_backfill_start">Start</string>
     <string name="remote_backfill_all">Complete all</string>
     <string name="remote_backfill_all_hint">%1$d connection(s) may still have songs without duration or artist</string>
+    <string name="remote_cover_hint">Extract covers from audio tags (works even when the NAS has no image files)</string>
+    <string name="remote_cover_fill">Fill in covers</string>
     <string name="remote_backfill_result">Metadata: %1$d candidates, %2$d written, %3$d without useful tags, %4$d failed (%5$d ms)</string>
     <string name="remote_add_server">Add server</string>
     <string name="download_cancel">Cancel</string>

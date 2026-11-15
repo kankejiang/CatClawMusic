@@ -1,20 +1,15 @@
 package com.catclaw.music.kt.data.media
 
-import com.catclaw.music.kt.data.remote.authorizedRequest
+import com.catclaw.music.kt.core.net.RemoteHttp
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
-import okhttp3.OkHttpClient
 
 /**
- * 按窗口取远程文件的字节。远程补元数据的全部网络面都收在这个口子上，
+ * 按窗口取远程文件的字节。远程补元数据（标签 + 封面）的全部网络面都收在这个口子上，
  * 于是解析、合并、落库能在 JVM 里拿假字节测到底。
  */
 interface AudioBytesReader {
@@ -29,28 +24,28 @@ interface AudioBytesReader {
      * 头部窗口再大也读不到。默认回 null 表示"这条通道不取尾"，调用方据此跳过第二次请求。
      */
     suspend fun tail(url: String, bytes: Long, fileSize: Long): ByteArray? = null
+
+    /**
+     * 精确区间 `[offset, offset+length)`。
+     *
+     * 内嵌封面用的就是这个：头部窗口只够定位（PICTURE 块头），图本身常在几百 KB 之后，
+     * 有了偏移就不必把整个 2 MB 窗口再拉一遍。默认实现回 null，表示"这条通道不支持精确取"。
+     */
+    suspend fun range(url: String, offset: Long, length: Int): ByteArray? = null
 }
 
 /**
  * HTTP Range 取窗口：WebDAV 与 SMB 都走这里 —— SMB 那批行的 `FilePath` 存的本来就是
  * [com.catclaw.music.kt.data.smb.SmbStreamProxy] 的 127.0.0.1 回环地址，而它自己就实现了 Range。
+ *
+ * TLS 与凭据统一走 [RemoteHttp]：这里曾经自建过一份 trust-all client，
+ * 与列目录、播放取流各抄一遍 —— 每新增一条链路都会再漏一次（侧车歌词就这么漏了）。
  */
 @Singleton
 class HttpAudioBytesReader @Inject constructor() : AudioBytesReader {
 
     private val client by lazy {
-        // 与列目录/播放同一套 TLS 策略：NAS 的自签证书在这里不信任的话，
-        // 「补全元数据」的每个 head/tail 请求都会 SSLHandshake，整轮全军覆没
-        val tm = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        }
-        val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), SecureRandom()) }
-        OkHttpClient.Builder()
-            .sslSocketFactory(ssl.socketFactory, tm)
-            .hostnameVerifier { _, _ -> true }
-            .connectTimeout(8, TimeUnit.SECONDS)
+        RemoteHttp.builder()
             .readTimeout(20, TimeUnit.SECONDS)
             .build()
     }
@@ -65,11 +60,16 @@ class HttpAudioBytesReader @Inject constructor() : AudioBytesReader {
         return readRange(url, fileSize - take, take.toInt(), requireRange = true)
     }
 
+    override suspend fun range(url: String, offset: Long, length: Int): ByteArray? {
+        if (offset < 0 || length <= 0) return null
+        return readRange(url, offset, length, requireRange = true)
+    }
+
     private suspend fun readRange(url: String, offset: Long, size: Int, requireRange: Boolean): ByteArray? {
         if (size <= 0) return null
         return withContext(Dispatchers.IO) {
             try {
-                val request = authorizedRequest(url).newBuilder()
+                val request = RemoteHttp.request(url, rangeBytes = null).newBuilder()
                     .header("Range", "bytes=$offset-${offset + size - 1}")
                     .build()
                 client.newCall(request).execute().use { response ->

@@ -559,6 +559,27 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                 ) { confirmBackfillAll = true }
             }
             Spacer(Modifier.height(12.dp))
+
+            // 封面单独一颗：判据与元数据不同（看 CoverArtPath 空），跑的也是另一轮。
+            // 自动触发已经覆盖"播到哪首补到哪首"，这颗是"我现在就想让整个库都有封面"。
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.remote_cover_hint),
+                    fontSize = 12.sp,
+                    color = secondary,
+                    modifier = Modifier.weight(1f),
+                )
+                PillButton(
+                    label = stringResource(R.string.remote_cover_fill),
+                    filled = false,
+                    enabled = !busy,
+                ) { viewModel.backfillCovers() }
+            }
+            Spacer(Modifier.height(12.dp))
         }
 
         if (confirmBackfillAll) {

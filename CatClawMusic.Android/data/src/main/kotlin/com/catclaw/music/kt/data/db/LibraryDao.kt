@@ -201,6 +201,21 @@ interface LibraryDao {
     @Query("SELECT * FROM Songs WHERE Source = :source AND (Duration <= 0 OR ArtistId = 0) ORDER BY Id")
     suspend fun remoteMissingMetadata(source: Int): List<SongEntity>
 
+    /**
+     * 缺封面的远程曲：`CoverArtPath` 为空。
+     *
+     * 与 [remoteMissingMetadata] 分开是必须的 —— 那张查询的判据是「时长或歌手缺」，
+     * 而**封面与这两者无关**：一首元数据早已补全的歌（时长/歌手都有）照样可能没封面，
+     * 因为 NAS 目录里没有侧车图（实测 1227 个文件中图片扩展名为 0）。
+     * 用同一张查询去筛封面，会把 613 首里绝大多数直接漏掉。
+     */
+    @Query("SELECT * FROM Songs WHERE Source = :source AND (CoverArtPath IS NULL OR CoverArtPath = '') ORDER BY Id")
+    suspend fun remoteMissingCover(source: Int): List<SongEntity>
+
+    /** 只回写封面列，不动其它字段 —— 封面补全不该触发一次整行 upsert 的副作用 */
+    @Query("UPDATE Songs SET CoverArtPath = :path WHERE Id = :id")
+    suspend fun setCoverArtPath(id: Int, path: String?)
+
     /** 远程曲整表：带歌手名/专辑名，直接可播 */
     @Query(
         """
