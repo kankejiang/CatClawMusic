@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -50,7 +49,6 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -449,27 +447,20 @@ private fun TabsHost(
                     // 动画只在三个页签与全屏歌词页跑，播放页暂停但保留最后一帧。
                     // 全屏歌词页不再自己画一层：同一实例贯穿，换页既不闪、也不会两层叠加变亮。
                     // 2026-11-07：雾面背景只给「发现页 + 选中雾面」与全屏歌词页；其它页只有主题渐变。
-                    val frostedHere = pagerState.currentPage == PAGE_FULL_LYRICS ||
-                        (onTabs && discoverBg == com.catclaw.music.kt.data.settings.DiscoverBackground.FROSTED) ||
-                        // 2026-11-09 用户：横屏播放页也要雾面动态背景（原来是纯主题渐变）
-                        (landscape && pagerState.currentPage == PAGE_NOW_PLAYING)
-                    // 2026-11-15 用户反馈「切页先莫奈再雾面」：原来用 if(frostedHere) 增删实例，
-                    // 重新组合时 shader 首帧还没上屏，先露出底下的主题渐变（莫奈/纯色）——就是那一下闪。
-                    // 现在实例常驻，只用 alpha 淡入淡出；帧缓存一直热，换页不再重建。
-                    // 不做淡入：实例常驻、帧缓存是热的，直接切过去就是那一帧雾面。
-                    // 之前加过 260ms 淡入，结果底层主题渐变在这段时间里透出来 —— 正是用户说的「先莫奈」
-                    val frostedAlpha = if (frostedHere) 1f else 0f
+                    // 2026-11-15 用户反馈「切页仍有短暂闪烁」：
+                    // 之前即便实例常驻，也还在按页切 `alpha`（0↔1）。`Modifier.alpha` 会为这一层
+                    // 单建一个离屏 RenderNode，值一变就要重建/丢弃，中间那一帧画不出来 —— 就是闪。
+                    // 现在**彻底不切显隐**：雾面一直在画，发现/歌单/库直接露出来，
+                    // 播放页与全屏歌词页各自用不透明的封面底把它盖住（这正是它们本来的样子）。
+                    // 没有可见性变化，就没有可丢的那一帧。
                     FrostedFlowBackground(
                         // 2026-11-07 用户要求：**暂停就冻结**、播放才流动。
                         // FrostedFlowBackground 在暂停时会先渲染一帧再停（见那里的注释），
                         // 所以启动/暂停态背景仍然可见，只是不再流动。
-                        // 隐形时停掉渲染：alpha=0 也跑 shader 是白烧 GPU
-                        isActive = frostedAlpha > 0.01f && playState.isPlaying,
+                        isActive = playState.isPlaying,
                         isScrolling = false,
                         tint = rememberArtworkTint(coverAura),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .alpha(frostedAlpha),
+                        modifier = Modifier.fillMaxSize(),
                         isDark = !isLightPalette(palette),
                         coverSource = coverFlowSource,
                         accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,

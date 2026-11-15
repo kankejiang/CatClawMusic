@@ -234,7 +234,11 @@ fun PlayingScreen(
                 when {
                     landscape -> Modifier
                     cover != null -> Modifier.artworkBackdrop(cover)
-                    else -> Modifier.artworkWash(cover)
+                    // 没封面：先铺一层不透明深色兜底（MAUI 的 PlayerDarkBase），再叠染色。
+                    // 雾面背景现在常驻且不再按页隐藏，没有这层的话无封面时整页会透出流光。
+                    else -> Modifier
+                        .background(Color(palette.backgroundStops.last().argb))
+                        .artworkWash(cover)
                 },
             )
             // 封面铺满整个屏幕（含状态栏区域），内容再从状态栏下方排
