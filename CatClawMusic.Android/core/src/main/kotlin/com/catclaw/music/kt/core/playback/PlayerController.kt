@@ -13,7 +13,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import com.catclaw.music.kt.core.audio.AudioCache
 import com.catclaw.music.kt.core.model.Song
 import java.io.File
@@ -72,6 +74,12 @@ class PlayerController(
 
     val player: ExoPlayer by lazy {
         ExoPlayer.Builder(appContext)
+            // FFmpeg 软解兜底：EXTENSION_RENDERER_MODE_ON = 平台解码器优先，
+            // 平台不支持的格式才落到 FFmpeg（不让软解抢了硬解，省电、也避免高码率掉帧）
+            .setRenderersFactory(
+                NextRenderersFactory(appContext)
+                    .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON),
+            )
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
                     RemoteAuthDataSources.factory(appContext),

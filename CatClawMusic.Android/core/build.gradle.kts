@@ -24,6 +24,8 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     api(libs.androidx.media3.exoplayer)
+    // FFmpeg 软解（Vorbis/Opus/Flac/ALAC/AAC/AC3/DTS/TrueHD…），平台解不了的格式兜底
+    implementation(libs.nextlib.media3ext)
     api(libs.androidx.media3.session)
     api(libs.androidx.media3.datasource)
     api(libs.kotlinx.coroutines.android)

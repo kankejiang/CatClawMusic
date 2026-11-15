@@ -10,6 +10,8 @@ activityCompose = "1.13.0"
 navigationCompose = "2.10.2"
 hiltNavigationCompose = "1.4.0"
 media3 = "1.11.1"
+# ffmpeg 软解扩展：版本号格式是 <media3>-<nextlib>，必须与 media3 对齐
+nextlib = "1.11.1-0.18.0"
 coroutines = "1.10.2"
 serialization = "1.11.0"
 junit = "4.13.2"
@@ -40,6 +42,7 @@ androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplaye
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-datasource = { group = "androidx.media3", name = "media3-datasource", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
+nextlib-media3ext = { group = "io.github.anilbeesetti", name = "nextlib-media3ext", version.ref = "nextlib" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
 # 液态玻璃（定档=推荐档）：宿主 layerBackdrop 录内容、消费者 drawBackdrop 采样，帧同步由库负责
