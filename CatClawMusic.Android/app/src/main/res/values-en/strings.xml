@@ -367,7 +367,6 @@ Download it from GitHub.</string>
 
     <string name="lib_stat_storage">Storage</string>
     <string name="lib_open_stats">Listening stats</string>
-    <string name="remote_edit">Edit</string>
     <string name="remote_edit_server">Editing: %1$s</string>
     <string name="remote_cancel_edit">Cancel editing</string>
     <string name="remote_need_host">Host address is required</string>

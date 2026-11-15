@@ -367,7 +367,6 @@
 
     <string name="lib_stat_storage">存储占用</string>
     <string name="lib_open_stats">听歌统计</string>
-    <string name="remote_edit">编辑</string>
     <string name="remote_edit_server">编辑连接：%1$s</string>
     <string name="remote_cancel_edit">取消编辑</string>
     <string name="remote_need_host">请先填服务器地址</string>

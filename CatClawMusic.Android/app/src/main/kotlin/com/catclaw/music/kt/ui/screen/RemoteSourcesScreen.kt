@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
@@ -62,6 +64,7 @@ import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 
 /** 远程音源页 —— 内容不变，外观对齐本 App 的玻璃卡语言（Hero 头 + 分区玻璃卡 + 胶囊按钮） */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltViewModel()) {
     val palette = LocalCatClawPalette.current
@@ -438,11 +441,20 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             if (profiles.isEmpty()) {
                 EmptyState(hint = stringResource(R.string.NoConnectionsHint), iconRes = R.drawable.ic_library)
             }
-            profiles.forEach { profile ->
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            profiles.forEachIndexed { index, profile ->
+                if (index > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.06f)),
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         // 徽章按协议着色：一眼分清这台是 Navidrome 还是 WebDAV/SMB
                         val (badgeText, badgeTint) = when (profile.protocol) {
@@ -452,8 +464,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         }
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(13.dp))
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(badgeTint.copy(alpha = 0.20f)),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -465,25 +477,25 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                                 color = badgeTint.copy(alpha = 0.95f),
                             )
                         }
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(profile.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(text = "${profile.origin} · ${profile.protocol.name}", fontSize = 12.sp, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                text = profile.name,
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = profile.origin,
+                                fontSize = 10.5.sp,
+                                color = secondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
-                        PillButton(label = stringResource(R.string.Test), filled = false) { viewModel.test(profile) }
-                        PillButton(label = stringResource(R.string.remote_import), filled = true, enabled = !busy) { viewModel.import(profile) }
-                        // 只有 WebDAV/SMB 需要补：Subsonic 的清单本来就带这些列，摆出来就是假控件
-                        if (profile.protocol != ProtocolType.Navidrome) {
-                            PillButton(
-                                label = stringResource(R.string.remote_backfill),
-                                filled = false,
-                                enabled = !busy,
-                            ) { backfillTarget = profile }
-                        }
-                        // 此前只能删了重填：改一个密码要把整条连接删掉，而删掉会连带丢 basePath
-                        PillButton(label = stringResource(R.string.remote_edit), filled = false) {
+                        // 编辑 / 删除收成图标：一行五个文字按钮会把「删除」挤成竖排
+                        IconAction(iconRes = R.drawable.ic_edit) {
                             editing = profile
                             editorOpen = true
                             name = profile.name
@@ -498,7 +510,28 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                             useHttps = profile.useHttps
                             apiVersion = profile.apiVersion
                         }
-                        PillButton(label = stringResource(R.string.Delete), filled = false) { viewModel.delete(profile.id) }
+                        IconAction(iconRes = R.drawable.ic_close, danger = true) {
+                            viewModel.delete(profile.id)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PillButton(label = stringResource(R.string.Test), filled = false) { viewModel.test(profile) }
+                        PillButton(label = stringResource(R.string.remote_import), filled = true, enabled = !busy) {
+                            viewModel.import(profile)
+                        }
+                        // 只有 WebDAV/SMB 需要补：Subsonic 的清单本来就带这些列，摆出来就是假控件
+                        if (profile.protocol != ProtocolType.Navidrome) {
+                            PillButton(
+                                label = stringResource(R.string.remote_backfill),
+                                filled = false,
+                                enabled = !busy,
+                            ) { backfillTarget = profile }
+                        }
                     }
                 }
             }
@@ -632,6 +665,34 @@ internal fun SectionCard(title: String, content: @Composable () -> Unit) {
 }
 
 /** 胶囊按钮：filled = 主色实底（深字），否则描边玻璃底 */
+@Composable
+private fun IconAction(
+    @androidx.annotation.DrawableRes iconRes: Int,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val tint = if (danger) Color(0xFFFF6B6B) else Color(palette.textSecondary)
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(
+                if (danger) Color(0xFFFF6B6B).copy(alpha = 0.10f)
+                else Color(palette.textPrimary).copy(alpha = 0.06f),
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(15.dp),
+        )
+    }
+}
+
 @Composable
 internal fun PillButton(label: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val palette = LocalCatClawPalette.current
