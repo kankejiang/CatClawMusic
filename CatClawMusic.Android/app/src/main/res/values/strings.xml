@@ -353,6 +353,12 @@
     <string name="local_scan_no_folder">还没有添加文件夹</string>
     <string name="local_scan_folder_duplicate">这个文件夹已经在清单里</string>
     <string name="local_scan_remove_folder">移除文件夹</string>
+    <string name="local_clear_library">清空音乐库</string>
+    <string name="local_clear_library_desc">删除所有已扫描的歌曲记录（含专辑、歌手）。不会删除手机里的音频文件，歌单与收藏保留。</string>
+    <string name="local_clear_confirm_title">清空音乐库？</string>
+    <string name="local_clear_confirm_body">将删除全部歌曲记录，此操作不可撤销。歌单与收藏会保留。</string>
+    <string name="local_clear_done">音乐库已清空</string>
+    <string name="local_clear_failed">清空失败，请重试</string>
     <string name="local_scan_status">扫描状态</string>
     <string name="local_scan_now">立即扫描</string>
     <string name="local_scan_tip">同时开启时扫描结果为两者的并集；只用自定义文件夹时请关闭媒体库</string>

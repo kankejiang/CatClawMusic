@@ -1,6 +1,7 @@
 package com.catclaw.music.kt.ui.settings
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.LinearEasing
@@ -26,7 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +78,9 @@ fun LocalMusicSettingsScreen(
     val canScan = !view.scanning && (view.useMediaStore || view.useSafScan)
     // 自研文件夹管理器（SAF 拿不到真实路径，改标签要整文件重写）
     var showPicker by remember { mutableStateOf(false) }
+    // 清空音乐库是不可撤销的破坏性操作：先弹确认，成功后再 toast
+    var confirmClear by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -219,7 +226,66 @@ fun LocalMusicSettingsScreen(
                 onClick = viewModel::scan,
             )
         }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ④ 危险操作：清空音乐库（只删扫描记录，不删手机里的音频文件）
+        SectionCard(stringResource(R.string.local_clear_library)) {
+            Text(
+                text = stringResource(R.string.local_clear_library_desc),
+                fontSize = 12.sp,
+                color = secondary,
+                lineHeight = 17.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+            DangerButton(
+                text = stringResource(R.string.local_clear_library),
+                enabled = !view.scanning,
+                onClick = { confirmClear = true },
+            )
+        }
         Spacer(Modifier.height(40.dp))
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            containerColor = Color(palette.backgroundStops.last().argb),
+            title = { Text(text = stringResource(R.string.local_clear_confirm_title), color = primary) },
+            text = {
+                Text(
+                    text = stringResource(R.string.local_clear_confirm_body),
+                    fontSize = 13.sp,
+                    color = secondary,
+                    lineHeight = 18.sp,
+                )
+            },
+            confirmButton = {
+                DialogAction(
+                    text = stringResource(R.string.local_clear_library),
+                    color = Color(0xFFFF6B6B),
+                    onClick = {
+                        confirmClear = false
+                        viewModel.clearLibrary { ok ->
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    if (ok) R.string.local_clear_done else R.string.local_clear_failed,
+                                ),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                )
+            },
+            dismissButton = {
+                DialogAction(
+                    text = stringResource(R.string.folder_picker_cancel),
+                    color = secondary,
+                    onClick = { confirmClear = false },
+                )
+            },
+        )
     }
 
     if (showPicker) {
@@ -245,6 +311,42 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
     ) {
         Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
         content()
+    }
+}
+
+/** 对话框动作：自绘，避开 M3 按钮那套配色（仓库有闸门禁止 stock 按钮） */
+@Composable
+private fun DialogAction(text: String, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
+/** 危险操作按钮：红色描边胶囊，与主色按钮同尺寸但语义相反 */
+@Composable
+private fun DangerButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val danger = Color(0xFFFF6B6B)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(danger.copy(alpha = if (enabled) 0.12f else 0.05f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = danger.copy(alpha = if (enabled) 1f else 0.45f),
+        )
     }
 }
 

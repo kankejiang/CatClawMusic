@@ -353,6 +353,12 @@ Download it from GitHub.</string>
     <string name="local_scan_no_folder">No folders added yet</string>
     <string name="local_scan_folder_duplicate">That folder is already in the list</string>
     <string name="local_scan_remove_folder">Remove folder</string>
+    <string name="local_clear_library">Clear library</string>
+    <string name="local_clear_library_desc">Removes all scanned tracks (and their albums/artists). Audio files on the device are not deleted; playlists and favorites are kept.</string>
+    <string name="local_clear_confirm_title">Clear library?</string>
+    <string name="local_clear_confirm_body">All track records will be deleted. This cannot be undone. Playlists and favorites are kept.</string>
+    <string name="local_clear_done">Library cleared</string>
+    <string name="local_clear_failed">Failed to clear, try again</string>
     <string name="local_scan_status">Scan status</string>
     <string name="local_scan_now">Scan now</string>
     <string name="local_scan_tip">When both are on, results are their union; turn MediaStore off if you only scan custom folders</string>

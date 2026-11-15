@@ -58,6 +58,18 @@ class LibraryRepository @Inject constructor(
 
     suspend fun storage(): Pair<Long, Long> = libraryDao.localBytesTotal() to audioCache.totalBytes()
 
+    /**
+     * 清空音乐库：只删「扫描出来的曲目」及派生表（专辑/歌手/关联），
+     * **不碰**歌单、收藏、播放统计 —— 那些是用户组织的数据，重扫后还能挂回去。
+     * 也不删手机里的音频文件。
+     */
+    suspend fun clearLocalLibrary() {
+        libraryDao.clearSongs()
+        libraryDao.clearSongArtists()
+        libraryDao.clearAlbums()
+        libraryDao.clearArtists()
+    }
+
     suspend fun localSongStats(): List<SongStat> = libraryDao.localSongStats()
 
     suspend fun songsOfArtist(artistId: Int) = libraryDao.songsOfArtist(artistId)

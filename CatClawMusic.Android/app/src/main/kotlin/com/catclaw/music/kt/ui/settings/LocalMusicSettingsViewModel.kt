@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 class LocalMusicSettingsViewModel @Inject constructor(
     private val settings: LocalScanSettings,
     private val scanner: LibraryScanner,
+    private val library: com.catclaw.music.kt.data.repository.library.LibraryRepository,
 ) : ViewModel() {
 
     data class View(
@@ -83,6 +84,16 @@ class LocalMusicSettingsViewModel @Inject constructor(
             _view.update { it.copy(scanning = true) }
             val result = runCatching { scanner.scanFull() }.getOrNull()
             _view.update { it.copy(scanning = false, lastResult = result ?: it.lastResult) }
+        }
+    }
+
+    /** 清空音乐库（只删扫描记录）。完成后回调，让页面弹提示并刷新统计 */
+    fun clearLibrary(onDone: (Boolean) -> Unit) {
+        if (_view.value.scanning) return
+        viewModelScope.launch {
+            val ok = runCatching { library.clearLocalLibrary() }.isSuccess
+            _view.update { it.copy(lastResult = null) }
+            onDone(ok)
         }
     }
 }

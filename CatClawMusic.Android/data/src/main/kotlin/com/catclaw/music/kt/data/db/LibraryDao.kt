@@ -234,6 +234,19 @@ interface LibraryDao {
     @Query("DELETE FROM CachedSongs")
     suspend fun clearCached()
 
+    /** 清空本地音乐库：曲目 + 派生表。歌单 / 收藏 / 统计不动（那是用户数据，不是扫描结果） */
+    @Query("DELETE FROM Songs")
+    suspend fun clearSongs()
+
+    @Query("DELETE FROM SongArtists")
+    suspend fun clearSongArtists()
+
+    @Query("DELETE FROM Albums")
+    suspend fun clearAlbums()
+
+    @Query("DELETE FROM Artists")
+    suspend fun clearArtists()
+
     /** 下载管理页「删除（含文件）」：只撤这一首的记账，别的缓存不动 */
     @Query("DELETE FROM CachedSongs WHERE SongId = :songId")
     suspend fun removeCached(songId: Int)
