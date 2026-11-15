@@ -181,6 +181,11 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch { connectionDao.delete(id) }
     }
 
+    /** 清掉网络歌曲的离线缓存（.part 与已完成件一起删，条目清单同步清空） */
+    fun clearCache() {
+        viewModelScope.launch { runCatching { downloader.clearCache() } }
+    }
+
     fun test(profile: ConnectionProfile) {
         viewModelScope.launch {
             _busy.value = true

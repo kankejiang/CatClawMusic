@@ -58,6 +58,7 @@ import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 
 /** 远程音源页 —— 内容不变，外观对齐本 App 的玻璃卡语言（Hero 头 + 分区玻璃卡 + 胶囊按钮） */
 @Composable
@@ -233,6 +234,45 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             )
         }
 
+        // 离线缓存：MAUI 有「已缓存 N 首 + 清理」，原生此前漏掉
+        SectionCard(title = stringResource(R.string.remote_cache_title)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(palette.primary).copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = cachedIds.size.toString(),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(highlightOnGlassCard(palette)),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.remote_cache_count, cachedIds.size),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.remote_cache_desc),
+                        fontSize = 11.sp,
+                        color = secondary,
+                    )
+                }
+                PillButton(
+                    label = stringResource(R.string.remote_cache_clear),
+                    filled = false,
+                    enabled = cachedIds.isNotEmpty() && !busy,
+                ) { viewModel.clearCache() }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
         SectionCard(title = stringResource(R.string.ConfiguredConnections)) {
             if (profiles.isEmpty()) {
                 EmptyState(hint = stringResource(R.string.NoConnectionsHint), iconRes = R.drawable.ic_library)
@@ -243,18 +283,25 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        // 徽章按协议着色：一眼分清这台是 Navidrome 还是 WebDAV/SMB
+                        val (badgeText, badgeTint) = when (profile.protocol) {
+                            ProtocolType.Navidrome -> "NDR" to Color(0xFFB79BFF)
+                            ProtocolType.WebDAV -> "DAV" to Color(0xFF7FE3D4)
+                            else -> "SMB" to Color(0xFFFFB37F)
+                        }
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(palette.primary).copy(alpha = 0.18f)),
+                                .clip(RoundedCornerShape(13.dp))
+                                .background(badgeTint.copy(alpha = 0.20f)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_search),
-                                contentDescription = null,
-                                tint = Color(palette.primary),
-                                modifier = Modifier.size(20.dp),
+                            Text(
+                                text = badgeText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.6.sp,
+                                color = badgeTint.copy(alpha = 0.95f),
                             )
                         }
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

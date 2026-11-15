@@ -25,6 +25,10 @@
     <string name="ClearImageCache">Clear Image Cache</string>
     <string name="ClearingCache">Clearing…</string>
     <string name="ConfiguredConnections">Configured Connections</string>
+    <string name="remote_cache_title">Offline cache</string>
+    <string name="remote_cache_count">%1$d network songs cached</string>
+    <string name="remote_cache_desc">Played remote tracks stay on device for offline playback</string>
+    <string name="remote_cache_clear">Clear cache</string>
     <string name="ContentAndServices">Content &amp; Services</string>
     <string name="CreateBackup">Create Backup</string>
     <string name="DailyRecommendation">Daily Mix</string>

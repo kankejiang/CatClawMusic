@@ -25,6 +25,10 @@
     <string name="ClearImageCache">清除图片缓存</string>
     <string name="ClearingCache">清除中…</string>
     <string name="ConfiguredConnections">已配置的连接</string>
+    <string name="remote_cache_title">离线缓存</string>
+    <string name="remote_cache_count">已缓存 %1$d 首网络歌曲</string>
+    <string name="remote_cache_desc">播放过的远程曲目本地留存，离线也能听</string>
+    <string name="remote_cache_clear">清理缓存</string>
     <string name="ContentAndServices">内容与服务</string>
     <string name="CreateBackup">创建备份</string>
     <string name="DailyRecommendation">每日推荐</string>
