@@ -69,8 +69,14 @@
         android:enableOnBackInvokedCallback="true"
         android:resizeableActivity="true"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true"
         android:largeHeap="true">
+        <!--
+            不写 android:usesCleartextTraffic：**只要设了 networkSecurityConfig，
+            这个属性就会被系统忽略**。之前两者并存，于是它给人一种「明文已放行」的错觉，
+            而实际是配置文件说了算 —— Navidrome(http://nas:4533) 因此报
+            「CLEARTEXT communication not permitted」。明文策略统一在
+            res/xml/network_security_config.xml 里表述，只留一处事实。
+        -->
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 

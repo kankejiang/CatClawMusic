@@ -1,14 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  网易云音频外链的落地点是 http://m801.music.126.net/...（302 目标是明文），
-  而 Android 9+ 默认禁止 cleartext —— 不放行的话 ExoPlayer 会在收到 302 的瞬间抛
-  CleartextHttpTrafficNotPermitted，表现成"歌单导进来了，但每首都是播放失败"。
+  ## 为什么需要这份配置
 
-  只对网易云自己的域放行，不开全局明文：
-  - music.163.com  ：outer/url 跳转入口本身（https）与网页接口
-  - *.126.net      ：CDN（m801/m800 等，封面 cdn 也在这里）
+  应用里有三类 HTTP 客户端，对明文的要求完全不同：
+
+  1. **网易云**：音频外链的落地点是 http://m801.music.126.net/...（302 目标是明文）。
+     Android 9+ 默认禁止 cleartext，不放行的话 ExoPlayer 会在收到 302 的瞬间抛
+     CleartextHttpTrafficNotPermitted，表现成「歌单导进来了，但每首都是播放失败」。
+     它走 HTTPS，但 302 之后是 HTTP，所以必须放行。
+
+  2. **用户自建的远程音源**（WebDAV / Navidrome / SMB 代理）：
+     主机名、端口、协议由用户在运行时自己填，**编译期不可能预先枚举**。
+     局域网里的 Navidrome 几乎都是 http://（如 http://nas:4533），
+     部分老旧 WebDAV 也是 http。这些请求被拦下时的报错是
+     「CLEARTEXT communication to <host> not permitted by network security policy」，
+     而用户看到的只是「连接失败」，根本猜不到是系统策略。
+
+  3. **公网接口**（网易云 API、LLM 服务商、GitHub 更新检查）：全部 HTTPS。
+
+  ## 取舍
+
+  第 2 类的域是运行时才知道的，而 Android 的 `domain-config` 只接受**字面域名**
+  （不支持通配任意域、不支持 IP 段），所以无法精确列举 ——
+  只能开 `base-config` 的全局明文许可。
+
+  代价：公网若有人降级到 HTTP，系统不再阻止。但这个风险由各客户端自己承担：
+  - 网易云 API 与 LLM 传输层固定 https:// 绝对地址，不存在降级路径；
+  - 远程音源本来就是用户自己填的地址，清楚自己在连什么。
+
+  反过来「只在 domain-config 里列举网易云」的做法已经踩过坑：
+  Navidrome(4533) 直接连不上，而清单里的 `android:usesCleartextTraffic`
+  **在存在 networkSecurityConfig 时会被忽略** —— 于是那个属性给人一种
+  「已经放行了」的错觉，实际一点用都没有。
+
+  注：证书校验没有放松。自签证书的信任是在代码里针对「用户自己配置的服务器」
+  单独处理的（core/net/RemoteHttp），与这里的明文开关是两件事。
 -->
 <network-security-config>
+    <!-- 用户自建音源的主机在运行时才知道，无法枚举 → 允许明文。
+         公网接口全部走 https 绝对地址，不受影响。 -->
+    <base-config cleartextTrafficPermitted="true" />
+
+    <!-- 网易云保留显式声明：即使将来把 base-config 收紧回 false，
+         这三条也能保证「在线播放不会因为 302 到明文 CDN 而整体不可用」 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">music.163.com</domain>
         <domain includeSubdomains="true">126.net</domain>
