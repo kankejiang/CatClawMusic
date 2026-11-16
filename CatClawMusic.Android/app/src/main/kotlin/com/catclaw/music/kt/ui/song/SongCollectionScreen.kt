@@ -229,8 +229,10 @@ private fun CollectionLandscape(
                     compact = true,
                 )
             }
-            // 每组 chips 一行、组内横向滚动：240dp 装不下「标题/艺术家/专辑/时长/入库时间」六档
-            chipGroups.filter { it.isNotEmpty() }.forEach { group ->
+            // 页头里只画**第二组起**的 chips（排序）。
+            // 第一组是「全部 / 本地 / 网络」来源筛选 —— 它被提到页头外常驻显示了：
+            // 收进「⋯」菜单里等于用户不知道能筛，看到的就是「网络歌混在本地库里」。
+            chipGroups.drop(1).filter { it.isNotEmpty() }.forEach { group ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -393,7 +395,8 @@ private fun CollectionPortrait(
                                     )
                                     .padding(vertical = 6.dp),
                             ) {
-                                chipGroups.filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
+                                // 来源筛选已常驻顶栏下方，菜单里只留排序组，避免同一项出现两处
+                                chipGroups.drop(1).filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
                                     if (groupIndex > 0) {
                                         HorizontalDivider(
                                             color = Color(LocalCatClawPalette.current.textPrimary).copy(alpha = 0.10f),
@@ -437,6 +440,31 @@ private fun CollectionPortrait(
                 }
             }
             trailing()
+        }
+        // 「全部 / 本地 / 网络」来源筛选**常驻在顶栏下方**，不随页头收起、也不进「⋯」菜单。
+        //
+        // 为什么单独提出来：这页是「全部歌曲」，设计上就把本地与网络合在一起显示
+        // （MAUI 也这样）。但筛选器原先只存在于「⋯」弹出菜单里，用户看不到 ——
+        // 观感就成了「网络歌混进了本地音乐库」。这个区分是用户最需要一眼看到的，
+        // 不该藏在二级菜单里。
+        chipGroups.firstOrNull()?.takeIf { it.isNotEmpty() }?.let { sourceGroup ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                sourceGroup.forEach { chip ->
+                    GlassChip(
+                        label = chip.label,
+                        selected = chip.selected,
+                        onClick = chip.onClick,
+                        compact = true,
+                    )
+                }
+            }
         }
         // 网易云式大封面头（与在线歌单/音乐库歌单同一套 PlaylistDetailHeader）：
         // 封面 104 + 标题/副标题/计数 + 圆形播放键 + 其余动作胶囊；随上滑收缩
