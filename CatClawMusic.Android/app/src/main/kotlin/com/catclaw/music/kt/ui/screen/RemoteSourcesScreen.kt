@@ -62,6 +62,9 @@ import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.EmptyState
 import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.draw.scale
 
 /** 远程音源页 —— 内容不变，外观对齐本 App 的玻璃卡语言（Hero 头 + 分区玻璃卡 + 胶囊按钮） */
 @OptIn(ExperimentalLayoutApi::class)
@@ -494,6 +497,19 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                        // 启用开关：停用后这条连接的歌不再进音乐库（收藏/歌单/统计保留）。
+                        // 放在编辑/删除左边 —— 它是最常拨的一个，又不该挤压右侧图标。
+                        Switch(
+                            checked = profile.isEnabled,
+                            onCheckedChange = { viewModel.setEnabled(profile, it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(palette.primary),
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.75f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.12f),
+                            ),
+                            modifier = Modifier.scale(0.8f),
+                        )
                         // 编辑 / 删除收成图标：一行五个文字按钮会把「删除」挤成竖排
                         IconAction(iconRes = R.drawable.ic_edit) {
                             editing = profile

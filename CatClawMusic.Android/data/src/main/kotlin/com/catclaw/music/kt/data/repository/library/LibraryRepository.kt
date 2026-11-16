@@ -15,6 +15,10 @@ import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import com.catclaw.music.kt.core.library.ConnectionFilter
+import com.catclaw.music.kt.data.db.ConnectionDao
+import com.catclaw.music.kt.data.db.toModel
+import kotlinx.coroutines.flow.map
 
 /**
  * 音乐库唯一数据入口（MVVM 重构 B2）。
@@ -35,12 +39,23 @@ class LibraryRepository @Inject constructor(
     private val audioCache: AudioCache,
     private val player: PlayerController,
     private val playbackSession: PlaybackSessionStarter,
+    private val connectionDao: ConnectionDao,
 ) {
     // ── 只读流 ────────────────────────────────────────────────
 
     val localSongs: Flow<List<SongListItem>> = libraryDao.observeLocalSongs()
 
     val allSongs: Flow<List<SongListItem>> = libraryDao.observeAllSongs()
+
+    /**
+     * **启用的**连接覆盖的协议集合（ProtocolType.ordinal）。
+     *
+     * 音乐库用它过滤掉「来自已停用连接」的远程曲 —— 语义对齐 MAUI
+     * MusicDatabase.FilterByEnabledProtocols：本地曲与缓存曲永远显示，
+     * 远程曲看该协议下是否还有启用的连接。判断规则只在 ConnectionFilter 一处。
+     */
+    val enabledProtocols: Flow<Set<Int>> = connectionDao.observeAll()
+        .map { rows -> ConnectionFilter.enabledProtocols(rows.map { it.toModel() }) }
 
     val artists: Flow<List<com.catclaw.music.kt.data.db.ArtistListItem>> = libraryDao.observeArtists()
 

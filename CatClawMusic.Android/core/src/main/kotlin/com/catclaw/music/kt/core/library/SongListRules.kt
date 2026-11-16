@@ -1,5 +1,7 @@
 package com.catclaw.music.kt.core.library
 
+import com.catclaw.music.kt.core.model.ConnectionProfile
+
 /**
  * 歌曲列表页的过滤 + 排序 —— 对应 MAUI `AllSongsViewModel` / `PlaylistDetailViewModel` 的 SortOptions。
  *
@@ -103,3 +105,92 @@ fun SongSourceFilter.accepts(source: Int): Boolean = when (this) {
 /** 泛型与 [filterAndSortSongs] 同理：`:core` 不认 `:data` 的行类型，由调用方给投影 */
 fun <T> filterBySource(rows: List<T>, filter: SongSourceFilter, sourceOf: (T) -> Int): List<T> =
     if (filter == SongSourceFilter.All) rows else rows.filter { filter.accepts(sourceOf(it)) }
+
+/**
+ * 「已停用的连接，它的歌不显示」。
+ *
+ * 语义逐条对齐 MAUI `MusicDatabase.FilterByEnabledProtocols`：
+ * - 本地曲（Source=0）与缓存曲（Source=Cache）**永远显示** —— 它们不依赖任何连接；
+ * - 其余远程曲看**协议**：该协议下只要还有一条启用的连接就显示，全停用才隐藏。
+ *
+ * ## 为什么按协议、不按连接
+ *
+ * `Songs` 表没有「来自哪条连接」的列（它的 schema 必须与 MAUI 线上库逐列一致，
+ * 有 `SchemaParityTest` 钉着）。按连接过滤就得加列，而 MAUI 的选择是协议级粒度 ——
+ * 这也是它能做到「零 schema 变更」的原因。
+ *
+ * 代价要说清：同一个协议配了**两条**连接时，关掉其中一条，另一条的曲目仍会显示，
+ * 且无法区分「这首歌属于被关掉的那条」。要精确到连接必须加列，那是另一个决定。
+ *
+ * ## 为什么不做跨连接去重
+ *
+ * MAUI 明确不去重（`SearchAsync` 注释：「合并结果：本地+网络，不去重，保留同歌名不同版本」）。
+ * 同一份文件经 WebDAV 与 Navidrome 各导一遍会出现两条，这是已知且被接受的行为 ——
+ * 「万一用户就是要两个版本」的代价，小于「误判成重复把真版本藏掉」。
+ */
+
+/**
+ * 「已停用的连接，它的歌不显示」。
+ *
+ * 语义逐条对齐 MAUI `MusicDatabase.FilterByEnabledProtocols`：
+ * - 本地曲（`Source=Local`）与缓存曲（`Source=Cache`）**永远显示** —— 它们不依赖任何连接；
+ * - 其余远程曲看**协议**：该协议下只要还有一条启用的连接就显示，全停用才隐藏。
+ *
+ * ## 为什么按协议、不按连接
+ *
+ * `Songs` 表没有「来自哪条连接」的列 —— 它的 schema 必须与 MAUI 线上库逐列一致
+ * （`SchemaParityTest` 钉着 17 张表的每一列），加列就破。按连接过滤必须加列，
+ * 而 MAUI 的选择是协议级粒度，这也是它能零 schema 变更的原因。
+ *
+ * 代价说清：同一协议配了**两条**连接时，关掉其中一条，另一条的曲目仍显示，
+ * 且无法区分「这首歌属于被关掉的那条」。要精确到连接得加列，那是另一个决定。
+ *
+ * ## 为什么不做跨连接去重
+ *
+ * MAUI 明确不去重（`MusicLibraryService.SearchAsync` 的注释：
+ * 「合并结果：本地+网络（不去重，保留同歌名不同版本）」）。
+ * 同一份文件经 WebDAV 与 Navidrome 各导一遍会出现两条，这是已知且被接受的行为：
+ * 宁可多一条，也不要误判成重复、把真版本藏掉。
+ */
+object ConnectionFilter {
+
+    /**
+     * @param enabledProtocols 至少有一条**启用**连接的协议集合（`ProtocolType.ordinal`）
+     */
+    fun <T> filterByEnabledProtocols(
+        rows: List<T>,
+        enabledProtocols: Set<Int>,
+        sourceOf: (T) -> Int,
+        protocolOf: (T) -> Int,
+    ): List<T> {
+        if (rows.isEmpty()) return rows
+        return rows.filter { row ->
+            if (isConnectionFree(sourceOf(row))) return@filter true
+            enabledProtocols.contains(protocolOf(row))
+        }
+    }
+
+    /**
+     * 本地曲与缓存曲不依赖连接，永远显示。
+     *
+     * 判据是 `SongSource` 的 ordinal 契约（Local=0、WebDAV=1、SMB=2、Cache=3，
+     * 由 `SourceOrdinalParityTest` 钉住）。**不要**写成「远程就是 1 或 2」——
+     * 以后加一种远程协议就会静默落进"本地"那一档。
+     */
+    fun isConnectionFree(source: Int): Boolean = source == SOURCE_LOCAL || source == SOURCE_CACHE
+
+    private const val SOURCE_LOCAL = 0
+    private const val SOURCE_CACHE = 3
+
+    /**
+     * 从连接列表算出启用的协议集合。
+     *
+     * 放在 `:core` 而不是各调用方：规则改一次要全项目一致，
+     * 漏一处就是「这个页面歌消失了、那个页面还在」。
+     */
+    fun enabledProtocols(profiles: List<ConnectionProfile>): Set<Int> {
+        val out = HashSet<Int>()
+        for (p in profiles) if (p.isEnabled) out += p.protocol.ordinal
+        return out
+    }
+}

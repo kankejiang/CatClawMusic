@@ -35,6 +35,14 @@ interface ConnectionDao {
 
     @Query("DELETE FROM ConnectionProfiles WHERE Id = :id")
     suspend fun delete(id: Int)
+
+    /**
+     * 只改启用位。
+     *
+     * 不整行 upsert：那会把密码等字段原样回写一遍，若并发改过配置就是静默覆盖。
+     */
+    @Query("UPDATE ConnectionProfiles SET IsEnabled = :enabled WHERE Id = :id")
+    suspend fun setEnabled(id: Int, enabled: Boolean)
 }
 
 /** 行 → 领域模型；Protocol 越界退回 WebDAV（与 C# 未知值兜底一致） */

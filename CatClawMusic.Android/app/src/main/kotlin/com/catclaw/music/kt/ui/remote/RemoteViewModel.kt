@@ -212,6 +212,23 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch { connectionDao.delete(id) }
     }
 
+    /**
+     * 启用 / 停用一条连接。
+     *
+     * 只改 `IsEnabled` 这一列，**不动库里的歌** —— 停用后这些歌不再出现在音乐库里
+     * （过滤规则在 `ConnectionFilter`，按协议判断），但收藏、歌单、播放统计全都保留，
+     * 重新启用立刻恢复。删除连接才是真的把这些歌一起丢掉。
+     *
+     * 语义对齐 MAUI `MusicDatabase.FilterByEnabledProtocols`：那个方法一直存在，
+     * 只是 MAUI 的界面从没做过开关、保存时永远写 `IsEnabled = true`，所以从未生效过。
+     */
+    fun setEnabled(profile: ConnectionProfile, enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching { connectionDao.setEnabled(profile.id, enabled) }
+                .onFailure { _message.value = RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
+        }
+    }
+
     /** 清掉网络歌曲的离线缓存（.part 与已完成件一起删，条目清单同步清空） */
     fun clearCache() {
         viewModelScope.launch { runCatching { downloader.clearCache() } }

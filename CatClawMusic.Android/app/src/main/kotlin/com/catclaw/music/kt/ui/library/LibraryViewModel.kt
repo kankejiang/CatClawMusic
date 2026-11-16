@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.catclaw.music.kt.core.library.ConnectionFilter
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -203,14 +206,55 @@ class LibraryViewModel @Inject constructor(
      * 叠加次序是"先按来源筛、再过滤排序"：MAUI 也是拿已加载的数据在内存里筛（不重查 DB），
      * 两者结果相同，而这样写少一次查询。
      */
-    val displayAllSongs =
-        combine(allSongs, _songSort, _songQuery, _songSource, _songSortDescending) { list, sort, query, source, desc ->
-            filterBySource(
-                filterAndSortSongs(list, sort, query, descending = desc) {
-                    SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
-                },
-                source,
-            ) { it.source }
+    /**
+     * 已停用连接覆盖的协议；`null` = **还没从库里读出来**。
+     *
+     * 初始值绝不能是 `emptySet()`：那在 combine 首次计算时等于「所有连接都停用」，
+     * 会把全部远程曲滤掉，界面先闪一次「只剩本地曲」。真机上就撞到过
+     * ——关掉一条连接后音乐库显示 10 首（本该 623 首），而播放队列是对的。
+     *
+     * `null` 表示「状态未知」，此时**不做过滤**（宁可多显示，也不要凭空少歌）。
+     * 数据到达后（哪怕真的是空集）才按真实值过滤。
+     */
+    private val enabledProtocols: StateFlow<Set<Int>?> = library.enabledProtocols
+        .map<Set<Int>, Set<Int>?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val displayAllSongs: StateFlow<List<SongListItem>> =
+        combine(
+            allSongs,
+            _songSort,
+            _songQuery,
+            _songSource,
+            _songSortDescending,
+            enabledProtocols,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val list = values[0] as List<SongListItem>
+            val sort = values[1] as SongSortKey
+            val query = values[2] as String
+            val source = values[3] as SongSourceFilter
+            val desc = values[4] as Boolean
+            @Suppress("UNCHECKED_CAST")
+            val protocols = values[5] as Set<Int>?
+
+            // 先剔掉「来自已停用连接」的曲目，再做来源筛选与排序。
+            // 次序重要：先过滤再排序，用户看到的序就是点下去播的序。
+            // protocols == null（还没读到连接表）时跳过这一步，不凭空隐藏任何歌。
+            val sorted = filterAndSortSongs(list, sort, query, descending = desc) {
+                SongSortFields(it.title, it.artist, it.album, it.durationSeconds, it.dateAdded, it.id)
+            }
+            val visible = if (protocols == null) {
+                sorted
+            } else {
+                ConnectionFilter.filterByEnabledProtocols(
+                    sorted,
+                    protocols,
+                    sourceOf = { it.source },
+                    protocolOf = { it.protocol },
+                )
+            }
+            filterBySource(visible, source) { it.source }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val artists = library.artists.stateIn(
