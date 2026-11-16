@@ -53,27 +53,29 @@ class SubsonicClient(
             ?.let { apiUrl("getCoverArt.view?id=${urlEncode(it)}") }
 
     fun ping(): Ping = try {
+        // `request` 在 status != ok 时抛 IOException，所以走到这里就说明服务器答了 ok。
         val root = request("ping.view")
-        val server = root["openSubsonic"]?.jsonObject
-        Ping(
-            ok = true,
-            message = "ok",
-            version = server?.get("version")?.jsonPrimitive?.contentOrNull.orEmpty(),
-        )
+        // `openSubsonic` 是**布尔**（Navidrome 0.61 实测返回 `"openSubsonic":true`），不是对象。
+        // 早先这里写 `root["openSubsonic"]?.jsonObject`，遇到布尔字面量抛
+        // `IllegalArgumentException: JsonLiteral is not a JsonObject`；而当时只 catch IOException，
+        // 于是「测试连接」必然失败 —— 症状是 Navidrome 永远连不上，其实认证与列曲目都正常。
+        val kind = root.str("type").ifEmpty { "subsonic" }
+        val serverVersion = root.str("serverVersion")
+        Ping(ok = true, message = "ok", version = listOf(kind, serverVersion).filter { it.isNotEmpty() }.joinToString(" "))
     } catch (e: IOException) {
         Ping(ok = false, message = e.message ?: "unreachable")
     }
 
     fun search(query: String): List<RemoteTrack> {
         val root = request("search3.view?query=${urlEncode(query)}")
-        val result = root["searchResult3"]?.jsonObject ?: return emptyList()
+        val result = root.obj("searchResult3") ?: return emptyList()
         return result.objects("song").map { track(it) }
     }
 
     /** type 例如 alphabeticalByArtist / newest / random / frequent */
     fun albumList(type: String, size: Int = 200, offset: Int = 0): List<AlbumRef> {
         val root = request("getAlbumList2.view?type=$type&size=$size&offset=$offset")
-        return root["albumList2"]?.jsonObject?.objects("album").orEmpty().map {
+        return root.obj("albumList2")?.objects("album").orEmpty().map {
             AlbumRef(
                 id = it.str("id"),
                 title = it.str("name"),
@@ -95,16 +97,16 @@ class SubsonicClient(
     }
 
     fun albumSongs(albumId: String): List<RemoteTrack> =
-        request("getAlbum.view?id=${urlEncode(albumId)}")["album"]?.jsonObject
+        request("getAlbum.view?id=${urlEncode(albumId)}").obj("album")
             ?.objects("song").orEmpty().map { track(it) }
 
     fun song(trackId: String): RemoteTrack? =
-        request("getSong.view?id=${urlEncode(trackId)}")["song"]?.jsonObject?.let { track(it) }
+        request("getSong.view?id=${urlEncode(trackId)}").obj("song")?.let { track(it) }
 
     /** 歌词有三种返回形态（structuredLyrics / lyrics / lyricsList），与 C# 的兜底顺序一致 */
     fun lyrics(trackId: String): String? = try {
         val root = request("getLyricsBySongId.view?id=${urlEncode(trackId)}")
-        val list = root["lyricsList"]?.jsonObject
+        val list = root.obj("lyricsList")
         val structured = list?.objects("structuredLyrics")?.firstOrNull()
         val lines = structured?.objects("line").orEmpty()
         when {
@@ -113,7 +115,7 @@ class SubsonicClient(
                 "[${lrcTimestamp(it.long("start"))}]${it.str("value")}"
             }
             else -> list?.objects("lyrics")?.firstOrNull()?.str("value")
-                ?: root["lyrics"]?.jsonObject?.str("value")?.takeIf { it.isNotEmpty() }
+                ?: root.obj("lyrics")?.str("value")?.takeIf { it.isNotEmpty() }
         }
     } catch (e: IOException) {
         null
@@ -126,7 +128,7 @@ class SubsonicClient(
             ?: throw IOException("不是 Subsonic 响应")
         val status = root.str("status")
         if (status != "ok") {
-            val error = root["error"]?.jsonObject
+            val error = root.obj("error")
             throw IOException("subsonic ${error?.str("type").orEmpty()} ${error?.str("message").orEmpty()}")
         }
         return root
@@ -151,6 +153,15 @@ class SubsonicClient(
         is JsonObject -> listOf(el)
         else -> emptyList()
     }
+
+    /**
+     * 安全取对象：字段缺失、类型不是对象（布尔/字符串/数组）都回 null。
+     *
+     * 不能直接 `.jsonObject` —— 那个在类型不符时抛 `IllegalArgumentException`，
+     * 而本类的方法只 catch `IOException`，异常会一路冒到「测试连接」变成一句
+     * 莫名其妙的失败。`openSubsonic: true` 就是这个坑（见 [ping]）。
+     */
+    private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
 
     private fun JsonObject.str(key: String): String = this[key]?.jsonPrimitive?.contentOrNull.orEmpty()
 

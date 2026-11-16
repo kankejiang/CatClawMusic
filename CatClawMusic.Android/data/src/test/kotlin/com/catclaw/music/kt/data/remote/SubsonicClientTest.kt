@@ -63,15 +63,33 @@ class SubsonicClientTest {
         assertTrue(withPath.apiUrl("ping.view").startsWith("http://music.example.com:4535/sub/rest/ping.view?u="))
     }
 
+    /**
+     * 真实 Navidrome 的 ping 响应（0.61.2 实测）—— 注意 `openSubsonic` 是**布尔**不是对象。
+     *
+     * 这里原先造的是 `"openSubsonic":{"version":"0.55.7"}`，于是测试绿而真机必挂：
+     * 真实服务器返回 `true`，代码却对它调 `.jsonObject` → IllegalArgumentException，
+     * 而 ping 只 catch IOException → 「测试连接」永远失败。假数据比没测试更危险。
+     */
     @Test
-    fun `ping 取到服务端版本`() {
+    fun `ping 吃 Navidrome 真实响应形态 openSubsonic 是布尔`() {
         val (client, recorder) = client(
-            """{"subsonic-response":{"status":"ok","version":"1.16.1","openSubsonic":{"version":"0.55.7"}}}""",
+            """{"subsonic-response":{"status":"ok","version":"1.16.1","type":"navidrome",""" +
+                """"serverVersion":"0.61.2 (aa84e645)","openSubsonic":true}}""",
         )
         val ping = client.ping()
         assertTrue(ping.message, ping.ok)
-        assertEquals("0.55.7", ping.version)
+        assertEquals("navidrome 0.61.2 (aa84e645)", ping.version)
         assertTrue(recorder.url, recorder.url.contains("ping.view"))
+    }
+
+    /** 老式 Subsonic 没有 type/serverVersion：只要 status=ok 就算通，版本留空不影响 */
+    @Test
+    fun `ping 对只有协议版本的老服务器也能通过`() {
+        val (client, _) = client(
+            """{"subsonic-response":{"status":"ok","version":"1.16.1"}}""",
+        )
+        val ping = client.ping()
+        assertTrue(ping.message, ping.ok)
     }
 
     @Test
