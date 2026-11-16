@@ -287,6 +287,7 @@ private fun SongCardRow(song: Song, onPlay: () -> Unit) {
         CoverTile(
             coverArtPath = song.coverArtPath,
             audioPath = song.filePath,
+            songId = song.id,
             maxPx = 96,
             modifier = Modifier
                 .size(34.dp)

@@ -119,7 +119,7 @@ fun QueueScreen(
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 128)
+                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 128, songId = song.id)
                     Box(
                         modifier = Modifier
                             .size(40.dp)

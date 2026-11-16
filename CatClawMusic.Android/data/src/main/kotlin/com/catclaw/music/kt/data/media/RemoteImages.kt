@@ -15,6 +15,8 @@ import com.catclaw.music.kt.core.net.RemoteHttp
  */
 object RemoteImages {
 
+    private const val TAG = "CatClawCover"
+
     /**
      * 取一个远程图片 URL 的全部字节（侧车封面 `.jpg/.png` 用）。
      *
@@ -40,18 +42,35 @@ object RemoteImages {
         val head = RemoteHttp.client
             .newCall(RemoteHttp.request(url, TagPicture.HEAD_WINDOW))
             .execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.bytes()
+                if (!response.isSuccessful) {
+                    AppLog.w(
+                        TAG,
+                        "cover: head HTTP ${response.code} ${url.substringAfterLast('/')}",
+                    )
+                    null
+                } else {
+                    response.body?.bytes()
+                }
             } ?: return null
 
         val location = TagPicture.locate(head)
         if (location == null) {
             // Ogg 的图是注释包里的 base64，就在头部窗口内
-            return TagPicture.extract(head)?.bytes
+            val fromWindow = TagPicture.extract(head)
+            if (fromWindow == null) AppLog.d(TAG, "cover: 窗口内没找到内嵌图 ${url.substringAfterLast('/')}")
+            return fromWindow?.bytes
         }
         if (location.end <= head.size) {
             return TagPicture.extract(head)?.bytes
+                ?: run {
+                    AppLog.w(TAG, "cover: 定位到了解不出 ${url.substringAfterLast('/')} len=${location.length}")
+                    null
+                }
         }
-        if (location.length <= 0 || location.length > TagPicture.MAX_COVER_BYTES) return null
+        if (location.length <= 0 || location.length > TagPicture.MAX_COVER_BYTES) {
+            AppLog.w(TAG, "cover: 图长度不合理 ${location.length} ${url.substringAfterLast('/')}")
+            return null
+        }
 
         // 只补取尾部没覆盖的那段，拼起来就是 [0, end) 的连续字节
         val tail = RemoteHttp.client
@@ -62,9 +81,12 @@ object RemoteImages {
             )
             .execute().use { response ->
                 if (!response.isSuccessful) null else response.body?.bytes()
-            } ?: return null
+            } ?: run {
+            AppLog.w(TAG, "cover: 补取失败 ${url.substringAfterLast('/')}")
+            return null
+        }
         TagPicture.extract(head + tail)?.bytes
     }.onFailure {
-        AppLog.w("CatClawCover", "embedded cover failed ${url.substringAfterLast('/')}: ${it.message}")
+        AppLog.w(TAG, "cover: 异常 ${url.substringAfterLast('/')}: ${it.javaClass.simpleName} ${it.message}")
     }.getOrNull()
 }

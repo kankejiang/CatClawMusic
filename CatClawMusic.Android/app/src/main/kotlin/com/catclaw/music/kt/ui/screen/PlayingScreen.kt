@@ -219,7 +219,7 @@ fun PlayingScreen(
     // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
     val song = state.currentSong
     // 全屏铺满需要比列表行更高的分辨率，别再用 512 的默认值拉成糊图
-    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 1440)
+    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 1440, songId = song?.id ?: 0)
 
     Column(
         modifier = Modifier

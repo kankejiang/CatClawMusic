@@ -59,6 +59,10 @@ object RemoteHttp {
             .followRedirects(true)
             .followSslRedirects(true)
             .readTimeout(30, TimeUnit.SECONDS)
+            // 强制 HTTP/1.1：这台 NAS 在 HTTP/2 下「带 Range + Authorization 的 GET」
+            // 会回 401（同 URL 同头走 1.1 是 206）。1.1 对 WebDAV 也本来就更稳 ——
+            // 很多 NAS 的 h2 实现连 PROPFIND 都不支持。
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .build()
     }
 

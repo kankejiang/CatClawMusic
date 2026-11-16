@@ -69,6 +69,8 @@ object PlaybackModule {
         fxPrefs: AudioFxPreferences,
         netease: com.catclaw.music.kt.data.netease.NeteaseApiClient,
         playUrlResolver: com.catclaw.music.kt.data.netease.NeteasePlayUrlResolver,
+        coverVersion: com.catclaw.music.kt.data.media.CoverVersion,
+        libraryDao: com.catclaw.music.kt.data.db.LibraryDao,
     ): PlayerController = PlayerController(context, cache, store, scope).apply {
         // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
         // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
@@ -104,6 +106,28 @@ object PlaybackModule {
         // 在这里收一条流，设置页改一次同步一次，冷启动时也把存下来的值喂进去一次
         scope.launch {
             fxPrefs.settings.collect { s -> setCrossfade(s.crossfade, s.crossfadeSec) }
+        }
+        // 封面补全会把新路径写回库并 bump 版本号。这里把队列里那几首的封面路径同步过来：
+        // - 播放页/迷你条/队列页读的是**播放器快照**，不更新就永远是空；
+        // - 通知栏 / 锁屏 / 蓝牙的 artworkUri 也来自 media item 的 metadata，同理。
+        // 只刷队列里实际存在的那几首（通常 1~10 首），不是把整库 600 首推进来。
+        scope.launch {
+            coverVersion.version.collect {
+                val queued = queueSongs.value
+                if (queued.isEmpty()) return@collect
+                // 一次查询拿这批 id 的最新封面，避免 10 次单查
+                val ids = queued.map { it.id }
+                val fresh = runCatching {
+                    libraryDao.coverPathRows(ids).associate { it.id to it.coverArtPath }
+                }.getOrNull() ?: return@collect
+                if (fresh.isEmpty()) return@collect
+                for (song in queued) {
+                    val path = fresh[song.id]
+                    if (!path.isNullOrBlank() && path != song.coverArtPath) {
+                        updateCoverArt(song.id, path)
+                    }
+                }
+            }
         }
     }
 

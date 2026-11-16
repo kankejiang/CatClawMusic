@@ -361,7 +361,7 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
 
     // 与播放页同一套语言：底色由当前这首歌的封面染出来
     val song = viewModel.currentSong()
-    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256)
+    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256, songId = song?.id ?: 0)
     // 流光背景的两个 gate：暂停即停动画（MAUI IsActive 绑 IsPlaying）、雾面开关整体关闭
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
 

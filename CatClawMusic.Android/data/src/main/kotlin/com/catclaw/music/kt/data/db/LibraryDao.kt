@@ -48,6 +48,9 @@ data class PlayCountRow(
 /** 远程曲去重用的最小投影：RemoteId 才是服务器侧的稳定主键，DateAdded 要在重扫时原样保留 */
 data class RemoteSongKey(val id: Int, val remoteId: String, val dateAdded: Long)
 
+/** 封面路径的批量投影：队列同步封面时一次取回 */
+data class CoverPathRow(val id: Int, val coverArtPath: String)
+
 @Dao
 interface LibraryDao {
 
@@ -215,6 +218,16 @@ interface LibraryDao {
     /** 只回写封面列，不动其它字段 —— 封面补全不该触发一次整行 upsert 的副作用 */
     @Query("UPDATE Songs SET CoverArtPath = :path WHERE Id = :id")
     suspend fun setCoverArtPath(id: Int, path: String?)
+
+    /**
+     * 批量取这几首当前的封面路径。
+     *
+     * 播放队列里只有几十首，封面补全后要按 id 把新路径同步回队列快照；
+     * 逐首单查会打几十次 IO，所以一次 `IN` 拿全。只回有封面的行 ——
+     * 调用方按"不在结果里 = 还没补上"处理，不要当成"删掉封面"。
+     */
+    @Query("SELECT Id AS id, CoverArtPath AS coverArtPath FROM Songs WHERE Id IN (:ids) AND CoverArtPath IS NOT NULL AND CoverArtPath <> ''")
+    suspend fun coverPathRows(ids: List<Int>): List<CoverPathRow>
 
     /** 远程曲整表：带歌手名/专辑名，直接可播 */
     @Query(

@@ -10,12 +10,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.catclaw.music.kt.data.media.CoverVersion
 import com.catclaw.music.kt.data.media.RemoteImages
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -95,13 +102,30 @@ private fun embeddedPicture(context: Context, audioPath: String, maxPx: Int): Bi
 private fun remoteEmbeddedPicture(url: String, maxPx: Int): Bitmap? =
     remoteEmbeddedPicture(url)?.let { decodeBytes(it, maxPx) }
 
+/**
+ * 远程曲封面补全的落盘目录名。与 `RemoteCoverBackfiller.DIR_NAME` 必须一致 ——
+ * 那里写、这里读，改一处漏一处就会「补完了还是不出图」。
+ */
+private const val REMOTE_COVER_DIR = "remote_covers"
+
+/** 该目录下按歌曲 id 命名的封面文件；没有就回 null */
+private fun cachedCoverFile(context: Context, songId: Int): File? {
+    if (songId <= 0) return null
+    val dir = File(context.filesDir, REMOTE_COVER_DIR)
+    val names = dir.list() ?: return null
+    val prefix = "$songId."
+    val hit = names.firstOrNull { it.startsWith(prefix) && !it.endsWith(".tmp") } ?: return null
+    return File(dir, hit).takeIf { it.isFile && it.length() > 0 }
+}
+
 private suspend fun load(
     context: Context,
     coverArtPath: String?,
     audioPath: String?,
+    songId: Int,
     maxPx: Int,
 ): Bitmap? = withContext(Dispatchers.IO) {
-    val key = "$coverArtPath|$audioPath|$maxPx"
+    val key = "$coverArtPath|$audioPath|$songId|$maxPx"
     memoryCache.get(key)?.let { return@withContext it }
     val attempts = ArrayList<Bitmap?>(3)
     coverArtPath?.takeIf { it.isNotBlank() }?.let { path ->
@@ -111,6 +135,10 @@ private suspend fun load(
             else -> null
         }
     }
+    // 第二级：封面补全**落过盘**的图。
+    // 队列页与播放页读的是播放器里的 Song 快照，补全只改了数据库，
+    // 快照里的 coverArtPath 仍是空 —— 不查这一级，补完了这张图也永远读不到。
+    cachedCoverFile(context, songId)?.let { attempts += decodeFile(it, maxPx) }
     audioPath?.takeIf { it.isNotBlank() }?.let { path ->
         attempts += if (path.startsWith("http")) {
             remoteEmbeddedPicture(path, maxPx)
@@ -124,16 +152,54 @@ private suspend fun load(
 }
 
 /**
+ * 订阅「封面可能变了」的版本号。
+ *
+ * 这样 [rememberCover] 的调用方（队列行、播放页大图、迷你条、全屏歌词……）**都不用改**：
+ * 版本一变，key 变，`produceState` 重跑。之所以做成 Composable 内部订阅而不是让每个
+ * 调用方自己注入，是因为封面显示点有 7 处，漏掉任何一处就又变成「有的页面刷新、有的不刷新」。
+ */
+@Composable
+private fun coverVersion(): Int {
+    val appContext = LocalContext.current.applicationContext
+    val entry = remember(appContext) {
+        runCatching {
+            EntryPointAccessors.fromApplication(appContext, CoverVersionEntryPoint::class.java).coverVersion()
+        }.getOrNull()
+    } ?: return 0
+    val version by entry.version.collectAsStateWithLifecycle()
+    return version
+}
+
+/** Hilt 入口点：Composable 里没有注入点，只能这样从应用容器取单例 */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface CoverVersionEntryPoint {
+    fun coverVersion(): CoverVersion
+}
+
+/**
  * 一首歌的封面位图，取不到就是 null（调用方保留首字母占位）。
  *
  * 换歌时不闪旧图：`produceState` 以两条路径为 key，新图解码完成前一直显示旧值——
  * 但旧值属于上一首歌，所以这里显式在 key 变化时先归 null。
+ *
+ * [songId] 用于查「封面补全落盘的那张图」。必须传：补全只写数据库，而队列页/播放页
+ * 手里是播放器的 `Song` 快照，其 `coverArtPath` 在补全前后都是空，光靠路径找不到图。
+ *
+ * 版本号（[coverVersion]）参与 key：补全完成后它变化，`produceState` 重跑，
+ * 这时第二级回落就能读到刚落盘的图 —— 不用杀掉重进。
  */
 @Composable
-fun rememberCover(coverArtPath: String?, audioPath: String?, maxPx: Int = 512): Bitmap? {
+fun rememberCover(
+    coverArtPath: String?,
+    audioPath: String?,
+    maxPx: Int = 512,
+    songId: Int = 0,
+): Bitmap? {
     val context = LocalContext.current
-    val cover by produceState<Bitmap?>(null, coverArtPath, audioPath, maxPx) {
-        value = load(context, coverArtPath, audioPath, maxPx)
+    val version = coverVersion()
+    val cover by produceState<Bitmap?>(null, coverArtPath, audioPath, maxPx, songId, version) {
+        value = load(context, coverArtPath, audioPath, songId, maxPx)
     }
     return cover
 }
@@ -150,9 +216,10 @@ fun CoverTile(
     audioPath: String?,
     modifier: Modifier = Modifier,
     maxPx: Int = 128,
+    songId: Int = 0,
     fallback: @Composable () -> Unit,
 ) {
-    val cover = rememberCover(coverArtPath, audioPath, maxPx)
+    val cover = rememberCover(coverArtPath, audioPath, maxPx, songId)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (cover != null) {
             Image(

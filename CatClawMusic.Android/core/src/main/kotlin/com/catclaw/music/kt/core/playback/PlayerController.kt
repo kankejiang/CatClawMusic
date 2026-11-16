@@ -667,6 +667,41 @@ class PlayerController(
         player.replaceMediaItem(index, buildMediaItem(song))
     }
 
+    /**
+     * 更新某一首的**封面路径**，不动播放进度。
+     *
+     * 封面是异步补出来的（远程曲从标签抽图落盘后写回库）。当前正在播的那一首如果不更新
+     * media item 的 metadata，通知栏 / 锁屏 / 蓝牙的 `artworkUri` 会一直是空的 ——
+     * 但**不能**像 [upgradeQueueItem] 那样简单 `replaceMediaItem`：换 item 会重新 prepare
+     * 并从头播。所以这里先把位置与播放意图记下来，换完再 seek 回去。
+     *
+     * @param keepPosition 是否保住播放位置。当前曲传 true；非当前曲没有"位置"可言，传 false。
+     */
+    fun updateCoverArt(songId: Int, coverArtPath: String?, keepPosition: Boolean = true) {
+        val index = idToIndex[songId] ?: return
+        val song = queue.songs().getOrNull(index) ?: return
+        if (song.coverArtPath == coverArtPath) return
+
+        val updated = song.copy(coverArtPath = coverArtPath)
+        queue.replaceSong(songId, updated)
+
+        val wasCurrent = player.currentMediaItemIndex == index
+        if (wasCurrent) {
+            // 当前曲：记下位置与播放意图，换 item 后复位，否则会从头播
+            val position = player.currentPosition
+            val wasPlaying = player.playWhenReady
+            player.replaceMediaItem(index, buildMediaItem(updated))
+            if (keepPosition && position > 0) player.seekTo(index, position)
+            player.playWhenReady = wasPlaying
+        } else {
+            player.replaceMediaItem(index, buildMediaItem(updated))
+        }
+
+        // 队列流与状态里的 currentSong 都是 UI 的读取源，一起换掉
+        publishQueue(queue.songs())
+        if (queue.currentSong?.id == songId) publish(queue.currentSong)
+    }
+
     var onListenStarted: ((Int) -> Unit)? = null
     private val listens = ListenCounter()
 

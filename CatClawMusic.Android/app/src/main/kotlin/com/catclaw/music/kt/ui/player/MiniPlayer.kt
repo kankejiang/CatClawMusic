@@ -142,7 +142,7 @@ fun MiniPlayer(
                         .background(Color(palette.primary)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 192)
+                    val cover = rememberCover(song.coverArtPath, song.filePath, maxPx = 192, songId = song.id)
                     if (cover != null) {
                         Image(
                             bitmap = cover.asImageBitmap(),

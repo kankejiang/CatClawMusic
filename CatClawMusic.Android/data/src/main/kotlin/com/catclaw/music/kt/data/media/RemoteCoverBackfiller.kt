@@ -45,6 +45,7 @@ class RemoteCoverBackfiller @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: LibraryDao,
     private val bytes: AudioBytesReader,
+    private val coverVersion: CoverVersion,
 ) {
 
     data class Result(val total: Int, val updated: Int, val skipped: Int, val failed: Int, val elapsedMs: Long)
@@ -68,6 +69,8 @@ class RemoteCoverBackfiller @Inject constructor(
         val saved = AtomicInteger(0)
         val skipped = AtomicInteger(0)
         val failed = AtomicInteger(0)
+        /** 上次 bump 时的 saved 值：只为「这一批真的存下了新图」才通知 UI */
+        val bumpedAt = AtomicInteger(0)
 
         coroutineScope {
             val workers = Dispatchers.IO.limitedParallelism(WORKERS)
@@ -82,8 +85,12 @@ class RemoteCoverBackfiller @Inject constructor(
                         AppLog.w(TAG, "封面失败 ${row.title}: ${e.javaClass.simpleName} ${e.message}")
                     }
                     val n = done.incrementAndGet()
-                    // 每 10 首或最后一首报一次：613 首就是 61 次重组，别按每首刷
-                    if (n % 10 == 0 || n == total) onProgress(n, total)
+                    // 每 10 首或最后一首报一次进度与封面版本：613 首就是 62 次重组，
+                    // 别按每首 bump（那会让所有封面位重新 produceState，白烧一遍帧）
+                    if (n % 10 == 0 || n == total) {
+                        onProgress(n, total)
+                        if (saved.get() > bumpedAt.get()) bumpedAt.set(saved.get()).also { coverVersion.bump() }
+                    }
                 }
             }.awaitAll()
         }
@@ -121,7 +128,9 @@ class RemoteCoverBackfiller @Inject constructor(
             throw e
         }
 
-        // 3) 只回写封面列，不整行 upsert（避免覆盖别处刚补好的字段）
+        // 3) 只回写封面列，不整行 upsert（避免覆盖别处刚补好的字段）。
+        //    通知 UI 的 bump 不在这里做 —— 一首一 bump 会让所有封面位重新 produceState，
+        //    613 首就是 613 轮白烧帧；由外层每 10 首触发一次。
         dao.setCoverArtPath(row.id, target.absolutePath)
         return true
     }

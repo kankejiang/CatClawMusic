@@ -418,6 +418,7 @@ private fun TabsHost(
                     coverArtPath = playState.currentSong?.coverArtPath,
                     audioPath = playState.currentSong?.filePath,
                     maxPx = 256,
+                    songId = playState.currentSong?.id ?: 0,
                 )
                 val coverFlowSource by produceState<CoverFlowProcessor.CoverSource?>(null, coverAura) {
                     value = withContext(Dispatchers.Default) {

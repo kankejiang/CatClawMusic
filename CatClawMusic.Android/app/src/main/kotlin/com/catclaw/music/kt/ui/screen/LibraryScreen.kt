@@ -727,6 +727,7 @@ internal fun RecentAddCard(song: SongListItem, onClick: () -> Unit) {
         CoverTile(
             coverArtPath = song.coverArtPath,
             audioPath = song.filePath,
+            songId = song.id,
             maxPx = 256,
             modifier = Modifier
                 .size(132.dp)

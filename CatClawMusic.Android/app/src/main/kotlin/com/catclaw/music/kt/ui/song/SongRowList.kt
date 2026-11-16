@@ -176,6 +176,7 @@ fun SongList(
                     CoverTile(
                         coverArtPath = row.coverArtPath,
                         audioPath = row.filePath,
+                        songId = row.id,
                         maxPx = 160,
                         modifier = Modifier.fillMaxSize(),
                     ) {
