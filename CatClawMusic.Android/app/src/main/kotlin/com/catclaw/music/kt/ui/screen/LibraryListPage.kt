@@ -108,6 +108,12 @@ fun LibraryListScreen(
     onBack: () -> Unit,
     onOpen: (LibraryDetail) -> Unit,
     onOpenSong: (Int) -> Unit,
+    /**
+     * 从哪个入口进来的。`All` = 「全部歌曲」→ 显示来源筛选；
+     * `Local`/`Network` = 「本地曲库」/「网络音乐库」→ 已经限定了来源，不再显示筛选器。
+     * 对齐 MAUI `AllSongsViewModel.IsSourceFilterVisible = source == "all"`。
+     */
+    entrySource: SongSourceFilter = SongSourceFilter.All,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
@@ -170,7 +176,10 @@ fun LibraryListScreen(
 
     // 筛选 / 排序 / 搜索按 kind 配好交给通用二级页；横屏会合并成一条横滚轨道，
     // 竖屏仍按组各占一行，行为与原来逐页堆的版本一致。
-    val sourceChips = if (kind == LibraryKind.Songs) {
+    // 来源筛选只在「全部歌曲」入口显示。
+    // 从「本地曲库」进来时这页已经是本地的，再摆一个「全部/本地/网络」三选一
+    // 会让人以为还能看到网络曲 —— MAUI 的 `IsSourceFilterVisible = source == "all"` 同理。
+    val sourceChips = if (kind == LibraryKind.Songs && entrySource == SongSourceFilter.All) {
         SongSourceFilter.entries.map { mode ->
             CollectionChip(
                 label = stringResource(sourceFilterLabelRes(mode)),

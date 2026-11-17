@@ -140,6 +140,17 @@ fun LibraryScreen(
     // 统计格 / 资料库行的下钻。MAUI 是 push 独立页（AllSongsPage 等），这里在页内切换：
     // 少一条路由与一次 VM 作用域切换，返回行为一致
     var opened by remember { mutableStateOf<LibraryKind?>(null) }
+    /**
+     * 从哪个入口进的「歌曲」页。
+     *
+     * `All` = 顶部「全部歌曲」入口 → 显示「全部 / 本地 / 网络」来源筛选；
+     * `Local` = 资料库「本地曲库」→ **不显示来源筛选**，因为这页就是本地的。
+     *
+     * 对齐 MAUI `AllSongsViewModel.IsSourceFilterVisible = source == "all"`：
+     * 那边进入时按 `source` 决定筛选器是否出现，而不是让用户在一个已经限定来源的页面里
+     * 再看到"全部/本地/网络"三个选项。
+     */
+    var entrySource by remember { mutableStateOf(SongSourceFilter.All) }
     // 从发现页货架跳进来：先把它要的列表打开，再把这个一次性指令清掉
     LaunchedEffect(initialKind) {
         if (initialKind != null) {
@@ -188,11 +199,31 @@ fun LibraryScreen(
             onBack = { opened = null },
             onOpen = { detail = it },
             onOpenSong = { songDetailId = it },
+            entrySource = entrySource,
             viewModel = viewModel,
         )
         return
     }
-    val onOpenKind: (LibraryKind) -> Unit = { opened = it }
+    /**
+     * 打开二级列表。
+     *
+     * [source] 只在 [LibraryKind.Songs] 有意义：这个页面是「全部歌曲」，本地与网络合在一份列表里，
+     * 靠来源筛选区分。**入口的标题必须与进来后的来源一致** —— MAUI 就是这么做的：
+     *   "local"   → AllSongsPage?source=local
+     *   "network" → AllSongsPage?source=network
+     *   "all"     → AllSongsPage?source=all
+     * 之前 Android 的「本地曲库」只说打开 Songs 页、不带来源，于是副标题写着「10 首」，
+     * 点进去却是 623 首（本地+网络）—— 用户看到的就是「本地曲库里有网络音乐」。
+     */
+    val onOpenKind: (LibraryKind, SongSourceFilter) -> Unit = { kind, source ->
+        if (kind == LibraryKind.Songs) {
+            viewModel.setSongSource(source)
+            // 记下从哪个入口进来的：「全部歌曲」要显示来源筛选，「本地曲库」不显示
+            // （对齐 MAUI `AllSongsViewModel.IsSourceFilterVisible = source == "all"`）
+            entrySource = source
+        }
+        opened = kind
+    }
     val palette = LocalCatClawPalette.current
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
@@ -268,16 +299,16 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             StatTile(String.format("%,d", songs.size), stringResource(R.string.lib_stat_songs), palette) {
-                onOpenKind(LibraryKind.Songs)
+                onOpenKind(LibraryKind.Songs, SongSourceFilter.Local)
             }
             StatTile(String.format("%,d", artists.size), stringResource(R.string.lib_stat_artists), palette) {
-                onOpenKind(LibraryKind.Artists)
+                onOpenKind(LibraryKind.Artists, SongSourceFilter.All)
             }
             StatTile(String.format("%,d", albums.size), stringResource(R.string.lib_stat_albums), palette) {
-                onOpenKind(LibraryKind.Albums)
+                onOpenKind(LibraryKind.Albums, SongSourceFilter.All)
             }
             StatTile(String.format("%.1f", hours), stringResource(R.string.lib_stat_hours), palette) {
-                onOpenKind(LibraryKind.Songs)
+                onOpenKind(LibraryKind.Songs, SongSourceFilter.Local)
             }
         }
 
@@ -287,16 +318,16 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             EntryTile(R.drawable.ic_nav_lyrics, stringResource(R.string.lib_all_songs), palette) {
-                onOpenKind(LibraryKind.Songs)
+                onOpenKind(LibraryKind.Songs, SongSourceFilter.All)
             }
             EntryTile(R.drawable.ic_nav_appearance, stringResource(R.string.lib_stat_albums), palette) {
-                onOpenKind(LibraryKind.Albums)
+                onOpenKind(LibraryKind.Albums, SongSourceFilter.All)
             }
             EntryTile(R.drawable.ic_nav_permission, stringResource(R.string.lib_stat_artists), palette) {
-                onOpenKind(LibraryKind.Artists)
+                onOpenKind(LibraryKind.Artists, SongSourceFilter.All)
             }
             EntryTile(R.drawable.ic_favorite, stringResource(R.string.playlist_entry_favorites), palette) {
-                onOpenKind(LibraryKind.Favorites)
+                onOpenKind(LibraryKind.Favorites, SongSourceFilter.All)
             }
         }
     }
@@ -312,19 +343,19 @@ fun LibraryScreen(
                 iconRes = R.drawable.ic_library,
                 name = stringResource(R.string.lib_local_name),
                 subtitle = stringResource(R.string.playlist_count, songs.size),
-                onClick = { onOpenKind(LibraryKind.Songs) },
+                onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Local) },
             ),
             LibrarySourceRow(
                 iconRes = R.drawable.ic_favorite,
                 name = stringResource(R.string.lib_favorites_name),
                 subtitle = stringResource(R.string.playlist_count, favorites.size),
-                onClick = { onOpenKind(LibraryKind.Favorites) },
+                onClick = { onOpenKind(LibraryKind.Favorites, SongSourceFilter.All) },
             ),
             LibrarySourceRow(
                 iconRes = R.drawable.ic_history,
                 name = stringResource(R.string.playlist_entry_recent),
                 subtitle = stringResource(R.string.playlist_count, recent.size),
-                onClick = { onOpenKind(LibraryKind.Recent) },
+                onClick = { onOpenKind(LibraryKind.Recent, SongSourceFilter.All) },
             ),
             // 远程音乐服务：图标用 MAUI 的 ic_cloud（云朵），此前误用了搜索放大镜
             LibrarySourceRow(
