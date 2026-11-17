@@ -385,6 +385,7 @@
     <string name="remote_browse_up">上一级</string>
     <string name="remote_browse_loading">正在读取目录…</string>
     <string name="remote_browse_none">这一层没有子目录</string>
+    <string name="remote_browse_files_only">这一层直接是 %1$d 个文件，点「用这个目录」即可</string>
     <string name="remote_browse_failed">列目录失败：%1$s</string>
     <string name="remote_browse_pick">用这个目录</string>
     <string name="remote_use_https">使用 HTTPS</string>

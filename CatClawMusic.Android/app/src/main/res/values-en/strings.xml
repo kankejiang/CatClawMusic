@@ -385,6 +385,7 @@ Download it from GitHub.</string>
     <string name="remote_browse_up">Up</string>
     <string name="remote_browse_loading">Listing…</string>
     <string name="remote_browse_none">No subfolders here</string>
+    <string name="remote_browse_files_only">This folder has %1$d files — pick it with "Use this folder"</string>
     <string name="remote_browse_failed">Cannot list: %1$s</string>
     <string name="remote_browse_pick">Use this folder</string>
     <string name="remote_use_https">Use HTTPS</string>

@@ -59,7 +59,8 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
 
     override fun list(remotePath: String): List<RemoteFile> {
         val dir = normalizeDir(remotePath)
-        return diskShare().list(dir).mapNotNull { info ->
+        val entries = diskShare().list(dir)
+        return entries.mapNotNull { info ->
             val name = info.fileName
             if (name == "." || name == "..") return@mapNotNull null
             RemoteFile(
@@ -74,6 +75,9 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
 
     override fun close() {
         runCatching { share?.close() }
+        // 显式登出再断连接：只 close  TCP 的话服务端会话要等自己超时才释放，
+        // 连续打开几次浏览器就会把 NAS 的并发会话配额占满（真机表现为 timeout）
+        runCatching { session?.logoff() }
         runCatching { session?.close() }
         runCatching { connection?.close() }
         share = null
@@ -195,13 +199,21 @@ object SmbBrowser {
 
             val found = ArrayList<String>()
             for (name in candidates) {
-                val ok = runCatching {
-                    val share = sess.connectShare(name)
-                    runCatching { share.close() }
+                // 无论成败都要把 tree 连接断掉：失败时服务端也可能已经建了半开的 tree，
+                // 30 多个候选探下来会攒出一堆会话，紧接着的 listDirs 重新连接就撞超时
+                // —— 真机上「列目录失败: timeout」就是这么来的。
+                var share: com.hierynomus.smbj.share.Share? = null
+                val ok = try {
+                    share = sess.connectShare(name)
                     true
-                }.getOrDefault(false)
+                } catch (_: Throwable) {
+                    false
+                }
+                runCatching { share?.close() }
                 if (ok) found += name
             }
+            // 探完显式登出：只关 TCP 连接的话，服务端会话要等自己超时才释放
+            runCatching { sess.logoff() }
             found.sortedBy { it.lowercase() }
         } finally {
             runCatching { conn.close() }
@@ -267,6 +279,22 @@ object SmbBrowser {
             runCatching { reader.close() }
         }
         return resolved to dirs
+    }
+
+    /**
+     * 同 [listDirs]，但把**文件**也一并带出来。
+     *
+     * 浏览目录只需要子目录；可有些共享（NAS 的 `music` 就是）根目录直接平铺
+     * 上千首歌、一个子目录都没有。那时界面若只说"没有子目录"，看着像失败，
+     * 而用户想选的往往正是当前这层。所以把文件计数带出去，让界面能说清楚。
+     */
+    fun listEntries(target: SmbTarget, dir: String): List<RemoteFile> {
+        val reader = SmbjReader(target)
+        return try {
+            reader.list(normalizeDir(dir))
+        } finally {
+            runCatching { reader.close() }
+        }
     }
 
     private fun normalizeDir(path: String): String {

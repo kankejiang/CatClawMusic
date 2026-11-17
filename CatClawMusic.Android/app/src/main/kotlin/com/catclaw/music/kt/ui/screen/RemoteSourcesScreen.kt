@@ -793,7 +793,14 @@ internal fun RemoteBrowserPanel(
             )
 
             panel.dirs.isEmpty() -> EmptyState(
-                hint = stringResource(R.string.remote_browse_none),
+                // 「空目录」和「只有文件、没有子目录」要分开说：
+                // NAS 的 music 共享常常根目录平铺上千首歌，一个子目录都没有。
+                // 只说"没有子目录"会让人以为列目录失败了，而这时用户要选的正是当前这层。
+                hint = if (panel.fileCount > 0) {
+                    stringResource(R.string.remote_browse_files_only, panel.fileCount)
+                } else {
+                    stringResource(R.string.remote_browse_none)
+                },
                 iconRes = R.drawable.ic_library,
                 modifier = Modifier.padding(top = 24.dp),
             )

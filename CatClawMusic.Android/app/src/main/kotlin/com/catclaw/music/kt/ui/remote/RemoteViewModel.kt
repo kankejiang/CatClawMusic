@@ -129,8 +129,7 @@ class RemoteViewModel @Inject constructor(
      * WebDAV 目录浏览的一层状态。表单里那格 BasePath 此前只能手打，
      * 打错一个字符就是"连得上却导不到歌"，所以给它一个逐层点选出来的入口。
      */
-    data class RemoteBrowser(
-        val path: String,
+    data class RemoteBrowser(        val path: String,
         val dirs: List<RemoteFile>,
         val busy: Boolean,
         val error: String?,
@@ -141,6 +140,25 @@ class RemoteViewModel @Inject constructor(
          * 点完自动填进表单再进目录树。这是 MAUI 的行为，也是所有 SMB 客户端的常规做法。
          */
         val pickingShare: Boolean = false,
+        /**
+         * 当前层有多少**文件**（不含目录）。
+         *
+         * 用来区分「空目录」和「只有文件、没有子目录」：NAS 上 `music` 这类共享
+         * 常常根目录平铺上千首歌。只显示"没有子目录"会让人以为坏了，
+         * 而这时用户要选的恰好是当前这层。
+         */
+        val fileCount: Int = 0,
+    )
+
+    /**
+     * 一次浏览请求的结果（IO 线程产出、主线程消费）。
+     *
+     * 不用嵌套 `Pair`：那东西一旦扩到三个字段就没人读得懂谁是谁了。
+     */
+    private data class Loaded(
+        val items: List<RemoteFile>,
+        val picking: Boolean,
+        val fileCount: Int = 0,
     )
 
     private val _browse = MutableStateFlow<RemoteBrowser?>(null)
@@ -213,32 +231,42 @@ class RemoteViewModel @Inject constructor(
                     // 用户若粘过 smb://host/music/... 那个 music 会排在前面。
                     val candidates = listOfNotNull(SmbBrowser.guessShare(path).ifEmpty { null })
                     val shares = SmbBrowser.listShares(target, candidates)
-                    shares.map { name ->
-                        RemoteFile(
-                            name = name,
-                            // 共享用 `\\name` 表示，和共享内目录（`\dir`）区分开，
-                            // 点进去时据此判断该填共享名还是该进目录。
-                            path = "\\\\$name",
-                            isDirectory = true,
-                        )
-                    } to true
+                    Loaded(
+                        items = shares.map { name ->
+                            RemoteFile(
+                                name = name,
+                                // 共享用 `\\name` 表示，和共享内目录（`\dir`）区分开，
+                                // 点进去时据此判断该填共享名还是该进目录。
+                                path = "\\\\$name",
+                                isDirectory = true,
+                            )
+                        },
+                        picking = true,
+                    )
                 } else {
-                    val (_, dirs) = SmbBrowser.listDirs(target, at)
-                    dirs.filter { it.isDirectory }
-                        .sortedBy { it.name.lowercase() } to false
+                    val entries = SmbBrowser.listEntries(target, at)
+                    Loaded(
+                        items = entries.filter { it.isDirectory }.sortedBy { it.name.lowercase() },
+                        picking = false,
+                        fileCount = entries.count { !it.isDirectory },
+                    )
                 }
             }
             withContext(Dispatchers.Main) {
                 _browse.value = outcome.fold(
-                    onSuccess = { (items, picking) ->
-                        if (picking && items.isEmpty()) {
+                    onSuccess = { loaded ->
+                        if (loaded.picking && loaded.items.isEmpty()) {
                             RemoteBrowser(
                                 at, emptyList(), busy = false,
                                 error = "没能列出共享名，请在表单里手填（如 music）",
                                 pickingShare = true,
                             )
                         } else {
-                            RemoteBrowser(at, items, busy = false, error = null, pickingShare = picking)
+                            RemoteBrowser(
+                                at, loaded.items, busy = false, error = null,
+                                pickingShare = loaded.picking,
+                                fileCount = loaded.fileCount,
+                            )
                         }
                     },
                     onFailure = {
