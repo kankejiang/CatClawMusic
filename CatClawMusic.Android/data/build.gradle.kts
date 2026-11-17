@@ -38,6 +38,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.smbj)
+    // 列共享（NetShareEnum）只有 jcifs-ng 能做；smbj 缺这套 RPC。
+    // 其余 SMB 操作（列目录 / 读取）继续用 smbj，两条链路互不干扰。
+    implementation(libs.jcifs.ng)
+    implementation(libs.slf4j.api)
+    implementation(libs.bcprov)
 
     api(libs.androidx.room.runtime)
     api(libs.androidx.room.ktx)

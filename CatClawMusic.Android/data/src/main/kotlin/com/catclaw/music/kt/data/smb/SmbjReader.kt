@@ -143,82 +143,24 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
  * 用户不该被迫先知道共享名。SMB 客户端（含 MAUI 那套）的正常体验是：
  * 填主机 → 点浏览 → **列出共享** → 点一个（自动填进共享名）→ 在里面逐级选目录。
  *
- * ## 怎么列出共享（没有 RPC）
+ * ## 共享枚举走 jcifs-ng，其余仍走 smbj
  *
- * 标准做法是连 `IPC$` 再发一次 DCE/RPC `NetShareEnum`。本项目只依赖 `smbj`，
- * 它整个包里没有一个 `dcerpc` 类（`smbj-rpc` 这个 artifact 在 Maven Central 上也不存在），
- * 所以走不了那条路。
- *
- * 改用**探测**：在同一条已认证连接上，对一批候选名逐个 `connectShare`，
- * 能 tree-connect 成功的就是真实共享。代价是每次浏览要试若干次，好处是不加依赖、
- * 且失败只发生在单个候选名上（不像 RPC 一旦结构不对就整体失败）。
- *
- * 候选名 = 常见共享名 + 从用户已填路径/主机名里能推出来的词。探测不全时
- * 仍可手填 —— 手填和点选是并存的，不是二选一。
+ * smbj 没有共享枚举 API（整个包里没有 `dcerpc` 类，`smbj-rpc` 在 Maven Central
+ * 上也不存在），而[候选名探测](旧实现)只能命中写死的名字 —— 真机 FNOS 上 12 个共享
+ * 里大半都探不到。所以列共享交给 jcifs-ng（它自带 `NetShareEnum`），
+ * 列目录与读取继续用 smbj。详见 [SmbShareLister]。
  */
 object SmbBrowser {
 
     /**
-     * 常见共享名。大小写不敏感去重；Windows 侧是 `Users/Public` 那套，
-     * NAS 侧最常见的是 `music/video/photo/share/data/public/home`。
-     */
-    private val COMMON_SHARES = listOf(
-        "music", "Music", "audio", "Audio", "media", "Media",
-        "video", "Video", "photo", "Photo", "photos", "Photos",
-        "share", "Share", "shared", "Shared", "public", "Public",
-        "data", "Data", "home", "Home", "users", "Users",
-        "download", "downloads", "Downloads", "backup", "Backup",
-        "homes", "homeshare", "disk", "disk1", "volume1", "volume2",
-    )
-
-    /**
-     * 列出可用的共享名。
+     * 列出服务器上的共享名。
      *
-     * 一次连接、一次认证，然后对候选名逐个 tree-connect；成功的收进结果并立即断开，
-     * 免得把服务器的 tree 连接配额占满（部分 NAS 对并发 tree 数有限制）。
+     * 走真正的 `NetShareEnum`（见 [SmbShareLister]），不是候选名探测 ——
+     * 探测只能命中写死的名字，真机 FNOS 上 12 个共享里大半都探不到。
      *
-     * @param extraCandidates 调用方补的候选（比如从主机名、已填路径里猜出来的词）
-     * @return 可用的共享名；一个都探不到时返回空列表（调用方据此提示手填）
+     * @return 共享名；空列表表示服务器确实没有可列出的共享
      */
-    fun listShares(target: SmbTarget, extraCandidates: List<String> = emptyList()): List<String> {
-        val candidates = (extraCandidates + COMMON_SHARES)
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && !it.endsWith("$") }
-            .distinctBy { it.lowercase() }
-        if (candidates.isEmpty()) return emptyList()
-
-        val config = smbConfig()
-        val conn = runCatching { SMBClient(config).connect(target.host, target.port) }.getOrNull()
-            ?: return emptyList()
-        return try {
-            val sess = runCatching {
-                conn.authenticate(
-                    AuthenticationContext(target.user, target.password.toCharArray(), target.domain),
-                )
-            }.getOrNull() ?: return emptyList()
-
-            val found = ArrayList<String>()
-            for (name in candidates) {
-                // 无论成败都要把 tree 连接断掉：失败时服务端也可能已经建了半开的 tree，
-                // 30 多个候选探下来会攒出一堆会话，紧接着的 listDirs 重新连接就撞超时
-                // —— 真机上「列目录失败: timeout」就是这么来的。
-                var share: com.hierynomus.smbj.share.Share? = null
-                val ok = try {
-                    share = sess.connectShare(name)
-                    true
-                } catch (_: Throwable) {
-                    false
-                }
-                runCatching { share?.close() }
-                if (ok) found += name
-            }
-            // 探完显式登出：只关 TCP 连接的话，服务端会话要等自己超时才释放
-            runCatching { sess.logoff() }
-            found.sortedBy { it.lowercase() }
-        } finally {
-            runCatching { conn.close() }
-        }
-    }
+    fun listShares(target: SmbTarget): List<String> = SmbShareLister.list(target)
 
     /**
      * 从任意线索推断共享名。
@@ -256,37 +198,11 @@ object SmbBrowser {
     }
 
     /**
-     * 列共享内目录。
+     * 列出共享内某层的**全部条目**（目录 + 文件）。
      *
-     * @param share 共享名；**空**时先探测一遍（[listShares]），唯一命中就自动用它，
-     *              多个命中或全无命中都由调用方决定下一步（选择或手填）。
-     * @return `(实际使用的共享名, 目录列表)`；共享名仍为空说明没探到
-     */
-    fun listDirs(
-        target: SmbTarget,
-        dir: String,
-        share: String = target.share,
-    ): Pair<String, List<RemoteFile>> {
-        val resolved = share.ifBlank {
-            val guessed = guessShare(dir)
-            val found = listShares(target, listOfNotNull(guessed.ifEmpty { null }))
-            found.singleOrNull() ?: return "" to emptyList()
-        }
-        val reader = SmbjReader(target.copy(share = resolved))
-        val dirs = try {
-            reader.list(normalizeDir(dir))
-        } finally {
-            runCatching { reader.close() }
-        }
-        return resolved to dirs
-    }
-
-    /**
-     * 同 [listDirs]，但把**文件**也一并带出来。
-     *
-     * 浏览目录只需要子目录；可有些共享（NAS 的 `music` 就是）根目录直接平铺
-     * 上千首歌、一个子目录都没有。那时界面若只说"没有子目录"，看着像失败，
-     * 而用户想选的往往正是当前这层。所以把文件计数带出去，让界面能说清楚。
+     * 调用方自己筛目录；把文件也带出来是因为有些共享（NAS 的 `Music` 就是）
+     * 根目录直接平铺上千首歌、一个子目录都没有。只看目录的话界面只能说
+     * "没有子目录"，看着像失败，而用户想选的往往正是当前这层。
      */
     fun listEntries(target: SmbTarget, dir: String): List<RemoteFile> {
         val reader = SmbjReader(target)

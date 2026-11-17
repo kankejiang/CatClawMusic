@@ -227,10 +227,9 @@ class RemoteViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val outcome = runCatching {
                 if (target.share.isBlank()) {
-                    // 还没定共享：把能探到的共享列出来。候选里带上从当前路径猜的词，
-                    // 用户若粘过 smb://host/music/... 那个 music 会排在前面。
-                    val candidates = listOfNotNull(SmbBrowser.guessShare(path).ifEmpty { null })
-                    val shares = SmbBrowser.listShares(target, candidates)
+                    // 还没定共享：真正枚举服务器上的共享（NetShareEnum）。
+                    // 不再用候选名探测 —— 那只认写死的名字，真机上大半共享都探不到。
+                    val shares = SmbBrowser.listShares(target)
                     Loaded(
                         items = shares.map { name ->
                             RemoteFile(
