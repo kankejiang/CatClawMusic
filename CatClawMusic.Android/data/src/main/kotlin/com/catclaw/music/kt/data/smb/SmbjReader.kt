@@ -81,6 +81,7 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
         connection = null
     }
 
+
     private fun open(remotePath: String): File = diskShare().openFile(
         remotePath,
         EnumSet.of(AccessMask.GENERIC_READ),
@@ -104,9 +105,60 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
     }
 
     private companion object {
+        /**
+         * 列出共享内的目录，供「选择 SMB 目录」用。
+         *
+         * 与实例方法 [list] 的区别：这是给**填表阶段**用的（还没保存连接），
+         * 用完就把连接关掉，不留在缓存里。返回的是共享内相对路径。
+         *
+         * ## 为什么没有「列出共享」这一步
+         *
+         * 列服务器上的共享名要走 `IPC$` + 一次 DCE/RPC `NetShareEnum`。
+         * 本项目只依赖 `smbj`（它的 `Connection`/`Session` 没有共享枚举 API），
+         * 要走 RPC 得再加 `smbj-rpc` 依赖、手写 NDR 结构 —— 为选一个共享名引入这些
+         * 不划算，且那条链路一旦协议细节不对就是难查的静默失败。
+         *
+         * 所以共享名**手填**，浏览器从共享根目录开始 —— 用户要选的"文件夹"
+         * 本来就在共享内部，那一层照常可以点选。
+         *
+         * [share] 为空时由调用方先要求填写，这里直接返回空。
+         */
         const val TIMEOUT_SECONDS = 30L
 
         /** `FileAttributes.Directory` 的位值；SMBJ 这里给的是原始属性字，按位与 */
         const val DIRECTORY_ATTR = 0x10L
+    }
+}
+
+/**
+ * 「选择 SMB 目录」用的列目录入口。
+ *
+ * 与 [SmbjReader.list] 的区别：这是给**填表阶段**用的（连接还没保存），
+ * 用完就把连接关掉，不留在 `SmbStreamProxy` 的缓存里。
+ *
+ * ## 为什么没有「列出共享」这一步
+ *
+ * 列服务器上的共享名要走 `IPC$` + 一次 DCE/RPC `NetShareEnum`。
+ * 本项目只依赖 `smbj`（它的 `Connection` / `Session` 都没有共享枚举 API），
+ * 要补得再加 `smbj-rpc` 依赖并手写 NDR 结构 —— 为选一个共享名引入这些不划算，
+ * 而且那条链路一旦协议细节不对，就是很难查的静默失败。
+ *
+ * 所以共享名**手填**，浏览器从共享根目录开始 —— 用户要选的"文件夹"本来就在共享内部，
+ * 那一层照常可以逐级点选。这也正是 Android 此前完全缺失的能力。
+ */
+object SmbBrowser {
+
+    /**
+     * @param target 只用到 host / port / 账号 / 域名 / share，`remotePath` 不参与
+     * @param dir 共享内相对路径（`\` 分隔、以 `\` 开头；空串等同根目录）
+     */
+    fun listDirs(target: SmbTarget, dir: String): List<RemoteFile> {
+        if (target.share.isBlank()) return emptyList()
+        val reader = SmbjReader(target)
+        return try {
+            reader.list(dir)
+        } finally {
+            runCatching { reader.close() }
+        }
     }
 }

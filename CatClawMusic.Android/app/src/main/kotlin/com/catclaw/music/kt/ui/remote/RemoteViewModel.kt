@@ -36,6 +36,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.catclaw.music.kt.data.smb.SmbTarget
+import com.catclaw.music.kt.data.smb.SmbBrowser
+import com.catclaw.music.kt.core.smb.SmbPath
 
 /**
  * 远程页要给用户看的一句话。
@@ -168,6 +171,67 @@ class RemoteViewModel @Inject constructor(
 
     fun closeWebDavBrowser() {
         _browse.value = null
+    }
+
+    /**
+     * SMB 版目录浏览：从**共享根目录**开始逐层点选。
+     *
+     * ## 与 WebDAV 版的区别
+     *
+     * - 路径是**共享内相对路径**，以 `\` 分隔（SMB 的规矩），不是服务器绝对 URL；
+     *   确认后写进 `BasePath` 的也是这个形式，导入时 `SmbTarget.remotePath` 直接吃。
+     * - 没有 "探测前缀" 这一步：SMB 没有 `/dav` 那种魔改前缀，共享名一旦对了根目录就是根目录。
+     *
+     * ## 为什么不做「列出共享」
+     *
+     * 列共享要走 `IPC$` + DCE/RPC `NetShareEnum`，得额外引 `smbj-rpc`。
+     * 共享名仍在表单里手填；这里负责的是**共享内部的文件夹选择** ——
+     * 那正是之前缺的东西（SMB 之前连一个目录都选不了）。
+     *
+     * 共享名没填时直接报错引导用户，而不是列出一个空的"根"让人以为服务器是空的。
+     */
+    fun browseSmb(profile: ConnectionProfile, path: String) {
+        val shareName = profile.shareName.orEmpty().trim()
+        if (shareName.isBlank()) {
+            _browse.value = RemoteBrowser(
+                path = path,
+                dirs = emptyList(),
+                busy = false,
+                error = "请先填写 SMB 共享名（如 music），再选择目录",
+            )
+            return
+        }
+        _browse.value = RemoteBrowser(path, emptyList(), busy = true, error = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            val outcome = runCatching {
+                val target = SmbTarget(
+                    host = profile.host.trim(),
+                    port = profile.port,
+                    user = profile.userName,
+                    password = profile.password,
+                    domain = profile.domainName.orEmpty(),
+                    share = shareName,
+                )
+                val at = SmbPath.normalize(path)
+                SmbBrowser.listDirs(target, at)
+                    .filter { it.isDirectory }
+                    .sortedBy { it.name.lowercase() }
+                    .let { at to it }
+            }
+            withContext(Dispatchers.Main) {
+                _browse.value = outcome.fold(
+                    onSuccess = { (at, dirs) -> RemoteBrowser(at, dirs, busy = false, error = null) },
+                    onFailure = {
+                        RemoteBrowser(
+                            path,
+                            emptyList(),
+                            busy = false,
+                            error = it.message ?: "无法访问共享 $shareName",
+                        )
+                    },
+                )
+            }
+        }
     }
 
     private val _message = MutableStateFlow<RemoteMessage?>(null)

@@ -65,6 +65,7 @@ import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.draw.scale
+import com.catclaw.music.kt.core.smb.SmbPath
 
 /** 远程音源页 —— 内容不变，外观对齐本 App 的玻璃卡语言（Hero 头 + 分区玻璃卡 + 胶囊按钮） */
 @OptIn(ExperimentalLayoutApi::class)
@@ -130,21 +131,30 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
     // 目录浏览器是整屏层：它画了自己的返回块，系统返回键要退这一层，不是弹掉整页
     BackHandler(enabled = browse != null) { viewModel.closeWebDavBrowser() }
     browse?.let { panel ->
+        // 按协议分派：WebDAV 走 URL 前缀探测那套，SMB 走共享内相对路径。
+        // 两者路径语义不同（"/Music" vs "\专辑"），不能合成一个函数。
+        val isSmb = protocol == ProtocolType.SMB.name
+        fun go(path: String) {
+            if (isSmb) viewModel.browseSmb(buildDraft(), path) else viewModel.browseWebDav(buildDraft(), path)
+        }
         RemoteBrowserPanel(
             panel = panel,
-            onEnter = { viewModel.browseWebDav(buildDraft(), it.path) },
-            // 上一级：把路径最后一段切掉。根目录（"/" 或空）时不给这个按钮
-            onUp = {
-                val parent = panel.path.trimEnd('/').substringBeforeLast('/', "")
-                viewModel.browseWebDav(buildDraft(), parent.ifEmpty { "/" })
-            },
+            onEnter = { go(it.path) },
+            // 上一级：SMB 用反斜杠层级，WebDAV 用 URL 层级 —— 两套分隔符不能混用
+            onUp = { go(if (isSmb) SmbPath.parent(panel.path) else panel.path.trimEnd('/').substringBeforeLast('/', "")) },
             onPick = {
                 // 选的是**人现在站的这一层**，不是某个子目录：走进去看到里面全是歌，
-                // 再说"就要这个"，确认的语义才跟着动作
-                basePath = panel.path.trimEnd('/').ifEmpty { "/" }
+                // 再说"就要这个"，确认的语义才跟着动作。
+                // SMB 写进 BasePath 的是共享内相对路径（\专辑），导入时直接吃。
+                basePath = if (isSmb) {
+                    SmbPath.normalize(panel.path)
+                } else {
+                    panel.path.trimEnd('/').ifEmpty { "/" }
+                }
                 viewModel.closeWebDavBrowser()
             },
             onClose = { viewModel.closeWebDavBrowser() },
+            smb = isSmb,
         )
         return
     }
@@ -227,9 +237,10 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         GlassField(value = domain, onValue = { domain = it }, label = stringResource(R.string.SmbDomain), modifier = Modifier.weight(1f))
                     }
                 }
-                // 只有 WebDAV 有"目录"这个概念：Subsonic/猫爪服务器给的是曲库不是路径树，
-                // 摆在这几档上会是一个填了没用的格子
-                if (protocol == ProtocolType.WebDAV.name) {
+                // WebDAV 与 SMB 都有"目录"这个概念，都该能点选。
+                // （Navidrome 不给 —— Subsonic 给的是曲库不是路径树，摆出来就是填了没用的格子。
+                //   MAUI 那边这一行是 `IsNavidromeForm` 取反，同样是这两档。）
+                if (protocol == ProtocolType.WebDAV.name || protocol == ProtocolType.SMB.name) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlassField(
@@ -240,7 +251,13 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         )
                         PillLabel(
                             text = stringResource(R.string.remote_browse),
-                            onClick = { viewModel.browseWebDav(buildDraft(), basePath.ifBlank { "/" }) },
+                            onClick = {
+                                if (protocol == ProtocolType.SMB.name) {
+                                    viewModel.browseSmb(buildDraft(), basePath)
+                                } else {
+                                    viewModel.browseWebDav(buildDraft(), basePath.ifBlank { "/" })
+                                }
+                            },
                             filled = false,
                         )
                     }
@@ -710,12 +727,17 @@ internal fun RemoteBrowserPanel(
     onUp: () -> Unit,
     onPick: () -> Unit,
     onClose: () -> Unit,
+    /**
+     * 是不是 SMB。只影响两处：根目录的判据与分隔符。
+     * 两种协议的路径语义不同，合成一套判断会在边界上错（`\` 不是 `/` 的子串）。
+     */
+    smb: Boolean = false,
 ) {
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
-    val here = panel.path.trimEnd('/')
-    val atRoot = here.isEmpty() || here == "/"
+    val here = if (smb) SmbPath.normalize(panel.path) else panel.path.trimEnd('/')
+    val atRoot = if (smb) SmbPath.isRoot(panel.path) else (here.isEmpty() || here == "/")
 
     Column(
         modifier = Modifier
