@@ -380,6 +380,8 @@
     <string name="remote_base_path">远端目录（BasePath）</string>
     <string name="remote_browse">浏览目录</string>
     <string name="remote_browse_title">远端目录</string>
+    <string name="remote_pick_share">选择共享</string>
+    <string name="remote_pick_share_hint">点一个共享名，自动填入表单</string>
     <string name="remote_browse_up">上一级</string>
     <string name="remote_browse_loading">正在读取目录…</string>
     <string name="remote_browse_none">这一层没有子目录</string>

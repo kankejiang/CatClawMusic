@@ -380,6 +380,8 @@ Download it from GitHub.</string>
     <string name="remote_base_path">Remote folder (BasePath)</string>
     <string name="remote_browse">Browse</string>
     <string name="remote_browse_title">Remote folders</string>
+    <string name="remote_pick_share">Pick a share</string>
+    <string name="remote_pick_share_hint">Tap a share — it fills the form for you</string>
     <string name="remote_browse_up">Up</string>
     <string name="remote_browse_loading">Listing…</string>
     <string name="remote_browse_none">No subfolders here</string>

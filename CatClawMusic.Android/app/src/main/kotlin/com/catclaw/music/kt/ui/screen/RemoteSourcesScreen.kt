@@ -139,7 +139,16 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
         }
         RemoteBrowserPanel(
             panel = panel,
-            onEnter = { go(it.path) },
+            onEnter = { file ->
+                if (isSmb && panel.pickingShare) {
+                    // 点的是共享名（`\\name`）：填回表单并进入该共享根目录
+                    val shareName = file.path.trimStart('\\')
+                    share = shareName
+                    viewModel.pickSmbShare(buildDraft().copy(shareName = shareName), shareName)
+                } else {
+                    go(file.path)
+                }
+            },
             // 上一级：SMB 用反斜杠层级，WebDAV 用 URL 层级 —— 两套分隔符不能混用
             onUp = { go(if (isSmb) SmbPath.parent(panel.path) else panel.path.trimEnd('/').substringBeforeLast('/', "")) },
             onPick = {
@@ -749,16 +758,27 @@ internal fun RemoteBrowserPanel(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BackTile(onBack = onClose, description = stringResource(R.string.GoBack))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(text = stringResource(R.string.remote_browse_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = primary)
                 Text(
-                    text = panel.path.ifEmpty { "/" },
+                    text = stringResource(
+                        if (panel.pickingShare) R.string.remote_pick_share else R.string.remote_browse_title,
+                    ),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primary,
+                )
+                Text(
+                    text = if (panel.pickingShare) {
+                        stringResource(R.string.remote_pick_share_hint)
+                    } else {
+                        panel.path.ifEmpty { "/" }
+                    },
                     fontSize = 12.sp,
                     color = secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!atRoot) {
+            if (!atRoot && !panel.pickingShare) {
                 PillLabel(text = stringResource(R.string.remote_browse_up), onClick = onUp, filled = false)
             }
         }
@@ -821,8 +841,11 @@ internal fun RemoteBrowserPanel(
             }
         }
         Spacer(Modifier.height(14.dp))
-        // 确认按钮排在最后：上面那串列表是"走进去看看"，这一颗才是"就定在这层"
-        PillLabel(text = stringResource(R.string.remote_browse_pick), onClick = onPick, filled = true)
+        // 确认按钮排在最后：上面那串列表是"走进去看看"，这一颗才是"就定在这层"。
+        // 选共享阶段不显示 —— 那时还没进任何共享，没有"这层目录"可定。
+        if (!panel.pickingShare) {
+            PillLabel(text = stringResource(R.string.remote_browse_pick), onClick = onPick, filled = true)
+        }
         Spacer(Modifier.height(120.dp))
     }
 }

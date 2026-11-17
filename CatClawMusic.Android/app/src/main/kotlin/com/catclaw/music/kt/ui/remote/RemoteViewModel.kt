@@ -129,7 +129,19 @@ class RemoteViewModel @Inject constructor(
      * WebDAV 目录浏览的一层状态。表单里那格 BasePath 此前只能手打，
      * 打错一个字符就是"连得上却导不到歌"，所以给它一个逐层点选出来的入口。
      */
-    data class RemoteBrowser(val path: String, val dirs: List<RemoteFile>, val busy: Boolean, val error: String?)
+    data class RemoteBrowser(
+        val path: String,
+        val dirs: List<RemoteFile>,
+        val busy: Boolean,
+        val error: String?,
+        /**
+         * SMB 专用：正在选**共享**（而不是共享内的目录）。
+         *
+         * 共享名不必先手填 —— 打开浏览器时若还没定共享，先列出来让用户点一个，
+         * 点完自动填进表单再进目录树。这是 MAUI 的行为，也是所有 SMB 客户端的常规做法。
+         */
+        val pickingShare: Boolean = false,
+    )
 
     private val _browse = MutableStateFlow<RemoteBrowser?>(null)
     val browse: StateFlow<RemoteBrowser?> = _browse.asStateFlow()
@@ -174,65 +186,83 @@ class RemoteViewModel @Inject constructor(
     }
 
     /**
-     * SMB 版目录浏览：从**共享根目录**开始逐层点选。
+     * SMB 浏览。**共享名不是必填项**：
      *
-     * ## 与 WebDAV 版的区别
+     * - 表单里已填共享名 → 直接进共享根目录，逐级选文件夹。
+     * - 没填 → 先列出服务器上的共享（[SmbBrowser.listShares]），点一个自动填进表单，
+     *   再进该共享内部选目录。这正是 MAUI 的行为（`IsShare` 那一档），
+     *   也是所有 SMB 客户端的常规做法 —— 用户不该被迫先知道共享叫什么。
      *
-     * - 路径是**共享内相对路径**，以 `\` 分隔（SMB 的规矩），不是服务器绝对 URL；
-     *   确认后写进 `BasePath` 的也是这个形式，导入时 `SmbTarget.remotePath` 直接吃。
-     * - 没有 "探测前缀" 这一步：SMB 没有 `/dav` 那种魔改前缀，共享名一旦对了根目录就是根目录。
-     *
-     * ## 为什么不做「列出共享」
-     *
-     * 列共享要走 `IPC$` + DCE/RPC `NetShareEnum`，得额外引 `smbj-rpc`。
-     * 共享名仍在表单里手填；这里负责的是**共享内部的文件夹选择** ——
-     * 那正是之前缺的东西（SMB 之前连一个目录都选不了）。
-     *
-     * 共享名没填时直接报错引导用户，而不是列出一个空的"根"让人以为服务器是空的。
+     * 路径是**共享内相对路径**（`\` 分隔），与 WebDAV 的服务器绝对 URL 是两套语义。
      */
     fun browseSmb(profile: ConnectionProfile, path: String) {
-        val shareName = profile.shareName.orEmpty().trim()
-        if (shareName.isBlank()) {
-            _browse.value = RemoteBrowser(
-                path = path,
-                dirs = emptyList(),
-                busy = false,
-                error = "请先填写 SMB 共享名（如 music），再选择目录",
-            )
-            return
-        }
-        _browse.value = RemoteBrowser(path, emptyList(), busy = true, error = null)
+        val target = SmbTarget(
+            host = profile.host.trim(),
+            port = profile.port,
+            user = profile.userName,
+            password = profile.password,
+            domain = profile.domainName.orEmpty(),
+            share = profile.shareName.orEmpty().trim(),
+        )
+        val at = SmbPath.normalize(path)
+        _browse.value = RemoteBrowser(at, emptyList(), busy = true, error = null)
         viewModelScope.launch(Dispatchers.IO) {
             val outcome = runCatching {
-                val target = SmbTarget(
-                    host = profile.host.trim(),
-                    port = profile.port,
-                    user = profile.userName,
-                    password = profile.password,
-                    domain = profile.domainName.orEmpty(),
-                    share = shareName,
-                )
-                val at = SmbPath.normalize(path)
-                SmbBrowser.listDirs(target, at)
-                    .filter { it.isDirectory }
-                    .sortedBy { it.name.lowercase() }
-                    .let { at to it }
+                if (target.share.isBlank()) {
+                    // 还没定共享：把能探到的共享列出来。候选里带上从当前路径猜的词，
+                    // 用户若粘过 smb://host/music/... 那个 music 会排在前面。
+                    val candidates = listOfNotNull(SmbBrowser.guessShare(path).ifEmpty { null })
+                    val shares = SmbBrowser.listShares(target, candidates)
+                    shares.map { name ->
+                        RemoteFile(
+                            name = name,
+                            // 共享用 `\\name` 表示，和共享内目录（`\dir`）区分开，
+                            // 点进去时据此判断该填共享名还是该进目录。
+                            path = "\\\\$name",
+                            isDirectory = true,
+                        )
+                    } to true
+                } else {
+                    val (_, dirs) = SmbBrowser.listDirs(target, at)
+                    dirs.filter { it.isDirectory }
+                        .sortedBy { it.name.lowercase() } to false
+                }
             }
             withContext(Dispatchers.Main) {
                 _browse.value = outcome.fold(
-                    onSuccess = { (at, dirs) -> RemoteBrowser(at, dirs, busy = false, error = null) },
+                    onSuccess = { (items, picking) ->
+                        if (picking && items.isEmpty()) {
+                            RemoteBrowser(
+                                at, emptyList(), busy = false,
+                                error = "没能列出共享名，请在表单里手填（如 music）",
+                                pickingShare = true,
+                            )
+                        } else {
+                            RemoteBrowser(at, items, busy = false, error = null, pickingShare = picking)
+                        }
+                    },
                     onFailure = {
                         RemoteBrowser(
-                            path,
-                            emptyList(),
-                            busy = false,
-                            error = it.message ?: "无法访问共享 $shareName",
+                            at, emptyList(), busy = false,
+                            error = it.message ?: "无法访问 SMB 服务器",
+                            pickingShare = target.share.isBlank(),
                         )
                     },
                 )
             }
         }
     }
+
+    /**
+     * 在「选择共享」列表里点了一个共享名：写回表单字段并进入该共享根目录。
+     *
+     * 共享名必须落到表单里（而不是只存在浏览状态里）—— 用户确认后点保存时，
+     * `buildDraft()` 读的是表单字段，否则会存下一条没有共享名的连接。
+     */
+    fun pickSmbShare(profile: ConnectionProfile, shareName: String) {
+        browseSmb(profile.copy(shareName = shareName), SmbPath.ROOT)
+    }
+
 
     private val _message = MutableStateFlow<RemoteMessage?>(null)
     val message: StateFlow<RemoteMessage?> = _message
