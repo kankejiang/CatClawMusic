@@ -226,6 +226,8 @@ fun LibraryScreen(
     }
     val palette = LocalCatClawPalette.current
     val songs by viewModel.songs.collectAsStateWithLifecycle()
+    // 网络曲库那行的计数（受「停用连接」影响，和点进去看到的列表一致）
+    val networkSongCount by viewModel.networkSongCount.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
@@ -344,6 +346,17 @@ fun LibraryScreen(
                 name = stringResource(R.string.lib_local_name),
                 subtitle = stringResource(R.string.playlist_count, songs.size),
                 onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Local) },
+            ),
+            // 网络曲库：本地曲库的镜像入口，直接看**网络来的歌**。
+            //
+            // 之前只有「远程音乐服务」那一行（跳配置页），用户想"看网络歌"得先进配置、
+            // 或者去全部歌曲里再点一次来源筛选。MAUI 的资料库就是「本地音乐库 / 网络音乐库」
+            // 并列两张卡，这里对齐。
+            LibrarySourceRow(
+                iconRes = R.drawable.ic_network_library,
+                name = stringResource(R.string.lib_network_name),
+                subtitle = stringResource(R.string.playlist_count, networkSongCount),
+                onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Network) },
             ),
             LibrarySourceRow(
                 iconRes = R.drawable.ic_favorite,

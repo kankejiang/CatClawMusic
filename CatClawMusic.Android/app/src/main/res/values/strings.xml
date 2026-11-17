@@ -21,6 +21,7 @@
     <string name="lib_stat_hours">小时</string>
     <string name="lib_sources_title">资料库</string>
     <string name="lib_local_name">本地曲库</string>
+    <string name="lib_network_name">网络曲库</string>
     <string name="lib_favorites_name">我喜欢的</string>
     <string name="disc_greeting_morning">早上好，为你精选晨间好歌</string>
     <string name="disc_greeting_afternoon">下午好，为你精选午后好歌</string>

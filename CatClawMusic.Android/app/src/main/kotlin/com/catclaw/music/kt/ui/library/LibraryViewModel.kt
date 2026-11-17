@@ -220,6 +220,18 @@ class LibraryViewModel @Inject constructor(
         .map<Set<Int>, Set<Int>?> { it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** 网络曲库一行的计数：全部曲里 Source != 0 的部分，且同样受「停用连接」影响 */
+    val networkSongCount: StateFlow<Int> = combine(
+        library.allSongs,
+        enabledProtocols,
+    ) { list, protocols ->
+        if (protocols == null) {
+            list.count { it.source != 0 }
+        } else {
+            list.count { row -> row.source != 0 && protocols.contains(row.protocol) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     val displayAllSongs: StateFlow<List<SongListItem>> =
         combine(
             allSongs,

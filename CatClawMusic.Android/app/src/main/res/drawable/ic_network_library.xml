@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    「网络曲库」入口图标：云 + 音符。
+    和「远程音乐服务」那行（纯云朵，表示"配置连接"）区分开 ——
+    这里是"看网络来的歌"，要能一眼看出和音乐有关。
+
+    24dp 网格、1.8 描边，与 ic_library / ic_favorite 等同一套视觉重量。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 云朵轮廓 -->
+    <path
+        android:pathData="M7,17h9.5a3.5,3.5 0,0 0,0 -7,5 5,0 0,0 -9.6,-1.2A3.6,3.6 0,0 0,7 17z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+    <!-- 云下一颗音符，表明这是曲库而不是纯网络 -->
+    <path
+        android:pathData="M11,20.5v-3"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M11,17.5l3,-0.9v3"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+</vector>

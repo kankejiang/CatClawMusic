@@ -21,6 +21,7 @@
     <string name="lib_stat_hours">Hours</string>
     <string name="lib_sources_title">Libraries</string>
     <string name="lib_local_name">Local library</string>
+    <string name="lib_network_name">Network library</string>
     <string name="lib_favorites_name">Favorites</string>
     <string name="disc_greeting_morning">Good morning — picked for your morning</string>
     <string name="disc_greeting_afternoon">Good afternoon — picked for your afternoon</string>
