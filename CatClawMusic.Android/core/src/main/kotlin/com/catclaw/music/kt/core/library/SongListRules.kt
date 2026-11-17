@@ -194,3 +194,62 @@ object ConnectionFilter {
         return out
     }
 }
+
+/**
+ * 「按网络服务来源筛选」—— 只看某一类协议（WebDAV / Navidrome / SMB）的曲目。
+ *
+ * 和 [SongSourceFilter]（全部/本地/网络）是两个维度：
+ * - `SongSourceFilter` 分**本地 vs 网络**；
+ * - 这个再细分**网络里是哪一种服务**。
+ *
+ * ## 为什么按协议而不是按连接
+ *
+ * `Songs` 表只有 `Protocol`（协议类型），没有「来自哪条连接」的列 —— 那张表必须与
+ * MAUI 线上库逐列一致（`SchemaParityTest` 钉着 17 张表的每一列）。所以粒度只能是协议级：
+ * 同一协议配了两条连接时，这个筛选会把它们**一起**显示。这与「停用连接」的过滤是同一档粒度，
+ * 两个筛选叠在一起不会互相矛盾。
+ */
+enum class NetworkProtocolFilter(
+    /** 对应的 `ProtocolType.ordinal`；null 表示"不限" */
+    val protocolOrdinal: Int?,
+) {
+    All(null),
+    WebDAV(0),
+    Navidrome(1),
+    SMB(2),
+    ;
+
+    /**
+     * @param protocol `ProtocolType.ordinal`
+     * @param source `SongSource.ordinal`（本地/缓存没有网络服务归属，选具体协议时一律不显示）
+     */
+    fun accepts(protocol: Int, source: Int): Boolean {
+        val want = protocolOrdinal ?: return true
+        if (ConnectionFilter.isConnectionFree(source)) return false
+        return protocol == want
+    }
+
+    companion object {
+        /**
+         * 由 `ProtocolType.ordinal` 反查筛选档，用于「当前列表里有哪些协议」这类场景。
+         *
+         * 这里**显式按 ordinal 匹配**而不是靠枚举相邻：`ProtocolType` 与
+         * [NetworkProtocolFilter] 是两套枚举，靠 `ordinal ± 1` 对齐太脆
+         * （任一边插一项就静默错位）。`NetworkProtocolFilterTest` 钉住这层对应。
+         */
+        fun of(protocolOrdinal: Int): NetworkProtocolFilter =
+            entries.firstOrNull { it.protocolOrdinal == protocolOrdinal } ?: All
+    }
+}
+
+/** 泛型版：调用方给投影，`:core` 不认 `:data` 的行类型 */
+fun <T> filterByNetworkProtocol(
+    rows: List<T>,
+    filter: NetworkProtocolFilter,
+    protocolOf: (T) -> Int,
+    sourceOf: (T) -> Int,
+): List<T> = if (filter == NetworkProtocolFilter.All) {
+    rows
+} else {
+    rows.filter { filter.accepts(protocolOf(it), sourceOf(it)) }
+}

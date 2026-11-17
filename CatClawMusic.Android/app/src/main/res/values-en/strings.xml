@@ -491,6 +491,10 @@ Download it from GitHub.</string>
     <string name="song_source_all">All</string>
     <string name="song_source_local">Local</string>
     <string name="song_source_network">Network</string>
+    <string name="net_proto_all">All services</string>
+    <string name="net_proto_webdav">WebDAV</string>
+    <string name="net_proto_navidrome">Navidrome</string>
+    <string name="net_proto_smb">SMB</string>
 
     <!-- 备份内容勾选（MAUI 的选项对话框只摆了其中四项） -->
     <string name="backup_items_title">Choose backup content</string>

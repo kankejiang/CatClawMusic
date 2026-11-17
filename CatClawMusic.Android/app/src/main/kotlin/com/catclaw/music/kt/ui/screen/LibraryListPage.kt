@@ -100,6 +100,7 @@ import com.catclaw.music.kt.ui.theme.isLightPalette
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.badgeTintOn
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.core.library.NetworkProtocolFilter
 
 /** 音乐库统计格点进来的独立列表页（歌曲/收藏/最近/艺人/专辑），从 LibraryScreen.kt 拆出 */
 @Composable
@@ -129,6 +130,8 @@ fun LibraryListScreen(
     val query by viewModel.songQuery.collectAsStateWithLifecycle()
     // 全部歌曲页的来源筛选与它真正显示的那份列表（含网络曲）
     val songSource by viewModel.songSource.collectAsStateWithLifecycle()
+    // 网络服务来源（WebDAV / Navidrome / SMB），入口在「⋯」菜单里
+    val songProtocol by viewModel.songProtocol.collectAsStateWithLifecycle()
     val displayAll by viewModel.displayAllSongs.collectAsStateWithLifecycle()
     // 艺人页与专辑页共用一个搜索词，换页要清掉：留着上一张页的关键词，
     // 新页看起来像是「什么都没有」
@@ -185,6 +188,18 @@ fun LibraryListScreen(
                 label = stringResource(sourceFilterLabelRes(mode)),
                 selected = songSource == mode,
                 onClick = { viewModel.setSongSource(mode) },
+            )
+        }
+    } else emptyList()
+    // 「网络服务来源」筛选：只在看网络曲时才有意义。
+    // 放进「⋯」更多菜单（chipGroups），不占常驻区 —— 它不像本地/网络那样每次都要切，
+    // 常驻会把排序挤下去。仅在 songSource 不是「本地」时显示。
+    val protocolChips = if (kind == LibraryKind.Songs && songSource != SongSourceFilter.Local) {
+        NetworkProtocolFilter.entries.map { mode ->
+            CollectionChip(
+                label = stringResource(networkProtocolLabelRes(mode)),
+                selected = songProtocol == mode,
+                onClick = { viewModel.setSongProtocol(mode) },
             )
         }
     } else emptyList()
@@ -248,11 +263,14 @@ fun LibraryListScreen(
                 ),
             )
         } ?: emptyList(),
-        // 来源筛选走 pinnedChips（常驻顶栏下方），排序留在 chipGroups（进「⋯」菜单）。
+        // 来源筛选走 pinnedChips（常驻顶栏下方），排序与网络来源留在 chipGroups（进「⋯」菜单）。
         // 两者分开传，不靠位置约定 —— 从「本地曲库」进来时来源筛为空，
         // 若仍按"第一组"取，排序组就会顶上来被画到顶栏下面。
         pinnedChips = sourceChips,
-        chipGroups = listOfNotNull(sortChips.takeIf { it.isNotEmpty() }),
+        chipGroups = listOfNotNull(
+            protocolChips.takeIf { it.isNotEmpty() },
+            sortChips.takeIf { it.isNotEmpty() },
+        ),
         search = collectionSearch,
         trailing = {
             when (kind) {

@@ -101,6 +101,7 @@ import com.catclaw.music.kt.ui.theme.isLightPalette
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.badgeTintOn
 import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.core.library.NetworkProtocolFilter
 
 /**
  * 音乐库 —— 照 MAUI `LibraryPage.xaml` 做成**枢纽页**：Hero 卡 + 4 个统计格 + 资料库列表。
@@ -1190,6 +1191,20 @@ internal fun sourceFilterLabelRes(filter: SongSourceFilter): Int = when (filter)
     SongSourceFilter.All -> R.string.song_source_all
     SongSourceFilter.Local -> R.string.song_source_local
     SongSourceFilter.Network -> R.string.song_source_network
+}
+
+/**
+ * 「网络服务来源」chip 的文案。四档都有，所以 `when` 不带 else —— 加一档编译就会停在这。
+ *
+ * 用协议**全名**而不是徽章上那种缩写（DAV/NDR）：菜单里一行一个、空间够，
+ * 而缩写只有配着彩色徽章才认得出。
+ */
+@StringRes
+internal fun networkProtocolLabelRes(filter: NetworkProtocolFilter): Int = when (filter) {
+    NetworkProtocolFilter.All -> R.string.net_proto_all
+    NetworkProtocolFilter.WebDAV -> R.string.net_proto_webdav
+    NetworkProtocolFilter.Navidrome -> R.string.net_proto_navidrome
+    NetworkProtocolFilter.SMB -> R.string.net_proto_smb
 }
 
 /** 排序 chip 的文案。五档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
