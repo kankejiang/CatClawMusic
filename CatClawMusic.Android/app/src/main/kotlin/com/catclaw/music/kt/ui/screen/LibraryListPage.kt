@@ -248,10 +248,11 @@ fun LibraryListScreen(
                 ),
             )
         } ?: emptyList(),
-        chipGroups = listOfNotNull(
-            sourceChips.takeIf { it.isNotEmpty() },
-            sortChips.takeIf { it.isNotEmpty() },
-        ),
+        // 来源筛选走 pinnedChips（常驻顶栏下方），排序留在 chipGroups（进「⋯」菜单）。
+        // 两者分开传，不靠位置约定 —— 从「本地曲库」进来时来源筛为空，
+        // 若仍按"第一组"取，排序组就会顶上来被画到顶栏下面。
+        pinnedChips = sourceChips,
+        chipGroups = listOfNotNull(sortChips.takeIf { it.isNotEmpty() }),
         search = collectionSearch,
         trailing = {
             when (kind) {

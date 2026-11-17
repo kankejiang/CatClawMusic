@@ -122,6 +122,17 @@ fun SongCollectionScreen(
     cover: CollectionCover? = null,
     actions: List<CollectionAction> = emptyList(),
     chipGroups: List<List<CollectionChip>> = emptyList(),
+    /**
+     * 常驻在顶栏下方、不随页头收起、也不进「⋯」菜单的一组 chip。
+     *
+     * 目前只用于「全部歌曲」页的来源筛选（全部/本地/网络）—— 那个区分用户必须一眼看到，
+     * 藏进二级菜单等于没有。传空则不占位。
+     *
+     * 为什么单独一个参数、而不是约定「chipGroups 的第一组」：那样会依赖位置假设。
+     * 一旦上游少传一组（比如从「本地曲库」进来时隐藏了来源筛选），排序组就会顶上来
+     * 被当成常驻组画到顶栏下面 —— 真机上出过这个错。
+     */
+    pinnedChips: List<CollectionChip> = emptyList(),
     search: CollectionSearch? = null,
     trailing: @Composable () -> Unit = {},
     // 必须是最后一个参数：调用方用 SongCollectionScreen(...) { 列表 } 的尾随 lambda
@@ -131,12 +142,12 @@ fun SongCollectionScreen(
     if (landscape) {
         CollectionLandscape(
             title, countText, onBack, content, modifier,
-            subtitle, cover, actions, chipGroups, search, trailing,
+            subtitle, cover, actions, chipGroups, pinnedChips, search, trailing,
         )
     } else {
         CollectionPortrait(
             title, countText, onBack, content, modifier,
-            subtitle, cover, actions, chipGroups, search, trailing,
+            subtitle, cover, actions, chipGroups, pinnedChips, search, trailing,
         )
     }
 }
@@ -166,6 +177,7 @@ private fun CollectionLandscape(
     cover: CollectionCover?,
     actions: List<CollectionAction>,
     chipGroups: List<List<CollectionChip>>,
+    pinnedChips: List<CollectionChip>,
     search: CollectionSearch?,
     trailing: @Composable () -> Unit,
 ) {
@@ -229,10 +241,28 @@ private fun CollectionLandscape(
                     compact = true,
                 )
             }
-            // 页头里只画**第二组起**的 chips（排序）。
-            // 第一组是「全部 / 本地 / 网络」来源筛选 —— 它被提到页头外常驻显示了：
-            // 收进「⋯」菜单里等于用户不知道能筛，看到的就是「网络歌混在本地库里」。
-            chipGroups.drop(1).filter { it.isNotEmpty() }.forEach { group ->
+            // 横屏这一列本来就在屏幕上常驻，所以来源筛选（pinnedChips）与排序组都放这里，
+            // 不需要再区分"常驻/菜单"——那是竖屏为了省纵向空间才做的取舍。
+            pinnedChips.takeIf { it.isNotEmpty() }?.let { sourceGroup ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    sourceGroup.forEach { chip ->
+                        GlassChip(
+                            label = chip.label,
+                            selected = chip.selected,
+                            onClick = chip.onClick,
+                            compact = true,
+                        )
+                    }
+                }
+            }
+            // 排序组
+            chipGroups.filter { it.isNotEmpty() }.forEach { group ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -301,6 +331,7 @@ private fun CollectionPortrait(
     cover: CollectionCover?,
     actions: List<CollectionAction>,
     chipGroups: List<List<CollectionChip>>,
+    pinnedChips: List<CollectionChip>,
     search: CollectionSearch?,
     trailing: @Composable () -> Unit,
 ) {
@@ -395,8 +426,9 @@ private fun CollectionPortrait(
                                     )
                                     .padding(vertical = 6.dp),
                             ) {
-                                // 来源筛选已常驻顶栏下方，菜单里只留排序组，避免同一项出现两处
-                                chipGroups.drop(1).filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
+                                // 「⋯」菜单只留排序组。来源筛选（pinnedChips）已常驻顶栏下方，
+                                // 不再进菜单，避免同一项出现两处。
+                                chipGroups.filter { it.isNotEmpty() }.forEachIndexed { groupIndex, group ->
                                     if (groupIndex > 0) {
                                         HorizontalDivider(
                                             color = Color(LocalCatClawPalette.current.textPrimary).copy(alpha = 0.10f),
@@ -441,13 +473,15 @@ private fun CollectionPortrait(
             }
             trailing()
         }
-        // 「全部 / 本地 / 网络」来源筛选**常驻在顶栏下方**，不随页头收起、也不进「⋯」菜单。
+        // pinnedChips **常驻在顶栏下方**，不随页头收起、也不进「⋯」菜单。
         //
-        // 为什么单独提出来：这页是「全部歌曲」，设计上就把本地与网络合在一起显示
-        // （MAUI 也这样）。但筛选器原先只存在于「⋯」弹出菜单里，用户看不到 ——
-        // 观感就成了「网络歌混进了本地音乐库」。这个区分是用户最需要一眼看到的，
-        // 不该藏在二级菜单里。
-        chipGroups.firstOrNull()?.takeIf { it.isNotEmpty() }?.let { sourceGroup ->
+        // 目前唯一的使用者是「全部歌曲」页的来源筛选（全部/本地/网络）：那一页设计上
+        // 就把本地与网络合在一起显示（MAUI 也这样），而这个区分是用户最需要一眼看到的，
+        // 藏进二级菜单等于没有 —— 观感就成了「网络歌混进了本地音乐库」。
+        //
+        // 用独立参数而不是「chipGroups 的第一组」：后者依赖位置假设。从「本地曲库」进来时
+        // 来源筛被隐藏、chipGroups 只剩排序组，排序就会顶到第 0 位被画到这里（真机踩过）。
+        if (pinnedChips.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -456,7 +490,7 @@ private fun CollectionPortrait(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                sourceGroup.forEach { chip ->
+                pinnedChips.forEach { chip ->
                     GlassChip(
                         label = chip.label,
                         selected = chip.selected,
