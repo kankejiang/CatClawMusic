@@ -199,26 +199,28 @@ class LibraryViewModel @Inject constructor(
     val songSource = _songSource.asStateFlow()
 
     fun setSongSource(filter: SongSourceFilter) {
+        // 网络服务来源始终有且只有一个值（没有"全部服务"这一档），所以切到「本地」时
+        // **不需要**清它：本地曲天然不匹配任何具体协议，列表照常显示本地全部。
         _songSource.value = filter
-        // 切到「本地」时把网络服务来源清掉：本地曲没有网络归属，
-        // 留着一个已选中的 Navidrome 筛选会让列表恒空，看起来像"本地曲库空了"。
-        if (filter == SongSourceFilter.Local) _songProtocol.value = NetworkProtocolFilter.All
     }
 
     /**
-     * 网络服务来源筛选（WebDAV / Navidrome / SMB），只在看网络曲时有意义。
+     * 正在看哪个网络服务（WebDAV / Navidrome / SMB）。
      *
-     * 与 [songSource] 是两个维度：那个分本地 vs 网络，这个再细分网络里是哪一种服务。
+     * 与 [songSource] 是两个维度：那个分本地 vs 网络，这个指定网络里用哪一种服务。
+     * 一次只有一个生效 —— 没有「全部服务」，因为把两个服务的歌混在一起
+     * 恰恰是这个筛选要解决的问题（同一份文件两个协议各导一遍，歌名完全一样）。
+     *
      * 入口在「⋯」更多菜单里 —— 它不是每次都要动的开关，放进常驻区会挤掉排序。
      */
-    private val _songProtocol = MutableStateFlow(NetworkProtocolFilter.All)
+    private val _songProtocol = MutableStateFlow(NetworkProtocolFilter.WebDAV)
     val songProtocol = _songProtocol.asStateFlow()
 
     fun setSongProtocol(filter: NetworkProtocolFilter) {
         _songProtocol.value = filter
-        // 选了具体服务说明用户想看网络曲：若当前停在「本地」就顺手切到「网络」，
-        // 否则选了 Navidrome 却因为停留在"本地"而一首都不显示。
-        if (filter != NetworkProtocolFilter.All && _songSource.value == SongSourceFilter.Local) {
+        // 选了某个服务说明用户想看网络曲：若当前停在「本地」就顺手切到「网络」，
+        // 否则选了 Navidrome 却因为停在"本地"而一首都不显示。
+        if (_songSource.value == SongSourceFilter.Local) {
             _songSource.value = SongSourceFilter.Network
         }
     }
@@ -291,14 +293,22 @@ class LibraryViewModel @Inject constructor(
                     protocolOf = { it.protocol },
                 )
             }
-            // 两个筛选叠加：先按本地/网络，再按具体网络服务。
-            // 后者在 source=Local 时恒空，所以 setSongSource(Local) 会把它清回 All。
-            filterByNetworkProtocol(
-                filterBySource(visible, source) { it.source },
-                protocolFilter,
-                protocolOf = { it.protocol },
-                sourceOf = { it.source },
-            )
+            // 两个筛选叠加：先按本地/网络，再按网络服务。
+            //
+            // 网络服务筛选**只对网络曲生效**：本地曲没有网络服务归属，
+            // 硬把它套上去会让「本地」变成空列表。所以 Local 时直接跳过这一步
+            // —— 这也是为什么切到「本地」不需要清空当前选中的服务。
+            val bySource = filterBySource(visible, source) { it.source }
+            if (source == SongSourceFilter.Local) {
+                bySource
+            } else {
+                filterByNetworkProtocol(
+                    bySource,
+                    protocolFilter,
+                    protocolOf = { it.protocol },
+                    sourceOf = { it.source },
+                )
+            }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val artists = library.artists.stateIn(

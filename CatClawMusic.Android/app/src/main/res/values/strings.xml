@@ -491,7 +491,6 @@
     <string name="song_source_all">全部</string>
     <string name="song_source_local">本地</string>
     <string name="song_source_network">网络</string>
-    <string name="net_proto_all">全部服务</string>
     <string name="net_proto_webdav">WebDAV</string>
     <string name="net_proto_navidrome">Navidrome</string>
     <string name="net_proto_smb">SMB</string>

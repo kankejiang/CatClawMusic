@@ -6,18 +6,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 「按网络服务来源筛选」的语义测试。
+ * 「网络服务来源」筛选的语义测试。
  *
- * 这套规则和 `ConnectionFilter` 是同一档粒度（协议级），两者叠在一起用。
- * 每一处写错都是静默的：不崩溃，只是"某些歌莫名消失"或"筛了 Navidrome 却看到 WebDAV"。
+ * 这个筛选**没有「全部服务」档**：一次只允许一个网络服务生效。
+ * 把两个服务混在一起恰恰是它要解决的问题（同一份文件两个协议各导一遍，歌名完全一样）。
+ *
+ * 想看"不分服务的全部网络曲"，用上级的 `SongSourceFilter.Network`。
  */
 class NetworkProtocolFilterTest {
 
     private data class Row(val id: Int, val source: Int, val protocol: Int)
 
-    /** 真机实测的三组：本地 10 / WebDAV 613(protocol=0) / Navidrome 613(protocol=1) */
+    /** 真机实测：本地 10 / WebDAV 613(protocol=0) / Navidrome 613(protocol=1) */
     private val rows = listOf(
-        Row(1, source = 0, protocol = 0),   // 本地曲（protocol 字段没用）
+        Row(1, source = 0, protocol = 0),   // 本地曲（protocol 字段无意义）
         Row(2, source = 1, protocol = 0),   // WebDAV 远程曲
         Row(3, source = 1, protocol = 1),   // Navidrome 远程曲
         Row(4, source = 3, protocol = 0),   // 缓存曲
@@ -31,13 +33,20 @@ class NetworkProtocolFilterTest {
     ).map { it.id }
 
     @Test
-    fun `All 不过滤任何行`() {
-        assertEquals(listOf(1, 2, 3, 4), filter(NetworkProtocolFilter.All))
+    fun `没有 全部服务 这一档`() {
+        // 枚举里只有三个具体服务 —— 加回 All 会让"一次只有一个生效"失去保证
+        assertEquals(
+            listOf(
+                NetworkProtocolFilter.WebDAV,
+                NetworkProtocolFilter.Navidrome,
+                NetworkProtocolFilter.SMB,
+            ),
+            NetworkProtocolFilter.entries.toList(),
+        )
     }
 
     @Test
-    fun `WebDAV 只留 WebDAV 远程曲，本地与缓存都不算`() {
-        // 本地曲(1)与缓存曲(4)的 protocol 也是 0，但它们没有网络服务归属 → 不显示
+    fun `WebDAV 只留 WebDAV 远程曲`() {
         assertEquals(listOf(2), filter(NetworkProtocolFilter.WebDAV))
     }
 
@@ -47,32 +56,35 @@ class NetworkProtocolFilterTest {
     }
 
     @Test
+    fun `两个服务的结果互斥且合起来等于全部网络曲`() {
+        val dav = filter(NetworkProtocolFilter.WebDAV)
+        val ndr = filter(NetworkProtocolFilter.Navidrome)
+        // 互斥：同一首歌不会同时出现在两个服务下
+        assertTrue(dav.intersect(ndr.toSet()).isEmpty())
+        // 合起来 = 全部远程曲（不含本地/缓存）
+        val allRemote = rows.filter { it.source != 0 && it.source != 3 }.map { it.id }
+        assertEquals(allRemote.toSet(), (dav + ndr).toSet())
+    }
+
+    @Test
     fun `没有该协议的曲时结果为空而不是全留`() {
-        // 真机没有 SMB 曲；筛 SMB 应得空列表，不能退化成"不过滤"
+        // 真机没有 SMB 曲；筛 SMB 应得空列表
         assertTrue(filter(NetworkProtocolFilter.SMB).isEmpty())
     }
 
     @Test
-    fun `本地曲永远不匹配具体协议`() {
-        for (mode in listOf(
-            NetworkProtocolFilter.WebDAV,
-            NetworkProtocolFilter.Navidrome,
-            NetworkProtocolFilter.SMB,
-        )) {
+    fun `本地曲永远不匹配任何具体服务`() {
+        for (mode in NetworkProtocolFilter.entries) {
             assertFalse("$mode 不应匹配本地曲", mode.accepts(protocol = 0, source = 0))
         }
     }
 
     @Test
-    fun `缓存曲永远不匹配具体协议`() {
+    fun `缓存曲永远不匹配任何具体服务`() {
         // 缓存曲 source=3，即使 protocol 字段是 0 也不该被 WebDAV 选中
-        assertFalse(NetworkProtocolFilter.WebDAV.accepts(protocol = 0, source = 3))
-    }
-
-    @Test
-    fun `All 对本地曲也返回 true`() {
-        assertTrue(NetworkProtocolFilter.All.accepts(protocol = 0, source = 0))
-        assertTrue(NetworkProtocolFilter.All.accepts(protocol = 9, source = 1))
+        for (mode in NetworkProtocolFilter.entries) {
+            assertFalse("$mode 不应匹配缓存曲", mode.accepts(protocol = 0, source = 3))
+        }
     }
 
     @Test
@@ -84,14 +96,13 @@ class NetworkProtocolFilterTest {
     }
 
     @Test
-    fun `of 遇到未知 ordinal 回落到 All 而不是抛异常`() {
-        assertEquals(NetworkProtocolFilter.All, NetworkProtocolFilter.of(99))
-        assertEquals(NetworkProtocolFilter.All, NetworkProtocolFilter.of(-1))
+    fun `of 遇到未知 ordinal 回落到 WebDAV 而不是抛异常`() {
+        assertEquals(NetworkProtocolFilter.WebDAV, NetworkProtocolFilter.of(99))
+        assertEquals(NetworkProtocolFilter.WebDAV, NetworkProtocolFilter.of(-1))
     }
 
     @Test
     fun `与 SongSourceFilter 叠加：网络 + Navidrome`() {
-        // 先按本地/网络，再按具体服务 —— ViewModel 里就是这个顺序
         val afterSource = filterBySource(rows, SongSourceFilter.Network) { it.source }
         val result = filterByNetworkProtocol(
             afterSource,
@@ -103,16 +114,17 @@ class NetworkProtocolFilterTest {
     }
 
     @Test
-    fun `与 SongSourceFilter 叠加：本地 + 任意协议 = 空`() {
-        // 这也是 setSongSource(Local) 必须把协议筛选清回 All 的原因：
-        // 留着它会让「本地曲库」恒空，看起来像曲库丢了
+    fun `与 SongSourceFilter 叠加：本地 应跳过网络服务筛选`() {
+        // ViewModel 在 source=Local 时**不做**网络服务筛选（否则本地曲库会恒空）。
+        // 这里钉住"如果硬套上去会变成空"这个事实，防止有人把跳过那一段删掉。
         val afterSource = filterBySource(rows, SongSourceFilter.Local) { it.source }
-        val result = filterByNetworkProtocol(
+        assertEquals(listOf(1L), afterSource.map { it.id.toLong() }) // 本地确实有 1 首
+        val forced = filterByNetworkProtocol(
             afterSource,
             NetworkProtocolFilter.WebDAV,
             protocolOf = { it.protocol },
             sourceOf = { it.source },
         )
-        assertTrue(result.isEmpty())
+        assertTrue("硬套网络服务筛选会清空本地曲库", forced.isEmpty())
     }
 }

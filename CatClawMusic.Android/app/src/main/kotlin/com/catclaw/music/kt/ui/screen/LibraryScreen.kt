@@ -1201,7 +1201,6 @@ internal fun sourceFilterLabelRes(filter: SongSourceFilter): Int = when (filter)
  */
 @StringRes
 internal fun networkProtocolLabelRes(filter: NetworkProtocolFilter): Int = when (filter) {
-    NetworkProtocolFilter.All -> R.string.net_proto_all
     NetworkProtocolFilter.WebDAV -> R.string.net_proto_webdav
     NetworkProtocolFilter.Navidrome -> R.string.net_proto_navidrome
     NetworkProtocolFilter.SMB -> R.string.net_proto_smb

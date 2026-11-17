@@ -196,24 +196,30 @@ object ConnectionFilter {
 }
 
 /**
- * 「按网络服务来源筛选」—— 只看某一类协议（WebDAV / Navidrome / SMB）的曲目。
+ * 「按网络服务来源筛选」—— 当前**只显示某一个网络服务**的曲目。
  *
- * 和 [SongSourceFilter]（全部/本地/网络）是两个维度：
- * - `SongSourceFilter` 分**本地 vs 网络**；
- * - 这个再细分**网络里是哪一种服务**。
+ * 和 [SongSourceFilter]（全部/本地/网络）是两个维度：那个分本地 vs 网络，
+ * 这个指定网络里用哪一种服务。
+ *
+ * ## 没有「全部服务」这一档
+ *
+ * 一次只允许一个网络服务生效。这不是省一个枚举值，而是行为上的约束：
+ * 「全部」会让两个服务的歌混在一起，而那正是这个筛选要解决的问题
+ * （同一份文件经 WebDAV 与 Navidrome 各导一遍，歌名一模一样、根本分不出来）。
+ *
+ * 默认 [WebDAV]：不指向任何一个就等于"没筛"，而这个筛选没有"不筛"的语义。
+ * 真要看不分服务的网络曲，用上级的 [SongSourceFilter.Network]。
  *
  * ## 为什么按协议而不是按连接
  *
  * `Songs` 表只有 `Protocol`（协议类型），没有「来自哪条连接」的列 —— 那张表必须与
  * MAUI 线上库逐列一致（`SchemaParityTest` 钉着 17 张表的每一列）。所以粒度只能是协议级：
- * 同一协议配了两条连接时，这个筛选会把它们**一起**显示。这与「停用连接」的过滤是同一档粒度，
- * 两个筛选叠在一起不会互相矛盾。
+ * 同一协议配了两条连接时，这个筛选会把它们**一起**显示。
  */
 enum class NetworkProtocolFilter(
-    /** 对应的 `ProtocolType.ordinal`；null 表示"不限" */
-    val protocolOrdinal: Int?,
+    /** 对应的 `ProtocolType.ordinal` */
+    val protocolOrdinal: Int,
 ) {
-    All(null),
     WebDAV(0),
     Navidrome(1),
     SMB(2),
@@ -221,24 +227,16 @@ enum class NetworkProtocolFilter(
 
     /**
      * @param protocol `ProtocolType.ordinal`
-     * @param source `SongSource.ordinal`（本地/缓存没有网络服务归属，选具体协议时一律不显示）
+     * @param source `SongSource.ordinal`（本地/缓存没有网络服务归属，一律不匹配）
      */
     fun accepts(protocol: Int, source: Int): Boolean {
-        val want = protocolOrdinal ?: return true
         if (ConnectionFilter.isConnectionFree(source)) return false
-        return protocol == want
+        return protocol == protocolOrdinal
     }
 
     companion object {
-        /**
-         * 由 `ProtocolType.ordinal` 反查筛选档，用于「当前列表里有哪些协议」这类场景。
-         *
-         * 这里**显式按 ordinal 匹配**而不是靠枚举相邻：`ProtocolType` 与
-         * [NetworkProtocolFilter] 是两套枚举，靠 `ordinal ± 1` 对齐太脆
-         * （任一边插一项就静默错位）。`NetworkProtocolFilterTest` 钉住这层对应。
-         */
         fun of(protocolOrdinal: Int): NetworkProtocolFilter =
-            entries.firstOrNull { it.protocolOrdinal == protocolOrdinal } ?: All
+            entries.firstOrNull { it.protocolOrdinal == protocolOrdinal } ?: WebDAV
     }
 }
 
@@ -248,8 +246,4 @@ fun <T> filterByNetworkProtocol(
     filter: NetworkProtocolFilter,
     protocolOf: (T) -> Int,
     sourceOf: (T) -> Int,
-): List<T> = if (filter == NetworkProtocolFilter.All) {
-    rows
-} else {
-    rows.filter { filter.accepts(protocolOf(it), sourceOf(it)) }
-}
+): List<T> = rows.filter { filter.accepts(protocolOf(it), sourceOf(it)) }
