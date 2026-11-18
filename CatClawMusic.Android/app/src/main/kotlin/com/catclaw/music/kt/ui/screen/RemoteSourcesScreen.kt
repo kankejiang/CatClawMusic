@@ -150,7 +150,24 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                 }
             },
             // 上一级：SMB 用反斜杠层级，WebDAV 用 URL 层级 —— 两套分隔符不能混用
-            onUp = { go(if (isSmb) SmbPath.parent(panel.path) else panel.path.trimEnd('/').substringBeforeLast('/', "")) },
+            // SMB 在共享根目录（`\`）时"上一层"就是**共享列表**（清空共享名重新枚举），
+            // 而不是原地不动：用户进去发现不是这个共享时，必须能退回去换一个。
+            onUp = {
+                if (isSmb) {
+                    if (SmbPath.isRoot(panel.path)) {
+                        // 回共享列表：显式清空共享名再传下去。
+                        // 不能只改 state 再调 buildDraft() —— 那依赖 Compose 状态更新的时序，
+                        // 真机上就出现过"点了没反应"（拿到的还是旧共享名，于是又进同一个共享）。
+                        share = ""
+                        val draft = buildDraft().copy(shareName = null)
+                        viewModel.browseSmb(draft, SmbPath.ROOT)
+                    } else {
+                        go(SmbPath.parent(panel.path))
+                    }
+                } else {
+                    go(panel.path.trimEnd('/').substringBeforeLast('/', ""))
+                }
+            },
             onPick = {
                 // 选的是**人现在站的这一层**，不是某个子目录：走进去看到里面全是歌，
                 // 再说"就要这个"，确认的语义才跟着动作。
@@ -746,7 +763,6 @@ internal fun RemoteBrowserPanel(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     val here = if (smb) SmbPath.normalize(panel.path) else panel.path.trimEnd('/')
-    val atRoot = if (smb) SmbPath.isRoot(panel.path) else (here.isEmpty() || here == "/")
 
     Column(
         modifier = Modifier
@@ -778,7 +794,12 @@ internal fun RemoteBrowserPanel(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!atRoot && !panel.pickingShare) {
+            // 选共享阶段没有"上一层"（那已经是最外层）。
+            // SMB 在共享根目录时它退到共享列表（不是原地不动），所以也要显示；
+            // WebDAV 的根目录没有更上层，隐藏。
+            val showUp = !panel.pickingShare &&
+                (smb || !(here.isEmpty() || here == "/"))
+            if (showUp) {
                 PillLabel(text = stringResource(R.string.remote_browse_up), onClick = onUp, filled = false)
             }
         }
