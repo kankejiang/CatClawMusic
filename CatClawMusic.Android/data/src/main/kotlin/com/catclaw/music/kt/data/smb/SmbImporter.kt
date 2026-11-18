@@ -33,6 +33,17 @@ class SmbProxyHost @Inject constructor() {
 
     /** @return null 表示 19876..19975 全被占，起不了代理 */
     fun httpUrlFor(smbUrl: String): String? = proxy()?.toHttpUrl(smbUrl)
+
+    /**
+     * 代理的 URL 前缀（`http://127.0.0.1:<port>/smb/`），与具体文件无关。
+     *
+     * 批量入库时先取一次、再逐条拼 —— [httpUrlFor] 是 `@Synchronized`，
+     * 上千首每首调一次就是上千次拿锁。返回 null 表示代理起不来。
+     */
+    fun httpPrefix(): String? = proxy()?.let { p ->
+        if (!p.start()) return@let null
+        "http://127.0.0.1:${p.boundPort}/${SmbStreamProxy.SMB_PREFIX}"
+    }
 }
 
 /** SMB 连通性探测：能连上共享并列出根目录就算通，返回给 UI 的文案与 WebDAV/Subsonic 同形 */
@@ -100,29 +111,43 @@ class SmbImporter @Inject constructor(
         var updated = 0
         var done = 0
         val now = System.currentTimeMillis()
+        // 代理前缀只取一次：httpUrlFor 内部 @Synchronized，逐首调用在上千首时是纯开销。
+        // 前缀与文件无关（只有端口 + /smb/），拼上完整 url 的百分号编码即可等价于 toHttpUrl。
+        val httpBase = proxyHost.httpPrefix()
 
         db.withTransaction {
+            // 批量 upsert：逐首调 upsertSong 是 613 次独立 DB 操作（每次都要开游标、
+            // 走一遍 SQL 编译与事务日志），真机实测 613 首要 31 秒，几乎全耗在这上面。
+            // 攒成批一次提交，同样的量降到秒级以内。
+            val rows = ArrayList<SongEntity>(audio.size.coerceAtMost(BATCH_SIZE))
             for (file in audio) {
                 val smbUrl = smbUrlOf(profile, file.path)
                 val prev = known[smbUrl]
                 if (prev == null) inserted++ else updated++
-                library.upsertSong(
-                    SongEntity(
-                        id = prev?.id ?: 0,
-                        title = MediaScanRules.titleFromFileName(file.name),
-                        durationSeconds = 0,
-                        filePath = proxyHost.httpUrlFor(smbUrl) ?: smbUrl,
-                        fileSize = file.size,
-                        dateAdded = prev?.dateAdded ?: now,
-                        dateModified = now,
-                        source = SongSource.SMB.ordinal,
-                        protocol = ProtocolType.SMB.ordinal,
-                        remoteId = smbUrl,
-                    ),
+                rows += SongEntity(
+                    id = prev?.id ?: 0,
+                    title = MediaScanRules.titleFromFileName(file.name),
+                    durationSeconds = 0,
+                    // 代理地址在循环外统一取：httpUrlFor 内部是 @Synchronized，
+                    // 每首调一次就是每次拿锁 —— 上千首时这笔开销不可忽略。
+                    filePath = httpBase?.let { it + percentEncode(smbUrl) } ?: smbUrl,
+                    fileSize = file.size,
+                    dateAdded = prev?.dateAdded ?: now,
+                    dateModified = now,
+                    source = SongSource.SMB.ordinal,
+                    protocol = ProtocolType.SMB.ordinal,
+                    remoteId = smbUrl,
                 )
                 done++
-                if (done % PROGRESS_STEP == 0 || done == audio.size) onProgress(SyncProgress(done, audio.size))
+                if (done % PROGRESS_STEP == 0 || done == audio.size) {
+                    onProgress(SyncProgress(done, audio.size))
+                }
+                if (rows.size >= BATCH_SIZE) {
+                    library.upsertSongs(rows)
+                    rows.clear()
+                }
             }
+            if (rows.isNotEmpty()) library.upsertSongs(rows)
         }
         Result(files.size, audio.size, inserted, updated, android.os.SystemClock.elapsedRealtime() - startedAt)
     }
@@ -137,5 +162,13 @@ class SmbImporter @Inject constructor(
 
     private companion object {
         const val MAX_DEPTH = 8
+
+        /**
+         * 每次批量 upsert 的行数。
+         *
+         * 500 是折中：太小则 DB 调用次数还是多；太大则单条 SQL 的绑定变量超过
+         * SQLite 默认上限（999），会被 Room 拆成多条反而变慢。
+         */
+        const val BATCH_SIZE = 500
     }
 }

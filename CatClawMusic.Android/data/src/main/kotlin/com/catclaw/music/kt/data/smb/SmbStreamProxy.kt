@@ -154,7 +154,7 @@ class SmbStreamProxy(
         readers.clear()
     }
 
-    private companion object {
+    companion object {
         const val PORT_START = 19876
         const val PORT_END = 19975
         const val BACKLOG = 16

@@ -57,6 +57,9 @@ class SubsonicImporter @Inject constructor(
         val now = System.currentTimeMillis()
 
         db.withTransaction {
+            // 批量 upsert：逐首调 upsertSong 是每首一次独立 DB 操作，
+            // 613 首实测要 31 秒，几乎全耗在反复开游标/编译 SQL 上。
+            val rows = ArrayList<SongEntity>(tracks.size.coerceAtMost(BATCH_SIZE))
             for (track in tracks) {
                 if (track.remoteId.isBlank()) continue
                 val artistId = artistIds.getOrPut(track.artist) {
@@ -80,27 +83,32 @@ class SubsonicImporter @Inject constructor(
                 }
                 val prev = known[track.remoteId]
                 if (prev == null) inserted++ else updated++
-                library.upsertSong(
-                    SongEntity(
-                        id = prev?.id ?: 0,
-                        title = track.title,
-                        artistId = artistId,
-                        albumId = albumId,
-                        durationSeconds = track.durationSeconds,
-                        filePath = track.streamUrl,
-                        fileSize = track.sizeBytes,
-                        bitrate = track.bitrateKbps,
-                        dateAdded = prev?.dateAdded ?: now,
-                        dateModified = now,
-                        coverArtPath = track.coverArtUrl,
-                        source = SongSource.WebDAV.ordinal,
-                        protocol = ProtocolType.Navidrome.ordinal,
-                        remoteId = track.remoteId,
-                    ),
+                rows += SongEntity(
+                    id = prev?.id ?: 0,
+                    title = track.title,
+                    artistId = artistId,
+                    albumId = albumId,
+                    durationSeconds = track.durationSeconds,
+                    filePath = track.streamUrl,
+                    fileSize = track.sizeBytes,
+                    bitrate = track.bitrateKbps,
+                    dateAdded = prev?.dateAdded ?: now,
+                    dateModified = now,
+                    coverArtPath = track.coverArtUrl,
+                    source = SongSource.WebDAV.ordinal,
+                    protocol = ProtocolType.Navidrome.ordinal,
+                    remoteId = track.remoteId,
                 )
                 done++
-                if (done % PROGRESS_STEP == 0 || done == tracks.size) onProgress(SyncProgress(done, tracks.size))
+                if (done % PROGRESS_STEP == 0 || done == tracks.size) {
+                    onProgress(SyncProgress(done, tracks.size))
+                }
+                if (rows.size >= BATCH_SIZE) {
+                    library.upsertSongs(rows)
+                    rows.clear()
+                }
             }
+            if (rows.isNotEmpty()) library.upsertSongs(rows)
         }
         Result(
             albums = refs.size,
@@ -126,5 +134,13 @@ class SubsonicImporter @Inject constructor(
 
     private companion object {
         const val PERMIT = 8
+
+        /**
+         * 每次批量 upsert 的行数。
+         *
+         * 500 是折中：太小则 DB 调用次数还是多；太大则单条 SQL 的绑定变量会超过
+         * SQLite 默认上限（999），Room 拆成多条反而更慢。
+         */
+        const val BATCH_SIZE = 500
     }
 }

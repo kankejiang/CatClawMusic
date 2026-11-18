@@ -24,7 +24,6 @@ import com.catclaw.music.kt.data.remote.RemoteMetadataBackfiller
 import com.catclaw.music.kt.data.media.RemoteCoverBackfiller
 import com.catclaw.music.kt.data.service.PlaybackSessionStarter
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -104,24 +103,19 @@ class RemoteViewModel @Inject constructor(
      * **封面与元数据是两轮**：判据不同（前者看 CoverArtPath 空，后者看 Duration/ArtistId），
      * 而且封面要落盘 —— 合成一轮会让「元数据早已齐全但没封面」的歌被整批漏掉。
      */
-    private val autoBackfillStarted = AtomicBoolean(false)
-
-    init {
-        viewModelScope.launch {
-            controller.state.collect { state ->
-                val song = state.currentSong ?: return@collect
-                if (song.source == SongSource.Local) return@collect
-                val needsMeta = song.durationSeconds <= 0
-                val needsCover = song.coverArtPath.isNullOrBlank()
-                if (!needsMeta && !needsCover) return@collect
-                if (autoBackfillStarted.getAndSet(true)) return@collect
-                if (profiles.value.none { it.protocol != ProtocolType.Navidrome }) return@collect
-                // 先补元数据（便宜、快），再补封面（要落盘、按首归位）
-                backfillAll(thenCovers = true)
-            }
-        }
-    }
-
+    /**
+     * **不在导入后自动补元数据/封面。**
+     *
+     * 一次补全要逐首读远端文件（每首 256KB；FLAC/APE 还会再读 2MB；M4A 可能要读
+     * 8MB 尾部），1226 首 × 4 并发是分钟级的事。用户只是点了「导入曲库」，
+     * 却在前台等一轮后台网络任务跑完 —— 表现就是「导入特别慢」。
+     *
+     * MAUI 那边同样不自动做：`RemoteMusicSettingsViewModel.SyncProfileAsync` 只跑
+     * `ScanAsync(quickScan: true)`，扫完即结束；元数据与封面都是**用户手动点按钮**
+     * （页面上「补全元数据」/「补全封面」两颗）。
+     *
+     * 所以扫描只管把文件名、大小、路径入库 —— 这些在列目录时就拿到了，不需要额外请求。
+     */
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 

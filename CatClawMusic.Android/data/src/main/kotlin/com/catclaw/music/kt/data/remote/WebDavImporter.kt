@@ -60,13 +60,15 @@ class WebDavImporter @Inject constructor(
         val now = System.currentTimeMillis()
 
         db.withTransaction {
+            // 批量 upsert：逐首调 upsertSong 是每首一次独立 DB 操作，
+            // 几百上千首时几乎全部时间都耗在反复开游标/编译 SQL 上。
+            val rows = ArrayList<SongEntity>(audio.size.coerceAtMost(BATCH_SIZE))
             for (file in audio) {
                 val prev = known[file.path]
                 if (prev == null) inserted++ else updated++
                 val nameNoExt = MediaScanRules.titleFromFileName(file.name)
                 val parent = MediaScanRules.parentDir(file.path)
-                library.upsertSong(
-                    SongEntity(
+                rows += SongEntity(
                         id = prev?.id ?: 0,
                         title = nameNoExt,
                         durationSeconds = 0,
@@ -81,15 +83,21 @@ class WebDavImporter @Inject constructor(
                         coverArtPath = (covers["$parent/$nameNoExt"]?.path ?: dirCovers[parent])
                             ?.let { client.streamUrlFor(it) },
                         lyricsPath = lyrics["$parent/$nameNoExt"]?.let { client.streamUrlFor(it.path) },
-                        source = SongSource.WebDAV.ordinal,
-                        protocol = profile.protocol.ordinal,
-                        remoteId = file.path,
-                        remoteCoverPath = covers["$parent/$nameNoExt"]?.path ?: dirCovers[parent],
-                    ),
+                    source = SongSource.WebDAV.ordinal,
+                    protocol = profile.protocol.ordinal,
+                    remoteId = file.path,
+                    remoteCoverPath = covers["$parent/$nameNoExt"]?.path ?: dirCovers[parent],
                 )
                 done++
-                if (done % PROGRESS_STEP == 0 || done == audio.size) onProgress(SyncProgress(done, audio.size))
+                if (done % PROGRESS_STEP == 0 || done == audio.size) {
+                    onProgress(SyncProgress(done, audio.size))
+                }
+                if (rows.size >= BATCH_SIZE) {
+                    library.upsertSongs(rows)
+                    rows.clear()
+                }
             }
+            if (rows.isNotEmpty()) library.upsertSongs(rows)
         }
         Result(
             listed = all.size,
@@ -108,4 +116,14 @@ class WebDavImporter @Inject constructor(
 
     private fun sidecarKey(file: RemoteFile): String =
         SidecarRules.sidecarKey(MediaScanRules.parentDir(file.path), file.name)
+
+    private companion object {
+        /**
+         * 每次批量 upsert 的行数。
+         *
+         * 500 是折中：太小则 DB 调用次数还是多；太大则单条 SQL 的绑定变量会超过
+         * SQLite 默认上限（999），Room 拆成多条反而更慢。
+         */
+        const val BATCH_SIZE = 500
+    }
 }
