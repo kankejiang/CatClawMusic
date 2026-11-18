@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CatClaw Music · UI Refresh 2.0</title>
+<style>
+  :root{
+    --bg:#0A0A0E; --bg2:#111116;
+    --ink:#F3F3F7; --ink2:#A2A2AE; --ink3:#6B6B76;
+    --card:rgba(255,255,255,.055); --card2:rgba(255,255,255,.085);
+    --line:rgba(255,255,255,.075);
+    --accent:#8FD8CD; --accent2:#C9A7FF;
+    --r-xl:26px; --r-lg:20px; --r-md:14px;
+    --pad:20px;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  body{
+    margin:0;padding:56px 40px 80px;background:#050507;color:var(--ink);
+    font-family:-apple-system,"SF Pro Text","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background-image:radial-gradient(900px 500px at 20% -10%,rgba(143,216,205,.09),transparent 60%),
+                     radial-gradient(700px 400px at 90% 0%,rgba(201,167,255,.07),transparent 60%);
+  }
+  .head{max-width:1480px;margin:0 auto 34px}
+  .head h1{margin:0 0 8px;font-size:26px;font-weight:650;letter-spacing:-.3px}
+  .head p{margin:0;color:var(--ink2);font-size:14px;line-height:1.7}
+  .tokens{display:flex;gap:28px;flex-wrap:wrap;margin-top:18px;font-size:12px;color:var(--ink3)}
+  .tokens b{color:var(--ink2);font-weight:600}
+  .stage{max-width:1480px;margin:0 auto;display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:0 0 390px}
+  .phone{
+    width:390px;height:844px;border-radius:46px;overflow:hidden;position:relative;
+    background:linear-gradient(180deg,#101016,#0A0A0E 55%,#08080B);
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.06) inset,0 0 0 9px #050507,0 0 0 10px rgba(255,255,255,.05);
+  }
+  .glow{position:absolute;inset:0;pointer-events:none;
+    background:
+      radial-gradient(340px 260px at 30% 6%,rgba(143,216,205,.16),transparent 70%),
+      radial-gradient(300px 260px at 85% 18%,rgba(201,167,255,.13),transparent 70%);
+  }
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;padding:0 var(--pad)}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--ink2);flex:0 0 auto}
+  .statusbar .r{display:flex;gap:6px;align-items:center}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ink3)}
+  .caption{margin-top:16px}
+  .caption .t{font-size:14px;font-weight:600;letter-spacing:.2px}
+  .caption .d{margin-top:6px;font-size:12px;line-height:1.75;color:var(--ink3)}
+  .caption .d em{color:var(--accent);font-style:normal}
+
+  /* ── 通用 ── */
+  .h1{font-size:32px;font-weight:680;letter-spacing:-.6px;line-height:1.15;margin:0}
+  .sub{font-size:12px;color:var(--ink3);margin-top:6px;line-height:1.6}
+  .sec{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 12px}
+  .sec .t{font-size:13px;font-weight:600;letter-spacing:.4px;color:var(--ink2)}
+  .sec .m{font-size:11px;color:var(--ink3)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl);backdrop-filter:blur(22px) saturate(140%)}
+  .row{display:flex;align-items:center;gap:12px}
+  .ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:15px;background:rgba(255,255,255,.07);flex:0 0 auto}
+  .muted{color:var(--ink3)}
+  .pill{height:34px;padding:0 15px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink2)}
+  .pill.on{background:rgba(143,216,205,.16);border-color:rgba(143,216,205,.42);color:#D8F5F0}
+
+  /* 顶栏 */
+  .top{display:flex;align-items:flex-start;justify-content:space-between;padding-top:6px}
+  .iconbtn{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;font-size:16px;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink2);flex:0 0 auto}
+
+  /* 搜索胶囊 */
+  .search{display:flex;align-items:center;gap:10px;height:46px;padding:0 16px;border-radius:999px;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink3);font-size:13.5px;margin-top:18px}
+
+  /* 继续聆听大卡 */
+  .hero{margin-top:18px;padding:14px;border-radius:var(--r-xl);background:linear-gradient(135deg,rgba(143,216,205,.20),rgba(201,167,255,.14));border:1px solid rgba(255,255,255,.10);display:flex;gap:14px;align-items:center}
+  .hero .cov{width:76px;height:76px;border-radius:16px;background:
+      radial-gradient(circle at 30% 25%,#F6E7D2,#D9B48F 45%,#7C5A45 100%);
+      box-shadow:0 10px 24px -10px rgba(0,0,0,.7);position:relative;flex:0 0 auto}
+  .hero .cov:after{content:"♪";position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.75);font-size:22px}
+  .hero .txt{flex:1;min-width:0}
+  .hero .k{font-size:10.5px;letter-spacing:.6px;color:rgba(255,255,255,.62);text-transform:uppercase}
+  .hero .n{font-size:17px;font-weight:640;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hero .a{font-size:12px;color:rgba(255,255,255,.66);margin-top:3px}
+  .play{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.92);color:#0B0B0F;display:grid;place-items:center;font-size:14px;flex:0 0 auto}
+
+  /* 快捷入口（横滑三卡） */
+  .quick{display:flex;gap:12px;margin-top:12px;overflow:hidden}
+  .qcard{flex:0 0 158px;height:104px;border-radius:var(--r-lg);padding:14px;border:1px solid var(--line);
+    background:var(--card);display:flex;flex-direction:column;justify-content:space-between}
+  .qcard .e{font-size:20px}
+  .qcard .t{font-size:13.5px;font-weight:600}
+  .qcard .s{font-size:10.5px;color:var(--ink3);margin-top:2px}
+  .qcard.q1{background:linear-gradient(150deg,rgba(143,216,205,.20),rgba(255,255,255,.04))}
+  .qcard.q2{background:linear-gradient(150deg,rgba(201,167,255,.18),rgba(255,255,255,.04))}
+  .qcard.q3{background:linear-gradient(150deg,rgba(255,193,140,.16),rgba(255,255,255,.04))}
+
+  /* 双列封面网格 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px}
+  .tile .art{aspect-ratio:1/1;border-radius:var(--r-lg);position:relative;overflow:hidden;box-shadow:0 14px 30px -18px rgba(0,0,0,.8)}
+  .tile .art span{position:absolute;left:10px;bottom:9px;font-size:10px;color:rgba(255,255,255,.8);
+    background:rgba(0,0,0,.32);padding:2px 7px;border-radius:999px;backdrop-filter:blur(8px)}
+  .tile .n{font-size:12.5px;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+  .tile .a{font-size:10.5px;color:var(--ink3);margin-top:2px}
+  .a1{background:linear-gradient(135deg,#2F4858,#86BBD8 55%,#33658A)}
+  .a2{background:linear-gradient(135deg,#3D2B4F,#C9A7FF 55%,#6B4E8A)}
+  .a3{background:linear-gradient(135deg,#4A3B2A,#E0B789 55%,#8A6647)}
+  .a4{background:linear-gradient(135deg,#233D33,#8FD8CD 55%,#3E6B5B)}
+
+  /* 底部 dock */
+  .dock{margin-top:auto;margin-bottom:18px;height:62px;border-radius:22px;display:flex;align-items:center;justify-content:space-around;
+    background:rgba(18,18,24,.72);border:1px solid var(--line);backdrop-filter:blur(24px)}
+  .dock .it{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink3)}
+  .dock .it i{font-size:17px;font-style:normal;opacity:.72}
+  .dock .it.on{color:var(--ink)}
+  .dock .it.on i{opacity:1}
+  .dock .it.on:after{content:"";width:4px;height:4px;border-radius:50%;background:var(--accent)}
+
+  /* ── 播放页 ── */
+  .np-top{display:flex;align-items:center;justify-content:space-between;padding-top:4px;height:44px}
+  .np-mode{font-size:12px;color:var(--ink2);background:rgba(255,255,255,.06);border:1px solid var(--line);
+    padding:6px 12px;border-radius:999px}
+  .cover-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:18px 0 8px}
+  .cover{width:300px;height:300px;border-radius:24px;position:relative;overflow:hidden;
+    background:radial-gradient(circle at 32% 26%,#F1E3CE,#C6A181 42%,#6E4F3D 78%,#2B211C);
+    box-shadow:0 36px 70px -28px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.08) inset}
+  .cover:after{content:"有形的翅膀";position:absolute;left:0;right:0;bottom:0;padding:14px;font-size:10px;
+    color:rgba(255,255,255,.55);letter-spacing:.5px}
+  .np-title{font-size:23px;font-weight:680;letter-spacing:-.3px}
+  .np-artist{font-size:13px;color:var(--ink2);margin-top:5px}
+  .bar{height:3px;border-radius:99px;background:rgba(255,255,255,.12);margin-top:22px;position:relative}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;width:34%;border-radius:99px;background:var(--ink)}
+  .bar .knob{position:absolute;left:34%;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#fff;
+    box-shadow:0 0 0 3px rgba(255,255,255,.14)}
+  .times{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);margin-top:8px}
+  .ctrl{display:flex;align-items:center;justify-content:space-between;margin:22px 6px 0}
+  .ctrl .s{width:42px;height:42px;display:grid;place-items:center;color:var(--ink2);font-size:17px}
+  .ctrl .big{width:62px;height:62px;border-radius:50%;background:rgba(255,255,255,.94);color:#0A0A0E;display:grid;place-items:center;font-size:20px;
+    box-shadow:0 16px 34px -16px rgba(255,255,255,.5)}
+  .np-foot{display:flex;justify-content:space-between;margin:24px 2px 30px}
+  .np-foot .f{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:9.5px;color:var(--ink3)}
+  .np-foot .f i{font-size:16px;font-style:normal;color:var(--ink2)}
+
+  /* ── 音乐库 ── */
+  .stats{display:flex;gap:0;margin-top:16px;padding:14px 4px;border-radius:var(--r-lg);
+    background:var(--card);border:1px solid var(--line)}
+  .stat{flex:1;text-align:center;border-right:1px solid var(--line)}
+  .stat:last-child{border:0}
+  .stat b{display:block;font-size:18px;font-weight:650;letter-spacing:-.3px}
+  .stat span{font-size:10.5px;color:var(--ink3)}
+  .lrow{padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .lrow:last-child{border:0}
+  .lrow .n{font-size:14px}
+  .lrow .a{font-size:11px;color:var(--ink3);margin-top:3px}
+  .lrow .d{font-size:10.5px;color:var(--ink3)}
+
+  /* ── 设置 ── */
+  .srow{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.055);display:flex;align-items:center;gap:12px}
+  .srow:last-child{border:0}
+  .srow .t{font-size:14px}
+  .srow .d{font-size:11px;color:var(--ink3);margin-top:2px}
+  .srow .v{font-size:12px;color:var(--ink3);margin-left:auto}
+  .srow .chev{color:var(--ink3);font-size:14px;margin-left:6px}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>CatClaw Music · UI Refresh 2.0</h1>
+  <p>
+    方向：<b>深色液态玻璃 2.0</b> —— 玻璃只保留两层（页面卡 + 浮层），主色只做点缀不铺满，字号/圆角/间距统一成一套 token。<br>
+    下面是五屏静态稿：发现 / 播放 / 音乐库 / 歌单 / 设置。所有效果 Compose 都能做（backdrop blur 已在用）。
+  </p>
+  <div class="tokens">
+    <div><b>圆角</b> 26 / 20 / 14 / 999</div>
+    <div><b>字号</b> 32 标题 · 23 歌名 · 14 正文 · 12 辅助</div>
+    <div><b>页边距</b> 20</div>
+    <div><b>主色</b> #8FD8CD / #C9A7FF（跟随封面取色）</div>
+    <div><b>卡面</b> 白 5.5% + 1px 白 7.5%</div>
+    <div><b>文字</b> #F3F3F7 / #A2A2AE / #6B6B76</div>
+  </div>
+</div>
+
+<div class="stage">
+
+  <!-- ═══════════ 1. 发现 ═══════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="statusbar"><span>22:18</span><span class="r"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="top">
+          <div>
+            <h1 class="h1">发现</h1>
+            <div class="sub">今天想听点什么</div>
+          </div>
+          <div class="iconbtn">☾</div>
+        </div>
+        <div class="search">🔍　搜索歌曲、歌手、歌单</div>
+
+        <div class="sec"><span class="t">继续聆听</span><span class="m">私人漫游</span></div>
+        <div class="hero">
+          <div class="cov"></div>
+          <div class="txt">
+            <div class="k">正在播放</div>
+            <div class="n">有形的翅膀</div>
+            <div class="a">张韶涵 · 有形的翅膀</div>
+          </div>
+          <div class="play">▶</div>
+        </div>
+
+        <div class="quick">
+          <div class="qcard q1"><div class="e">🌙</div><div><div class="t">私人漫游</div><div class="s">按此刻心情续播</div></div></div>
+          <div class="qcard q2"><div class="e">📅</div><div><div class="t">每日推荐</div><div class="s">今天 30 首</div></div></div>
+          <div class="qcard q3"><div class="e">♥</div><div><div class="t">我喜欢的</div><div class="s">878 首</div></div></div>
+        </div>
+
+        <div class="sec"><span class="t">推荐歌单</span><span class="m">换一批</span></div>
+        <div class="grid">
+          <div class="tile"><div class="art a1"><span>♪ 24 首</span></div><div class="n">夜间公路</div><div class="a">适合开车时听</div></div>
+          <div class="tile"><div class="art a2"><span>♪ 31 首</span></div><div class="n">华语独立</div><div class="a">小众但耐听</div></div>
+        </div>
+
+        <div class="dock">
+          <div class="it on"><i>◎</i>发现</div>
+          <div class="it"><i>▤</i>歌单</div>
+          <div class="it"><i>♫</i>音乐库</div>
+          <div class="it"><i>☰</i>设置</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="t">01 · 发现</div>
+      <div class="d">搜索框收成胶囊（不再全宽）；<em>「继续聆听」升级成主视觉卡</em>，封面 + 播放键一步起播；快捷入口由四宫格改横滑三卡，带渐变色区分；底部 dock 选中态只留<em>主色圆点 + 图标提亮</em>，不再整块高亮。</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 2. 播放 ═══════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="statusbar"><span>22:18</span><span class="r"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="np-top">
+          <div class="iconbtn" style="width:36px;height:36px;border-radius:12px">⌄</div>
+          <div class="np-mode">私人漫游 · 默认模式 ⌄</div>
+          <div class="iconbtn" style="width:36px;height:36px;border-radius:12px">⋯</div>
+        </div>
+
+        <div class="cover-wrap"><div class="cover"></div></div>
+
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:1;min-width:0">
+            <div class="np-title">有形的翅膀</div>
+            <div class="np-artist">张韶涵 · 有形的翅膀</div>
+          </div>
+          <div class="iconbtn" style="border-radius:50%">♡</div>
+        </div>
+
+        <div class="bar"><div class="fill"></div><div class="knob"></div></div>
+        <div class="times"><span>01:12</span><span>04:21</span></div>
+
+        <div class="ctrl">
+          <div class="s">∞</div>
+          <div class="s">⏮</div>
+          <div class="big">⏸</div>
+          <div class="s">⏭</div>
+          <div class="s">☰</div>
+        </div>
+
+        <div class="np-foot">
+          <div class="f"><i>≡</i>音效</div>
+          <div class="f"><i>💬</i>歌词</div>
+          <div class="f"><i>⌁</i>桌面词</div>
+          <div class="f"><i>⋯</i>更多</div>
+        </div>
+        <div style="height:6px"></div>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="t">02 · 播放</div>
+      <div class="d">封面 300px 圆角 24、投影更收；<em>歌名/歌手左对齐</em>（不再居中），红心挪到同一行右侧；进度条压到 <em>3px + 白色圆点</em>；控制行 62 / 42 的层级差；底部四个功能图标从大按钮降为<em>说明性小图标</em>，主操作不再抢戏。</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 3. 音乐库 ═══════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="statusbar"><span>22:18</span><span class="r"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="top">
+          <div><h1 class="h1">音乐库</h1><div class="sub">本地 · 网易云 · 远程</div></div>
+          <div class="iconbtn">🔍</div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><b>613</b><span>歌曲</span></div>
+          <div class="stat"><b>348</b><span>专辑</span></div>
+          <div class="stat"><b>2</b><span>文件夹</span></div>
+        </div>
+
+        <div class="sec"><span class="t">来源</span><span class="m">管理</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="srow"><div class="ico">📁</div><div style="flex:1"><div class="t">本地音乐</div><div class="d">/storage/emulated/0/Music · 613 首</div></div><div class="v">›</div></div>
+          <div class="srow"><div class="ico">☁</div><div style="flex:1"><div class="t">网易云音乐</div><div class="d">已登录 · 月亮不睡我不睡</div></div><div class="v">878 首</div></div>
+          <div class="srow"><div class="ico">🗄</div><div style="flex:1"><div class="t">远程音乐</div><div class="d">WebDAV · Navidrome</div></div><div class="v">›</div></div>
+        </div>
+
+        <div class="sec"><span class="t">最近添加</span><span class="m">全部</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="lrow row"><div class="ico">♫</div><div style="flex:1"><div class="n">我从崖边跌落</div><div class="a">谢春花 · 算云烟</div></div><div class="d">3 分钟前</div></div>
+          <div class="lrow row"><div class="ico">♫</div><div style="flex:1"><div class="n">刻在我心底的名字</div><div class="a">何昶希 · 刻在我心底的名字</div></div><div class="d">昨天</div></div>
+          <div class="lrow row"><div class="ico">♫</div><div style="flex:1"><div class="n">雨幕</div><div class="a">许嵩 · 雨幕</div></div><div class="d">昨天</div></div>
+        </div>
+
+        <div class="dock">
+          <div class="it"><i>◎</i>发现</div>
+          <div class="it"><i>▤</i>歌单</div>
+          <div class="it on"><i>♫</i>音乐库</div>
+          <div class="it"><i>☰</i>设置</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="t">03 · 音乐库</div>
+      <div class="d">四个大统计格改<em>一行三段指标条</em>（省 1/3 高度）；来源用统一行结构（图标 + 标题 + 描述 + 右侧值），本地/在线/远程<em>一眼可比</em>；最近添加只留 3 条，剩下的收进「全部」。</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 4. 歌单 ═══════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="statusbar"><span>22:18</span><span class="r"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="top">
+          <div><h1 class="h1">歌单</h1><div class="sub">3 个本地 · 12 个在线</div></div>
+          <div class="iconbtn">＋</div>
+        </div>
+
+        <div class="sec"><span class="t">我的</span><span class="m">按最近修改</span></div>
+        <div class="grid">
+          <div class="tile"><div class="art a3"><span>² 24</span></div><div class="n">深夜电台</div><div class="a">本地 · 24 首</div></div>
+          <div class="tile"><div class="art a4"><span>² 31</span></div><div class="n">通勤循环</div><div class="a">本地 · 31 首</div></div>
+          <div class="tile"><div class="art a1"><span>♥ 878</span></div><div class="n">我喜欢的音乐</div><div class="a">网易云</div></div>
+          <div class="tile"><div class="art a2"><span>♪ 52</span></div><div class="n">华语独立</div><div class="a">网易云 · 收藏</div></div>
+        </div>
+
+        <div class="sec"><span class="t">最近播放</span><span class="m">清空</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="lrow row"><div class="ico">▤</div><div style="flex:1"><div class="n">私人漫游 · 影视</div><div class="a">徐嘉良 · 环山</div></div><div class="d">21:58</div></div>
+          <div class="lrow row"><div class="ico">▤</div><div style="flex:1"><div class="n">TestList</div><div class="a">本地歌单 · 0 首</div></div><div class="d">21:12</div></div>
+        </div>
+
+        <div class="dock">
+          <div class="it"><i>◎</i>发现</div>
+          <div class="it on"><i>▤</i>歌单</div>
+          <div class="it"><i>♫</i>音乐库</div>
+          <div class="it"><i>☰</i>设置</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="t">04 · 歌单</div>
+      <div class="d">封面网格统一 <em>2 列 + 16:16</em>，角标只标数量与来源；「我的」与「最近播放」两段，不再把所有入口堆一起；新建按钮从底部大按钮改为右上 <em>＋</em>，与标题同高。</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 5. 设置 ═══════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="glow"></div>
+      <div class="screen">
+        <div class="statusbar"><span>22:18</span><span class="r"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+        <div class="top">
+          <div><h1 class="h1">设置</h1><div class="sub">外观、来源与插件</div></div>
+          <div class="iconbtn">⌕</div>
+        </div>
+
+        <div class="sec"><span class="t">外观与体验</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="srow"><div class="ico">◐</div><div style="flex:1"><div class="t">外观与个性化</div><div class="d">主题颜色、启动页</div></div><div class="v">莫奈</div><div class="chev">›</div></div>
+          <div class="srow"><div class="ico">💬</div><div style="flex:1"><div class="t">桌面歌词</div><div class="d">悬浮显示、逐字高亮</div></div><div class="v">开</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="sec"><span class="t">音乐来源</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="srow"><div class="ico">📁</div><div style="flex:1"><div class="t">本地音乐</div><div class="d">扫描方式与文件夹</div></div><div class="v">613 首</div><div class="chev">›</div></div>
+          <div class="srow"><div class="ico">☁</div><div style="flex:1"><div class="t">网易云音乐</div><div class="d">无损 · 已登录</div></div><div class="v">›</div></div>
+          <div class="srow"><div class="ico">🗄</div><div style="flex:1"><div class="t">远程音乐</div><div class="d">WebDAV / Navidrome / SMB</div></div><div class="chev">›</div></div>
+          <div class="srow"><div class="ico">⬇</div><div style="flex:1"><div class="t">下载管理</div><div class="d">任务与下载位置</div></div><div class="v">2</div><div class="chev">›</div></div>
+        </div>
+
+        <div class="sec"><span class="t">扩展</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="srow"><div class="ico">✦</div><div style="flex:1"><div class="t">插件管理</div><div class="d">网易云 v0.2.0 · 已启用</div></div><div class="chev">›</div></div>
+          <div class="srow"><div class="ico">✧</div><div style="flex:1"><div class="t">AI 设置</div><div class="d">默认配置</div></div><div class="chev">›</div></div>
+        </div>
+
+        <div class="sec"><span class="t">系统与维护</span></div>
+        <div class="card" style="padding:2px 16px">
+          <div class="srow"><div class="ico">⟳</div><div style="flex:1"><div class="t">备份与恢复</div><div class="d">数据库与设置</div></div><div class="chev">›</div></div>
+          <div class="srow"><div class="ico">ⓘ</div><div style="flex:1"><div class="t">关于</div><div class="d">版本 1.8.13 · 开源 MIT</div></div><div class="chev">›</div></div>
+        </div>
+        <div style="height:14px"></div>
+      </div>
+    </div>
+    <div class="caption">
+      <div class="t">05 · 设置</div>
+      <div class="d">每行<em>统一「图标 + 标题 + 描述 + 右侧值」</em>四段结构，右侧值用真实状态（613 首 / 开 / 2 / 版本号）；分组标题只留文字，不再给每组套额外容器描边；取消顶部大卡后，标题直接压在背景上。</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

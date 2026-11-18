@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CatClaw Music · 音效页（可交互稿）</title>
+<style>
+  :root{
+    --accent:#7FE3D4;
+    --accent-dim:rgba(127,227,212,.55);
+    --ink:#F4F4F8;
+    --ink2:#A6A6B4;
+    --ink3:#6C6C7A;
+    --stroke:rgba(255,255,255,.085);
+    --stroke-strong:rgba(255,255,255,.14);
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;padding:44px 32px 70px;background:#040406;color:var(--ink);
+    font-family:-apple-system,"SF Pro Text","Segoe UI Variable","PingFang SC","Microsoft YaHei",sans-serif;
+    background-image:
+      radial-gradient(760px 420px at 16% -8%, rgba(127,227,212,.10), transparent 64%),
+      radial-gradient(640px 380px at 94% 4%, rgba(183,155,255,.075), transparent 62%);
+    display:flex;justify-content:center;
+  }
+  .wrap{display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1500px}
+  .col{width:392px}
+  .caption{margin-top:18px}
+  .caption .t{font-size:13px;font-weight:650;letter-spacing:.2px}
+  .caption .d{margin-top:7px;font-size:11.5px;line-height:1.85;color:var(--ink3)}
+  .caption .d em{color:var(--accent);font-style:normal}
+  .caption .d b{color:var(--ink2);font-weight:600}
+
+  /* ───────── 手机外壳 ───────── */
+  .phone{
+    position:relative;width:392px;height:846px;border-radius:52px;
+    background:#08080B;overflow:hidden;isolation:isolate;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.07),
+      0 0 0 10px #060608,
+      0 0 0 11px rgba(255,255,255,.05),
+      0 50px 100px -40px rgba(0,0,0,.95);
+  }
+  .noise{position:absolute;inset:0;z-index:0;opacity:.045;pointer-events:none;mix-blend-mode:overlay}
+  .ambient{position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(300px 220px at 30% 2%, rgba(127,227,212,.16), transparent 70%),
+      radial-gradient(280px 220px at 86% 12%, rgba(183,155,255,.10), transparent 72%);}
+  .ui{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+
+  /* 灵动岛 + 状态栏 */
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:122px;height:35px;
+    border-radius:20px;background:#000;z-index:5;display:flex;align-items:center;justify-content:flex-end;padding-right:11px}
+  .island i{width:9px;height:9px;border-radius:50%;background:#0D1F1E;
+    box-shadow:inset 0 0 0 1px rgba(127,227,212,.22), inset 0 0 6px rgba(127,227,212,.25)}
+  .status{height:52px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;flex:0 0 auto}
+  .status .time{font-size:14px;font-weight:600;letter-spacing:.2px;font-variant-numeric:tabular-nums}
+  .status .indic{display:flex;align-items:center;gap:5px}
+  .status svg{display:block}
+
+  /* ───────── 导航栏 ───────── */
+  .nav{position:absolute;top:52px;left:0;right:0;height:52px;z-index:4;
+    display:flex;align-items:center;padding:0 18px;gap:10px;
+    background:linear-gradient(180deg, rgba(10,10,14,.82), rgba(10,10,14,0));
+    backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%)}
+  .nav .btn{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+    background:rgba(255,255,255,.055);border:1px solid var(--stroke);color:var(--ink2);
+    transition:transform .16s ease, background .16s ease}
+  .nav .btn:active{transform:scale(.94);background:rgba(255,255,255,.10)}
+  .nav .title{flex:1;text-align:center;font-size:15px;font-weight:600;letter-spacing:.3px}
+  .nav .reset{font-size:13px;color:var(--ink2);padding:8px 10px;border-radius:10px;
+    transition:color .16s ease, background .16s ease}
+  .nav .reset:active{color:var(--accent);background:rgba(127,227,212,.10)}
+
+  .scroll{position:absolute;top:104px;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;
+    padding:6px 18px 34px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* ───────── 页头 ───────── */
+  .hero-hd{display:flex;align-items:flex-start;gap:14px;padding:4px 2px 0}
+  .hero-hd .txt{flex:1}
+  .hero-hd h2{margin:0;font-size:28px;font-weight:700;letter-spacing:-.7px}
+  .hero-hd .sub{margin-top:5px;font-size:11.5px;color:var(--ink3);letter-spacing:.2px}
+  .hero-hd .sub b{color:var(--ink2);font-weight:500}
+
+  /* 开关 */
+  .sw{position:relative;width:48px;height:29px;border-radius:99px;flex:0 0 auto;cursor:pointer;
+    background:rgba(255,255,255,.13);transition:background .25s cubic-bezier(.3,.8,.3,1)}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;
+    background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35);
+    transition:transform .25s cubic-bezier(.3,1.3,.5,1), width .2s ease}
+  .sw.on{background:linear-gradient(180deg,#8CEBDC,#5FCEC0)}
+  .sw.on::after{transform:translateX(19px);background:#062421}
+  .sw:active::after{width:26px}
+
+  /* ───────── 主卡：推子 + 曲线 ───────── */
+  .panel{
+    margin-top:16px;border-radius:28px;position:relative;overflow:hidden;
+    background:linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.032) 46%, rgba(255,255,255,.045));
+    border:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.11), inset 0 -1px 0 rgba(0,0,0,.28), 0 26px 54px -34px rgba(0,0,0,.9);
+    backdrop-filter:blur(26px) saturate(150%);-webkit-backdrop-filter:blur(26px) saturate(150%);
+  }
+  .panel .hd{display:flex;align-items:baseline;justify-content:space-between;padding:15px 18px 0}
+  .panel .hd .k{font-size:10.5px;letter-spacing:1.1px;color:var(--ink3);text-transform:uppercase}
+  .panel .hd .v{font-size:10.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+
+  .eq{position:relative;height:238px;margin:12px 12px 6px;touch-action:none}
+
+  /* 刻度 */
+  .scale-col{position:absolute;left:0;top:16px;bottom:16px;width:26px;
+    display:flex;flex-direction:column;justify-content:space-between;font-size:9px;color:var(--ink3);
+    font-variant-numeric:tabular-nums;text-align:right}
+  .grid{position:absolute;left:30px;right:0;top:16px;bottom:16px}
+  .grid .gl{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.05)}
+  .grid .gl.zero{border-top:1px dashed rgba(255,255,255,.22)}
+  .grid .gl.mid{border-top:1px solid rgba(255,255,255,.035)}
+
+  /* 曲线层 */
+  .curve-svg{position:absolute;left:30px;right:0;top:16px;bottom:16px;width:calc(100% - 30px);height:calc(100% - 32px);
+    pointer-events:none;overflow:visible}
+  .faders{position:absolute;left:38px;right:2px;top:16px;bottom:16px;display:flex;justify-content:space-between}
+  .fader{position:relative;width:54px;display:flex;justify-content:center;height:100%;cursor:grab;touch-action:none}
+  .fader:active{cursor:grabbing}
+  .fader .rail{position:absolute;top:0;bottom:0;width:4px;border-radius:99px;background:rgba(255,255,255,.085);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  .fader .fill{position:absolute;left:50%;transform:translateX(-50%);width:4px;border-radius:99px;
+    background:linear-gradient(180deg,#8CEBDC,rgba(127,227,212,.30))}
+  .fader .thumb{position:absolute;left:50%;width:24px;height:24px;border-radius:50%;
+    transform:translate(-50%,-50%);cursor:grab;
+    background:radial-gradient(circle at 50% 42%, #F7FFFE 0 22%, #9FE9DF 22% 46%, #0E1615 47% 100%);
+    box-shadow:0 0 0 1.5px rgba(127,227,212,.65), 0 6px 16px -4px rgba(127,227,212,.55), inset 0 1px 2px rgba(255,255,255,.5);
+    transition:box-shadow .18s ease}
+  .fader.active .thumb{box-shadow:0 0 0 2px rgba(127,227,212,.9), 0 8px 22px -2px rgba(127,227,212,.8), inset 0 1px 2px rgba(255,255,255,.6)}
+  .fader .tip{position:absolute;left:50%;transform:translate(-50%,-140%) scale(.92);opacity:0;
+    padding:3px 8px;border-radius:8px;font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;
+    background:rgba(12,20,19,.94);border:1px solid rgba(127,227,212,.4);color:#CDF6EF;
+    box-shadow:0 8px 18px -8px #000;transition:opacity .16s ease, transform .16s ease;pointer-events:none;z-index:3}
+  .fader.active .tip{opacity:1;transform:translate(-50%,-150%) scale(1)}
+  .fader .lab{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:9.5px;color:var(--ink3);
+    font-variant-numeric:tabular-nums;letter-spacing:.2px;white-space:nowrap}
+
+  .eq-foot{display:flex;justify-content:space-between;padding:8px 18px 15px;font-size:10px;color:var(--ink3);
+    font-variant-numeric:tabular-nums}
+  .eq-foot b{color:var(--ink2);font-weight:600}
+
+  /* 预设 */
+  .presets{display:flex;flex-wrap:wrap;gap:8px;padding:12px 18px 0;margin:0 -18px}
+  .presets + .presets{padding-top:8px}
+  .presets .cap{flex:0 0 100%;font-size:9.5px;letter-spacing:.8px;color:var(--ink3);margin-bottom:1px}
+  .chip{flex:0 0 auto;height:30px;padding:0 11px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;
+    font-size:11.5px;color:var(--ink2);background:rgba(255,255,255,.05);border:1px solid var(--stroke);
+    transition:all .2s cubic-bezier(.3,.8,.3,1)}
+  .chip .d{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.25)}
+  .chip.dirty .d{background:var(--accent);box-shadow:0 0 6px rgba(127,227,212,.9)}
+  .chip.on{color:#05302C;background:linear-gradient(180deg,#9DF0E3,#6FD6C8);border-color:transparent;
+    box-shadow:0 8px 20px -10px rgba(127,227,212,.9)}
+  .chip.on .d{background:#0A4A44}
+  .chip:active{transform:scale(.96)}
+
+  /* ───────── 开关行 / 滑块卡 ───────── */
+  .card{margin-top:14px;border-radius:24px;padding:4px 16px;
+    background:linear-gradient(180deg, rgba(255,255,255,.062), rgba(255,255,255,.03));
+    border:1px solid var(--stroke);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.09), 0 20px 40px -30px rgba(0,0,0,.9);
+    backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%)}
+  .srow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.055)}
+  .srow:last-child{border-bottom:0}
+  .srow .ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;
+    background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.045));
+    border:1px solid rgba(255,255,255,.09);font-size:15px}
+  .srow .tx{flex:1;min-width:0}
+  .srow .n{font-size:13.5px;font-weight:520;letter-spacing:.1px}
+  .srow .s{margin-top:2px;font-size:10.5px;color:var(--ink3);line-height:1.45}
+  .srow .v{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;margin-left:2px}
+
+  .slider{padding:14px 0 4px}
+  .slider .top{display:flex;align-items:baseline;justify-content:space-between}
+  .slider .top .n{font-size:12.5px;color:var(--ink)}
+  .slider .top .v{font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums;font-weight:600}
+  .track{position:relative;height:26px;margin-top:6px;touch-action:none;cursor:pointer}
+  .track .bg{position:absolute;left:0;right:0;top:50%;height:4px;transform:translateY(-50%);
+    border-radius:99px;background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .track .fg{position:absolute;left:0;top:50%;height:4px;transform:translateY(-50%);border-radius:99px;
+    background:linear-gradient(90deg,rgba(127,227,212,.35),#7FE3D4)}
+  .track .kn{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);
+    background:radial-gradient(circle at 50% 40%, #FFFFFF 0 40%, #D7F7F2 40% 100%);
+    box-shadow:0 0 0 1px rgba(127,227,212,.5), 0 4px 12px -3px rgba(0,0,0,.7)}
+  .track .marks{position:absolute;left:0;right:0;top:calc(50% + 12px);display:flex;justify-content:space-between;
+    font-size:9px;color:var(--ink3);font-variant-numeric:tabular-nums}
+  .disabled{opacity:.38;pointer-events:none;filter:saturate(.3)}
+
+  /* 底部 */
+  .foot-note{padding:16px 4px 0;font-size:10.5px;line-height:1.8;color:var(--ink3)}
+  .home-ind{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:132px;height:5px;border-radius:99px;
+    background:rgba(255,255,255,.28);z-index:6}
+
+  /* 关闭态 */
+  .off .panel{opacity:.55;filter:saturate(.32)}
+  .off .fader .fill{background:rgba(255,255,255,.18)}
+  .off .fader .thumb{background:radial-gradient(circle at 50% 42%, #E8E8EC 0 22%, #8A8A93 22% 46%, #141418 47% 100%);
+    box-shadow:0 0 0 1.5px rgba(255,255,255,.30), 0 6px 14px -6px #000}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ══════════════ A · 开启（可交互） ══════════════ -->
+  <div class="col">
+    <div class="phone" id="phoneA">
+      <div class="ambient"></div>
+      <svg class="noise" xmlns="http://www.w3.org/2000/svg">
+        <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"/></filter>
+        <rect width="100%" height="100%" filter="url(#n)" opacity=".55"/>
+      </svg>
+      <div class="island"><i></i></div>
+      <div class="ui">
+        <div class="status">
+          <div class="time">22:25</div>
+          <div class="indic">
+            <svg width="17" height="11" viewBox="0 0 17 11"><g fill="#fff"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></g></svg>
+            <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2l2.1-2.4a3.2 3.2 0 00-4.2 0L8 9.2z" fill="#fff"/><path d="M8 3.6c1.7 0 3.3.6 4.6 1.7l1.2-1.4A9 9 0 008 1.9a9 9 0 00-5.8 2l1.2 1.4A7 7 0 018 3.6z" fill="#fff" opacity=".85"/></svg>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.6" fill="#fff"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="rgba(255,255,255,.55)"/></svg>
+          </div>
+        </div>
+
+        <div class="nav">
+          <div class="btn"><svg width="9" height="15" viewBox="0 0 9 15"><path d="M7.5 1.5L1.5 7.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="title">音效</div>
+          <div class="reset" id="resetBtn">重置</div>
+        </div>
+
+        <div class="scroll">
+          <div class="hero-hd">
+            <div class="txt">
+              <h2>均衡器</h2>
+              <div class="sub">5 段 · <b>60Hz — 14kHz</b> · 输出 <b>44.1kHz</b></div>
+            </div>
+            <div class="sw on" data-master></div>
+          </div>
+
+          <div class="panel" data-panel>
+            <div class="hd">
+              <span class="k">响应曲线</span>
+              <span class="v" id="gainSum">+10.0 dB · 自定义</span>
+            </div>
+
+            <div class="eq" id="eq">
+              <div class="scale-col"><span>+12</span><span>+6</span><span>0</span><span>−6</span><span>−12</span></div>
+              <div class="grid">
+                <div class="gl" style="top:0%"></div>
+                <div class="gl mid" style="top:25%"></div>
+                <div class="gl zero" style="top:50%"></div>
+                <div class="gl mid" style="top:75%"></div>
+                <div class="gl" style="top:100%"></div>
+              </div>
+              <svg class="curve-svg" id="curveSvg" viewBox="0 0 300 200" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7FE3D4" stop-opacity=".34"/>
+                    <stop offset="70%" stop-color="#7FE3D4" stop-opacity=".04"/>
+                    <stop offset="100%" stop-color="#7FE3D4" stop-opacity="0"/>
+                  </linearGradient>
+                  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="3.2" result="b"/>
+                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <path id="areaPath" fill="url(#fill)"/>
+                <path id="linePath" fill="none" stroke="#7FE3D4" stroke-width="2.4" stroke-linecap="round" filter="url(#glow)"/>
+                <g id="nodes"></g>
+              </svg>
+              <div class="faders" id="faders"></div>
+            </div>
+
+            <div class="eq-foot">
+              <span>低频 <b id="lowSum">+6.5</b></span>
+              <span>中频 <b id="midSum">+1.0</b></span>
+              <span>高频 <b id="highSum">+2.5</b></span>
+            </div>
+
+            <div class="presets">
+              <div class="cap">常用</div>
+              <div class="chip on" data-preset="custom"><span class="d"></span>自定义</div>
+              <div class="chip" data-preset="rock"><span class="d"></span>摇滚</div>
+              <div class="chip" data-preset="pop"><span class="d"></span>流行</div>
+              <div class="chip" data-preset="classical"><span class="d"></span>古典</div>
+            </div>
+<div class="presets">
+              <div class="cap">更多</div>
+              <div class="chip" data-preset="jazz"><span class="d"></span>爵士</div>
+              <div class="chip" data-preset="hiphop"><span class="d"></span>嘻哈</div>
+              <div class="chip" data-preset="blues"><span class="d"></span>布鲁斯</div>
+              <div class="chip" data-preset="electronic"><span class="d"></span>电子音乐</div>
+              <div class="chip" data-preset="metal"><span class="d"></span>金属</div>
+            </div>
+            <div style="height:12px"></div>
+          </div>
+
+          <div class="card">
+            <div class="srow">
+              <div class="ic">◈</div>
+              <div class="tx"><div class="n">虚拟环绕声</div><div class="s">3D 空间音频声场，耳机下更明显</div></div>
+              <div class="sw on" data-toggle></div>
+            </div>
+            <div class="srow">
+              <div class="ic">◑</div>
+              <div class="tx"><div class="n">淡入淡出</div><div class="s">换曲尾段淡出、新曲淡入，不重叠</div></div>
+              <div class="sw on" data-toggle></div>
+            </div>
+            <div class="slider" id="fadeSlider">
+              <div class="top"><span class="n">淡入淡出时长</span><span class="v" id="fadeVal">4 秒</span></div>
+              <div class="track" data-slider="fade">
+                <div class="bg"></div><div class="fg" style="width:50%"></div><div class="kn" style="left:50%"></div>
+                <div class="marks"><span>0</span><span>2</span><span>4</span><span>6</span><span>8 秒</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="srow" style="border-bottom:0">
+              <div class="ic">◉</div>
+              <div class="tx"><div class="n">低音增强</div><div class="s">在均衡器之外再补一层下潜</div></div>
+              <div class="v" id="bassVal">+3</div>
+            </div>
+            <div class="slider" style="padding-top:2px">
+              <div class="track" data-slider="bass">
+                <div class="bg"></div><div class="fg" style="width:60%"></div><div class="kn" style="left:60%"></div>
+                <div class="marks"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="foot-note">
+            曲线与推子共用同一坐标系：拖动任意推子，上方曲线、左右摘要与顶部增益值实时更新。
+            关闭均衡器后曲线压平，推子保留位置，下次打开即恢复。
+          </div>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+
+    <div class="caption">
+      <div class="t">A · 开启（可拖动）</div>
+      <div class="d">
+        <b>真的能拖</b>：按住任意推子上下拖，曲线、节点、顶部 <em>+10.0 dB</em> 摘要、底部低/中/高三个合计都实时变。
+        点预设胶囊会看到推子<em>补间到目标曲线</em>。<br>
+        细节：±12 dB 五档刻度 + 0 dB 虚线；推子拇指双层（内白点 + 外发光），拖动时放大并弹出数值气泡；
+        曲线带发光与渐变面积；卡面顶部有 1px 内高光，避免「一片糊」。
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ B · 关闭 ══════════════ -->
+  <div class="col">
+    <div class="phone off">
+      <div class="ambient" style="opacity:.5"></div>
+      <svg class="noise" xmlns="http://www.w3.org/2000/svg">
+        <filter id="n2"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"/></filter>
+        <rect width="100%" height="100%" filter="url(#n2)" opacity=".55"/>
+      </svg>
+      <div class="island"><i></i></div>
+      <div class="ui">
+        <div class="status">
+          <div class="time">22:25</div>
+          <div class="indic">
+            <svg width="17" height="11" viewBox="0 0 17 11"><g fill="#fff"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></g></svg>
+            <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2l2.1-2.4a3.2 3.2 0 00-4.2 0L8 9.2z" fill="#fff"/><path d="M8 3.6c1.7 0 3.3.6 4.6 1.7l1.2-1.4A9 9 0 008 1.9a9 9 0 00-5.8 2l1.2 1.4A7 7 0 018 3.6z" fill="#fff" opacity=".85"/></svg>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.6" fill="#fff"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="rgba(255,255,255,.55)"/></svg>
+          </div>
+        </div>
+
+        <div class="nav">
+          <div class="btn"><svg width="9" height="15" viewBox="0 0 9 15"><path d="M7.5 1.5L1.5 7.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="title">音效</div>
+          <div class="reset">重置</div>
+        </div>
+
+        <div class="scroll">
+          <div class="hero-hd">
+            <div class="txt">
+              <h2>均衡器</h2>
+              <div class="sub">关闭后保持上次曲线 · <b>下次打开即恢复</b></div>
+            </div>
+            <div class="sw"></div>
+          </div>
+
+          <div class="panel">
+            <div class="hd">
+              <span class="k">响应曲线</span>
+              <span class="v">已关闭 · 平直</span>
+            </div>
+            <div class="eq">
+              <div class="scale-col"><span>+12</span><span>+6</span><span>0</span><span>−6</span><span>−12</span></div>
+              <div class="grid">
+                <div class="gl" style="top:0%"></div>
+                <div class="gl mid" style="top:25%"></div>
+                <div class="gl zero" style="top:50%"></div>
+                <div class="gl mid" style="top:75%"></div>
+                <div class="gl" style="top:100%"></div>
+              </div>
+              <svg class="curve-svg" viewBox="0 0 300 200" preserveAspectRatio="none">
+                <path d="M0,100 L300,100" fill="none" stroke="rgba(255,255,255,.30)" stroke-width="2"/>
+                <circle cx="12" cy="100" r="3" fill="rgba(255,255,255,.38)"/>
+                <circle cx="81" cy="100" r="3" fill="rgba(255,255,255,.38)"/>
+                <circle cx="150" cy="100" r="3" fill="rgba(255,255,255,.38)"/>
+                <circle cx="219" cy="100" r="3" fill="rgba(255,255,255,.38)"/>
+                <circle cx="288" cy="100" r="3" fill="rgba(255,255,255,.38)"/>
+              </svg>
+              <div class="faders">
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">60Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">230Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">910Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">3.6kHz</div></div>
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">14kHz</div></div>
+              </div>
+            </div>
+            <div class="eq-foot"><span>低频 <b>0.0</b></span><span>中频 <b>0.0</b></span><span>高频 <b>0.0</b></span></div>
+            <div class="presets">
+              <div class="chip"><span class="d"></span>自定义</div>
+              <div class="chip"><span class="d"></span>摇滚</div>
+              <div class="chip"><span class="d"></span>流行</div>
+              <div class="chip"><span class="d"></span>古典</div>
+              <div class="chip"><span class="d"></span>爵士</div>
+            </div>
+            <div style="height:12px"></div>
+          </div>
+
+          <div class="card">
+            <div class="srow disabled">
+              <div class="ic">◈</div>
+              <div class="tx"><div class="n">虚拟环绕声</div><div class="s">均衡器关闭时不生效</div></div>
+              <div class="sw"></div>
+            </div>
+            <div class="srow disabled">
+              <div class="ic">◑</div>
+              <div class="tx"><div class="n">淡入淡出</div><div class="s">均衡器关闭时不生效</div></div>
+              <div class="sw"></div>
+            </div>
+            <div class="slider disabled">
+              <div class="top"><span class="n">淡入淡出时长</span><span class="v" style="color:var(--ink3)">—</span></div>
+              <div class="track">
+                <div class="bg"></div><div class="kn" style="left:0"></div>
+                <div class="marks"><span>0</span><span>2</span><span>4</span><span>6</span><span>8 秒</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="foot-note">
+            关闭态不是「全部变灰」：曲线压成 0 dB 基线、节点转灰白，推子保留上次位置仅降饱和；
+            依赖均衡器的环绕声/淡入淡出明确禁用，时长显示 — 而不是假的可拖状态。
+          </div>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+
+    <div class="caption">
+      <div class="t">B · 关闭</div>
+      <div class="d">
+        曲线压平成一条 0 dB 基线，节点转灰白；推子<em>保留数值</em>只是降饱和（不是清零），
+        打开开关立刻回到 A 屏那条曲线。<br>
+        下方三项随均衡器禁用：描述改成「关闭时不生效」，时长显示 <em>—</em>，不再留可拖的假控件。
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ C · 预设切换细节 ══════════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="ambient" style="opacity:.85"></div>
+      <svg class="noise" xmlns="http://www.w3.org/2000/svg">
+        <filter id="n3"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"/></filter>
+        <rect width="100%" height="100%" filter="url(#n3)" opacity=".55"/>
+      </svg>
+      <div class="island"><i></i></div>
+      <div class="ui">
+        <div class="status">
+          <div class="time">22:25</div>
+          <div class="indic">
+            <svg width="17" height="11" viewBox="0 0 17 11"><g fill="#fff"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></g></svg>
+            <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2l2.1-2.4a3.2 3.2 0 00-4.2 0L8 9.2z" fill="#fff"/><path d="M8 3.6c1.7 0 3.3.6 4.6 1.7l1.2-1.4A9 9 0 008 1.9a9 9 0 00-5.8 2l1.2 1.4A7 7 0 018 3.6z" fill="#fff" opacity=".85"/></svg>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.6" fill="#fff"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="rgba(255,255,255,.55)"/></svg>
+          </div>
+        </div>
+
+        <div class="nav">
+          <div class="btn"><svg width="9" height="15" viewBox="0 0 9 15"><path d="M7.5 1.5L1.5 7.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="title">音效</div>
+          <div class="reset">重置</div>
+        </div>
+
+        <div class="scroll">
+          <div class="hero-hd">
+            <div class="txt">
+              <h2>均衡器</h2>
+              <div class="sub">预设：<b id="presetName">摇滚</b> · 可继续微调后转自定义</div>
+            </div>
+            <div class="sw on"></div>
+          </div>
+
+          <div class="panel">
+            <div class="hd"><span class="k">响应曲线</span><span class="v">+8.0 dB · 摇滚</span></div>
+            <div class="eq">
+              <div class="scale-col"><span>+12</span><span>+6</span><span>0</span><span>−6</span><span>−12</span></div>
+              <div class="grid">
+                <div class="gl" style="top:0%"></div><div class="gl mid" style="top:25%"></div>
+                <div class="gl zero" style="top:50%"></div><div class="gl mid" style="top:75%"></div>
+                <div class="gl" style="top:100%"></div>
+              </div>
+              <svg class="curve-svg" viewBox="0 0 300 200" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="fill2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#7FE3D4" stop-opacity=".32"/>
+                    <stop offset="100%" stop-color="#7FE3D4" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path id="area2" fill="url(#fill2)"/>
+                <path d="M0,42 C40,38 60,58 90,66 C120,74 140,100 150,100 C180,100 205,62 230,56 C260,48 285,54 300,58"
+                      fill="none" stroke="#7FE3D4" stroke-width="2.4" stroke-linecap="round"/>
+                <circle cx="12" cy="42" r="3.4" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>
+                <circle cx="81" cy="66" r="3.4" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>
+                <circle cx="150" cy="100" r="3.4" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>
+                <circle cx="219" cy="58" r="3.4" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>
+                <circle cx="288" cy="48" r="3.4" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>
+              </svg>
+              <div class="faders">
+                <div class="fader"><div class="rail"></div><div class="fill" style="top:22%;height:28%"></div><div class="thumb" style="top:22%"></div><div class="lab">60Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="fill" style="top:38%;height:12%"></div><div class="thumb" style="top:38%"></div><div class="lab">230Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="thumb" style="top:50%"></div><div class="lab">910Hz</div></div>
+                <div class="fader"><div class="rail"></div><div class="fill" style="top:43%;height:7%"></div><div class="thumb" style="top:43%"></div><div class="lab">3.6kHz</div></div>
+                <div class="fader"><div class="rail"></div><div class="fill" style="top:33%;height:17%"></div><div class="thumb" style="top:33%"></div><div class="lab">14kHz</div></div>
+              </div>
+            </div>
+            <div class="eq-foot"><span>低频 <b>+9.0</b></span><span>中频 <b>0.0</b></span><span>高频 <b>+4.0</b></span></div>
+
+            <div class="presets">
+              <div class="cap">常用</div>
+              <div class="chip"><span class="d"></span>自定义</div>
+              <div class="chip on"><span class="d"></span>摇滚</div>
+              <div class="chip"><span class="d"></span>流行</div>
+              <div class="chip"><span class="d"></span>古典</div>
+            </div>
+<div class="presets">
+              <div class="cap">更多</div>
+              <div class="chip"><span class="d"></span>爵士</div>
+              <div class="chip"><span class="d"></span>嘻哈</div>
+              <div class="chip"><span class="d"></span>布鲁斯</div>
+              <div class="chip"><span class="d"></span>电子音乐</div>
+              <div class="chip"><span class="d"></span>金属</div>
+            </div>
+            <div style="height:12px"></div>
+          </div>
+
+          <div class="card">
+            <div class="srow">
+              <div class="ic">◈</div>
+              <div class="tx"><div class="n">虚拟环绕声</div><div class="s">3D 空间音频声场，耳机下更明显</div></div>
+              <div class="sw on"></div>
+            </div>
+            <div class="srow">
+              <div class="ic">◑</div>
+              <div class="tx"><div class="n">淡入淡出</div><div class="s">换曲尾段淡出、新曲淡入，不重叠</div></div>
+              <div class="sw on"></div>
+            </div>
+            <div class="slider">
+              <div class="top"><span class="n">淡入淡出时长</span><span class="v">4 秒</span></div>
+              <div class="track">
+                <div class="bg"></div><div class="fg" style="width:50%"></div><div class="kn" style="left:50%"></div>
+                <div class="marks"><span>0</span><span>2</span><span>4</span><span>6</span><span>8 秒</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="foot-note">
+            选预设后推子会补间到目标曲线（300ms），曲线同步；之后手动拖任意推子，
+            选中态自动跳回「自定义」——不强制用户先点自定义再调。
+          </div>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+
+    <div class="caption">
+      <div class="t">C · 预设与自定义的衔接</div>
+      <div class="d">
+        预设不是死档：选中「摇滚」后仍可继续拖推子，<em>选中态自动变回自定义</em>，
+        顶部摘要跟着显示「+8.0 dB · 摇滚 / 自定义」。<br>
+        预设值与 App 现有 9 个完全一致（自定义 / 摇滚 / 爵士 / 流行 / 古典 / 嘻哈 / 布鲁斯 / 电子音乐 / 金属），两行分组排列（常用 4 / 更多 5），全部可见不用滑；切换用 300ms 插值，不瞬跳。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const bands = [
+    {label:'60Hz',  gain: 4.5},
+    {label:'230Hz', gain: 2.0},
+    {label:'910Hz', gain: 0.0},
+    {label:'3.6kHz',gain: 1.0},
+    {label:'14kHz', gain: 2.5},
+  ];
+  const RANGE = 12;
+  const eq = document.getElementById('eq');
+  const fadersEl = document.getElementById('faders');
+  const linePath = document.getElementById('linePath');
+  const areaPath = document.getElementById('areaPath');
+  const nodes = document.getElementById('nodes');
+  const gainSum = document.getElementById('gainSum');
+  const lowSum = document.getElementById('lowSum');
+  const midSum = document.getElementById('midSum');
+  const highSum = document.getElementById('highSum');
+  let activePreset = 'custom';
+
+  function pct(g){ return (1 - (g + RANGE) / (RANGE * 2)) * 100; }   // 0% = +12, 100% = -12
+
+  // 构造 5 根推子
+  bands.forEach((b, i) => {
+    const f = document.createElement('div');
+    f.className = 'fader';
+    f.dataset.i = i;
+    f.innerHTML = `
+      <div class="rail"></div>
+      <div class="fill"></div>
+      <div class="thumb"></div>
+      <div class="tip"></div>
+      <div class="lab">${b.label}</div>`;
+    fadersEl.appendChild(f);
+  });
+
+  function render(animate){
+    const w = eq.clientWidth - 38 - 2;   // 与 .faders 左右内边距对齐
+    const h = 200;
+    const xs = bands.map((_, i) => 12 + i * ((w - 24) / (bands.length - 1)) * (300 / w));
+    const ys = bands.map(b => (1 - (b.gain + RANGE) / (RANGE * 2)) * h);
+
+    // 推子
+    [...fadersEl.children].forEach((f, i) => {
+      const g = bands[i].gain;
+      const p = pct(g);
+      const fill = f.querySelector('.fill');
+      const thumb = f.querySelector('.thumb');
+      const tip = f.querySelector('.tip');
+      thumb.style.top = p + '%';
+      const zero = 50;
+      fill.style.top = Math.min(p, zero) + '%';
+      fill.style.height = Math.abs(zero - p) + '%';
+      tip.textContent = (g >= 0 ? '+' : '') + g.toFixed(1);
+      tip.style.bottom = (100 - p) + '%';
+      tip.style.transform = 'translate(-50%, -6px)';
+      if(animate){
+        thumb.style.transition = 'top .3s cubic-bezier(.3,.9,.3,1)';
+        fill.style.transition = 'top .3s cubic-bezier(.3,.9,.3,1), height .3s cubic-bezier(.3,.9,.3,1)';
+        setTimeout(()=>{ thumb.style.transition=''; fill.style.transition=''; }, 320);
+      }
+    });
+
+    // 曲线（Catmull-Rom → 贝塞尔）
+    const pts = ys.map((y, i) => [12 + i * (300 - 24) / 4, y]);
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`;
+    }
+    linePath.setAttribute('d', d);
+    areaPath.setAttribute('d', `${d} L300,200 L0,200 Z`);
+
+    nodes.innerHTML = pts.map(p =>
+      `<circle cx="${p[0]}" cy="${p[1]}" r="3.6" fill="#0C1A18" stroke="#7FE3D4" stroke-width="2"/>`
+    ).join('');
+
+    // 摘要
+    const total = bands.reduce((s,b)=>s+b.gain,0);
+    const name = activePreset === 'custom' ? '自定义' :
+      ({rock:'摇滚',pop:'流行',jazz:'爵士',classical:'古典',hiphop:'嘻哈',blues:'布鲁斯',electronic:'电子音乐',metal:'金属'})[activePreset];
+    gainSum.textContent = `${total>=0?'+':''}${total.toFixed(1)} dB · ${name}`;
+    lowSum.textContent = ((bands[0].gain + bands[1].gain)/2).toFixed(1).replace(/^(\d)/,'+$1');
+    midSum.textContent = bands[2].gain.toFixed(1).replace(/^(\d)/,'+$1');
+    highSum.textContent = ((bands[3].gain + bands[4].gain)/2).toFixed(1).replace(/^(\d)/,'+$1');
+  }
+
+  // 拖动
+  let dragging = null;
+  function yToGain(clientY){
+    const r = eq.getBoundingClientRect();
+    const top = r.top + 16, bottom = r.bottom - 16;
+    const t = Math.min(1, Math.max(0, (clientY - top) / (bottom - top)));
+    return RANGE - t * RANGE * 2;
+  }
+  eq.addEventListener('pointerdown', (e) => {
+    const f = e.target.closest('.fader');
+    if (!f) return;
+    dragging = Number(f.dataset.i);
+    f.classList.add('active');
+    f.setPointerCapture(e.pointerId);
+    bands[dragging].gain = yToGain(e.clientY);
+    markCustom();
+    render(false);
+  });
+  eq.addEventListener('pointermove', (e) => {
+    if (dragging === null) return;
+    bands[dragging].gain = Math.round(yToGain(e.clientY) * 2) / 2;
+    render(false);
+    const custom = document.querySelector('.chip[data-preset="custom"]');
+    if (custom) custom.classList.add('dirty');
+  });
+  const endDrag = () => {
+    if (dragging === null) return;
+    const f = fadersEl.children[dragging];
+    if (f) f.classList.remove('active');
+    dragging = null;
+  };
+  eq.addEventListener('pointerup', endDrag);
+  eq.addEventListener('pointercancel', endDrag);
+
+  function markCustom(){
+    if (activePreset === 'custom') return;
+    activePreset = 'custom';
+    [...document.querySelectorAll('.presets .chip')].forEach(c => c.classList.toggle('on', c.dataset.preset === 'custom'));
+  }
+
+  // 预设
+  const PRESETS = {
+    rock:        [8.0, 4.0, -1.0, 3.0, 5.0],
+    jazz:        [4.0, 2.0, 1.0, 2.0, 3.0],
+    pop:         [2.0, 4.0, 3.0, 4.0, 2.0],
+    classical:   [3.0, 2.0, 0.0, 2.0, 4.0],
+    hiphop:      [9.0, 5.0, 0.0, 2.0, 3.0],
+    blues:       [3.0, 2.0, -1.0, 1.0, 2.0],
+    electronic:  [7.0, 4.0, 1.0, 4.0, 6.0],
+    metal:       [6.0, 3.0, -2.0, 4.0, 7.0],
+  };
+  document.querySelectorAll('.presets').forEach(list => {
+    list.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip || !chip.dataset.preset) return;
+      const key = chip.dataset.preset;
+      [...document.querySelectorAll('.presets .chip')].forEach(c => c.classList.toggle('on', c === chip));
+      activePreset = key;
+      if (key !== 'custom' && PRESETS[key]) {
+        PRESETS[key].forEach((g, i) => bands[i].gain = g);
+      }
+      render(true);
+    });
+  });
+
+  // 开关 & 滑条（装饰级交互）
+  document.querySelectorAll('[data-master]').forEach(el => el.addEventListener('click', () => {
+    el.classList.toggle('on');
+    document.querySelector('[data-panel]').style.opacity = el.classList.contains('on') ? '' : '.5';
+  }));
+  document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => el.classList.toggle('on')));
+
+  document.querySelectorAll('[data-slider]').forEach(track => {
+    const key = track.dataset.slider;
+    const kn = track.querySelector('.kn'), fg = track.querySelector('.fg');
+    const set = (clientX) => {
+      const r = track.getBoundingClientRect();
+      const t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      kn.style.left = (t*100) + '%';
+      if (fg) fg.style.width = (t*100) + '%';
+      if (key === 'fade') document.getElementById('fadeVal').textContent = Math.round(t*8) + ' 秒';
+      if (key === 'bass') document.getElementById('bassVal').textContent = '+' + Math.round(t*5);
+    };
+    track.addEventListener('pointerdown', e => { track.setPointerCapture(e.pointerId); set(e.clientX); });
+    track.addEventListener('pointermove', e => { if (e.buttons) set(e.clientX); });
+  });
+
+  // 重置
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    bands.forEach(b => b.gain = 0);
+    activePreset = 'custom';
+    [...document.querySelectorAll('.presets .chip')].forEach(c => c.classList.toggle('on', c.dataset.preset === 'custom'));
+    render(true);
+  });
+
+  window.addEventListener('resize', () => render(false));
+  requestAnimationFrame(() => render(false));
+})();
+</script>
+</body>
+</html>
