@@ -64,6 +64,8 @@ import com.catclaw.music.kt.ui.theme.glassCard
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.draw.scale
 import com.catclaw.music.kt.core.smb.SmbPath
 
@@ -381,19 +383,57 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
             Spacer(Modifier.height(10.dp))
         }
 
-        progress?.let {
-            // MAUI 的同步进度面板：total 为 0 是"目录还没列完"，不是"一共 0 首"。
-            // 此前这里只有一个灰掉的按钮，扫几千个文件的 SMB 源看起来像卡死了
-            Text(
-                text = if (it.unknownTotal) {
-                    stringResource(R.string.remote_sync_listing)
-                } else {
-                    stringResource(R.string.remote_sync_progress, it.done, it.total)
-                },
-                fontSize = 12.sp,
-                color = Color(palette.textPrimary),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-            )
+        progress?.let { p ->
+            // 导入进度面板。total 为 0 是"目录还没列完"，不是"一共 0 首"。
+            //
+            // 现在导入由开关触发、且没有独立的导入按钮了，所以必须让"正在导入"这件事
+            // 有明确的视觉反馈 —— 否则用户拨了开关看到界面没变化，会以为没生效。
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CircularProgressIndicator(
+                        // 目录还没列完时是不定长转圈；列完之后它继续转，只是旁边多了分母
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = Color(highlightOnGlassCard(palette)),
+                    )
+                    Text(
+                        text = if (p.unknownTotal) {
+                            stringResource(R.string.remote_sync_listing)
+                        } else {
+                            stringResource(R.string.remote_sync_progress, p.done, p.total)
+                        },
+                        fontSize = 12.sp,
+                        color = Color(palette.textPrimary),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (!p.unknownTotal && p.total > 0) {
+                        Text(
+                            text = "${p.done * 100 / p.total}%",
+                            fontSize = 11.sp,
+                            color = Color(palette.textSecondary),
+                        )
+                    }
+                }
+                if (!p.unknownTotal && p.total > 0) {
+                    LinearProgressIndicator(
+                        progress = { p.done.toFloat() / p.total },
+                        modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                        color = Color(highlightOnGlassCard(palette)),
+                        trackColor = Color.White.copy(alpha = 0.12f),
+                    )
+                }
+            }
         }
 
         // 补全是一次「逐首下载远程文件头」的长任务，MAUI 那边也是先问一句再动手
@@ -580,9 +620,8 @@ fun RemoteSourcesScreen(onBack: () -> Unit, viewModel: RemoteViewModel = hiltVie
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         PillButton(label = stringResource(R.string.Test), filled = false) { viewModel.test(profile) }
-                        PillButton(label = stringResource(R.string.remote_import), filled = true, enabled = !busy) {
-                            viewModel.import(profile)
-                        }
+                        // 没有「导入曲库」按钮：打开开关即导入。配好一条连接就该看到歌进来，
+                        // 再要用户去找第二颗按钮，是把一件事拆成了两件。
                         // 只有 WebDAV/SMB 需要补：Subsonic 的清单本来就带这些列，摆出来就是假控件
                         if (profile.protocol != ProtocolType.Navidrome) {
                             PillButton(

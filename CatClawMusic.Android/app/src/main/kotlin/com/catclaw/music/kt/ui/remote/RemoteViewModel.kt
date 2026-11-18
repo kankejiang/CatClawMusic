@@ -350,7 +350,7 @@ class RemoteViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            connectionDao.upsert(
+            val id = connectionDao.upsert(
                 com.catclaw.music.kt.data.db.entity.ConnectionProfileEntity(
                     id = profile.id,
                     name = profile.name,
@@ -369,6 +369,11 @@ class RemoteViewModel @Inject constructor(
                     serverType = profile.serverType,
                 ),
             )
+            // 启用状态下保存 = 立刻导入。没有独立的「导入曲库」按钮了，
+            // 用户配好一条连接就该看到歌进来，而不是再去找另一颗按钮。
+            if (profile.isEnabled) {
+                import(profile.copy(id = if (profile.id != 0) profile.id else id.toInt()))
+            }
         }
     }
 
@@ -389,7 +394,14 @@ class RemoteViewModel @Inject constructor(
     fun setEnabled(profile: ConnectionProfile, enabled: Boolean) {
         viewModelScope.launch {
             runCatching { connectionDao.setEnabled(profile.id, enabled) }
-                .onFailure { _message.value = RemoteMessage.Failed(it.message ?: it.javaClass.simpleName) }
+                .onFailure {
+                    _message.value = RemoteMessage.Failed(it.message ?: it.javaClass.simpleName)
+                    return@launch
+                }
+            // 打开开关即导入：这是"让这台服务器的歌进音乐库"的唯一动作，
+            // 再单独摆一颗「导入曲库」按钮就是让用户做两件本该是一件事的事。
+            // 关掉开关不删歌（收藏/歌单/统计保留），只是不再显示。
+            if (enabled) import(profile.copy(isEnabled = true))
         }
     }
 
