@@ -38,7 +38,8 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
         val sess = conn.authenticate(
             AuthenticationContext(target.user, target.password.toCharArray(), target.domain),
         )
-        return (sess.connectShare(target.share) as DiskShare).also {
+        val ds = sess.connectShare(target.share) as DiskShare
+        return ds.also {
             connection = conn
             session = sess
             share = it
@@ -59,7 +60,13 @@ class SmbjReader(private val target: SmbTarget) : SmbReader {
 
     override fun list(remotePath: String): List<RemoteFile> {
         val dir = normalizeDir(remotePath)
-        val entries = diskShare().list(dir)
+        // 只要 FileDirectoryInformation：默认的 FileIdBothDirectoryInformation 每条多带
+        // 16 字节文件 ID 和两个 8 字节时间戳，1226 条的目录上这些字段全是我们不读的。
+        // SMB 会把结果按响应包分页传，每条少一点就少几个来回。
+        val entries = diskShare().list(
+            dir,
+            com.hierynomus.msfscc.fileinformation.FileDirectoryInformation::class.java,
+        )
         return entries.mapNotNull { info ->
             val name = info.fileName
             if (name == "." || name == "..") return@mapNotNull null
@@ -198,18 +205,30 @@ object SmbBrowser {
     }
 
     /**
-     * 列出共享内某层的**全部条目**（目录 + 文件）。
+     * 一个可复用的浏览会话。
      *
-     * 调用方自己筛目录；把文件也带出来是因为有些共享（NAS 的 `Music` 就是）
-     * 根目录直接平铺上千首歌、一个子目录都没有。只看目录的话界面只能说
-     * "没有子目录"，看着像失败，而用户想选的往往正是当前这层。
+     * 浏览目录是**连续多次**操作（进一层、退一层、再进另一层），而每次新建
+     * [SmbjReader] 都要支付 connect + authenticate + treeConnect（真机约 177ms）。
+     * 会话级复用把这笔开销摊到整个浏览过程里，只付一次。
+     *
+     * 用完必须 [close]：内部持有 TCP 连接与登录会话，泄漏会占满 NAS 的并发配额。
      */
-    fun listEntries(target: SmbTarget, dir: String): List<RemoteFile> {
-        val reader = SmbjReader(target)
-        return try {
-            reader.list(normalizeDir(dir))
-        } finally {
-            runCatching { reader.close() }
+    class BrowseSession(private val target: SmbTarget) {
+        private var reader: SmbjReader? = null
+        private val lock = Any()
+
+        fun list(dir: String): List<RemoteFile> {
+            val r = synchronized(lock) {
+                reader ?: SmbjReader(target).also { reader = it }
+            }
+            return r.list(normalizeDir(dir))
+        }
+
+        fun close() {
+            synchronized(lock) {
+                runCatching { reader?.close() }
+                reader = null
+            }
         }
     }
 

@@ -200,7 +200,30 @@ class RemoteViewModel @Inject constructor(
     }
 
     fun closeWebDavBrowser() {
+        // 关浏览器的同时把 SMB 会话也释放掉：它持有 TCP 连接与登录会话，
+        // 留着会占 NAS 的并发配额（真机上表现为下一次浏览要等很久）
+        runCatching { smbSession?.close() }
+        smbSession = null
         _browse.value = null
+    }
+
+    /**
+     * 浏览期间复用的 SMB 会话。
+     *
+     * 逐层浏览是连续多次列目录，每次重建连接要付 connect + auth + tree（真机约 177ms）。
+     * 复用后只在**第一次**付这笔钱。换连接/换共享时置空重建。
+     */
+    private var smbSession: SmbBrowser.BrowseSession? = null
+    private var smbSessionKey: String? = null
+
+    /** 共享列表短时缓存：枚举一次 ~590ms，用户来回进出时不必每次重查 */
+    private data class ShareCache(val key: String, val shares: List<String>, val at: Long)
+
+    private var shareCache: ShareCache? = null
+
+    private companion object {
+        /** 共享列表缓存有效期。共享增删是低频操作，1 分钟足够 */
+        const val SHARE_CACHE_MS = 60_000L
     }
 
     /**
@@ -229,7 +252,20 @@ class RemoteViewModel @Inject constructor(
                 if (target.share.isBlank()) {
                     // 还没定共享：真正枚举服务器上的共享（NetShareEnum）。
                     // 不再用候选名探测 —— 那只认写死的名字，真机上大半共享都探不到。
-                    val shares = SmbBrowser.listShares(target)
+                    //
+                    // 同一台主机的列表在 [SHARE_CACHE_MS] 内复用：枚举一次要 ~590ms，
+                    // 而用户在"选共享 → 退出来改端口 → 再进去"这类来回里会重复触发。
+                    // 共享列表几乎不变，短时缓存既省时间又不会显示过期内容。
+                    val cacheKey = "${target.host}|${target.port}|${target.user}"
+                    val now = System.currentTimeMillis()
+                    val cached = shareCache
+                    val shares = if (cached != null && cached.key == cacheKey && now - cached.at < SHARE_CACHE_MS) {
+                        cached.shares
+                    } else {
+                        SmbBrowser.listShares(target).also {
+                            shareCache = ShareCache(cacheKey, it, now)
+                        }
+                    }
                     Loaded(
                         items = shares.map { name ->
                             RemoteFile(
@@ -243,7 +279,20 @@ class RemoteViewModel @Inject constructor(
                         picking = true,
                     )
                 } else {
-                    val entries = SmbBrowser.listEntries(target, at)
+                    // 会话级复用：同一 (主机|端口|共享|用户) 只认证一次，
+                    // 逐层浏览时省掉每次 177ms 的连接开销
+                    val key = target.serviceKey
+                    val existing = smbSession
+                    val session = if (existing != null && smbSessionKey == key) {
+                        existing
+                    } else {
+                        runCatching { existing?.close() }
+                        SmbBrowser.BrowseSession(target).also {
+                            smbSession = it
+                            smbSessionKey = key
+                        }
+                    }
+                    val entries = session.list(at)
                     Loaded(
                         items = entries.filter { it.isDirectory }.sortedBy { it.name.lowercase() },
                         picking = false,
