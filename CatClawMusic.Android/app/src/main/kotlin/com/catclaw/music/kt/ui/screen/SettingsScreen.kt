@@ -119,7 +119,6 @@ fun SettingsScreen(
     BackHandler(enabled = dest != SettingsDest.Hub) { dest = SettingsDest.Hub }
     if (dest != SettingsDest.Hub) return
 
-    val mode by viewModel.mode.collectAsStateWithLifecycle()
     val aiStatus by viewModel.currentConfigName.collectAsStateWithLifecycle()
 
     val primary = Color(palette.textPrimary)
@@ -139,7 +138,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            // 顶对齐：副标题两行时，居中会把返回键压到标题下方
+            verticalAlignment = Alignment.Top,
         ) {
             Box(
                 modifier = Modifier
@@ -176,24 +176,6 @@ fun SettingsScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(primary.copy(alpha = 0.12f))
-                    .border(1.dp, primary.copy(alpha = 0.16f), RoundedCornerShape(14.dp))
-                    .clickable {
-                        viewModel.setMode(if (mode == AppearanceMode.Dark) AppearanceMode.Light else AppearanceMode.Dark)
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_dark_mode),
-                    contentDescription = stringResource(R.string.Appearance),
-                    tint = primary,
-                    modifier = Modifier.size(28.dp),
-                )
             }
         }
         }
