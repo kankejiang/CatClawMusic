@@ -133,7 +133,7 @@ class SearchViewModel @Inject constructor(
             session.ensure()
             val songs = list.map { com.catclaw.music.kt.data.netease.NeteaseSongMapper.toSong(it) }.toMutableList()
             val picked = list[index]
-            val url = picked.id.toLongOrNull()?.let { runCatching { resolver.resolve(it) }.getOrNull() }
+            val url = picked.id.toLongOrNull()?.let { runCatching { resolver.resolve(it).url }.getOrNull() }
             if (!url.isNullOrBlank()) {
                 songs[index] = com.catclaw.music.kt.data.netease.NeteaseSongMapper.toQueueSong(picked, index, url)
             }

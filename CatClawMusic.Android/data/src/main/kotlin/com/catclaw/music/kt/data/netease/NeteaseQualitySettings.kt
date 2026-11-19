@@ -25,11 +25,13 @@ class NeteaseQualitySettings @Inject constructor(
             prefs.edit().putString(KEY, value.name).apply()
         }
 
-    /** 顶部胶囊的循环顺序：极高 → 无损 → 标准 → 极高 */
+    /** 顶部胶囊的循环顺序：极高 → 无损 → Hi-Res → 臻音 → 标准 → 极高 */
     fun cycle(): NeteasePlaylistClient.Quality {
         val next = when (quality) {
             NeteasePlaylistClient.Quality.Exhigh -> NeteasePlaylistClient.Quality.Lossless
-            NeteasePlaylistClient.Quality.Lossless -> NeteasePlaylistClient.Quality.Standard
+            NeteasePlaylistClient.Quality.Lossless -> NeteasePlaylistClient.Quality.Hires
+            NeteasePlaylistClient.Quality.Hires -> NeteasePlaylistClient.Quality.Jyeffect
+            NeteasePlaylistClient.Quality.Jyeffect -> NeteasePlaylistClient.Quality.Standard
             NeteasePlaylistClient.Quality.Standard -> NeteasePlaylistClient.Quality.Exhigh
         }
         quality = next

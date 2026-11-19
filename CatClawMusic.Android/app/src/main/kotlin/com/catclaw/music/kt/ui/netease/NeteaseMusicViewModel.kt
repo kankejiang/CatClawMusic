@@ -244,6 +244,8 @@ class NeteaseMusicViewModel @Inject constructor(
         _quality.value = playUrlResolver.cycleQuality()
         _toast.value = "音质：" + when (_quality.value) {
             NeteasePlaylistClient.Quality.Lossless -> "无损"
+            NeteasePlaylistClient.Quality.Hires -> "Hi-Res"
+            NeteasePlaylistClient.Quality.Jyeffect -> "臻音"
             NeteasePlaylistClient.Quality.Exhigh -> "320k"
             NeteasePlaylistClient.Quality.Standard -> "128k"
         }
@@ -466,9 +468,17 @@ class NeteaseMusicViewModel @Inject constructor(
             if (index in queue.indices) {
                 val songId = songs[index].id.toLongOrNull()
                 if (songId != null) {
-                    val better = runCatching { playUrlResolver.resolve(songId) }.getOrNull()
-                    if (!better.isNullOrBlank()) {
-                        queue[index] = queue[index].copy(filePath = better)
+                    val resolved = runCatching { playUrlResolver.resolve(songId) }.getOrNull()
+                    if (resolved != null && resolved.url.isNotBlank()) {
+                        queue[index] = queue[index].copy(filePath = resolved.url)
+                        // 只能拿到试听片段时明确告诉用户原因，不能静默播 30 秒
+                        if (resolved.trial) {
+                            _toast.value = if (accountRepo.account.value == null) {
+                                "该歌曲需要登录会员账号，当前为试听片段"
+                            } else {
+                                "登录状态可能已过期或该曲需要黑胶会员，当前为试听片段"
+                            }
+                        }
                     }
                 }
             }

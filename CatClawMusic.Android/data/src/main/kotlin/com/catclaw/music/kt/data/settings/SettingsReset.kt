@@ -47,8 +47,10 @@ class SettingsReset @Inject constructor(
             "netease_eapi",
             // 网易云登录 cookie / 账号名。重置所有设置应当一并登出。
             "netease_session",
-            // 网易云播放音质偏好（无损/320k/128k）
+            // 网易云播放音质偏好（无损/Hi-Res/臻音/320k/128k）
             "netease_quality",
+            // 网易云游客令牌（MUSIC_A）的设备指纹。重置后重新注册即可，功能不受影响。
+            "netease_anon",
             "netease_fm",
         )
     }

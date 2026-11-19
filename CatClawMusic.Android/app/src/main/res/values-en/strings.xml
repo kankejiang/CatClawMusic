@@ -88,6 +88,8 @@
     <string name="netease_music_entry">NetEase Music</string>
     <string name="netease_music_entry_sub">Search · recommended playlists · charts</string>
     <string name="netease_quality_lossless">Lossless</string>
+    <string name="netease_quality_hires">Hi-Res</string>
+    <string name="netease_quality_jyeffect">Master</string>
     <string name="netease_quality_320">320k</string>
     <string name="netease_quality_128">128k</string>
     <string name="netease_login">Sign in</string>

@@ -75,10 +75,10 @@ object PlaybackModule {
         // 在构造点接，不挂在服务的 onCreate 上：冷启动时第一个拿到这个单例的往往是 Activity，
         // 整个会话里媒体服务可能压根没被拉起 —— 挂服务上就会静默不记（真机验到过）
         // 在线曲 READY 后自动把下一首的 outer 外链升级成 eapi 直链（音质 + 去掉 302）
-        uriUpgrader = { song ->
+        uriUpgrader = { song, force ->
             val id = song.remoteId?.takeIf { it.startsWith("netease:") }
                 ?.removePrefix("netease:")?.toLongOrNull()
-            if (id == null) null else runCatching { playUrlResolver.resolve(id) }.getOrNull()
+            if (id == null) null else runCatching { playUrlResolver.resolve(id, forceRefresh = force).url }.getOrNull()
         }
         onListenStarted = { songId ->
             history.record(songId)

@@ -63,9 +63,23 @@ class NeteaseSession @Inject constructor(
         prefs.edit().clear().apply()
     }
 
+    /**
+     * 游客令牌（MUSIC_A，api-enhanced `anonymous_token` 同机制）。
+     *
+     * 注册游客账号后服务端把匿名请求按"游客账号"而不是纯匿名设备处理：
+     * 非 VIP 歌完整可播、eapi 风控显著降低。与登录 Cookie 独立持久化，
+     * 登录态存在时请求以 MUSIC_U 优先，MUSIC_A 仅在匿名请求时携带。
+     */
+    var anonymousToken: String?
+        get() = prefs.getString(KEY_ANON_TOKEN, null)?.takeIf { it.isNotBlank() }
+        set(value) {
+            prefs.edit().putString(KEY_ANON_TOKEN, value).apply()
+        }
+
     private companion object {
         const val KEY_COOKIE = "cookie"
         const val KEY_USER_ID = "user_id"
         const val KEY_NICKNAME = "nickname"
+        const val KEY_ANON_TOKEN = "anonymous_token"
     }
 }

@@ -165,7 +165,7 @@ class NeteasePlaylistClientTest {
                 cookie: String?,
             ): String? {
                 lastParams = params
-                return """{"code":200,"data":[{"url":"https://m801.music.126.net/a.mp3","type":"mp3"}]}"""
+                return """{"code":200,"data":[{"code":200,"url":"https://m801.music.126.net/a.mp3","type":"mp3"}]}"""
             }
 
             override suspend fun songDetailRaw(songIds: List<Long>, cookie: String?): String? = null

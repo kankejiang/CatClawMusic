@@ -157,7 +157,7 @@ class NeteaseRadioRepository @Inject constructor(
                 // 只等第一首的直链（保证起播音质）；其余 outer 入队、READY 后并发升级 ——
                 // 旧实现串行等 3 次取链，FM 点开要 2.5 秒才出声
                 val firstUrl = songs.firstOrNull()?.id?.toLongOrNull()?.let {
-                    runCatching { resolver.resolve(it) }.getOrNull()
+                    runCatching { resolver.resolve(it).url }.getOrNull()
                 }
                 val queue = songs.mapIndexed { index, song ->
                     val fallback = NeteasePlaylistClient.playUrlFallback(
@@ -187,7 +187,7 @@ class NeteaseRadioRepository @Inject constructor(
                 songs.drop(1).forEach { song ->
                     scope.launch {
                         val id = song.id.toLongOrNull() ?: return@launch
-                        runCatching { resolver.resolve(id) }.getOrNull()?.let { url ->
+                        runCatching { resolver.resolve(id).url }.getOrNull()?.let { url ->
                             player.upgradeQueueItem(NeteaseSongMapper.toQueueSong(song, 0, "").id, url)
                         }
                     }

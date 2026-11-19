@@ -6,6 +6,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
@@ -56,11 +58,13 @@ class NeteasePlaylistClient @Inject constructor(
         val tracks: List<Track>,
     )
 
-    /** 音质档：标准 / 极高 / 无损。匿名只能用前两档，`lostless` 需要登录 cookie */
+    /** 音质档：标准 / 极高 / 无损 / Hi-Res / 高清臻音。匿名只能用前两档，无损及以上需要登录 cookie */
     enum class Quality(val eapiLevel: String) {
         Standard("standard"),
         Exhigh("exhigh"),
         Lossless("lossless"),
+        Hires("hires"),
+        Jyeffect("jyeffect"),
     }
 
     /** @return 拉取/解析失败返回 null，由调用方翻译成用户能读的错误文案 */
@@ -96,15 +100,16 @@ class NeteasePlaylistClient @Inject constructor(
         quality: Quality = Quality.Exhigh,
         cookie: String? = null,
     ): String? {
-        // 未登录请求无损档会被风控，直接降到极高 —— 与插件 `GetPlayUrlWithTypeAsync` 同规则
-        val level = if (quality == Quality.Lossless && cookie.isNullOrBlank()) {
+        // 未登录请求无损及以上档会被风控，直接降到极高 —— 与插件 `GetPlayUrlWithTypeAsync` 同规则
+        val level = if (quality.ordinal >= Quality.Lossless.ordinal && cookie.isNullOrBlank()) {
             Quality.Exhigh.eapiLevel
         } else {
             quality.eapiLevel
         }
-        // 官方口径：exhigh/standard 用 aac，无损/Hi-Res 才用 flac。
-        // 之前所有档位都固定 flac，与 level 不匹配时容易被判成试听。
-        val encodeType = if (quality == Quality.Lossless) "flac" else "aac"
+        // 与插件 `GetEnhanceUrlEapiAsync` 完全一致：所有档位都固定 flac。
+        // 曾按档位改过 aac，但桌面客户端指纹下 aac 组合会让部分会员歌被判成试听
+        // （响应 code=200 + freeTrialInfo），对齐插件才稳定拿完整链。
+        val encodeType = "flac"
         com.catclaw.music.kt.core.diagnostic.AppLog.d(
             "NeteaseVip",
             "playUrl req id=$songId level=$level enc=$encodeType " +
@@ -136,24 +141,121 @@ class NeteasePlaylistClient @Inject constructor(
             com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl 无 data id=$songId code=${root["code"]}")
             return null
         }
-        return data.firstOrNull()
-            ?.let { it as? JsonObject }
-            ?.also { obj ->
-                val trialValue = obj["freeTrialInfo"]
-                val trial = trialValue != null && trialValue !is kotlinx.serialization.json.JsonNull
-                com.catclaw.music.kt.core.diagnostic.AppLog.d(
-                    "NeteaseVip",
-                    "playUrl resp id=$songId level=${obj["level"]} br=${obj["br"]} " +
-                        "trial=$trial code=${obj["code"]} urlLen=${obj["url"]?.jsonPrimitive?.contentOrNull?.length ?: 0}",
-                )
+        // 与插件 GetEnhanceUrlEapiAsync 同规则：**只认 code==200 的条目**。
+        // 风控/降档响应可能带 code!=200 的占位 url（试听片段），照单全收就会"走试听路线"。
+        for (item in data) {
+            val obj = item as? JsonObject ?: continue
+            val code = obj["code"]?.jsonPrimitive?.intOrNull ?: -1
+            if (code != 200) {
+                com.catclaw.music.kt.core.diagnostic.AppLog.d("NeteaseVip", "playUrl skip code=$code id=$songId")
+                continue
             }
-            ?.get("url")
-            ?.jsonPrimitive
-            ?.contentOrNull
-            ?.takeIf { it.length > 10 }
+            val url = obj["url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.length > 10 } ?: continue
+            val trialValue = obj["freeTrialInfo"]
+            val trial = trialValue != null && trialValue !is kotlinx.serialization.json.JsonNull
+            val size = obj["size"]?.jsonPrimitive?.longOrNull ?: 0L
+            val br = obj["br"]?.jsonPrimitive?.intOrNull ?: 0
+            com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                "NeteaseVip",
+                "playUrl resp id=$songId level=${obj["level"]} br=$br size=$size " +
+                    "trial=$trial code=$code urlLen=${url.length}",
+            )
+            // 试听片段**不能当成功**：登录态失效/权限不足时服务端仍回 code=200，
+            // 但会带 freeTrialInfo（30 秒片段）。照单全收就会"VIP 却在放试听"，
+            // 必须跳过继续降档，让上层走 web 回退 / 会话续期。
+            if (trial) {
+                com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                    "NeteaseVip", "playUrl 试听片段，跳过 id=$songId level=${obj["level"]}",
+                )
+                continue
+            }
+            return url
+        }
+        com.catclaw.music.kt.core.diagnostic.AppLog.w("NeteaseVip", "playUrl 无 code=200 条目 id=$songId")
+        return null
     }
 
     // ── eapi ───────────────────────────────────────────────────
+
+    /**
+     * 老 web 接口按码率取链（插件 `GetEnhanceUrlAsync` 同款，兜底链第 2 级）：
+     * `music.163.com/api/song/enhance/player/url?id=&ids=[]&br=`。
+     * **用户 Cookie 优先** —— 带 MUSIC_U 时 VIP 歌能拿到完整直链（eapi 被风控卡住时的
+     * 同能力回退）；未登录用静态 cookie `os=pc; appver=8.9.70` 防风控，与插件一致。
+     */
+    suspend fun playUrlViaWeb(songId: Long, br: Int, cookie: String?): String? {
+        val url = "https://music.163.com/api/song/enhance/player/url" +
+            "?id=$songId&ids=[$songId]&br=$br"
+        val headers = mapOf(
+            "User-Agent" to WEB_UA,
+            "Referer" to "https://music.163.com/",
+            "Cookie" to (cookie ?: "os=pc; appver=8.9.70"),
+        )
+        val bytes = http.get(url, headers, ByteArray(0)) ?: return null
+        val root = runCatching { JSON.parseToJsonElement(String(bytes, Charsets.UTF_8)) }
+            .getOrNull() as? JsonObject ?: return null
+        val data = root["data"] as? JsonArray ?: return null
+        for (item in data) {
+            val obj = item as? JsonObject ?: continue
+            val code = obj["code"]?.jsonPrimitive?.intOrNull ?: -1
+            val trialValue = obj["freeTrialInfo"]
+            val trial = trialValue != null && trialValue !is kotlinx.serialization.json.JsonNull
+            val play = obj["url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.length > 10 }
+            com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                "NeteaseVip",
+                "playUrlViaWeb id=$songId br=${br / 1000}k code=$code trial=$trial " +
+                    "size=${obj["size"]?.jsonPrimitive?.longOrNull ?: 0} hasUrl=${play != null} " +
+                    "loggedIn=${!cookie.isNullOrBlank()}",
+            )
+            // 与 eapi 同规则：只有 code==200 且不带 freeTrialInfo 的才是完整链
+            if (code != 200 || trial || play == null) continue
+            return toHttps(play)
+        }
+        return null
+    }
+
+    /**
+     * 免登录外链探测（插件方案 3 同款）：outer 地址会 302 到当次签名的 CDN。
+     * **必须确认最终响应真的是音频** —— 实测 VIP/锁定歌的 outer 会 302 到
+     * `music.163.com/404` 且**以 200 返回 HTML 页面**，只看 `isSuccessful`
+     * 会把 HTML 当成直链，播放器随后报 `ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`。
+     * 所以这里用 Content-Type 排除 html/json/text，只接受音频/二进制。
+     * 只读响应头不读 body，成功返回 302 落地的最终 CDN 地址。
+     */
+    suspend fun outerUrl(songId: Long): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching<String?> {
+            val request = Request.Builder()
+                .url("https://music.163.com/song/media/outer/url?id=$songId.mp3")
+                .header("User-Agent", WEB_UA)
+                .header("Referer", "https://music.163.com/")
+                .build()
+            outerClient.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                val contentType = resp.header("Content-Type").orEmpty().lowercase()
+                val audio = contentType.startsWith("audio/") ||
+                    contentType.contains("octet-stream") ||
+                    contentType.contains("mpegurl")
+                if (!audio) {
+                    com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                        "NeteaseVip",
+                        "outer 非音频响应（判为不可用）id=$songId type=$contentType url=${resp.request.url}",
+                    )
+                    return@use null
+                }
+                resp.request.url.toString()
+            }
+        }.getOrNull()
+    }
+
+    /** http 直链换 https（插件 ToHttps 同规则：CDN 两种都出，https 保险） */
+    private fun toHttps(url: String): String =
+        if (url.startsWith("http://")) "https://" + url.removePrefix("http://") else url
+
+    /** outer 探测专用：只读响应头，超时从紧（跟手体验优先于这个兜底） */
+    private val outerClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     private suspend fun fetchViaEapi(playlistId: String, cookie: String?): Playlist? {
         val id = playlistId.toLongOrNull() ?: return null
@@ -275,11 +377,12 @@ class NeteasePlaylistClient @Inject constructor(
         private const val MAX_TRACKS = 1000
         private const val DETAIL_CHUNK = 500
         private const val FETCH_CACHE_TTL_MS = 5 * 60_000L
-        private const val WEB_UA =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/124.0 Safari/537.36"
-
         private val JSON = Json { ignoreUnknownKeys = true; isLenient = true }
+
+        /** web 接口取链 UA（老接口不挑 UA，但要避免 OkHttp 默认值被风控） */
+        private const val WEB_UA =
+            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/3.1.3.203419"
 
         /**
          * 免登录播放入口。302 到当次签名的 CDN 地址，所以可以长期存库；

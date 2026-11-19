@@ -56,6 +56,7 @@ interface NeteaseEapiChannel {
 class NeteaseEapi @Inject constructor(
     @ApplicationContext context: Context,
     private val http: SourceHttp,
+    private val session: NeteaseSession,
 ) : NeteaseEapiChannel {
 
     private val prefs = context.getSharedPreferences("netease_eapi", Context.MODE_PRIVATE)
@@ -186,12 +187,14 @@ class NeteaseEapi @Inject constructor(
         .build()
 
     /**
-     * 登录态 Cookie 常常只有 `MUSIC_U / MUSIC_A / __csrf / NMTID`（扫码/手机号登录回填的），
+     * 登录态 Cookie 常常只有 `MUSIC_U / __csrf / NMTID`（扫码/手机号登录回填的），
      * 缺 `os=pc / appver / osver / deviceId`。此时服务端把请求当**普通网页访客**，
      * 黑胶会员也常只给 128k 或 30 秒试听片段（`freeTrialInfo`）。
      *
-     * 这里把 [anonymousCookie] 的客户端身份字段补进登录 Cookie（已有同名字段以登录态为准），
-     * 不动 MUSIC_U 等会话凭据。
+     * 这里只补「客户端身份」字段（已有同名字段以登录态为准），**绝不混入会话凭据**。
+     * 尤其是 MUSIC_A（游客令牌）：api-enhanced 的 `processCookieObject` 明确规定
+     * `if (!cookie.MUSIC_U) 才补 MUSIC_A`。两者同时出现时服务端会按游客身份处理，
+     * 黑胶会员的取链就只剩 30 秒试听 —— 这正是会员歌走试听的根因。
      */
     private fun cookieWithClientIdentity(cookie: String?): String {
         if (cookie.isNullOrBlank()) return anonymousCookie()
@@ -200,16 +203,33 @@ class NeteaseEapi @Inject constructor(
             val kv = part.trim().split('=', limit = 2)
             if (kv.size == 2 && kv[0].isNotBlank()) map[kv[0]] = kv[1]
         }
-        anonymousCookie().split(';').forEach { part ->
-            val kv = part.trim().split('=', limit = 2)
-            if (kv.size == 2 && kv[0].isNotBlank() && kv[0] !in map) map[kv[0]] = kv[1]
+        // 只补客户端指纹（与 anonymousCookie 同源，但不含 MUSIC_A）
+        clientIdentityFields().forEach { (key, value) ->
+            if (key !in map) map[key] = value
         }
+        // api-enhanced processCookieObject 同款：eapi 请求缺 NMTID 时补一个（web 指纹一致性）
+        if ("NMTID" !in map) map["NMTID"] = generateNmtid()
         return map.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
-    private fun anonymousCookie(): String =
-        "os=pc; deviceId=$deviceId; osver=$osVer; clientSign=$clientSign; " +
-            "channel=netease; mode=$mode; appver=$APP_VER"
+    /** 桌面客户端身份字段（不含任何会话凭据） */
+    private fun clientIdentityFields(): Map<String, String> = linkedMapOf(
+        "os" to "pc",
+        "deviceId" to deviceId,
+        "osver" to osVer,
+        "clientSign" to clientSign,
+        "channel" to "netease",
+        "mode" to mode,
+        "appver" to APP_VER,
+    )
+
+    private fun anonymousCookie(): String {
+        val fields = clientIdentityFields()
+        val base = fields.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        // 游客身份（api-enhanced anonymous_token 同机制）：**仅匿名请求**携带。
+        // 登录态下带 MUSIC_A 会让服务端按游客处理，会员歌被降级成试听片段。
+        return base + (session.anonymousToken?.let { "; MUSIC_A=$it" } ?: "")
+    }
 
     private fun decryptBody(body: ByteArray, rawFirst: Boolean): String? {
         if (body.isEmpty()) return null
@@ -254,6 +274,9 @@ class NeteaseEapi @Inject constructor(
         val chars = "0123456789abcdef"
         return buildString(length) { repeat(length) { append(chars[Random.nextInt(16)]) } }
     }
+
+    /** NMTID web 会话指纹：`00O` + 19 字节 hex（api-enhanced `WordArray.random(19)` 同规格） */
+    private fun generateNmtid(): String = "00O" + randomHex(38)
 
     private fun randomUpper(length: Int): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

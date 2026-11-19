@@ -318,10 +318,17 @@ class PlayerController(
         queue.setSongs(songs)
         val start = songs.getOrNull(startIndex) ?: return
         queue.selectSong(start.id)
+        // 调用方（网易云页面）通常已经解析过当前曲；给它记一个时间戳，
+        // 避免这里再白白重取一次。outer 占位不受影响（needsResolve 仍为 true）。
+        if (start.filePath.startsWith("http", ignoreCase = true) && !start.filePath.contains("outer/url")) {
+            markResolved(start.id)
+        }
         syncPlayerList(resumeAtMs = 0, autoplay = true)
         publish()
         preBufferedForId = -1
         save()
+        // 库里存的网易云曲（导入歌单）只有 outer 占位，起播后立刻补一次直链
+        ensureCurrentDirect()
     }
 
     /**
@@ -367,6 +374,7 @@ class PlayerController(
             syncPlayerList(resumeAtMs = 0, autoplay = true)
             publish()
             save()
+            ensureCurrentDirect()
         }
     }
 
@@ -382,12 +390,19 @@ class PlayerController(
             queue.songs().firstOrNull()?.let { playSongAt(0) }
             return
         }
-        player.playWhenReady = !player.playWhenReady
+        val next = !player.playWhenReady
+        player.playWhenReady = next
+        // 恢复播放前确认链接新鲜：冷启动恢复的队列全是 outer 占位，
+        // 直接播会卡在 302/HTML 上（用户看到的就是"点了播放一直不动"）
+        if (next) queue.currentSong?.let { ensureCurrentDirect() }
     }
 
     override fun pause() = player.pause()
 
-    override fun resume() = player.play()
+    override fun resume() {
+        queue.currentSong?.let { ensureCurrentDirect() }
+        player.play()
+    }
 
     override fun seekTo(positionMs: Long) = player.seekTo(positionMs.coerceAtLeast(0))
 
@@ -565,12 +580,12 @@ class PlayerController(
         // 但**不能播 outer 免登录外链**：它对 VIP 歌只给 30s 试听、CDN 限速（卡顿根源）。
         // 命中 outer 时先等一次直链解析（单次请求 ~300ms，比整首下载快得多），再开播。
         preBufferedForId = -1
-        if (song.isRemote && song.filePath.contains("outer/url") && uriUpgrader != null) {
+        if (needsResolve(song) && uriUpgrader != null) {
             scope.launch {
-                val better = runCatching { uriUpgrader?.invoke(song) }.getOrNull()
+                val better = runCatching { uriUpgrader?.invoke(song, false) }.getOrNull()
                 val idx = idToIndex[song.id] ?: return@launch
                 if (better.isNullOrBlank()) {
-                    // 取不到直链：退回 outer 流式（总比没声音强）
+                    // 取不到直链：退回队列里的原地址（总比没声音强）
                     player.seekTo(idx, resumeAtMs)
                     player.playWhenReady = true
                     publish(song)
@@ -578,6 +593,7 @@ class PlayerController(
                 }
                 val upgraded = song.copy(filePath = better)
                 queue.replaceSong(song.id, upgraded)
+                markResolved(song.id)
                 player.replaceMediaItem(idx, buildMediaItem(upgraded))
                 player.seekTo(idx, 0)
                 player.playWhenReady = true
@@ -595,10 +611,16 @@ class PlayerController(
             .setUri(uriOf(song))
             .setMediaId(song.id.toString())
         // 网易云直链每次签名都不同：缓存 key 必须与 URL 解耦（对齐 customCacheKey 用法），
-        // 否则同一首歌两次播放是两个缓存条目，CacheDataSource 永远 miss
-        // "netease:" 前缀与 :data 的 NeteasePlaylistClient.REMOTE_PREFIX 保持一致（core 不依赖 data）
-        song.remoteId?.takeIf { it.startsWith("netease:") }
-            ?.let { builder.setCustomCacheKey(it) }
+        // 否则同一首歌两次播放是两个缓存条目，CacheDataSource 永远 miss。
+        // "netease:" 前缀与 :data 的 NeteasePlaylistClient.REMOTE_PREFIX 保持一致（core 不依赖 data）。
+        //
+        // **必须区分 outer 与直链**：outer 对 VIP 歌返回的是 30 秒试听片段，锁定歌甚至是
+        // HTML 404 页；两者共用 key 时，先播过 outer 之后的直链会命中这段脏缓存，
+        // 表现成"取链成功（trial=false、size=85MB）但实际仍放 30 秒/直接报源错误"。
+        song.remoteId?.takeIf { it.startsWith("netease:") }?.let { rid ->
+            val kind = if (song.filePath.contains("outer/url")) "outer" else "direct"
+            builder.setCustomCacheKey("$rid:$kind")
+        }
         // 通知栏/锁屏/蓝牙歌词页的封面：在线曲是 http URL、本地曲是文件路径，都要塞进 metadata，
         // 否则状态栏媒体条只有一个灰块（media3 的 BitmapLoader 自己会去加载 http 或 file）
         val cover = song.coverArtPath?.takeIf { it.isNotBlank() } ?: song.remoteCoverPath?.takeIf { it.isNotBlank() }
@@ -624,14 +646,127 @@ class PlayerController(
         return if (path.contains("://")) Uri.parse(path) else Uri.fromFile(File(path))
     }
 
-    /** 数据层注入的直链升级器：给在线曲换更高音质的直链（缓存 key 不变） */
-    var uriUpgrader: (suspend (Song) -> String?)? = null
+    /**
+     * 数据层注入的直链升级器：给在线曲换更高音质的直链（缓存 key 不变）。
+     * 第二个参数为 true 表示**跳过直链缓存强制重取**（播放器报源错误时用）。
+     */
+    var uriUpgrader: (suspend (Song, Boolean) -> String?)? = null
 
     private var upgradeJob: kotlinx.coroutines.Job? = null
     private var upgradedForId = -1
+    private var ensureJob: kotlinx.coroutines.Job? = null
+    /** 本次切歌内已经为哪一首做过"错误后强制重取"，防止 next() 循环 */
+    private var repairedSongId = -1
+    /** 卡缓冲看门狗：BUFFERING 长时间不动时强制换一条新直链 */
+    private var stallWatcher: kotlinx.coroutines.Job? = null
+    private var stallRepairedId = -1
 
     /**
-     * READY 后把「当前 + 后 5 首」里仍是 outer 免登录外链的在线曲批量升级成 eapi 直链。
+     * 每首在线曲最近一次成功取直链的时间（毫秒）。
+     *
+     * 直链带时效（网易云 `expi=1200`，即 20 分钟），而队列可能存活远超这个时长：
+     * 冷启动恢复的队列、暂停几小时再继续、随机播回同一首……都会踩到过期链接。
+     * 没有记录的一律视为"不知道新不新"→ 起播前重新取一次（一次请求 ~150ms）。
+     */
+    private val resolvedAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+    /** 该曲的播放链接是否需要（重新）解析：outer 外链、或直链已超过安全时长 */
+    private fun needsResolve(song: Song): Boolean {
+        // 只处理网易云在线曲；WebDAV/SMB 等远程源的 URL 是稳定的，不能重取
+        if (song.remoteId?.startsWith("netease:") != true) return false
+        val path = song.filePath
+        if (!path.startsWith("http", ignoreCase = true)) return false
+        if (path.contains("outer/url")) return true
+        val at = resolvedAt[song.id] ?: return true
+        return System.currentTimeMillis() - at > URL_TTL_MS
+    }
+
+    private fun markResolved(songId: Int) {
+        resolvedAt[songId] = System.currentTimeMillis()
+    }
+
+    /**
+     * 卡缓冲看门狗：URL 过期 / CDN 节点异常时，播放器常常**不报错**，
+     * 只是永远停在 BUFFERING（用户看到的就是"卡播放"）。
+     * 连续 [STALL_TIMEOUT_MS] 没有进入 READY 就强制重取一条新直链，
+     * 从卡住的位置续播；同一首只修一次，避免网络真的不通时反复重试。
+     */
+    private fun startStallWatch() {
+        if (stallWatcher?.isActive == true) return
+        stallWatcher = scope.launch {
+            val since = android.os.SystemClock.elapsedRealtime()
+            while (true) {
+                delay(STALL_POLL_MS)
+                if (player.playbackState != Player.STATE_BUFFERING || !player.playWhenReady) {
+                    stallWatcher = null
+                    return@launch
+                }
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - since < STALL_TIMEOUT_MS) continue
+                val song = queue.currentSong ?: run { stallWatcher = null; return@launch }
+                // 只修网易云在线曲：本地/WebDAV 卡住重取没有意义
+                if (song.remoteId?.startsWith("netease:") != true) {
+                    stallWatcher = null
+                    return@launch
+                }
+                if (stallRepairedId == song.id) return@launch
+                stallRepairedId = song.id
+                val upgrader = uriUpgrader ?: run { stallWatcher = null; return@launch }
+                val pos = player.currentPosition
+                AppLog.w(TAG, "卡缓冲 ${now - since}ms → 重取直链 song=${song.title}")
+                val better = runCatching { upgrader.invoke(song, true) }.getOrNull()
+                if (better.isNullOrBlank()) {
+                    AppLog.w(TAG, "卡缓冲重取失败，保持原地址 song=${song.title}")
+                    return@launch
+                }
+                val idx = idToIndex[song.id] ?: return@launch
+                if (queue.currentSong?.id != song.id) return@launch
+                val upgraded = song.copy(filePath = better)
+                queue.replaceSong(song.id, upgraded)
+                markResolved(song.id)
+                player.replaceMediaItem(idx, buildMediaItem(upgraded))
+                if (pos > 0) player.seekTo(idx, pos)
+                player.playWhenReady = true
+                publish(upgraded)
+                return@launch
+            }
+        }
+    }
+
+    /**
+     * 起播/切歌兜底：确保当前曲用的是新鲜直链。
+     *
+     * 覆盖三条此前漏掉的路径：
+     * 1. 播放器自己推进（播完/系统控件）不走 [moveToCurrent]；
+     * 2. 冷启动从快照恢复的队列，在线曲存的是 outer 占位，用户直接点播放不会取链；
+     * 3. 会话内的直链超过 20 分钟有效期，重播时报 403 / 卡缓冲。
+     * 切换瞬间播放位置还是 0，替换 media item 不会丢进度。
+     */
+    private fun ensureCurrentDirect() {
+        val song = queue.currentSong ?: return
+        if (!needsResolve(song)) return
+        val upgrader = uriUpgrader ?: return
+        ensureJob?.cancel()
+        ensureJob = scope.launch {
+            val wasPlaying = player.playWhenReady
+            val better = runCatching { upgrader.invoke(song, false) }.getOrNull() ?: return@launch
+            val idx = idToIndex[song.id] ?: return@launch
+            // 解析期间可能又切歌了：只在它仍是当前曲时替换
+            if (player.currentMediaItemIndex != idx || queue.currentSong?.id != song.id) return@launch
+            val upgraded = song.copy(filePath = better)
+            queue.replaceSong(song.id, upgraded)
+            // 先记时间戳再换 item：replaceMediaItem 会同步触发 transition 回调，
+            // 否则回调里的 ensureCurrentDirect 会认为"还没解析过"再取一次
+            markResolved(song.id)
+            player.replaceMediaItem(idx, buildMediaItem(upgraded))
+            player.seekTo(idx, 0)
+            player.playWhenReady = wasPlaying
+            publish(upgraded)
+        }
+    }
+
+    /**
+     * READY 后把「当前 + 后 5 首」里链接不新鲜（outer / 已过期）的在线曲批量升级。
      *
      * 只升级下一首不够：用户从队列里点任意歌、FM 切歌，命中 outer 时
      * 该曲会被服务器限流成 30s 试听（VIP 歌也一样）且 CDN 限速（卡顿）。
@@ -640,18 +775,14 @@ class PlayerController(
         val currentId = queue.currentSong?.id
         val curIdx = idToIndex[currentId] ?: return
         val all = queue.songs()
-        var launched = 0
         for (offset in 0 until 5) {
             val idx = curIdx + offset
             if (idx >= all.size) break
             val song = all[idx]
             if (song.id == currentId) continue
-            if (!song.isRemote) continue
-            if (!song.filePath.contains("outer/url")) continue
-            if (launched >= 3) break
-            launched++
+            if (!needsResolve(song)) continue
             scope.launch {
-                val better = uriUpgrader?.invoke(song) ?: return@launch
+                val better = uriUpgrader?.invoke(song, false) ?: return@launch
                 upgradeQueueItem(song.id, better)
             }
         }
@@ -665,6 +796,7 @@ class PlayerController(
         val song = queue.songs()[index].copy(filePath = url)
         queue.replaceSong(songId, song)
         player.replaceMediaItem(index, buildMediaItem(song))
+        markResolved(songId)
     }
 
     /**
@@ -796,6 +928,9 @@ class PlayerController(
         applyItems(items, resumeAtMs = 0, autoplay = false)
         player.playWhenReady = false
         publish()
+        // 快照里的在线曲是 outer 占位（直链会过期，不落库），恢复后先把当前曲的直链补上：
+        // 用户点播放时就不会卡在 302/HTML 上
+        ensureCurrentDirect()
     }
 
     private val playerListener = object : Player.Listener {
@@ -825,9 +960,14 @@ class PlayerController(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
-                Player.STATE_BUFFERING -> _state.value = _state.value.copy(isBuffering = true)
+                Player.STATE_BUFFERING -> {
+                    _state.value = _state.value.copy(isBuffering = true)
+                    startStallWatch()
+                }
                 Player.STATE_READY -> {
                     AppLog.i(TAG, "READY song=${queue.currentSong?.title}")
+                    stallWatcher?.cancel()
+                    stallWatcher = null
                     upgradeUpcoming()
                     _state.value = _state.value.copy(
                         isBuffering = false,
@@ -846,7 +986,11 @@ class PlayerController(
                 // IDLE 不能自己写 isPlaying=false：意图(playWhenReady)可能仍是 true，
                 // 那样按钮画着 ▶ 而 togglePlayPause() 会把 true 翻成 false —— 同一个值再发布一次，
                 // StateFlow 去重、不重绘，按钮就"点了没反应"。字段只在 publish() 里定义。
-                Player.STATE_IDLE -> publish()
+                Player.STATE_IDLE -> {
+                    stallWatcher?.cancel()
+                    stallWatcher = null
+                    publish()
+                }
             }
         }
 
@@ -860,7 +1004,13 @@ class PlayerController(
             }
             // 换曲（含单曲循环回到本曲）是"这一首唱完了"的唯一可靠信号：
             // 睡眠定时设了「播完当前歌曲后停止」时要在这里收尾
-            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) onTrackEnded()
+            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                repairedSongId = -1
+                stallRepairedId = -1
+                // 自动切歌不走 moveToCurrent：若目标是 outer 外链，这里必须补一次直链解析
+                ensureCurrentDirect()
+                onTrackEnded()
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -871,7 +1021,31 @@ class PlayerController(
             val now = android.os.SystemClock.elapsedRealtime()
             val withinBackoff = now - lastPlayerErrorAtMs < ERROR_BACKOFF_MS
             lastPlayerErrorAtMs = now
-            if (withinBackoff) player.pause() else next()
+            if (withinBackoff) { player.pause(); return }
+            // 在线曲的"源错误"多半是直链过期或 outer 被服务器拒绝（302 到错误页）。
+            // 先用同一首强制重取一次直链再重试；每首只修一次，防止和 next() 形成循环。
+            val song = queue.currentSong
+            val upgrader = uriUpgrader
+            if (song != null && song.isRemote && upgrader != null && repairedSongId != song.id) {
+                repairedSongId = song.id
+                scope.launch {
+                    val better = runCatching { upgrader.invoke(song, true) }.getOrNull()
+                    val idx = idToIndex[song.id]
+                    if (better.isNullOrBlank() || idx == null || queue.currentSong?.id != song.id) {
+                        next()
+                        return@launch
+                    }
+                    val upgraded = song.copy(filePath = better)
+                    queue.replaceSong(song.id, upgraded)
+                    markResolved(song.id)
+                    player.replaceMediaItem(idx, buildMediaItem(upgraded))
+                    player.seekTo(idx, 0)
+                    player.playWhenReady = true
+                    publish(upgraded)
+                }
+                return
+            }
+            next()
         }
     }
 
@@ -902,5 +1076,15 @@ class PlayerController(
         /** 听歌时长的采样节奏，见 [onListenSample] */
         const val LISTEN_SAMPLE_MS = 1_000L
         const val ERROR_BACKOFF_MS = 5_000L
+
+        /**
+         * 直链安全时长（15 分钟）。网易云直链 `expi` 是 1200 秒（20 分钟），
+         * 留 5 分钟余量，超时后起播前重新取链，避免 403 / 卡缓冲。
+         */
+        const val URL_TTL_MS = 15 * 60 * 1000L
+
+        /** 卡缓冲判定：连续 8 秒没进 READY 就重取直链（正常取链/缓冲 < 2 秒） */
+        const val STALL_TIMEOUT_MS = 8_000L
+        const val STALL_POLL_MS = 500L
     }
 }

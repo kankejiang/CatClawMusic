@@ -101,6 +101,8 @@ internal fun TopBar(
         Text(
             text = when (quality) {
                 NeteasePlaylistClient.Quality.Lossless -> stringResource(R.string.netease_quality_lossless)
+                NeteasePlaylistClient.Quality.Hires -> stringResource(R.string.netease_quality_hires)
+                NeteasePlaylistClient.Quality.Jyeffect -> stringResource(R.string.netease_quality_jyeffect)
                 NeteasePlaylistClient.Quality.Exhigh -> stringResource(R.string.netease_quality_320)
                 NeteasePlaylistClient.Quality.Standard -> stringResource(R.string.netease_quality_128)
             },
