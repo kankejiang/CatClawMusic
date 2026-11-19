@@ -34,6 +34,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -276,7 +277,16 @@ private fun ThemedSurface(content: @Composable () -> Unit) {
         // 这些页在录制层之外、又自己铺了背景：玻璃无从采样，显式退回实心（不是「忘了提供」）
         LocalBackdropState provides null,
     ) {
-        Box(modifier = Modifier.fillMaxSize().catClawBackground().statusBarsPadding(), content = { content() })
+        // 全屏路由（设置 / 远程音源 / 网易云）统一在这里让出键盘高度。
+        //
+        // 背景：Activity 声明了 windowSoftInputMode="adjustResize"，但本工程开了 edge-to-edge，
+        // 系统并不会真的压缩窗口 —— 窗口保持整屏、键盘只是盖在上面。这些路由里有表单
+        // （远程连接的新增/编辑、AI 设置、网易云登录…），不自己让位的话键盘会盖住底部内容，
+        // 而且因为可视区没变小，滚动也滚不到。
+        //
+        // 放在 ThemedSurface 而不是 NavHost：页签那一支是独立的 TabsHost（发现页/聊天页在
+        // 里面自己处理），如果提到 NavHost 会把两份让位叠在一起，聊天输入框反而被顶到键盘背后。
+        Box(modifier = Modifier.fillMaxSize().catClawBackground().statusBarsPadding().imePadding(), content = { content() })
     }
 }
 

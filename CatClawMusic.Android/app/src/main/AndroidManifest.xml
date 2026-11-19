@@ -80,10 +80,19 @@
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 
+        <!--
+            键盘弹起时不要让系统压缩窗口。
+
+            本工程开了 edge-to-edge（enableEdgeToEdge），两者叠加会变成
+            「系统压一次 + Compose 里的 imePadding 再让一次」的双重让位：
+            聊天页输入框被顶到屏幕上部、页头与消息列表被挤成 0 高度。
+            显式声明后由 Compose 侧（CatClawRoot 统一加 imePadding）负责让位，行为可预期。
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|density|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
