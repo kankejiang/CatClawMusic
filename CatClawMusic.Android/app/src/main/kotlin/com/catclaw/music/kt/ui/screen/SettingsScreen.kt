@@ -101,11 +101,18 @@ fun SettingsScreen(
     var dest by remember { mutableStateOf(initialDest) }
     // 歌词源插件（Lyrico 体系）单独一页，不走 SettingsDest（那套是 MAUI 插件）
     var sourcePluginOpen by remember { mutableStateOf(false) }
+    var lyricoSettingsOpen by remember { mutableStateOf(false) }
 
     // 歌词源插件（Lyrico 体系）：独立一页，与上面 when(dest) 的 MAUI 插件页区分开
     BackHandler(enabled = sourcePluginOpen) { sourcePluginOpen = false }
     if (sourcePluginOpen) {
         com.catclaw.music.kt.ui.lyrics.SourcePluginScreen(onBack = { sourcePluginOpen = false })
+        return
+    }
+    // 歌词处理设置（清理规则/字段可见性/艺人拆分/字符映射）
+    BackHandler(enabled = lyricoSettingsOpen) { lyricoSettingsOpen = false }
+    if (lyricoSettingsOpen) {
+        com.catclaw.music.kt.ui.lyrics.LyricoSettingsScreen(onBack = { lyricoSettingsOpen = false })
         return
     }
 
@@ -235,6 +242,12 @@ fun SettingsScreen(
                 title = stringResource(R.string.source_plugin_entry),
                 desc = stringResource(R.string.source_plugin_subtitle),
                 onClick = { sourcePluginOpen = true },
+            )
+            HubRow(
+                iconRes = R.drawable.ic_nav_lyrics,
+                title = stringResource(R.string.lyrico_settings_entry),
+                desc = stringResource(R.string.lyrico_setting_trim_lines_desc),
+                onClick = { lyricoSettingsOpen = true },
             )
         }
     }
