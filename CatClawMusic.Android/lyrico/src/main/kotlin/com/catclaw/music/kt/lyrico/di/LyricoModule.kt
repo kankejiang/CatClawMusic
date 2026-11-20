@@ -7,6 +7,8 @@ import com.catclaw.music.kt.lyrico.batch.BatchProcessors
 import com.catclaw.music.kt.lyrico.batch.BatchRunner
 import com.catclaw.music.kt.lyrico.db.BatchItemDao
 import com.catclaw.music.kt.lyrico.db.BatchTaskDao
+import com.catclaw.music.kt.lyrico.db.LyricoSourcePluginDao
+import com.catclaw.music.kt.lyrico.plugin.PluginRegistry
 import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.lyrico.search.LrclibClient
 import com.catclaw.music.kt.lyrico.search.CoverSearchService
@@ -151,4 +153,23 @@ object LyricoModule {
         libraryDao: LibraryDao,
         processors: BatchProcessors,
     ): BatchRunner = BatchRunner(taskDao, itemDao, libraryDao, processors)
+
+    @Provides
+    @Singleton
+    fun providePluginRegistry(
+        @ApplicationContext context: Context,
+        sourcePluginDao: LyricoSourcePluginDao,
+    ): PluginRegistry = PluginRegistry(
+        context = context,
+        dao = sourcePluginDao,
+        locale = {
+            val tag = java.util.Locale.getDefault().toLanguageTag()
+            when {
+                tag.startsWith("zh") -> "zh-Hans"
+                tag.startsWith("en") -> "en"
+                else -> tag
+            }
+        },
+        logSink = { level, tag, msg -> android.util.Log.w("Lyrico:$tag", msg) },
+    )
 }
