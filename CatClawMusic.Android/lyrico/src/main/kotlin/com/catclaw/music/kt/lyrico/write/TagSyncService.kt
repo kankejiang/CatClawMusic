@@ -72,6 +72,13 @@ class TagSyncService(private val dao: LibraryDao) {
             true
         }
 
+    /** 文件被重命名后同步曲库路径，否则下次播放找不到文件。 */
+    suspend fun updateFilePath(songId: Int, newPath: String): Boolean = withContext(Dispatchers.IO) {
+        val song = dao.songById(songId) ?: return@withContext false
+        if (song.filePath == newPath) return@withContext false
+        dao.upsertSong(song.copy(filePath = newPath, dateModified = System.currentTimeMillis() / 1000))
+        true
+    }
     /** 从 `2026` / `2026-09-24` 里取年份；取不到返回 0 */
     private fun yearOf(date: String): Int =
         date.trim().take(4).toIntOrNull() ?: 0

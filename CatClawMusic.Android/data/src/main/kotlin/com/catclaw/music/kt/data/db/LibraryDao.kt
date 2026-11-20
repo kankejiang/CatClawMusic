@@ -629,6 +629,14 @@ interface LibraryDao {
     @Query(SQL_ALBUMS_OF_ARTIST)
     suspend fun albumsOfArtist(artistId: Int): List<AlbumListItem>
 
+    /** 按 id 取艺人名（批量任务构造上下文用；不新增表列，schema 不变） */
+    @Query("SELECT Name FROM Artists WHERE Id = :id")
+    suspend fun artistName(id: Int): String?
+
+    /** 按 id 取专辑名 */
+    @Query("SELECT Title FROM Albums WHERE Id = :id")
+    suspend fun albumTitle(id: Int): String?
+
     companion object {
         /** 会话只保留最近 N 条（与 C# `TrimPlaySessionAsync(2000)` 同值） */
         const val MAX_SESSIONS_KEPT = 2000

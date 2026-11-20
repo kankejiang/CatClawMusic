@@ -22,8 +22,10 @@ import androidx.room.RoomDatabase
         LyricoSourcePluginEntity::class,
         LyricoPluginSubscriptionEntity::class,
         LyricoAppLogEntity::class,
+        BatchTaskEntity::class,
+        BatchItemEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class LyricoDatabase : RoomDatabase() {
@@ -32,6 +34,8 @@ abstract class LyricoDatabase : RoomDatabase() {
     abstract fun sourcePluginDao(): LyricoSourcePluginDao
     abstract fun pluginSubscriptionDao(): LyricoPluginSubscriptionDao
     abstract fun appLogDao(): LyricoAppLogDao
+    abstract fun batchTaskDao(): BatchTaskDao
+    abstract fun batchItemDao(): BatchItemDao
 
     companion object {
         const val NAME = "lyrico.db"

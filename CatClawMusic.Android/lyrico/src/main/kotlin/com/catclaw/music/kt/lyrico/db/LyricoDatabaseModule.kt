@@ -37,4 +37,10 @@ object LyricoDatabaseModule {
 
     @Provides
     fun appLogDao(db: LyricoDatabase): LyricoAppLogDao = db.appLogDao()
+
+    @Provides
+    fun batchTaskDao(db: LyricoDatabase): BatchTaskDao = db.batchTaskDao()
+
+    @Provides
+    fun batchItemDao(db: LyricoDatabase): BatchItemDao = db.batchItemDao()
 }

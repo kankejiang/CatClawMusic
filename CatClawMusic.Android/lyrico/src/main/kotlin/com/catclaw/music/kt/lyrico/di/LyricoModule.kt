@@ -3,6 +3,10 @@ package com.catclaw.music.kt.lyrico.di
 import android.content.Context
 import com.catclaw.music.kt.data.lyrics.LyricsReader
 import com.catclaw.music.kt.data.db.LibraryDao
+import com.catclaw.music.kt.lyrico.batch.BatchProcessors
+import com.catclaw.music.kt.lyrico.batch.BatchRunner
+import com.catclaw.music.kt.lyrico.db.BatchItemDao
+import com.catclaw.music.kt.lyrico.db.BatchTaskDao
 import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.lyrico.search.LrclibClient
 import com.catclaw.music.kt.lyrico.search.CoverSearchService
@@ -43,6 +47,10 @@ object LyricoModule {
     @Singleton
     @LyricoHttpClient
     fun provideLyricoHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        // callTimeout 是**整次调用**的总预算，覆盖 DNS 解析、连接、读写。
+        // 只设 connect/read 挡不住「DNS 被黑洞」这种情况——实测 lrclib.net 解析得出但
+        // 数据包全丢，没有 callTimeout 时一次请求能挂很久，批量任务直接卡住。
+        .callTimeout(20, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -114,4 +122,33 @@ object LyricoModule {
     @Provides
     @Singleton
     fun provideTagSyncService(dao: LibraryDao): TagSyncService = TagSyncService(dao)
+
+    @Provides
+    @Singleton
+    fun provideBatchProcessors(
+        searchService: LyricsSearchService,
+        lyricsWriter: LyricsWriter,
+        coverSearch: CoverSearchService,
+        coverWriter: CoverWriter,
+        tagEditor: TagEditor,
+        tagSync: TagSyncService,
+        pluginSources: LyricoPluginSources,
+    ): BatchProcessors = BatchProcessors(
+        lyricsSearch = searchService,
+        lyricsWriter = lyricsWriter,
+        coverSearch = coverSearch,
+        coverWriter = coverWriter,
+        tagEditor = tagEditor,
+        tagSync = tagSync,
+        pluginSources = pluginSources,
+    )
+
+    @Provides
+    @Singleton
+    fun provideBatchRunner(
+        taskDao: BatchTaskDao,
+        itemDao: BatchItemDao,
+        libraryDao: LibraryDao,
+        processors: BatchProcessors,
+    ): BatchRunner = BatchRunner(taskDao, itemDao, libraryDao, processors)
 }

@@ -74,11 +74,25 @@ class LyricsSearchService(
         Result(candidates = ranked, errors = synchronized(errors) { errors.toList() })
     }
 
+    /** 自动匹配结果：带上各源的问题，界面/批量任务能说清「为什么没找到」。 */
+    data class AutoMatch(
+        val candidate: LyricsCandidate?,
+        val errors: List<String> = emptyList(),
+    )
+
     /** 精确取词（自动匹配用）：先试 LRCLIB /get，没有再退回搜索取第一条。 */
-    suspend fun autoMatch(target: LyricsTarget): LyricsCandidate? = withContext(Dispatchers.IO) {
-        val direct = runCatching { lrclib.get(target) }.getOrNull()
-        if (direct != null && direct.lyrics.hasContent) return@withContext direct
-        search(target).candidates.firstOrNull()
+    suspend fun autoMatch(target: LyricsTarget): LyricsCandidate? = autoMatchDetailed(target).candidate
+
+    suspend fun autoMatchDetailed(target: LyricsTarget): AutoMatch = withContext(Dispatchers.IO) {
+        val direct = runCatching { lrclib.get(target) }
+        if (direct.isSuccess) {
+            val hit = direct.getOrNull()
+            if (hit != null && hit.lyrics.hasContent) {
+                return@withContext AutoMatch(hit)
+            }
+        }
+        val result = search(target)
+        AutoMatch(result.candidates.firstOrNull(), result.errors)
     }
 
     /**

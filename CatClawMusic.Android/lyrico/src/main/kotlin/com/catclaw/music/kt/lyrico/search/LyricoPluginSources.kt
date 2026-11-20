@@ -30,6 +30,9 @@ class LyricoPluginSources(
 
     private val appContext = context.applicationContext
     private val hosts = ConcurrentHashMap<String, LyricoScriptHost>()
+
+    /** 本次会话里已失效的插件（执行超时未中断）：后续搜索直接跳过，避免每次都等满超时 */
+    private val brokenPlugins = ConcurrentHashMap.newKeySet<String>()
     private val pluginsById = ConcurrentHashMap<String, LyricoPlugin>()
 
     @Volatile
@@ -73,7 +76,17 @@ class LyricoPluginSources(
 
     fun availablePlugins(): List<LyricoPlugin> {
         ensureBundledLoaded()
-        return pluginsById.values.sortedBy { it.id }
+        return pluginsById.values
+            .filter { it.id !in brokenPlugins }
+            .sortedBy { it.id }
+    }
+
+    /** 把插件标记为本次会话不可用并释放它的引擎。 */
+    private fun markBroken(pluginId: String, reason: String) {
+        if (brokenPlugins.add(pluginId)) {
+            logSink("warn", "LyricoPlugins", "$pluginId 已停用（本次会话）：$reason")
+            hosts.remove(pluginId)?.let { runCatching { it.close() } }
+        }
     }
 
     /** 取（或创建）某插件的脚本宿主。 */
@@ -122,6 +135,7 @@ class LyricoPluginSources(
                     logSink("debug", "LyricoPlugins", "$pluginId searchSongs($keyword) => ${hits.size} 首")
                 } else {
                     logSink("warn", "LyricoPlugins", "$pluginId searchSongs 失败：${res.error}")
+                    if (isFatalError(res.error)) markBroken(pluginId, res.error.orEmpty())
                 }
             }
 
@@ -148,6 +162,7 @@ class LyricoPluginSources(
                 val result = host.invoke("getLyrics", request)
                 if (!result.ok) {
                     logSink("warn", "LyricoPlugins", "$pluginId 取词失败：${result.error}")
+                    if (isFatalError(result.error)) markBroken(pluginId, result.error.orEmpty())
                     continue
                 }
                 val parsed = LyricoLyricsParser.parseCandidates(result.valueJson)
@@ -205,6 +220,21 @@ class LyricoPluginSources(
                 }
                 .sortedByDescending { it.score }
         }
+
+    /** 只做 `searchSongs`，返回插件的歌曲记录（元数据匹配直接用这些字段）。 */
+    suspend fun searchSongsHits(pluginId: String, target: LyricsTarget): List<LyricoSongHit> =
+        withContext(Dispatchers.IO) {
+            val host = hostFor(pluginId) ?: return@withContext emptyList()
+            val keyword = listOf(target.title.trim(), target.artist.trim())
+                .filter { it.isNotEmpty() }.joinToString(" ")
+            if (keyword.isEmpty()) return@withContext emptyList()
+            val res = host.invoke("searchSongs", host.searchSongsRequest(keyword))
+            if (!res.ok) return@withContext emptyList()
+            LyricoSongParser.parse(res.valueJson)
+        }
+    /** 超时/引擎失效是「这个插件坏了」，不是这一首歌没匹配上。 */
+    private fun isFatalError(error: String?): Boolean =
+        error != null && ("超时" in error || "已失效" in error)
 
     /** 释放所有引擎（页面销毁/应用退出时调用）。 */
     fun release() {

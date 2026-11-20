@@ -41,6 +41,14 @@ class LyricoJsEngine private constructor() : AutoCloseable {
     @Volatile
     private var closed = false
 
+    /**
+     * 上次执行超时且**没能真正中断**（JS 里卡在阻塞网络调用时 `Future.cancel` 打不断）。
+     * 一旦置位，引擎不再接受新调用：否则后续每次调用都要在锁上排队等满超时，
+     * 一个坏插件能把整批任务拖到分钟级。重新加载插件即可换新引擎。
+     */
+    @Volatile
+    private var poisoned = false
+
     private fun engineOnJsThread(): QuickJs =
         quickJs ?: QuickJs.create().also { quickJs = it }
 
@@ -60,6 +68,7 @@ class LyricoJsEngine private constructor() : AutoCloseable {
 
     private fun <R> submit(timeoutMs: Long, block: () -> R): R {
         check(!closed) { "LyricoJsEngine 已关闭" }
+        check(!poisoned) { "LyricoJsEngine 已失效：上次执行超时未能中断，请重新加载插件" }
         val future = executor.submit<R> {
             lock.withLock { block() }
         }
@@ -67,7 +76,8 @@ class LyricoJsEngine private constructor() : AutoCloseable {
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (e: java.util.concurrent.TimeoutException) {
             future.cancel(true)
-            throw IllegalStateException("JS 执行超时（${timeoutMs}ms）", e)
+            poisoned = true
+            throw IllegalStateException("JS 执行超时（${timeoutMs}ms），引擎已失效", e)
         } catch (e: java.util.concurrent.ExecutionException) {
             throw (e.cause ?: e)
         }

@@ -24,6 +24,14 @@ class LyricoSchemaTest {
         val tables = extractTables(json)
         val expected = mapOf(
             "lyrico_app_log" to setOf("id", "timestamp", "level", "tag", "message"),
+            "lyrico_batch_item" to setOf(
+                "id", "taskId", "songId", "filePath", "songTitle", "artist",
+                "status", "message", "updatedAt",
+            ),
+            "lyrico_batch_task" to setOf(
+                "id", "operation", "status", "title", "optionsJson", "total", "succeeded",
+                "failed", "skipped", "createdAt", "startedAt", "finishedAt",
+            ),
             "lyrico_custom_tag_key" to setOf("id", "name", "enabled"),
             "lyrico_folder" to setOf("id", "path", "displayName", "isSaf", "enabled", "addedAt"),
             "lyrico_plugin_subscription" to setOf("id", "url", "name", "lastCheckedAt"),
@@ -51,7 +59,7 @@ class LyricoSchemaTest {
         listOf(File("schemas"), File("lyrico/schemas"), File("../lyrico/schemas"))
             .filter { it.isDirectory }
             .flatMap { root -> root.walkTopDown().filter { it.extension == "json" }.toList() }
-            .firstOrNull()
+            .maxByOrNull { it.name } // 取最新版本（1.json / 2.json ...）
 
     /**
      * 从 Room schema JSON 里抠出 table -> columns。

@@ -134,6 +134,33 @@ class TagEditor(private val context: Context) {
             TagWriteOutcome.Success(updates.keys.toList())
         }
 
+    /** 文件里是否已有内嵌封面（批量匹配时据此决定跳过）。 */
+    suspend fun hasEmbeddedPicture(filePath: String): Boolean = withContext(Dispatchers.IO) {
+        if (filePath.isBlank()) return@withContext false
+        openReadOnly(filePath)?.use { descriptor ->
+            runCatching {
+                AudioTagReader.read(descriptor, readPictures = true).pictures.isNotEmpty()
+            }.getOrDefault(false)
+        } ?: false
+    }
+    /** 读文件里已有的内嵌歌词（判断「是否已有歌词」、格式转换都要用）。 */
+    suspend fun readEmbeddedLyrics(filePath: String): String? = withContext(Dispatchers.IO) {
+        if (filePath.isBlank()) return@withContext null
+        openReadOnly(filePath)?.use { descriptor ->
+            runCatching { AudioTagReader.read(descriptor, readPictures = false).lyrics }.getOrNull()
+        }?.takeIf { it.isNotBlank() }
+    }
+
+    /** 直接写歌词文本（格式转换场景用：已有文本、不经过搜索）。 */
+    suspend fun writeRawLyrics(filePath: String, text: String): Boolean = withContext(Dispatchers.IO) {
+        if (text.isBlank()) return@withContext false
+        val pfd = openReadWrite(filePath) ?: return@withContext false
+        pfd.use { descriptor ->
+            runCatching {
+                AudioTagWriter.writeTags(descriptor, mapOf("LYRICS" to text), preserveOldTags = true)
+            }.getOrElse { false }
+        }
+    }
     private fun AudioTagData.toEditable(): EditableTags = EditableTags(
         title = title.orEmpty(),
         artist = artist.orEmpty(),
