@@ -164,6 +164,7 @@ fun LibraryScreen(
     var songDetailId by remember { mutableStateOf<Int?>(null) }
     // 听歌统计此前只藏在发现页的统计格里；音乐库这页是看曲库的地方，入口也该在这
     var statsOpen by remember { mutableStateOf(false) }
+    var batchOpen by remember { mutableStateOf(false) }
     // 三层都是页内整屏层，各自画了返回方块：系统返回键要逐层退，不能一把退出应用。
     // 组合在后的优先，所以按「下层 → 上层」排（早退块也是这个顺序，先命中的才是看得见的那层）
     BackHandler(enabled = opened != null) { opened = null }
@@ -172,6 +173,11 @@ fun LibraryScreen(
     BackHandler(enabled = statsOpen) { statsOpen = false }
     if (statsOpen) {
         ListeningStatsScreen(onBack = { statsOpen = false })
+        return
+    }
+    BackHandler(enabled = batchOpen) { batchOpen = false }
+    if (batchOpen) {
+        com.catclaw.music.kt.ui.lyrics.BatchScreen(onBack = { batchOpen = false })
         return
     }
     songDetailId?.let { id ->
@@ -285,6 +291,11 @@ fun LibraryScreen(
             PillLabel(
                 text = stringResource(R.string.lib_open_stats),
                 onClick = { statsOpen = true },
+                filled = false,
+            )
+            PillLabel(
+                text = stringResource(R.string.batch_entry),
+                onClick = { batchOpen = true },
                 filled = false,
             )
             PillLabel(

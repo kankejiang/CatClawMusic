@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         // 【临时】批量处理器验证探针，验证完删除
 
         enableEdgeToEdge()
+
         setContent {
             CatClawTheme {
                 CatClawRoot()
