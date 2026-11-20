@@ -1,0 +1,60 @@
+{
+  "id": "com.neteasecloudmusic.source",
+  "name": "@plugin.name",
+  "versionCode": 10,
+  "versionName": "0.5.0",
+  "author": "Replica0110",
+  "description": "@plugin.description",
+  "apiVersion": 5,
+  "includeDirs": [
+    "lib"
+  ],
+  "entry": "source.js",
+  "icon": "icon.png",
+  "capabilities": [
+    "searchSongs",
+    "getLyrics",
+    "searchCovers"
+  ],
+  "minHostApiVersion": 4,
+  "configFields": [
+    {
+      "key": "comment_content",
+      "title": "@config.comment_content.title",
+      "summary": "@config.comment_content.summary",
+      "group": "@group.metadata",
+      "type": "dropdown",
+      "defaultValue": "alias",
+      "options": [
+        {
+          "value": "none",
+          "label": "@config.comment_content.option.none"
+        },
+        {
+          "value": "alias",
+          "label": "@config.comment_content.option.alias"
+        },
+        {
+          "value": "netease_163_key",
+          "label": "@config.comment_content.option.netease_163_key"
+        }
+      ]
+    },
+    {
+      "key": "metadata_details",
+      "title": "@config.metadata_details.title",
+      "summary": "@config.metadata_details.summary",
+      "type": "switch",
+      "defaultValue": "true"
+    }
+  ],
+  "i18n": {
+    "defaultLocale": "en",
+    "resources": {
+      "en": "locales/en.json",
+      "zh-Hans": "locales/zh-Hans.json",
+      "zh-Hant": "locales/zh-Hant.json"
+    }
+  },
+  "updateUrl": "https://github.com/Replica0110/Lyrico-Plugins/releases/latest/download/catalog.json"
+}
