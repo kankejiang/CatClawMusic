@@ -84,9 +84,13 @@ object LyricoModule {
             }
         },
         logSink = { level, tag, msg ->
+            // 同时进 logcat 与 AppLog 环形缓冲：用户在「诊断日志」页能直接看到插件报错，
+            // 不必连电脑抓 logcat
+            val fullTag = "Lyrico:$tag"
             when (level) {
-                "error", "warn" -> android.util.Log.w("Lyrico:$tag", msg)
-                else -> android.util.Log.d("Lyrico:$tag", msg)
+                "error" -> com.catclaw.music.kt.core.diagnostic.AppLog.e(fullTag, msg)
+                "warn" -> com.catclaw.music.kt.core.diagnostic.AppLog.w(fullTag, msg)
+                else -> com.catclaw.music.kt.core.diagnostic.AppLog.d(fullTag, msg)
             }
         },
     )
@@ -172,7 +176,9 @@ object LyricoModule {
                 else -> tag
             }
         },
-        logSink = { level, tag, msg -> android.util.Log.w("Lyrico:$tag", msg) },
+        logSink = { _, tag, msg ->
+            com.catclaw.music.kt.core.diagnostic.AppLog.w("Lyrico:$tag", msg)
+        },
     )
 
     @Provides

@@ -645,6 +645,11 @@
     <string name="lyrico_setting_char_enable">启用映射</string>
     <string name="lyrico_setting_char_desc">统一异体字或特殊写法</string>
     <string name="lyrico_setting_char_format">每行一条，格式：源=目标</string>
+    <string name="licenses_entry">开源许可</string>
+    <string name="licenses_title">开源许可</string>
+    <string name="licenses_intro">本应用包含以下第三方开源组件，感谢它们的作者。</string>
+    <string name="licenses_modified">已修改</string>
+    <string name="licenses_modifications">本地修改说明</string>
     <string name="lib_recent_added">最近添加</string>
     <string name="lib_recent_added_week">本周</string>
     <string name="view_grid">宫格</string>

@@ -645,6 +645,11 @@ Download it from GitHub.</string>
     <string name="lyrico_setting_char_enable">Enable mapping</string>
     <string name="lyrico_setting_char_desc">Normalize variant characters</string>
     <string name="lyrico_setting_char_format">One per line, format: from=to</string>
+    <string name="licenses_entry">Open source licenses</string>
+    <string name="licenses_title">Open source licenses</string>
+    <string name="licenses_intro">This app includes the following third-party open source components.</string>
+    <string name="licenses_modified">modified</string>
+    <string name="licenses_modifications">Local modifications</string>
     <string name="lib_recent_added">Recently added</string>
     <string name="lib_recent_added_week">This week</string>
     <string name="view_grid">Grid</string>

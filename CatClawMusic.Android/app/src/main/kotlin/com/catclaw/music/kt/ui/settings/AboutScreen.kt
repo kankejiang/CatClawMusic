@@ -115,6 +115,11 @@ fun AboutScreen(
     viewModel: AboutViewModel = hiltViewModel(),
 ) {
     val palette = LocalCatClawPalette.current
+    var licensesOpen by remember { mutableStateOf(false) }
+    if (licensesOpen) {
+        com.catclaw.music.kt.ui.lyrics.OpenSourceLicensesScreen(onBack = { licensesOpen = false })
+        return
+    }
     val context = LocalContext.current
     val update by viewModel.update.collectAsStateWithLifecycle()
     var pendingDialog by remember { mutableStateOf<String?>(null) }
@@ -188,6 +193,7 @@ fun AboutScreen(
                 palette = palette,
             )
             AboutLinkRow(stringResource(R.string.about_license), palette) { viewModel.open(AboutViewModel.LICENSE_URL) }
+            AboutLinkRow(stringResource(R.string.licenses_entry), palette) { licensesOpen = true }
             AboutLinkRow(stringResource(R.string.about_group), palette) { viewModel.open(AboutViewModel.GROUP_URL) }
             AboutLinkRow("GitHub", palette) { viewModel.open(AboutViewModel.REPO_URL) }
         }
