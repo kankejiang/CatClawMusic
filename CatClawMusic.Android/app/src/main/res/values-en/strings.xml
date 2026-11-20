@@ -606,6 +606,16 @@ Download it from GitHub.</string>
     <string name="batch_item_success">OK</string>
     <string name="batch_item_failed">Failed</string>
     <string name="batch_item_skipped">Skipped</string>
+    <string name="source_plugin_entry">Lyrics sources</string>
+    <string name="source_plugin_title">Lyrics sources</string>
+    <string name="source_plugin_subtitle">Bundled sources + ZIP import</string>
+    <string name="source_plugin_import">Import ZIP</string>
+    <string name="source_plugin_refresh">Rescan</string>
+    <string name="source_plugin_empty">No lyrics sources available</string>
+    <string name="source_plugin_enabled">On</string>
+    <string name="source_plugin_disabled">Off</string>
+    <string name="source_plugin_bundled">bundled</string>
+    <string name="source_plugin_uninstall">Remove</string>
     <string name="lib_recent_added">Recently added</string>
     <string name="lib_recent_added_week">This week</string>
     <string name="view_grid">Grid</string>

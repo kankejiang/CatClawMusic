@@ -99,6 +99,15 @@ fun SettingsScreen(
 ) {
     val palette = LocalCatClawPalette.current
     var dest by remember { mutableStateOf(initialDest) }
+    // 歌词源插件（Lyrico 体系）单独一页，不走 SettingsDest（那套是 MAUI 插件）
+    var sourcePluginOpen by remember { mutableStateOf(false) }
+
+    // 歌词源插件（Lyrico 体系）：独立一页，与上面 when(dest) 的 MAUI 插件页区分开
+    BackHandler(enabled = sourcePluginOpen) { sourcePluginOpen = false }
+    if (sourcePluginOpen) {
+        com.catclaw.music.kt.ui.lyrics.SourcePluginScreen(onBack = { sourcePluginOpen = false })
+        return
+    }
 
     when (dest) {
         SettingsDest.Appearance -> AppearanceSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
@@ -219,6 +228,13 @@ fun SettingsScreen(
                 title = stringResource(R.string.downloads_title),
                 desc = stringResource(R.string.downloads_subtitle),
                 onClick = { dest = SettingsDest.Downloads },
+            )
+            HubRow(
+                // 复用歌词图标：这是「歌词源」，不是 MAUI 那套插件
+                iconRes = R.drawable.ic_nav_lyrics,
+                title = stringResource(R.string.source_plugin_entry),
+                desc = stringResource(R.string.source_plugin_subtitle),
+                onClick = { sourcePluginOpen = true },
             )
         }
     }

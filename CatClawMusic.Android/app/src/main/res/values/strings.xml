@@ -606,6 +606,16 @@
     <string name="batch_item_success">成功</string>
     <string name="batch_item_failed">失败</string>
     <string name="batch_item_skipped">跳过</string>
+    <string name="source_plugin_entry">歌词源插件</string>
+    <string name="source_plugin_title">歌词源插件</string>
+    <string name="source_plugin_subtitle">内置源 + 从 ZIP 导入</string>
+    <string name="source_plugin_import">导入 ZIP</string>
+    <string name="source_plugin_refresh">重新扫描</string>
+    <string name="source_plugin_empty">还没有可用的歌词源</string>
+    <string name="source_plugin_enabled">启用</string>
+    <string name="source_plugin_disabled">已停用</string>
+    <string name="source_plugin_bundled">内置</string>
+    <string name="source_plugin_uninstall">卸载</string>
     <string name="lib_recent_added">最近添加</string>
     <string name="lib_recent_added_week">本周</string>
     <string name="view_grid">宫格</string>
