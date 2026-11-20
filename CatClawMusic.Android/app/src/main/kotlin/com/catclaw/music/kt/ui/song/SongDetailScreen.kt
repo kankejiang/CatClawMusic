@@ -103,6 +103,27 @@ fun SongDetailScreen(
     }
     // 封面匹配覆盖层（与歌词匹配并列入口）
     var coverMatchOpen by remember { mutableStateOf(false) }
+    // 标签编辑覆盖层
+    var tagEditOpen by remember { mutableStateOf(false) }
+    if (tagEditOpen) {
+        detail?.let { d ->
+            com.catclaw.music.kt.ui.lyrics.MetadataEditScreen(
+                target = com.catclaw.music.kt.lyrico.ui.LyricsMatchTarget(
+                    songId = d.id,
+                    title = d.title,
+                    artist = d.artist,
+                    album = d.album,
+                    durationMs = d.durationSeconds * 1000L,
+                    filePath = d.filePath,
+                ),
+                currentGenre = d.genre,
+                currentYear = d.year,
+                currentTrack = d.trackNumber,
+                onBack = { tagEditOpen = false },
+            )
+            return
+        }
+    }
     if (coverMatchOpen) {
         detail?.let { d ->
             com.catclaw.music.kt.ui.lyrics.CoverMatchScreen(
@@ -268,6 +289,13 @@ fun SongDetailScreen(
                 PillLabel(
                     text = stringResource(R.string.cover_match_entry),
                     onClick = { coverMatchOpen = true },
+                    filled = false,
+                    enabled = detail != null,
+                )
+                Spacer(Modifier.width(6.dp))
+                PillLabel(
+                    text = stringResource(R.string.tag_edit_entry),
+                    onClick = { tagEditOpen = true },
                     filled = false,
                     enabled = detail != null,
                 )

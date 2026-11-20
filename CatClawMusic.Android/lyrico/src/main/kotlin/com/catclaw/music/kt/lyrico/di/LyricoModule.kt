@@ -2,6 +2,7 @@ package com.catclaw.music.kt.lyrico.di
 
 import android.content.Context
 import com.catclaw.music.kt.data.lyrics.LyricsReader
+import com.catclaw.music.kt.data.db.LibraryDao
 import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.lyrico.search.LrclibClient
 import com.catclaw.music.kt.lyrico.search.CoverSearchService
@@ -9,6 +10,8 @@ import com.catclaw.music.kt.lyrico.search.CoverWriter
 import com.catclaw.music.kt.lyrico.search.LyricsSearchService
 import com.catclaw.music.kt.lyrico.search.LyricoPluginSources
 import com.catclaw.music.kt.lyrico.write.LyricsWriter
+import com.catclaw.music.kt.lyrico.write.TagEditor
+import com.catclaw.music.kt.lyrico.write.TagSyncService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -103,4 +106,12 @@ object LyricoModule {
         @ApplicationContext context: Context,
         coverSearch: CoverSearchService,
     ): CoverWriter = CoverWriter(context, coverSearch)
+
+    @Provides
+    @Singleton
+    fun provideTagEditor(@ApplicationContext context: Context): TagEditor = TagEditor(context)
+
+    @Provides
+    @Singleton
+    fun provideTagSyncService(dao: LibraryDao): TagSyncService = TagSyncService(dao)
 }

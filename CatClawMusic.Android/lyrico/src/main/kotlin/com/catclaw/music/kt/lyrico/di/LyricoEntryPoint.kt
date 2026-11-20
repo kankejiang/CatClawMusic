@@ -17,6 +17,7 @@ interface LyricoEntryPoint {
     fun searchService(): LyricsSearchService
     fun lyricsWriter(): LyricsWriter
     fun lyricsReader(): LyricsReader
+    fun tagEditor(): com.catclaw.music.kt.lyrico.write.TagEditor
 }
 /** 封面搜索的注入入口（临时探针 / 将来的封面匹配页共用）。 */
 @dagger.hilt.EntryPoint
