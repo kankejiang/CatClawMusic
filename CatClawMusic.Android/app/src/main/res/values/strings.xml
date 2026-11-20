@@ -555,7 +555,7 @@
     <string name="lyrics_match_tag_word">逐字</string>
     <string name="lyrics_match_tag_synced">同步歌词</string>
     <string name="lyrics_match_tag_plain">纯文本</string>
-    <string name="lyrics_match_lines">%1 行</string>
+    <string name="lyrics_match_lines">%1$d 行</string>
     <string name="cover_match_entry">封面匹配</string>
     <string name="cover_match_title">封面匹配</string>
     <string name="cover_match_write">写入封面</string>
@@ -581,7 +581,7 @@
     <string name="tag_edit_hint">保存会直接改写音频文件的内嵌标签，并同步曲库。</string>
     <string name="batch_entry">批量处理</string>
     <string name="batch_title">批量处理</string>
-    <string name="batch_selected">已选 %1 首</string>
+    <string name="batch_selected">已选 %1$d 首</string>
     <string name="batch_tasks">任务</string>
     <string name="batch_search_placeholder">搜索歌名 / 歌手 / 专辑</string>
     <string name="batch_select_all">全选</string>

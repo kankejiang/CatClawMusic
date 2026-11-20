@@ -67,6 +67,10 @@ fun CoverMatchScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
+            // 覆盖层底部压着「迷你播放栏 + 底部导航」，不预留会被挡住
+            // （真机验收时点内容实际点到了播放栏上）
+            .padding(bottom = 120.dp)
+
             .padding(horizontal = 16.dp),
     ) {
         Spacer(Modifier.height(12.dp))

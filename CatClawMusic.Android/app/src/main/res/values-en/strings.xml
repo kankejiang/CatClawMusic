@@ -555,7 +555,7 @@ Download it from GitHub.</string>
     <string name="lyrics_match_tag_word">Word-by-word</string>
     <string name="lyrics_match_tag_synced">Synced</string>
     <string name="lyrics_match_tag_plain">Plain text</string>
-    <string name="lyrics_match_lines">%1 lines</string>
+    <string name="lyrics_match_lines">%1$d lines</string>
     <string name="cover_match_entry">Cover match</string>
     <string name="cover_match_title">Cover match</string>
     <string name="cover_match_write">Write cover</string>
@@ -581,7 +581,7 @@ Download it from GitHub.</string>
     <string name="tag_edit_hint">Saving rewrites the embedded tags of the audio file and syncs the library.</string>
     <string name="batch_entry">Batch</string>
     <string name="batch_title">Batch processing</string>
-    <string name="batch_selected">%1 selected</string>
+    <string name="batch_selected">%1$d selected</string>
     <string name="batch_tasks">Tasks</string>
     <string name="batch_search_placeholder">Search title / artist / album</string>
     <string name="batch_select_all">Select all</string>
