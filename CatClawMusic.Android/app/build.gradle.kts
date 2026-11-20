@@ -58,6 +58,9 @@ android {
 dependencies {
     implementation(project(":core"))
     implementation(project(":data"))
+    // 从 Lyrico 移植的 TagLib 标签读写（原生 JNI）
+    implementation(project(":lyrico-audiotag"))
+    implementation(project(":lyrico"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
