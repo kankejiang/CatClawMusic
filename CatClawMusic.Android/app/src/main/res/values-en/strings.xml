@@ -556,6 +556,11 @@ Download it from GitHub.</string>
     <string name="lyrics_match_tag_synced">Synced</string>
     <string name="lyrics_match_tag_plain">Plain text</string>
     <string name="lyrics_match_lines">%1 lines</string>
+    <string name="cover_match_entry">Cover match</string>
+    <string name="cover_match_title">Cover match</string>
+    <string name="cover_match_write">Write cover</string>
+    <string name="cover_match_writing">Writing…</string>
+    <string name="cover_match_empty">No covers found — check the title and artist</string>
     <string name="lib_recent_added">Recently added</string>
     <string name="lib_recent_added_week">This week</string>
     <string name="view_grid">Grid</string>

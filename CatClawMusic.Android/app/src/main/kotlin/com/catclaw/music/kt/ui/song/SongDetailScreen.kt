@@ -101,6 +101,24 @@ fun SongDetailScreen(
         )
         return
     }
+    // 封面匹配覆盖层（与歌词匹配并列入口）
+    var coverMatchOpen by remember { mutableStateOf(false) }
+    if (coverMatchOpen) {
+        detail?.let { d ->
+            com.catclaw.music.kt.ui.lyrics.CoverMatchScreen(
+                target = com.catclaw.music.kt.lyrico.ui.LyricsMatchTarget(
+                    songId = d.id,
+                    title = d.title,
+                    artist = d.artist,
+                    album = d.album,
+                    durationMs = d.durationSeconds * 1000L,
+                    filePath = d.filePath,
+                ),
+                onBack = { coverMatchOpen = false },
+            )
+            return
+        }
+    }
     // 复制路径的回执：这一页没有 Toast，给一行会自己消失的提示（与诊断日志页同一做法）
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
@@ -243,6 +261,13 @@ fun SongDetailScreen(
                             )
                         }
                     },
+                    filled = false,
+                    enabled = detail != null,
+                )
+                Spacer(Modifier.width(6.dp))
+                PillLabel(
+                    text = stringResource(R.string.cover_match_entry),
+                    onClick = { coverMatchOpen = true },
                     filled = false,
                     enabled = detail != null,
                 )

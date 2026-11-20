@@ -9,6 +9,7 @@ import com.catclaw.music.kt.core.lyrics.withoutEmptyLines
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.core.playback.PlayerController
 import com.catclaw.music.kt.data.lyrics.LyricsReader
+import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.data.lyrics.LyricsSettings
 import com.catclaw.music.kt.data.lyrics.LyricsSourceMode
 import com.catclaw.music.kt.data.settings.AppearanceSettings
@@ -31,6 +32,7 @@ class LyricsViewModel @Inject constructor(
     private val controller: PlayerController,
     private val reader: LyricsReader,
     private val settings: LyricsSettings,
+    private val refreshBus: LyricsRefreshBus,
     appearance: AppearanceSettings,
 ) : ViewModel() {
 
@@ -96,6 +98,18 @@ class LyricsViewModel @Inject constructor(
                 loadedSongId = null
                 _lyrics.value = runCatching { reader.loadFor(song, it) }.getOrNull()
                 loadedSongId = song.id
+            }
+        }
+        viewModelScope.launch {
+            // 歌词被写进内嵌标签后重载当前歌曲：同 id 不会触发下面的切歌分支，
+            // 不推这一把就会出现「写入成功但播放页歌词没变」。
+            refreshBus.events.collect { changedSongId ->
+                val song = controller.state.value.currentSong ?: return@collect
+                if (changedSongId > 0 && changedSongId != song.id) return@collect
+                _loading.value = true
+                _lyrics.value = runCatching { reader.loadFor(song, settings.sourceMode.value) }.getOrNull()
+                loadedSongId = song.id
+                _loading.value = false
             }
         }
         viewModelScope.launch {

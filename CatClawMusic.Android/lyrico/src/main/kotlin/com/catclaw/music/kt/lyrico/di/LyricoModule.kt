@@ -2,7 +2,10 @@ package com.catclaw.music.kt.lyrico.di
 
 import android.content.Context
 import com.catclaw.music.kt.data.lyrics.LyricsReader
+import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.lyrico.search.LrclibClient
+import com.catclaw.music.kt.lyrico.search.CoverSearchService
+import com.catclaw.music.kt.lyrico.search.CoverWriter
 import com.catclaw.music.kt.lyrico.search.LyricsSearchService
 import com.catclaw.music.kt.lyrico.search.LyricoPluginSources
 import com.catclaw.music.kt.lyrico.write.LyricsWriter
@@ -85,5 +88,19 @@ object LyricoModule {
     fun provideLyricsWriter(
         @ApplicationContext context: Context,
         lyricsReader: LyricsReader,
-    ): LyricsWriter = LyricsWriter(context, lyricsReader)
+        refreshBus: LyricsRefreshBus,
+    ): LyricsWriter = LyricsWriter(context, lyricsReader, refreshBus)
+    @Provides
+    @Singleton
+    fun provideCoverSearchService(
+        @LyricoHttpClient client: OkHttpClient,
+        pluginSources: LyricoPluginSources,
+    ): CoverSearchService = CoverSearchService(client, pluginSources)
+
+    @Provides
+    @Singleton
+    fun provideCoverWriter(
+        @ApplicationContext context: Context,
+        coverSearch: CoverSearchService,
+    ): CoverWriter = CoverWriter(context, coverSearch)
 }

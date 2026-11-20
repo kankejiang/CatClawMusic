@@ -18,3 +18,10 @@ interface LyricoEntryPoint {
     fun lyricsWriter(): LyricsWriter
     fun lyricsReader(): LyricsReader
 }
+/** 封面搜索的注入入口（临时探针 / 将来的封面匹配页共用）。 */
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+interface LyricoCoverEntryPoint {
+    fun coverSearchService(): com.catclaw.music.kt.lyrico.search.CoverSearchService
+    fun coverWriter(): com.catclaw.music.kt.lyrico.search.CoverWriter
+}

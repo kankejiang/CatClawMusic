@@ -17,6 +17,8 @@ data class LyricoSongHit(
     val artist: String,
     val album: String,
     val durationMs: Long,
+    /** 插件给的封面地址（searchSongs 里就有，封面搜索直接用这个，省一次请求） */
+    val picUrl: String,
     val json: String,
 )
 
@@ -41,6 +43,7 @@ object LyricoSongParser {
                 album = obj.str("album").orEmpty(),
                 // 插件给的 duration 有秒也有毫秒，统一到毫秒：小于 10000 视为秒
                 durationMs = parseDuration(obj.str("duration")),
+                picUrl = obj.str("picUrl").orEmpty(),
                 json = el.toString(),
             )
         }

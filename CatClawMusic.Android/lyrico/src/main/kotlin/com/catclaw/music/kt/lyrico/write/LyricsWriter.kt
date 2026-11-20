@@ -45,6 +45,8 @@ sealed interface LyricsWriteOutcome {
 class LyricsWriter(
     private val context: Context,
     private val lyricsReader: LyricsReader,
+    /** 写入成功后广播，让正在播放的那首歌立刻重载歌词 */
+    private val refreshBus: com.catclaw.music.kt.data.lyrics.LyricsRefreshBus,
 ) {
 
     suspend fun write(
@@ -86,6 +88,8 @@ class LyricsWriter(
 
         // 同步 DB 缓存，保证播放页立即用新歌词
         runCatching { lyricsReader.saveText(song.id, text) }
+        // 再广播一次：播放侧 ViewModel 只在切歌时重载，同 id 需要外部推它一把
+        refreshBus.notifyChanged(song.id)
 
         LyricsWriteOutcome.Success(text, format)
     }

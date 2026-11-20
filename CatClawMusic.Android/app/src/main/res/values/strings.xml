@@ -556,6 +556,11 @@
     <string name="lyrics_match_tag_synced">同步歌词</string>
     <string name="lyrics_match_tag_plain">纯文本</string>
     <string name="lyrics_match_lines">%1 行</string>
+    <string name="cover_match_entry">封面匹配</string>
+    <string name="cover_match_title">封面匹配</string>
+    <string name="cover_match_write">写入封面</string>
+    <string name="cover_match_writing">写入中…</string>
+    <string name="cover_match_empty">没有找到封面，先确认歌手与歌名</string>
     <string name="lib_recent_added">最近添加</string>
     <string name="lib_recent_added_week">本周</string>
     <string name="view_grid">宫格</string>

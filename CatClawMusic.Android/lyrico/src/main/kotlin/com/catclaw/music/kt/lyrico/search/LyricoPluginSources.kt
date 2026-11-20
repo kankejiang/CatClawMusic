@@ -170,6 +170,42 @@ class LyricoPluginSources(
             emptyList()
         }
 
+    /**
+     * 用某个插件搜封面。
+     *
+     * 走 `searchSongs` 而不是 `searchCovers`：前者返回的歌曲记录自带 `picUrl`，
+     * 一次请求同时满足歌词与封面两种需求，也少一条要维护的调用路径。
+     */
+    suspend fun searchCovers(pluginId: String, target: LyricsTarget): List<CoverCandidate> =
+        withContext(Dispatchers.IO) {
+            val plugin = pluginsById[pluginId] ?: return@withContext emptyList()
+            val host = hostFor(pluginId) ?: return@withContext emptyList()
+            val keyword = listOf(target.title.trim(), target.artist.trim())
+                .filter { it.isNotEmpty() }
+                .joinToString(" ")
+            if (keyword.isEmpty()) return@withContext emptyList()
+
+            val res = host.invoke("searchSongs", host.searchSongsRequest(keyword))
+            if (!res.ok) {
+                logSink("warn", "LyricoPlugins", "$pluginId 封面搜索失败：${res.error}")
+                return@withContext emptyList()
+            }
+            LyricoSongParser.parse(res.valueJson)
+                .filter { it.picUrl.isNotBlank() }
+                .map { hit ->
+                    CoverCandidate(
+                        sourceId = pluginId,
+                        sourceName = plugin.displayName,
+                        url = hit.picUrl,
+                        title = hit.title,
+                        artist = hit.artist,
+                        album = hit.album,
+                        score = LyricoSongMatcher.score(target, hit),
+                    )
+                }
+                .sortedByDescending { it.score }
+        }
+
     /** 释放所有引擎（页面销毁/应用退出时调用）。 */
     fun release() {
         hosts.values.forEach { runCatching { it.close() } }
