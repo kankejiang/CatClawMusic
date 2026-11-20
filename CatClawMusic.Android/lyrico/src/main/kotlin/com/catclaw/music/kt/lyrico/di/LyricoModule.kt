@@ -8,6 +8,7 @@ import com.catclaw.music.kt.lyrico.batch.BatchRunner
 import com.catclaw.music.kt.lyrico.db.BatchItemDao
 import com.catclaw.music.kt.lyrico.db.BatchTaskDao
 import com.catclaw.music.kt.lyrico.db.LyricoSourcePluginDao
+import com.catclaw.music.kt.lyrico.plugin.PluginCatalogClient
 import com.catclaw.music.kt.lyrico.plugin.PluginRegistry
 import com.catclaw.music.kt.data.lyrics.LyricsRefreshBus
 import com.catclaw.music.kt.lyrico.search.LrclibClient
@@ -172,4 +173,10 @@ object LyricoModule {
         },
         logSink = { level, tag, msg -> android.util.Log.w("Lyrico:$tag", msg) },
     )
+
+    @Provides
+    @Singleton
+    fun providePluginCatalogClient(
+        @LyricoHttpClient client: OkHttpClient,
+    ): PluginCatalogClient = PluginCatalogClient(client)
 }

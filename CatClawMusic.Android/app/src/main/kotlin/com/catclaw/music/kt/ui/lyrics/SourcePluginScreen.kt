@@ -115,6 +115,16 @@ fun SourcePluginScreen(
                 filled = false,
                 enabled = !state.busy,
             )
+            PillLabel(
+                text = if (state.onlineLoading) {
+                    stringResource(R.string.source_plugin_checking)
+                } else {
+                    stringResource(R.string.source_plugin_check_online)
+                },
+                onClick = { viewModel.checkOnline() },
+                filled = false,
+                enabled = !state.onlineLoading && !state.busy,
+            )
         }
 
         state.message?.let { msg ->
@@ -154,6 +164,7 @@ fun SourcePluginScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { SectionLabel(stringResource(R.string.source_plugin_section_local)) }
             items(state.plugins, key = { it.pluginId }) { plugin ->
                 PluginRow(
                     plugin = plugin,
@@ -161,6 +172,18 @@ fun SourcePluginScreen(
                     onToggle = { viewModel.setEnabled(plugin.pluginId, !plugin.enabled) },
                     onUninstall = { viewModel.uninstall(plugin.pluginId, plugin.bundled) },
                 )
+            }
+
+            if (state.online.isNotEmpty() || state.onlineError != null) {
+                item { SectionLabel(stringResource(R.string.source_plugin_section_online)) }
+            }
+            state.onlineError?.let { err ->
+                item {
+                    Text(text = err, fontSize = 11.sp, color = dim)
+                }
+            }
+            items(state.online, key = { "online-" + it.plugin.id }) { item ->
+                OnlinePluginRow(item = item, onInstall = { viewModel.installFromCatalog(item) })
             }
         }
     }
@@ -246,3 +269,76 @@ private fun PluginRow(
 private fun readAll(context: Context, uri: Uri): ByteArray? = runCatching {
     context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
 }.getOrNull()
+@Composable
+private fun SectionLabel(text: String) {
+    val palette = LocalCatClawPalette.current
+    Text(
+        text = text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Color(palette.textSecondary),
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+    )
+}
+
+/** 在线目录里的一条：显示版本与「安装/已是最新」。 */
+@Composable
+private fun OnlinePluginRow(
+    item: com.catclaw.music.kt.lyrico.ui.OnlinePluginItem,
+    onInstall: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val dim = Color(palette.textSecondary)
+    val accent = Color(highlightOnGlassCard(palette))
+    val plugin = item.plugin
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassCard(palette = palette, corner = 14)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = plugin.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink)
+            Text(
+                text = listOfNotNull(
+                    plugin.versionName.takeIf { it.isNotBlank() }?.let { "v$it" },
+                    "code ${plugin.versionCode}",
+                ).joinToString(" · "),
+                fontSize = 10.sp,
+                color = dim,
+            )
+            if (plugin.changelog.isNotBlank()) {
+                Text(
+                    text = plugin.changelog,
+                    fontSize = 10.sp,
+                    color = dim,
+                    maxLines = 2,
+                )
+            }
+        }
+        Text(
+            text = when (item.status) {
+                com.catclaw.music.kt.lyrico.plugin.PluginUpdateStatus.NOT_INSTALLED ->
+                    stringResource(R.string.source_plugin_install)
+                com.catclaw.music.kt.lyrico.plugin.PluginUpdateStatus.UPDATE_AVAILABLE ->
+                    stringResource(R.string.source_plugin_update)
+                com.catclaw.music.kt.lyrico.plugin.PluginUpdateStatus.UP_TO_DATE ->
+                    stringResource(R.string.source_plugin_uptodate)
+            },
+            fontSize = 11.sp,
+            color = if (item.status == com.catclaw.music.kt.lyrico.plugin.PluginUpdateStatus.UP_TO_DATE) {
+                dim
+            } else {
+                accent
+            },
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(
+                    enabled = item.status != com.catclaw.music.kt.lyrico.plugin.PluginUpdateStatus.UP_TO_DATE,
+                    onClick = onInstall,
+                ),
+        )
+    }
+}

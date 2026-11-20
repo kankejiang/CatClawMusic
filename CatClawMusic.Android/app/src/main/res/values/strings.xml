@@ -616,6 +616,13 @@
     <string name="source_plugin_disabled">已停用</string>
     <string name="source_plugin_bundled">内置</string>
     <string name="source_plugin_uninstall">卸载</string>
+    <string name="source_plugin_check_online">检查更新</string>
+    <string name="source_plugin_checking">检查中…</string>
+    <string name="source_plugin_section_local">已安装</string>
+    <string name="source_plugin_section_online">在线目录</string>
+    <string name="source_plugin_install">安装</string>
+    <string name="source_plugin_update">更新</string>
+    <string name="source_plugin_uptodate">已是最新</string>
     <string name="lib_recent_added">最近添加</string>
     <string name="lib_recent_added_week">本周</string>
     <string name="view_grid">宫格</string>

@@ -616,6 +616,13 @@ Download it from GitHub.</string>
     <string name="source_plugin_disabled">Off</string>
     <string name="source_plugin_bundled">bundled</string>
     <string name="source_plugin_uninstall">Remove</string>
+    <string name="source_plugin_check_online">Check updates</string>
+    <string name="source_plugin_checking">Checking…</string>
+    <string name="source_plugin_section_local">Installed</string>
+    <string name="source_plugin_section_online">Online</string>
+    <string name="source_plugin_install">Install</string>
+    <string name="source_plugin_update">Update</string>
+    <string name="source_plugin_uptodate">Up to date</string>
     <string name="lib_recent_added">Recently added</string>
     <string name="lib_recent_added_week">This week</string>
     <string name="view_grid">Grid</string>

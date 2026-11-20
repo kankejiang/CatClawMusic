@@ -1,0 +1,78 @@
+package com.catclaw.music.kt.lyrico.plugin
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+
+/**
+ * 在线插件目录（catalog）客户端。
+ *
+ * 只做「取 JSON」「下载包」两件事，解析与比对分别在
+ * [PluginCatalogParser] / [PluginUpdateChecker] 里，便于单测。
+ *
+ * 安全：下载后若 catalog 提供了 sha256 就必须匹配；不匹配直接拒绝安装，
+ * 因为这意味着包在传输中被改过（或上游挂错文件）。
+ */
+class PluginCatalogClient(
+    private val okHttpClient: OkHttpClient,
+    private val timeoutMs: Long = 20_000L,
+) {
+
+    /** 拉取并解析 catalog。 */
+    suspend fun fetch(catalogUrl: String): CatalogResult = withContext(Dispatchers.IO) {
+        val body = runCatching {
+            withTimeoutOrNull(timeoutMs) { httpGet(catalogUrl) }
+        }.getOrNull() ?: return@withContext CatalogResult.Failed("无法连接订阅源")
+        if (body.isBlank()) return@withContext CatalogResult.Failed("订阅源返回空内容")
+        PluginCatalogParser.parse(body)
+    }
+
+    /** 下载插件包并校验摘要。 */
+    suspend fun download(plugin: CatalogPlugin): PluginDownloadOutcome =
+        withContext(Dispatchers.IO) {
+            val bytes = runCatching {
+                withTimeoutOrNull(timeoutMs) { httpGetBytes(plugin.downloadUrl) }
+            }.getOrNull() ?: return@withContext PluginDownloadOutcome.Failed("下载失败")
+
+            if (bytes.isEmpty()) return@withContext PluginDownloadOutcome.Failed("下载内容为空")
+            if (!PluginUpdateChecker.verify(bytes, plugin.sha256)) {
+                return@withContext PluginDownloadOutcome.ChecksumMismatch
+            }
+            PluginDownloadOutcome.Success(bytes, verified = plugin.sha256.isNotBlank())
+        }
+
+    private fun httpGet(url: String): String? = runCatching {
+        val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) null else resp.body?.string()
+        }
+    }.getOrNull()
+
+    private fun httpGetBytes(url: String): ByteArray? = runCatching {
+        val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+        okHttpClient.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) null else resp.body?.bytes()
+        }
+    }.getOrNull()
+
+    companion object {
+        private const val USER_AGENT = "CatClawMusic/1.0"
+
+        /** Lyrico 官方插件的默认订阅地址。 */
+        const val DEFAULT_CATALOG_URL =
+            "https://github.com/Replica0110/Lyrico-Plugins/releases/latest/download/catalog.json"
+    }
+}
+
+/** 下载结果。 */
+sealed interface PluginDownloadOutcome {
+    /** [verified] 表示有没有做过摘要校验（上游未提供 sha256 时为 false，不代表失败） */
+    data class Success(val bytes: ByteArray, val verified: Boolean) : PluginDownloadOutcome
+
+    /** 摘要不匹配：包可能被篡改，必须拒绝 */
+    data object ChecksumMismatch : PluginDownloadOutcome
+
+    data class Failed(val message: String) : PluginDownloadOutcome
+}
