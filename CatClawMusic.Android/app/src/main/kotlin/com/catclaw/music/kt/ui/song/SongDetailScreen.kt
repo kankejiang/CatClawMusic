@@ -90,6 +90,17 @@ fun SongDetailScreen(
     val detail = row
     val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
+    // 歌词匹配覆盖层：有目标时整页换成匹配页，返回即回到详情
+    var lyricsMatchTarget by remember {
+        mutableStateOf<com.catclaw.music.kt.lyrico.ui.LyricsMatchTarget?>(null)
+    }
+    lyricsMatchTarget?.let { target ->
+        com.catclaw.music.kt.ui.lyrics.LyricsMatchScreen(
+            target = target,
+            onBack = { lyricsMatchTarget = null },
+        )
+        return
+    }
     // 复制路径的回执：这一页没有 Toast，给一行会自己消失的提示（与诊断日志页同一做法）
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
@@ -216,6 +227,25 @@ fun SongDetailScreen(
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
+                // 歌词匹配入口（Lyrico 移植）：任何能打开详情页的地方都能进
+                Spacer(Modifier.width(8.dp).weight(1f))
+                PillLabel(
+                    text = stringResource(R.string.lyrics_match_entry),
+                    onClick = {
+                        detail?.let { d ->
+                            lyricsMatchTarget = com.catclaw.music.kt.lyrico.ui.LyricsMatchTarget(
+                                songId = d.id,
+                                title = d.title,
+                                artist = d.artist,
+                                album = d.album,
+                                durationMs = d.durationSeconds * 1000L,
+                                filePath = d.filePath,
+                            )
+                        }
+                    },
+                    filled = false,
+                    enabled = detail != null,
+                )
             }
             if (lyrics.isEmpty()) {
                 Text(

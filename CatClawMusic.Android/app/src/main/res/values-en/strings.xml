@@ -542,6 +542,20 @@ Download it from GitHub.</string>
     <string name="detail_play_this">Play this song</string>
     <string name="detail_copy_path">Copy file path</string>
     <string name="detail_path_copied">Path copied</string>
+    <!-- Lyrics match (Lyrico port) -->
+    <string name="lyrics_match_entry">Lyrics match</string>
+    <string name="lyrics_match_title">Lyrics match</string>
+    <string name="lyrics_match_query_title">Title</string>
+    <string name="lyrics_match_query_artist">Artist</string>
+    <string name="lyrics_match_search">Search</string>
+    <string name="lyrics_match_searching">Searching…</string>
+    <string name="lyrics_match_write">Write lyrics</string>
+    <string name="lyrics_match_writing">Writing…</string>
+    <string name="lyrics_match_empty">No lyrics found — try another title or artist</string>
+    <string name="lyrics_match_tag_word">Word-by-word</string>
+    <string name="lyrics_match_tag_synced">Synced</string>
+    <string name="lyrics_match_tag_plain">Plain text</string>
+    <string name="lyrics_match_lines">%1 lines</string>
     <string name="lib_recent_added">Recently added</string>
     <string name="lib_recent_added_week">This week</string>
     <string name="view_grid">Grid</string>

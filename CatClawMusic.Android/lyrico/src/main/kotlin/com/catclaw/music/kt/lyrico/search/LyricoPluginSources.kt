@@ -39,12 +39,36 @@ class LyricoPluginSources(
     fun ensureBundledLoaded(): List<LyricoPlugin> {
         if (loadedBundled) return pluginsById.values.toList()
         val errors = mutableListOf<String>()
-        val plugins = LyricoPluginLoader.loadFromAssets(appContext.assets, errors = errors)
+        val raw = LyricoPluginLoader.loadFromAssets(appContext.assets, errors = errors)
         errors.forEach { logSink("warn", "LyricoPlugins", it) }
-        plugins.forEach { pluginsById[it.id] = it }
+        val localeTag = locale()
+        raw.forEach { plugin ->
+            // manifest 里的 name/description 可能写成 `@plugin.name` 这类 i18n key
+            // （Lyrico 官方源就是这种写法）。不解析的话界面上会原样显示 `@plugin.name`。
+            val strings = LyricoPluginLoader.resolveStrings(plugin, localeTag)
+            val localized = plugin.copy(
+                manifest = plugin.manifest.copy(
+                    name = resolveText(plugin.manifest.name, strings),
+                    description = resolveText(plugin.manifest.description, strings),
+                ),
+            )
+            pluginsById[plugin.id] = localized
+        }
         loadedBundled = true
-        logSink("info", "LyricoPlugins", "内置源 ${plugins.size} 个：${plugins.map { it.id }}")
-        return plugins
+        logSink(
+            "info",
+            "LyricoPlugins",
+            "内置源 ${localizedCount()} 个：${pluginsById.values.map { "${it.id}(${it.displayName})" }}",
+        )
+        return pluginsById.values.toList()
+    }
+
+    private fun localizedCount(): Int = pluginsById.size
+
+    /** `@key` → 文案；不是 `@` 开头就原样返回。 */
+    private fun resolveText(value: String, strings: Map<String, String>): String {
+        if (!value.startsWith("@")) return value
+        return strings[value.removePrefix("@")] ?: value.removePrefix("@")
     }
 
     fun availablePlugins(): List<LyricoPlugin> {
@@ -69,7 +93,15 @@ class LyricoPluginSources(
     /**
      * 用某个插件搜歌词。
      *
-     * @return 候选列表；插件不支持/调用失败/超时都返回空（不抛，避免一个源拖垮整次搜索）
+     * **两步**（这是 Lyrico 的既定协议，跳不得）：
+     *   1. `searchSongs(keyword)` 拿到该插件自己的歌曲记录（含它塞在 `internal` 里的真实 id）
+     *   2. 用那条记录调 `getLyrics` —— 插件正是拿 `internal` 里的 id 去请求它自己的接口
+     *
+     * 早先的实现直接拿标题调 `getLyrics`，等于给插件一个假 id：LrcShare 会把插件 id
+     * 当歌曲 id 拼进 URL（`/v1/song/com.lrcshare.source`）必然失败。
+     *
+     * 回退：`searchSongs` 不受支持或没匹配上时，仍用标题/艺人直接调 getLyrics，
+     * 兼容「自己会搜索」的插件（网易云那类）。
      */
     suspend fun searchLyrics(pluginId: String, target: LyricsTarget): List<LyricsCandidate> =
         withContext(Dispatchers.IO) {
@@ -77,37 +109,65 @@ class LyricoPluginSources(
             val host = hostFor(pluginId) ?: return@withContext emptyList()
             if (!plugin.manifest.hasGetLyrics) return@withContext emptyList()
 
-            val request = host.getLyricsRequest(
-                title = target.title,
-                artist = target.artist,
-                album = target.album,
-                durationMs = target.durationMs,
-                songId = pluginId,
-                sourceId = pluginId,
-                pluginId = pluginId,
-            )
-            val result = host.invoke("getLyrics", request)
-            if (!result.ok) {
-                logSink("warn", "LyricoPlugins", "$pluginId 取词失败：${result.error}")
-                return@withContext emptyList()
+            val keyword = listOf(target.title.trim(), target.artist.trim())
+                .filter { it.isNotEmpty() }
+                .joinToString(" ")
+
+            // 1) searchSongs
+            var hits: List<LyricoSongHit> = emptyList()
+            if (plugin.manifest.hasSearchSongs && keyword.isNotEmpty()) {
+                val res = host.invoke("searchSongs", host.searchSongsRequest(keyword))
+                if (res.ok) {
+                    hits = LyricoSongParser.parse(res.valueJson)
+                    logSink("debug", "LyricoPlugins", "$pluginId searchSongs($keyword) => ${hits.size} 首")
+                } else {
+                    logSink("warn", "LyricoPlugins", "$pluginId searchSongs 失败：${res.error}")
+                }
             }
-            val parsed = LyricoLyricsParser.parseCandidates(result.valueJson)
-            if (parsed.isEmpty()) {
-                logSink("debug", "LyricoPlugins", "$pluginId 返回 0 个候选")
-                return@withContext emptyList()
+
+            // 2) getLyrics：优先用匹配到的歌曲记录，其次回退到标题直调
+            val best = LyricoSongMatcher.pickBest(target, hits)
+            val attempts = buildList {
+                if (best != null) add(host.getLyricsRequestForSong(best.json))
+                if (isEmpty()) {
+                    add(
+                        host.getLyricsRequest(
+                            title = target.title,
+                            artist = target.artist,
+                            album = target.album,
+                            durationMs = target.durationMs,
+                            songId = best?.id ?: "",
+                            sourceId = pluginId,
+                            pluginId = pluginId,
+                        ),
+                    )
+                }
             }
-            parsed.mapIndexed { index, lyrics ->
-                LyricsCandidate(
-                    sourceId = pluginId,
-                    sourceName = plugin.displayName,
-                    trackTitle = lyrics.tags["ti"] ?: target.title,
-                    artist = lyrics.tags["ar"] ?: target.artist,
-                    album = lyrics.tags["al"] ?: target.album,
-                    // 多候选时插件通常按匹配度排序，靠前的更可信
-                    durationMs = target.durationMs + index * 100L,
-                    lyrics = lyrics,
-                )
+
+            for (request in attempts) {
+                val result = host.invoke("getLyrics", request)
+                if (!result.ok) {
+                    logSink("warn", "LyricoPlugins", "$pluginId 取词失败：${result.error}")
+                    continue
+                }
+                val parsed = LyricoLyricsParser.parseCandidates(result.valueJson)
+                if (parsed.isEmpty()) {
+                    logSink("debug", "LyricoPlugins", "$pluginId 返回 0 个候选")
+                    continue
+                }
+                return@withContext parsed.mapIndexed { index, lyrics ->
+                    LyricsCandidate(
+                        sourceId = pluginId,
+                        sourceName = plugin.displayName,
+                        trackTitle = lyrics.tags["ti"] ?: best?.title ?: target.title,
+                        artist = lyrics.tags["ar"] ?: best?.artist ?: target.artist,
+                        album = lyrics.tags["al"] ?: best?.album ?: target.album,
+                        durationMs = best?.durationMs ?: target.durationMs,
+                        lyrics = lyrics,
+                    )
+                }
             }
+            emptyList()
         }
 
     /** 释放所有引擎（页面销毁/应用退出时调用）。 */

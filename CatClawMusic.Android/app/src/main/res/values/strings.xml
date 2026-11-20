@@ -542,6 +542,20 @@
     <string name="detail_play_this">播放此曲</string>
     <string name="detail_copy_path">复制文件路径</string>
     <string name="detail_path_copied">路径已复制</string>
+    <!-- 歌词匹配（Lyrico 移植） -->
+    <string name="lyrics_match_entry">歌词匹配</string>
+    <string name="lyrics_match_title">歌词匹配</string>
+    <string name="lyrics_match_query_title">歌名</string>
+    <string name="lyrics_match_query_artist">歌手</string>
+    <string name="lyrics_match_search">搜索</string>
+    <string name="lyrics_match_searching">搜索中…</string>
+    <string name="lyrics_match_write">写入歌词</string>
+    <string name="lyrics_match_writing">写入中…</string>
+    <string name="lyrics_match_empty">没有找到歌词，换个歌名或歌手再试</string>
+    <string name="lyrics_match_tag_word">逐字</string>
+    <string name="lyrics_match_tag_synced">同步歌词</string>
+    <string name="lyrics_match_tag_plain">纯文本</string>
+    <string name="lyrics_match_lines">%1 行</string>
     <string name="lib_recent_added">最近添加</string>
     <string name="lib_recent_added_week">本周</string>
     <string name="view_grid">宫格</string>

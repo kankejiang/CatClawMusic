@@ -92,6 +92,53 @@ class LyricoScriptHost(
         }
     }
 
+    /** 搜索歌曲请求（Lyrico `searchSongs`）。 */
+    fun searchSongsRequest(
+        keyword: String,
+        config: Map<String, String> = emptyMap(),
+        page: Int = 1,
+        pageSize: Int = 20,
+        separator: String = "/",
+    ): String = buildString {
+        append("{\"keyword\":").append(jsonString(keyword))
+        append(",\"page\":").append(page)
+        append(",\"pageSize\":").append(pageSize)
+        append(",\"separator\":").append(jsonString(separator))
+        append(",\"config\":{")
+        config.entries.forEachIndexed { index, (k, v) ->
+            if (index > 0) append(',')
+            append(jsonString(k)).append(':').append(jsonString(v))
+        }
+        append("}}")
+    }
+
+    /**
+     * 用**插件自己返回的歌曲对象**构造 getLyrics 请求。
+     *
+     * 这是 Lyrico 的正确用法：`getLyrics` 需要的是 `searchSongs` 里那条记录的 `id`
+     * 和 `internal`（各插件把自己的真实 id 藏在这里）。直接拿标题去调会让插件
+     * 拿到一个假 id —— 实测 LrcShare 会把插件 id 当歌曲 id 拼进 URL（`/v1/song/com.lrcshare.source`），
+     * 必然 404。所以这里把歌曲 JSON **原样内嵌**，不做字段挑拣。
+     */
+    fun getLyricsRequestForSong(
+        songJson: String,
+        config: Map<String, String> = emptyMap(),
+        page: Int = 1,
+        pageSize: Int = 20,
+        separator: String = "/",
+    ): String = buildString {
+        append("{\"song\":").append(songJson)
+        append(",\"page\":").append(page)
+        append(",\"pageSize\":").append(pageSize)
+        append(",\"separator\":").append(jsonString(separator))
+        append(",\"config\":{")
+        config.entries.forEachIndexed { index, (k, v) ->
+            if (index > 0) append(',')
+            append(jsonString(k)).append(':').append(jsonString(v))
+        }
+        append("}}")
+    }
+
     /** 与插件约定的请求对象。字段名对齐 Lyrico 的 PluginGetLyricsRequest。 */
     fun getLyricsRequest(
         title: String,
