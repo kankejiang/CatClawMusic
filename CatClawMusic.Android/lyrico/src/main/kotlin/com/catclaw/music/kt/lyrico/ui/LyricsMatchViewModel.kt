@@ -8,6 +8,9 @@ import com.catclaw.music.kt.lyrico.lyrics.LyricoLyricsFormat
 import com.catclaw.music.kt.lyrico.lyrics.LyricoToLyrics
 import com.catclaw.music.kt.lyrico.search.LyricsCandidate
 import com.catclaw.music.kt.lyrico.search.LyricsSearchService
+import com.catclaw.music.kt.lyrico.settings.LyricsRuleEngine
+import com.catclaw.music.kt.lyrico.settings.LyricoSettings
+import com.catclaw.music.kt.lyrico.settings.LyricoSettingsStore
 import com.catclaw.music.kt.lyrico.search.LyricsTarget
 import com.catclaw.music.kt.lyrico.write.LyricsWriteOutcome
 import com.catclaw.music.kt.lyrico.write.LyricsWriter
@@ -62,6 +65,7 @@ data class LyricsMatchUiState(
 class LyricsMatchViewModel @Inject constructor(
     private val searchService: LyricsSearchService,
     private val writer: LyricsWriter,
+    private val settingsStore: LyricoSettingsStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LyricsMatchUiState())
@@ -135,10 +139,11 @@ class LyricsMatchViewModel @Inject constructor(
         val candidate = rawCandidates.getOrNull(s.selectedIndex) ?: return
         if (s.writing) return
 
-        val lyrics = LyricoToLyrics.convert(candidate.lyrics, fallbackTitle = target.title) ?: run {
+        val converted = LyricoToLyrics.convert(candidate.lyrics, fallbackTitle = target.title) ?: run {
             _state.update { it.copy(message = "该候选没有可用歌词") }
             return
         }
+        val lyrics = LyricsRuleEngine.applyTo(converted, settingsStore.current())
         val song = Song(
             id = target.songId,
             title = target.title,
@@ -164,10 +169,12 @@ class LyricsMatchViewModel @Inject constructor(
         val s = _state.value
         val candidate = rawCandidates.getOrNull(s.selectedIndex)
         val lyrics = candidate?.let { LyricoToLyrics.convert(it.lyrics, fallbackTitle = s.target?.title) }
+        // 预览与写入必须走同一套规则：否则「预览干净、写进去带制作人员行」
+        val normalized = lyrics?.let { LyricsRuleEngine.applyTo(it, settingsStore.current()) }
         val preview = when {
-            lyrics == null -> ""
+            normalized == null -> ""
             // 预览用当前选中格式，所见即所写
-            else -> LyricoLyricsEncoder.encode(lyrics, s.format)
+            else -> LyricoLyricsEncoder.encode(normalized, s.format)
         }
         _state.update { it.copy(preview = preview) }
     }
