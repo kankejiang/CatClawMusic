@@ -439,3 +439,5 @@ CLAUDE.local.md
 # zcode / agent 工具生成物：忽略文件副本与运行日志，工作区也不留
 .zcodeignore
 **/.zcode/
+# docs 下的 HTML 原型是交付物（要入库），但拆分/生成它们时产生的中间片段不入库
+docs/_*

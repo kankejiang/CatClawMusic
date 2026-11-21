@@ -1,0 +1,621 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"/>
+<title>猫爪音乐 · WinUI 3 横屏（照 Android 端复刻）</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0C11;color:#fff;
+  font-family:"HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;padding:26px 16px 60px}
+.wrap{max-width:1140px;margin:0 auto}
+h1{font-size:19px;font-weight:700}
+.lead{font-size:12px;line-height:1.85;color:rgba(255,255,255,.42);margin:9px 0 4px}
+.lead b{color:rgba(255,255,255,.8);font-weight:600}
+.lead code{font-family:Consolas,monospace;font-size:11px;color:#DDE4F2;
+  background:rgba(143,163,204,.13);padding:1px 5px;border-radius:3px}
+.rules{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 24px}
+.rule{font-size:10.5px;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.09);
+  border-radius:999px;padding:4px 11px;background:rgba(255,255,255,.028)}
+.rule b{color:#DDE4F2;font-weight:600}
+.cap{font-size:11.5px;color:rgba(255,255,255,.36);margin:0 0 8px 2px}
+.cap b{color:rgba(255,255,255,.72);font-weight:600;margin-right:9px}
+
+/* 画布 1100×495 = 3200×1440 等比 */
+.frame{width:1100px;height:495px;border-radius:12px;overflow:hidden;position:relative;
+  border:1px solid rgba(255,255,255,.07);box-shadow:0 24px 58px rgba(0,0,0,.6);margin-bottom:28px}
+.screen{position:absolute;inset:0;
+  background:
+    radial-gradient(70% 90% at 78% -10%, rgba(150,168,200,.10), transparent 60%),
+    radial-gradient(50% 70% at 6% 96%, rgba(126,190,180,.06), transparent 62%),
+    linear-gradient(168deg,#10141A,#151A23 54%,#0E1217)}
+
+/* 侧栏：99px 玻璃卡，上下各 16 */
+.rail{position:absolute;left:16px;top:16px;bottom:16px;width:99px;border-radius:16px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.075);
+  display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 5px}
+.nav{display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:6px 2px;border-radius:11px;font-size:8.5px;color:rgba(255,255,255,.5)}
+.nav .ic{width:17px;height:17px;display:block}
+.nav.on{background:rgba(221,228,242,.18);color:#fff}
+
+/* 内容区：从 x=133 开始 */
+.stage{position:absolute;left:133px;right:14px;top:0;bottom:0;
+  display:flex;flex-direction:column;padding-top:9px}
+.topbar{display:flex;align-items:center;gap:9px;height:34px;flex:0 0 auto}
+.title{font-size:20px;font-weight:700;letter-spacing:-.2px}
+.vline{width:1px;height:13px;background:rgba(255,255,255,.22)}
+.subtitle{font-size:9.5px;color:rgba(255,255,255,.44);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.spacer{margin-left:auto}
+.gi{width:29px;height:29px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;
+  background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.085);
+  color:rgba(255,255,255,.68)}
+.pill{height:24px;padding:0 11px;border-radius:999px;display:inline-flex;align-items:center;
+  font-size:9px;color:rgba(255,255,255,.7);
+  background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.11);flex:0 0 auto}
+.pill.solid{background:#fff;color:#12161C;font-weight:650;border-color:#fff}
+
+.ic{display:block;width:100%;height:100%}
+.ic svg{width:100%;height:100%;display:block;stroke:currentColor;fill:none;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.gi .ic{width:13px;height:13px}
+
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.075);
+  border-radius:20px}
+.up{font-size:8px;font-weight:700;letter-spacing:1.3px;color:rgba(255,255,255,.34)}
+.meta{font-size:9px;color:rgba(255,255,255,.38)}
+.t{font-size:10.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t span{font-weight:400;color:rgba(255,255,255,.36)}
+
+/* 封面 */
+.art{position:relative;overflow:hidden;flex:0 0 auto;
+  background:linear-gradient(152deg,#4A3B26,#2A3247 58%,#171C26)}
+.art::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(64% 100% at 26% 14%,rgba(240,206,160,.95),transparent 62%)}
+.art::after{content:"";position:absolute;inset:0;
+  background:radial-gradient(72% 100% at 76% 88%,rgba(126,150,205,.9),transparent 66%)}
+.art .g{position:absolute;inset:0;display:grid;place-items:center;z-index:1;
+  font-weight:700;color:rgba(255,255,255,.94);text-shadow:0 4px 16px rgba(0,0,0,.5)}
+
+/* 播放条：整条，左让侧栏 */
+.player{position:absolute;left:133px;right:14px;bottom:13px;height:47px;border-radius:14px;
+  display:flex;align-items:center;gap:9px;padding:0 11px;z-index:5;
+  background:rgba(26,31,40,.8);border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 12px 30px rgba(0,0,0,.42)}
+.player .art{width:29px;height:29px;border-radius:8px}
+.player .art .g{font-size:10px}
+.bar{height:2.5px;border-radius:2px;background:rgba(255,255,255,.13);overflow:hidden}
+.bar i{display:block;height:100%;background:#fff;border-radius:2px}
+.ctl{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  flex:0 0 auto;color:rgba(255,255,255,.72)}
+.ctl .ic{width:12px;height:12px}
+</style></head>
+<body><div class="wrap">
+<h1>猫爪音乐 · WinUI 3 横屏 —— 照 Android 端 1:1 复刻</h1>
+<p class="lead">
+  上一版做成「桌面 App 概念稿」方向错了。这版严格照 <b>Android 端横屏真机</b>实测几何：
+  <b>99px 玻璃侧栏</b>（上下留 16、图标 17 + 文字 8.5）、<b>紧凑玻璃卡</b>（圆角 20、5% 白面 + 发丝线）、
+  <b>彩色入口</b>（蓝 <code>#7C9BE8</code> / 青 <code>#5FBEAE</code> / 紫 <code>#9A8DD6</code> / 琥珀 <code>#D8AA6A</code>，α.34→α.05）、
+  <b>整条播放器</b>（左让侧栏、底部 13、圆角 14）。
+</p>
+<div class="rules">
+  <div class="rule"><b>侧栏</b> 99px，上下留 16</div>
+  <div class="rule"><b>卡</b> 5% 白 + 发丝线，圆角 20</div>
+  <div class="rule"><b>字</b> 20 / 14 / 10.5 / 9</div>
+  <div class="rule"><b>入口</b> 彩色渐变 68px</div>
+  <div class="rule"><b>播放条</b> 整条 47px</div>
+</div>
+<p class="cap"><b>① 播放</b>　左 186 方形封面 / 右侧信息 · 歌词 · 控制</p>
+<div class="frame"><div class="screen">
+  <aside class="rail">
+      <a class="nav on"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5l11 7-11 7z"/></svg></span>播放</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg></span>发现</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h10M4 12h10M4 17h6"/><circle cx="17" cy="16" r="2.5"/><path d="M19.5 16V8l2-1"/></svg></span>歌单</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>音乐库</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6"/></svg></span>设置</a>
+    </aside>
+  <div class="stage">
+    <div class="topbar">
+      <div class="title">正在播放</div><div class="vline"></div>
+      <div class="subtitle">本地 · 无损 44.1 kHz · 金粉世家 2003</div>
+      <div class="spacer"></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9z"/></svg></span></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="18" r="1.4"/></svg></span></div>
+    </div>
+    <div style="flex:1;min-height:0;position:relative"><div style="display:flex;gap:20px;height:100%;align-items:center;padding-bottom:60px">
+    <div class="art" style="width:186px;height:186px;border-radius:20px;
+      box-shadow:0 14px 34px rgba(0,0,0,.55)"><div class="g" style="font-size:48px">暗</div></div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center">
+      <div style="font-size:25px;font-weight:750;letter-spacing:-.4px;line-height:1.1">暗香</div>
+      <div class="meta" style="margin-top:6px;font-size:10px">沙宝亮 · 金粉世家 · 2003</div>
+      <div style="display:flex;gap:9px;margin-top:10px">
+        <div class="gi" style="width:26px;height:26px;border-radius:8px"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 11h11M4 16h14"/></svg></span></div>
+        <div class="gi" style="width:26px;height:26px;border-radius:8px"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span></div>
+        <div class="gi" style="width:26px;height:26px;border-radius:8px"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
+      </div>
+      <div style="font-size:14px;font-weight:650;line-height:1.45;margin-top:13px">当花瓣离开花朵 暗香残留</div>
+      <div class="meta" style="margin-top:5px;font-size:9px">我会拼到爱尽头 · 心若在灿烂中死去</div>
+      <div style="margin-top:15px;position:relative;height:10px">
+        <div style="position:absolute;left:0;right:0;top:4px;height:2px;border-radius:2px;background:rgba(255,255,255,.14)"></div>
+        <div style="position:absolute;left:0;width:41%;top:4px;height:2px;border-radius:2px;background:#fff"></div>
+        <div style="position:absolute;left:41%;top:0;width:9px;height:9px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.12)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8.5px;color:rgba(255,255,255,.34);margin-top:5px"><span>1:42</span><span>−2:31</span></div>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:11px">
+        <div class="ctl" style="color:rgba(255,255,255,.4)"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h3l10 12h3M4 18h3L17 6h3"/><path d="M17 3l3 3-3 3M17 15l3 3-3 3"/></svg></span></div>
+        <div class="ctl" style="width:28px;height:28px"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 6v12M6 12l9-6v12z"/></svg></span></div>
+        <div class="ctl" style="width:41px;height:41px;background:#fff;color:#12161C"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></span></div>
+        <div class="ctl" style="width:28px;height:28px"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 6v12M18 12L9 18V6z"/></svg></span></div>
+        <div class="ctl" style="color:rgba(255,255,255,.4)"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h3l10 12h3M4 18h3L17 6h3"/><path d="M17 3l3 3-3 3M17 15l3 3-3 3"/></svg></span></div>
+      </div>
+    </div>
+  </div></div>
+    
+  </div>
+</div></div>
+
+<p class="cap"><b>② 发现</b>　左 37.5% 英雄卡 / 右 5 个彩色入口 + 货架面板（歌曲·专辑·艺人 分段）</p>
+<div class="frame"><div class="screen">
+  <aside class="rail">
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5l11 7-11 7z"/></svg></span>播放</a>
+      <a class="nav on"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg></span>发现</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h10M4 12h10M4 17h6"/><circle cx="17" cy="16" r="2.5"/><path d="M19.5 16V8l2-1"/></svg></span>歌单</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>音乐库</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7M18.4 18.4l-1.7-1.7M7.3 7.3L5.6 5.6"/></svg></span>设置</a>
+    </aside>
+  <div class="stage">
+    <div class="topbar">
+      <div class="title">发现</div><div class="vline"></div>
+      <div class="subtitle">晚上好，为你精选今日好歌</div>
+      <div class="spacer"></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg></span></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 18V9M9 18V5M14 18v-7M19 18V8"/></svg></span></div>
+    </div>
+    <div style="flex:1;min-height:0;position:relative"><div style="display:flex;gap:13px;height:100%;padding-bottom:60px">
+    <div class="art" style="width:37.5%;border-radius:22px;display:flex;flex-direction:column;justify-content:flex-end;padding:15px">
+      <div style="position:absolute;inset:0;z-index:1;
+        background:linear-gradient(18deg,rgba(6,8,12,.95) 4%,rgba(6,8,12,.32) 46%,transparent 74%)"></div>
+      <div style="position:absolute;left:13px;top:13px;z-index:2;font-size:8.5px;padding:4px 10px;border-radius:999px;
+        background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26)">根据口味生成</div>
+      <div style="position:relative;z-index:2">
+        <div style="font-size:8px;letter-spacing:1.2px;color:rgba(255,255,255,.6)">每日推荐</div>
+        <div style="font-size:18px;font-weight:750;margin-top:4px">不浪漫罪名</div>
+        <div class="meta" style="margin-top:3px;color:rgba(255,255,255,.66)">王杰</div>
+        <div style="display:flex;gap:8px;margin-top:11px">
+          <span class="pill solid" style="height:25px;font-size:9px">播放全部</span>
+          <span class="pill" style="height:25px;font-size:9px;color:#fff">换一批</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0">
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;height:68px;border-radius:17px;padding:8px 9px;position:relative;
+      background:linear-gradient(158deg,#7C9BE859,#7C9BE80D);border:1px solid rgba(255,255,255,.16)">
+      <div style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.17);
+        display:grid;place-items:center;color:#fff">
+        <span style="width:12px;height:12px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/></svg></span>
+      </div>
+      <div style="position:absolute;left:9px;bottom:8px;font-size:10px;font-weight:600">AI 助手</div>
+    </div>
+        <div style="flex:1;height:68px;border-radius:17px;padding:8px 9px;position:relative;
+      background:linear-gradient(158deg,#5FBEAE59,#5FBEAE0D);border:1px solid rgba(255,255,255,.16)">
+      <div style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.17);
+        display:grid;place-items:center;color:#fff">
+        <span style="width:12px;height:12px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M4 6h3l10 12h3M4 18h3L17 6h3"/><path d="M17 3l3 3-3 3M17 15l3 3-3 3"/></svg></span>
+      </div>
+      <div style="position:absolute;left:9px;bottom:8px;font-size:10px;font-weight:600">随机播放</div>
+    </div>
+        <div style="flex:1;height:68px;border-radius:17px;padding:8px 9px;position:relative;
+      background:linear-gradient(158deg,#5FBEAE59,#5FBEAE0D);border:1px solid rgba(255,255,255,.16)">
+      <div style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.17);
+        display:grid;place-items:center;color:#fff">
+        <span style="width:12px;height:12px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/></svg></span>
+      </div>
+      <div style="position:absolute;left:9px;bottom:8px;font-size:10px;font-weight:600">私人 FM</div>
+    </div>
+        <div style="flex:1;height:68px;border-radius:17px;padding:8px 9px;position:relative;
+      background:linear-gradient(158deg,#9A8DD659,#9A8DD60D);border:1px solid rgba(255,255,255,.16)">
+      <div style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.17);
+        display:grid;place-items:center;color:#fff">
+        <span style="width:12px;height:12px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M5 19v-6M12 19V7M19 19v-9"/></svg></span>
+      </div>
+      <div style="position:absolute;left:9px;bottom:8px;font-size:10px;font-weight:600">最多播放</div>
+    </div>
+        <div style="flex:1;height:68px;border-radius:17px;padding:8px 9px;position:relative;
+      background:linear-gradient(158deg,#D8AA6A59,#D8AA6A0D);border:1px solid rgba(255,255,255,.16)">
+      <div style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.17);
+        display:grid;place-items:center;color:#fff">
+        <span style="width:12px;height:12px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9z"/></svg></span>
+      </div>
+      <div style="position:absolute;left:9px;bottom:8px;font-size:10px;font-weight:600">我的最爱</div>
+    </div>
+      </div>
+
+      <div class="card" style="flex:1;border-radius:22px;padding:10px 11px;display:flex;flex-direction:column;min-height:0">
+        <div style="display:flex;align-items:center;gap:3px">
+          <span style="font-size:9.5px;font-weight:700;background:rgba(255,255,255,.14);padding:3px 9px;border-radius:9px">歌曲</span>
+          <span style="font-size:9.5px;color:rgba(255,255,255,.5);padding:3px 9px">专辑</span>
+          <span style="font-size:9.5px;color:rgba(255,255,255,.5);padding:3px 9px">艺人</span>
+          <span style="margin-left:auto;font-size:9px;color:rgba(255,255,255,.42)">查看全部 ›</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:9px;flex:1;min-height:0">
+          <div style="width:78px;flex:0 0 auto">
+            <div class="art" style="width:78px;height:78px;border-radius:12px"><div class="g" style="font-size:18px">不</div></div>
+            <div style="font-size:8.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">不浪漫罪名</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.36);margin-top:1px">王杰</div>
+          </div><div style="width:78px;flex:0 0 auto">
+            <div class="art" style="width:78px;height:78px;border-radius:12px"><div class="g" style="font-size:18px">相</div></div>
+            <div style="font-size:8.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">相思遥</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.36);margin-top:1px">魏佳艺</div>
+          </div><div style="width:78px;flex:0 0 auto">
+            <div class="art" style="width:78px;height:78px;border-radius:12px"><div class="g" style="font-size:18px">我</div></div>
+            <div style="font-size:8.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">我不想忘记你</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.36);margin-top:1px">郭静</div>
+          </div><div style="width:78px;flex:0 0 auto">
+            <div class="art" style="width:78px;height:78px;border-radius:12px"><div class="g" style="font-size:18px">海</div></div>
+            <div style="font-size:8.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">海屿你</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.36);margin-top:1px">马也</div>
+          </div><div style="width:78px;flex:0 0 auto">
+            <div class="art" style="width:78px;height:78px;border-radius:12px"><div class="g" style="font-size:18px">我</div></div>
+            <div style="font-size:8.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">我很想</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.36);margin-top:1px">李佳薇</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+    <div class="player">
+      <div class="art"><div class="g">♪</div></div>
+      <div style="min-width:0;width:108px">
+        <div class="t" style="font-size:10.5px">甲乙丙丁（你我怎么两清）</div>
+        <div class="meta" style="margin-top:1px">李佳薇</div>
+      </div>
+      <div class="meta" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:9px">作词：应晓璃@SoundJoin词曲</div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 6v12M6 12l9-6v12z"/></svg></span></div>
+      <div class="ctl" style="color:#fff"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></span></div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 6v12M18 12L9 18V6z"/></svg></span></div>
+    </div>
+  </div>
+</div></div>
+
+<p class="cap"><b>③ 音乐库</b>　左 36%：统计格 + 入口 + 工具 / 右：资料库列表</p>
+<div class="frame"><div class="screen">
+  <aside class="rail">
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>播放</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>发现</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>歌单</a>
+      <a class="nav on"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>音乐库</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>设置</a>
+    </aside>
+  <div class="stage">
+    <div class="topbar">
+      <div class="title">音乐库</div><div class="vline"></div>
+      <div class="subtitle">本地 + 网络 · 共 1 个资料库</div>
+      <div class="spacer"></div><span class="pill">听歌统计</span><span class="pill">扫描音乐</span>
+    </div>
+    <div style="flex:1;min-height:0;position:relative"><div style="display:flex;gap:15px;height:100%;padding-bottom:60px">
+    <div style="width:36%;display:flex;flex-direction:column;min-width:0">
+      <div style="display:flex;gap:7px"><div style="flex:1;border-radius:16px;padding:9px 10px;
+      background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10)">
+      <div style="font-size:18px;font-weight:750;line-height:1">10</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.44);margin-top:4px">歌曲</div></div><div style="flex:1;border-radius:16px;padding:9px 10px;
+      background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10)">
+      <div style="font-size:18px;font-weight:750;line-height:1">364</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.44);margin-top:4px">艺术家</div></div><div style="flex:1;border-radius:16px;padding:9px 10px;
+      background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10)">
+      <div style="font-size:18px;font-weight:750;line-height:1">544</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.44);margin-top:4px">专辑</div></div><div style="flex:1;border-radius:16px;padding:9px 10px;
+      background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10)">
+      <div style="font-size:18px;font-weight:750;line-height:1">3.2</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.44);margin-top:4px">小时</div></div></div>
+      <div style="display:flex;gap:7px;margin-top:7px"><div style="flex:1;border-radius:15px;padding:9px 0;text-align:center;
+      background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.075)">
+      <span style="width:17px;height:17px;display:inline-block;color:rgba(243,246,252,.9)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M4 7h12M4 12h12M4 17h8"/></svg></span>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.52);margin-top:6px">全部歌曲</div></div><div style="flex:1;border-radius:15px;padding:9px 0;text-align:center;
+      background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.075)">
+      <span style="width:17px;height:17px;display:inline-block;color:rgba(243,246,252,.9)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/></svg></span>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.52);margin-top:6px">专辑</div></div><div style="flex:1;border-radius:15px;padding:9px 0;text-align:center;
+      background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.075)">
+      <span style="width:17px;height:17px;display:inline-block;color:rgba(243,246,252,.9)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg></span>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.52);margin-top:6px">艺术家</div></div><div style="flex:1;border-radius:15px;padding:9px 0;text-align:center;
+      background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.075)">
+      <span style="width:17px;height:17px;display:inline-block;color:rgba(243,246,252,.9)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9z"/></svg></span>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.52);margin-top:6px">收藏</div></div></div>
+      <div style="margin-top:12px">
+        <div class="up">工具</div>
+        <div style="margin-top:6px">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+            <div style="width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.07);display:grid;place-items:center">
+              <span style="width:14px;height:14px;display:block;color:rgba(255,255,255,.7)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            </div>
+            <div style="min-width:0;flex:1"><div style="font-size:10.5px;font-weight:600">下载管理</div><div class="meta" style="font-size:8.5px;margin-top:1px">12 个任务 · 1.2 GB</div></div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+            <div style="width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.07);display:grid;place-items:center">
+              <span style="width:14px;height:14px;display:block;color:rgba(255,255,255,.7)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M4 12h16"/></svg></span>
+            </div>
+            <div style="min-width:0;flex:1"><div style="font-size:10.5px;font-weight:600">扫描音乐</div><div class="meta" style="font-size:8.5px;margin-top:1px">重新扫描本地文件夹</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;border-radius:22px;padding:13px 15px;min-width:0;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:14px;font-weight:700">资料库</div>
+        <span style="font-size:8.5px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)">6</span>
+      </div>
+      <div style="margin-top:3px;flex:1;min-height:0">
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:0 0 auto;
+        background:rgba(255,255,255,.09);display:grid;place-items:center">
+        <span style="width:18px;height:18px;display:block;color:rgba(243,246,252,.86)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11.5px;font-weight:600">本地曲库</div>
+        <div class="meta" style="margin-top:2px">10 首</div>
+      </div>
+      <div class="ctl" style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.6)">
+        <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:0 0 auto;
+        background:rgba(255,255,255,.09);display:grid;place-items:center">
+        <span style="width:18px;height:18px;display:block;color:rgba(243,246,252,.86)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M7 17a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.4 1.5A3.5 3.5 0 0 1 17.5 17z"/></svg></span>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11.5px;font-weight:600">网络曲库</div>
+        <div class="meta" style="margin-top:2px">1839 首</div>
+      </div>
+      <div class="ctl" style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.6)">
+        <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:0 0 auto;
+        background:rgba(255,255,255,.09);display:grid;place-items:center">
+        <span style="width:18px;height:18px;display:block;color:rgba(243,246,252,.86)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9z"/></svg></span>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11.5px;font-weight:600">我喜欢的</div>
+        <div class="meta" style="margin-top:2px">0 首</div>
+      </div>
+      <div class="ctl" style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.6)">
+        <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:0 0 auto;
+        background:rgba(255,255,255,.09);display:grid;place-items:center">
+        <span style="width:18px;height:18px;display:block;color:rgba(243,246,252,.86)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11.5px;font-weight:600">最近播放</div>
+        <div class="meta" style="margin-top:2px">100 首</div>
+      </div>
+      <div class="ctl" style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.6)">
+        <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;
+      border-bottom:1px solid rgba(255,255,255,.05)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:0 0 auto;
+        background:rgba(255,255,255,.09);display:grid;place-items:center">
+        <span style="width:18px;height:18px;display:block;color:rgba(243,246,252,.86)"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><path d="M7 17a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.4 1.5A3.5 3.5 0 0 1 17.5 17z"/></svg></span>
+      </div>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:11.5px;font-weight:600">远程音乐服务</div>
+        <div class="meta" style="margin-top:2px">WebDAV / Navidrome / SMB</div>
+      </div>
+      <div class="ctl" style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.6)">
+        <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+      </div>
+    </div>
+  </div></div>
+    <div class="player">
+      <div class="art"><div class="g">♪</div></div>
+      <div style="min-width:0;width:108px">
+        <div class="t" style="font-size:10.5px">甲乙丙丁（你我怎么两清）</div>
+        <div class="meta" style="margin-top:1px">李佳薇</div>
+      </div>
+      <div class="meta" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:9px">作词：应晓璃@SoundJoin词曲</div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 6v12M6 12l9-6v12z"/></svg></span></div>
+      <div class="ctl" style="color:#fff"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></span></div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 6v12M18 12L9 18V6z"/></svg></span></div>
+    </div>
+  </div>
+</div></div>
+
+<p class="cap"><b>④ 歌单</b>　左 38% 大卡（计数 + 收藏/最近两个彩色块）/ 右自建歌单</p>
+<div class="frame"><div class="screen">
+  <aside class="rail">
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>播放</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>发现</a>
+      <a class="nav on"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>歌单</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>音乐库</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>设置</a>
+    </aside>
+  <div class="stage">
+    <div class="topbar">
+      <div class="title">我的歌单</div><div class="vline"></div>
+      <div class="subtitle">收藏、最近播放与自建歌单，一处管理你的音乐集合。</div>
+      <div class="spacer"></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></div>
+    </div>
+    <div style="flex:1;min-height:0;position:relative"><div style="display:flex;gap:15px;height:100%;padding-bottom:60px">
+    <div class="art" style="width:38%;border-radius:22px;display:flex;flex-direction:column;justify-content:flex-end;padding:15px">
+      <div style="position:absolute;inset:0;z-index:1;
+        background:linear-gradient(18deg,rgba(6,8,12,.95) 4%,rgba(6,8,12,.34) 48%,rgba(6,8,12,.1) 76%)"></div>
+      <div style="position:absolute;left:13px;top:13px;z-index:2;font-size:8.5px;padding:4px 11px;border-radius:999px;
+        background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26)">我的歌单</div>
+      <div style="position:absolute;right:10px;top:22px;z-index:1;font-size:92px;line-height:1;color:rgba(255,255,255,.11)">♪</div>
+      <div style="position:relative;z-index:2">
+        <div style="font-size:36px;font-weight:750;line-height:1">1</div>
+        <div class="meta" style="margin-top:7px;color:rgba(255,255,255,.6)">自建歌单 · 收藏 0 首</div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <div style="flex:1;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;
+            background:linear-gradient(152deg,rgba(124,155,232,.52),rgba(124,155,232,.14));border:1px solid rgba(255,255,255,.18)">
+            <span style="width:13px;height:13px;display:block;color:#fff"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.8"><path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9z"/></svg></span>
+            <span style="font-size:9.5px;font-weight:600">收藏</span>
+            <span style="font-size:8.5px;color:rgba(255,255,255,.6)">0 首</span>
+          </div>
+          <div style="flex:1;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:6px;
+            background:linear-gradient(152deg,rgba(216,170,106,.5),rgba(216,170,106,.12));border:1px solid rgba(255,255,255,.18)">
+            <span style="width:13px;height:13px;display:block;color:#fff"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+            <span style="font-size:9.5px;font-weight:600">最近播放</span>
+            <span style="font-size:8.5px;color:rgba(255,255,255,.6)">100 首</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;border-radius:22px;padding:13px 15px;min-width:0;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:baseline">
+        <div style="font-size:13.5px;font-weight:700">自建歌单 · 1</div>
+        <div class="meta" style="margin-left:auto">长按拖动排序</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;margin-top:8px;border-radius:13px;
+        background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.075)">
+        <div style="width:32px;height:32px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;
+          background:rgba(255,255,255,.09);font-size:14px;font-weight:600">T</div>
+        <div style="min-width:0;flex:1">
+          <div style="font-size:11.5px;font-weight:600">TestList</div>
+          <div class="meta" style="margin-top:2px">3 首</div>
+        </div>
+        <div class="ctl" style="width:24px;height:24px;color:rgba(255,255,255,.5)"><span style="width:11px;height:11px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.8"><path d="M9 6l6 6-6 6"/></svg></span></div>
+        <div class="ctl" style="width:24px;height:24px;color:rgba(255,255,255,.5)"><span style="width:11px;height:11px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      </div>
+    </div>
+  </div></div>
+    <div class="player">
+      <div class="art"><div class="g">♪</div></div>
+      <div style="min-width:0;width:108px">
+        <div class="t" style="font-size:10.5px">甲乙丙丁（你我怎么两清）</div>
+        <div class="meta" style="margin-top:1px">李佳薇</div>
+      </div>
+      <div class="meta" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:9px">作词：应晓璃@SoundJoin词曲</div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 6v12M6 12l9-6v12z"/></svg></span></div>
+      <div class="ctl" style="color:#fff"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg></span></div>
+      <div class="ctl"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6 6v12M18 12L9 18V6z"/></svg></span></div>
+    </div>
+  </div>
+</div></div>
+
+<p class="cap"><b>⑤ 设置</b>　三列分组卡：外观与体验 / 音乐来源 / 系统与维护</p>
+<div class="frame"><div class="screen">
+  <aside class="rail">
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>播放</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>发现</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>歌单</a>
+      <a class="nav"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="16" rx="1.5"/><rect x="13" y="4" width="3" height="16" rx="1"/><path d="M19 5.5l1.5 13"/></svg></span>音乐库</a>
+      <a class="nav on"><span class="ic"><svg viewBox="0 0 24 24">undefined</svg></span>设置</a>
+    </aside>
+  <div class="stage">
+    <div class="topbar">
+      <div class="title">设置</div><div class="vline"></div>
+      <div class="subtitle">猫爪音乐 0.1.0 · WinUI 3</div>
+      <div class="spacer"></div><div class="gi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></span></div>
+    </div>
+    <div style="flex:1;min-height:0;position:relative"><div style="display:flex;gap:13px;height:100%;padding-bottom:60px">
+    <div class="card" style="flex:1;border-radius:20px;padding:13px 14px;display:flex;flex-direction:column">
+        <div class="up">外观与体验</div>
+        <div style="margin-top:6px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">外观</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">深色 · 跟随系统</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">发现页背景</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">雾面动态</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">桌面歌词</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">关闭</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div><div class="card" style="flex:1;border-radius:20px;padding:13px 14px;display:flex;flex-direction:column">
+        <div class="up">音乐来源</div>
+        <div style="margin-top:6px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">本地音乐</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">616 首 · 3 个文件夹</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">远程音乐服务</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">WebDAV · Navidrome · SMB</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">下载管理</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">12 个任务</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div><div class="card" style="flex:1;border-radius:20px;padding:13px 14px;display:flex;flex-direction:column">
+        <div class="up">系统与维护</div>
+        <div style="margin-top:6px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">通用设置</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">启动页 · 通知 · 播放行为</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">备份与恢复</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">歌单 · 设置 · 记录</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div><div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+            <div style="min-width:0;flex:1">
+              <div style="font-size:10.5px;font-weight:600">关于</div>
+              <div class="meta" style="font-size:8.5px;margin-top:2px">猫爪音乐 0.1.0</div>
+            </div>
+            <div class="ctl" style="width:20px;height:20px;color:rgba(255,255,255,.38)">
+              <span style="width:10px;height:10px;display:block"><svg viewBox="0 0 24 24" style="width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+  </div></div>
+    
+  </div>
+</div></div>
+
+<p class="lead" style="margin-top:18px">
+  <b>与上一版的差别</b>：侧栏从 110px 收到 <b>99px 且上下留 16（非通栏）</b>；卡片圆角 20、5% 白面；
+  <b>入口恢复彩色渐变</b>（Android 横屏最显眼的特征，上一版被我做成了灰）；播放器改回 <b>整条 47px 左让侧栏</b>；
+  标题区加回 <b>竖分隔线 + 问候语横排</b>。
+</p>
+<p class="lead">
+  <b>WinUI 落地</b>：<code>MainWindow.xaml</code> 用 <code>Grid ColumnDefinitions="133,*"</code>，左列放自绘 <code>Border</code> 侧栏（<code>Margin="16,16,0,16"</code>、<code>CornerRadius="16"</code>）；
+  <code>Tokens.xaml</code> 换色 <code>#F56FA0</code>→<code>#8FA3CC</code>；新增 <code>QuickTileStyle</code>（彩色 <code>LinearGradientBrush</code> + 1px 白描边）。
+</p>
+</div></body></html>
