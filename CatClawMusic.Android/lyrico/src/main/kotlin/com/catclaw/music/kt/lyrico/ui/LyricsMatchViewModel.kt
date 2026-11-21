@@ -135,9 +135,26 @@ class LyricsMatchViewModel @Inject constructor(
     /** 把选中的候选写入音频内嵌标签。 */
     fun write() {
         val s = _state.value
-        val target = s.target ?: return
-        val candidate = rawCandidates.getOrNull(s.selectedIndex) ?: return
+        // 这几处早退原本是静默 return —— 真机上点「写入歌词」没任何反应，
+        // 日志里也查不到任何线索。现在每一处都写日志，便于定位。
+        val target = s.target ?: run {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w("LyricoWrite", "write(): target 为空")
+            return
+        }
+        val candidate = rawCandidates.getOrNull(s.selectedIndex) ?: run {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                "LyricoWrite",
+                "write(): 选中项无效 selectedIndex=${s.selectedIndex} " +
+                    "rawCandidates=${rawCandidates.size} uiCandidates=${s.candidates.size}",
+            )
+            _state.update { it.copy(message = "请先在列表里选一个歌词来源") }
+            return
+        }
         if (s.writing) return
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LyricoWrite",
+            "write(): 开始 文件=${target.filePath} 格式=${s.format}",
+        )
 
         val converted = LyricoToLyrics.convert(candidate.lyrics, fallbackTitle = target.title) ?: run {
             _state.update { it.copy(message = "该候选没有可用歌词") }

@@ -70,18 +70,28 @@ class LyricsWriter(
         val text = LyricoLyricsEncoder.encode(lyrics, format)
         if (text.isBlank()) return@withContext LyricsWriteOutcome.Failed("编码后的歌词为空")
 
+        val tagWriteStart = System.currentTimeMillis()
         val wrote = openReadWrite(path)?.use { pfd ->
             runCatching {
                 AudioTagWriter.writeTags(pfd, mapOf(KEY_LYRICS to text), preserveOldTags = true)
             }.getOrElse { false }
         } ?: return@withContext LyricsWriteOutcome.Unsupported("无法打开该文件（只读或不存在）")
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LyricoWrite",
+            "writeTags 完成=${wrote} 耗时=${System.currentTimeMillis() - tagWriteStart}ms",
+        )
 
         if (!wrote) return@withContext LyricsWriteOutcome.Failed("标签写入失败（文件可能只读或格式不支持）")
 
         // 校验：读回内嵌歌词，确认真的落盘了（避免"报成功但其实没写"）
+        val readBackStart = System.currentTimeMillis()
         val readBack = openReadWrite(path)?.use { pfd ->
             runCatching { AudioTagReader.read(pfd, readPictures = false).lyrics }.getOrNull()
         }
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LyricoWrite",
+            "读回校验 长度=${readBack?.length ?: -1} 耗时=${System.currentTimeMillis() - readBackStart}ms",
+        )
         if (readBack.isNullOrBlank() || !readBack.contains(text.lineSequence().first().take(16).trim())) {
             return@withContext LyricsWriteOutcome.Failed("写入后读回校验失败")
         }
