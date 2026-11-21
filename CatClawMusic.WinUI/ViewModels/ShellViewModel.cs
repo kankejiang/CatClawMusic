@@ -28,6 +28,14 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public bool HasSong => _playback.CurrentSong is not null;
 
+    /// <summary>
+    /// 播放条中间那句歌词（Android 端迷你播放器同样位置也放当前词）。
+    /// 数据由 NowPlayingViewModel 推：它才持有歌词与当前行索引，Shell 只负责转手，
+    /// 避免两条独立的「当前行」计算跑偏。
+    /// </summary>
+    [ObservableProperty]
+    public partial string LyricLine { get; set; } = string.Empty;
+
     public bool IsPlaying => _playback.IsPlaying;
 
     /// <summary>Segoe Fluent Icons：E768 播放 / E769 暂停</summary>

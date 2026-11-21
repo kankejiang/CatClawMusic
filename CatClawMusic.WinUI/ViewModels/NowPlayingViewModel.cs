@@ -51,6 +51,12 @@ public sealed partial class NowPlayingViewModel : ObservableObject
     /// <summary>当前行变化（视图据此把这一行滚到中间）</summary>
     public event EventHandler<int>? CurrentLineChanged;
 
+    /// <summary>
+    /// 当前行文本（播放条要显示）。用事件而不是让 Shell 去订阅 CurrentLineChanged：
+    /// Shell 只关心「文本是什么」，不关心「第几行」。
+    /// </summary>
+    public event EventHandler<string?>? CurrentLyricTextChanged;
+
     public ObservableCollection<LyricLineRow> LyricLines { get; } = [];
 
     [ObservableProperty]
@@ -110,6 +116,18 @@ public sealed partial class NowPlayingViewModel : ObservableObject
     public string FavoriteGlyph => IsFavorite ? "\uEB52" : "\uEB51";
 
     public string FavoriteTooltip => IsFavorite ? "取消收藏" : "收藏";
+
+    /// <summary>「歌手 · 专辑」一行（任一侧为空时自动省略分隔符）</summary>
+    public string Subtitle => (Artist, Album) switch
+    {
+        ("", "") => string.Empty,
+        (_, "") => Artist,
+        ("", _) => Album,
+        _ => $"{Artist} · {Album}",
+    };
+
+    /// <summary>播放键的可访问提示</summary>
+    public string PlayTooltip => IsPlaying ? "暂停" : "播放";
 
     partial void OnIsFavoriteChanged(bool value)
     {
@@ -183,6 +201,8 @@ public sealed partial class NowPlayingViewModel : ObservableObject
         Title = song?.Title ?? "未在播放";
         Artist = song?.Artist ?? string.Empty;
         Album = song?.Album ?? string.Empty;
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(PlayTooltip));
         IsPlaying = _playback.IsPlaying;
         PlayGlyph = IsPlaying ? "\uE769" : "\uE768";
         Volume = _playback.Volume;
@@ -216,6 +236,7 @@ public sealed partial class NowPlayingViewModel : ObservableObject
         _currentLyrics = null;
         _currentLineIndex = -1;
         LyricLines.Clear();
+        CurrentLyricTextChanged?.Invoke(this, null);
         HasLyrics = false;
         LyricsPlaceholder = song is null ? "选一首歌开始" : "正在加载歌词…";
 
@@ -291,6 +312,7 @@ public sealed partial class NowPlayingViewModel : ObservableObject
             {
                 LyricLines[index].IsCurrent = true;
                 CurrentLineChanged?.Invoke(this, index);
+                CurrentLyricTextChanged?.Invoke(this, LyricLines[index].Text);
             }
         }
 

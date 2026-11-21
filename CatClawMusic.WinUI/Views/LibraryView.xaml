@@ -4,165 +4,187 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:CatClawMusic.WinUI.ViewModels">
 
-    <Grid Padding="36,8,36,20" RowSpacing="10">
+    <!--
+      音乐库页（照 Android 端 LandscapeLibrary）：
+        顶栏：音乐库 │ 本地 + 网络 · 共 1 个资料库 ………… 听歌统计 / 扫描音乐
+        左 36%：四个统计格 → 四个入口 → 工具
+        右 64%：资料库卡（本地曲库 / 网络曲库 / 我喜欢的 / 最近播放 / 远程服务）
+      歌曲列表在「全部歌曲」里展开（Android 也是下钻到二级列表页）。
+    -->
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 标题 + 工具条 -->
-        <Grid Grid.Row="0" ColumnSpacing="10">
+        <!-- 顶栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,9">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <TextBlock Text="音乐库" Style="{StaticResource PageTitleTextStyle}" VerticalAlignment="Center" />
-
-            <AutoSuggestBox x:Name="SearchBox"
-                            Grid.Column="1"
-                            Width="300"
-                            QueryIcon="Find"
-                            PlaceholderText="搜索歌曲 / 歌手 / 专辑"
-                            TextChanged="OnSearchTextChanged" />
-
-            <Button Grid.Column="2" Content="选择文件夹" Click="OnPickFolderClick" />
-            <Button Grid.Column="3" Content="重新扫描" Click="OnRescanClick" />
+            <TextBlock Grid.Column="0" Text="音乐库" Style="{StaticResource PageTitleTextStyle}" />
+            <Border Grid.Column="1" Width="1" Height="13" Margin="9,0"
+                    Background="{StaticResource DividerBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="本地 + 网络 · 共 1 个资料库"
+                       Style="{StaticResource PageSubtitleTextStyle}" />
+            <Button Grid.Column="3" Content="听歌统计" Style="{StaticResource PillStyle}" Margin="0,0,8,0" Click="OnStatsClick" />
+            <Button Grid.Column="4" Content="扫描音乐" Style="{StaticResource PillStyle}" Click="OnRescanClick" />
         </Grid>
 
-        <!-- 分类标签 + 筛选条件 -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
-            <SelectorBar x:Name="LibraryTabs" SelectionChanged="OnTabSelectionChanged">
-                <SelectorBarItem Text="歌曲" Tag="songs" IsSelected="True" />
-                <SelectorBarItem Text="歌手" Tag="artists" />
-                <SelectorBarItem Text="专辑" Tag="albums" />
-            </SelectorBar>
+        <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="36*" />
+                <ColumnDefinition Width="64*" />
+            </Grid.ColumnDefinitions>
 
-            <Border x:Name="FilterChip"
-                    Visibility="Collapsed"
-                    Background="{StaticResource AccentSoftBrush}"
-                    CornerRadius="12"
-                    Padding="10,4"
-                    VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock x:Name="FilterChipText" FontSize="12" Foreground="{StaticResource AccentBrush}" />
-                    <Button Content="✕"
-                            FontSize="10"
-                            Padding="4,0"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Click="OnClearFilterClick" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+            <!-- 左：统计 + 入口 + 工具 -->
+            <Grid Grid.Column="0" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-        <!-- 状态 -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <ProgressRing x:Name="BusyRing" Width="16" Height="16" IsActive="False" />
-            <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextStyle}" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" />
-        </StackPanel>
+                <!-- 四个统计格 -->
+                <Grid Grid.Row="0" ColumnSpacing="7">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource StatTileStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.SongCount, Mode=OneWay}" FontSize="18" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="歌曲" FontSize="8.5" Margin="0,3,0,0"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource StatTileStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.ArtistCount, Mode=OneWay}" FontSize="18" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="艺术家" FontSize="8.5" Margin="0,3,0,0"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource StatTileStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.AlbumCount, Mode=OneWay}" FontSize="18" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="专辑" FontSize="8.5" Margin="0,3,0,0"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="3" Style="{StaticResource StatTileStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.HoursText, Mode=OneWay}" FontSize="18" FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="小时" FontSize="8.5" Margin="0,3,0,0"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
-        <!-- 内容 -->
-        <Grid Grid.Row="3">
-            <ListView x:Name="SongsList"
-                      ItemsSource="{x:Bind ViewModel.Songs}"
-                      SelectionMode="Single"
-                      IsItemClickEnabled="True"
-                      ItemClick="OnSongClick"
-                      RightTapped="OnSongRightTapped">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SongRow">
-                        <Grid ColumnSpacing="12" Padding="2,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                <!-- 四个入口 -->
+                <Grid Grid.Row="1" ColumnSpacing="7">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource EntryTileStyle}" Click="OnAllSongsClick">
+                        <StackPanel HorizontalAlignment="Center" Spacing="6">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="17" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <TextBlock Text="全部歌曲" FontSize="8.5" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" Style="{StaticResource EntryTileStyle}" Click="OnAlbumsClick">
+                        <StackPanel HorizontalAlignment="Center" Spacing="6">
+                            <FontIcon Glyph="&#xE8D6;" FontSize="17" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <TextBlock Text="专辑" FontSize="8.5" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="2" Style="{StaticResource EntryTileStyle}" Click="OnArtistsClick">
+                        <StackPanel HorizontalAlignment="Center" Spacing="6">
+                            <FontIcon Glyph="&#xE77B;" FontSize="17" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <TextBlock Text="艺术家" FontSize="8.5" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="3" Style="{StaticResource EntryTileStyle}" Click="OnFavoritesClick">
+                        <StackPanel HorizontalAlignment="Center" Spacing="6">
+                            <FontIcon Glyph="&#xEB51;" FontSize="17" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <TextBlock Text="收藏" FontSize="8.5" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextTertiaryBrush}" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
 
-                            <Border Width="40" Height="40" CornerRadius="10" Background="{StaticResource AccentSoftBrush}">
-                                <TextBlock Text="{x:Bind Badge}"
-                                           FontSize="15"
-                                           Foreground="{StaticResource AccentBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                <!-- 工具 -->
+                <StackPanel Grid.Row="2" Spacing="4" Margin="0,6,0,0">
+                    <TextBlock Text="工具" Style="{StaticResource GroupCaptionTextStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="14" Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent" Tapped="OnRescanTapped">
+                            <Border Width="26" Height="26" CornerRadius="9"
+                                    Background="{StaticResource CardBackgroundBrush}">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
                             </Border>
-
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{x:Bind Title}"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                <TextBlock Text="{x:Bind Subtitle}"
-                                           Style="{StaticResource CaptionTextStyle}"
-                                           TextTrimming="CharacterEllipsis" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="扫描音乐" Style="{StaticResource RowTitleTextStyle}" />
+                                <TextBlock Text="重新扫描本地文件夹" Style="{StaticResource RowSubtitleTextStyle}" />
                             </StackPanel>
-
-                            <TextBlock Grid.Column="2"
-                                       Text="{x:Bind DurationText}"
-                                       Style="{StaticResource CaptionTextStyle}"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <ListView x:Name="ArtistsList"
-                      Visibility="Collapsed"
-                      ItemsSource="{x:Bind ViewModel.Artists}"
-                      SelectionMode="None"
-                      IsItemClickEnabled="True"
-                      ItemClick="OnArtistClick">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ArtistRow">
-                        <Grid Padding="2,10" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{x:Bind Name}" Foreground="{StaticResource TextPrimaryBrush}" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind CountText}" Style="{StaticResource CaptionTextStyle}" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <ListView x:Name="AlbumsList"
-                      Visibility="Collapsed"
-                      ItemsSource="{x:Bind ViewModel.Albums}"
-                      SelectionMode="None"
-                      IsItemClickEnabled="True"
-                      ItemClick="OnAlbumClick">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:AlbumRow">
-                        <Grid Padding="2,10" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="{x:Bind Name}" Foreground="{StaticResource TextPrimaryBrush}" />
-                                <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextStyle}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent" Tapped="OnPickFolderTapped">
+                            <Border Width="26" Height="26" CornerRadius="9"
+                                    Background="{StaticResource CardBackgroundBrush}">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="选择文件夹" Style="{StaticResource RowTitleTextStyle}" />
+                                <TextBlock Text="添加音乐目录" Style="{StaticResource RowSubtitleTextStyle}" />
                             </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
 
-            <StackPanel x:Name="EmptyState"
-                        Visibility="Collapsed"
-                        Spacing="8"
-                        MaxWidth="560"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center">
-                <TextBlock Text="曲库还是空的" Style="{StaticResource SectionTitleTextStyle}" />
-                <TextBlock Text="点右上角「选择文件夹」挑一个音乐目录，扫描结果会写进本地曲库（支持 mp3 / flac / m4a / wav / ape 等）。"
-                           Style="{StaticResource BodyTextStyle}" />
-                <TextBlock x:Name="FoldersText" Style="{StaticResource CaptionTextStyle}" />
-            </StackPanel>
+                <!-- 状态 -->
+                <StackPanel Grid.Row="3" VerticalAlignment="Bottom" Spacing="4">
+                    <ProgressRing x:Name="BusyRing" Width="16" Height="16" IsActive="False"
+                                  HorizontalAlignment="Left" />
+                    <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextStyle}"
+                               Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 右：资料库 -->
+            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="14,12">
+                <Grid RowSpacing="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+                        <TextBlock Text="资料库" Style="{StaticResource SectionTitleTextStyle}" />
+                        <Border Background="{StaticResource CardBackgroundBrush}" CornerRadius="999" Padding="8,2"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="5" FontSize="8.5" Foreground="{StaticResource TextTertiaryBrush}" />
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" x:Name="SourceList" Spacing="0" />
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

@@ -51,6 +51,7 @@ public static class ServiceRegistration
 
         // ── ViewModel ──
         services.AddSingleton<ShellViewModel>();
+        services.AddSingleton<DiscoverViewModel>();
         services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<PlaylistsViewModel>();
         services.AddSingleton<NowPlayingViewModel>();

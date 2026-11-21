@@ -1,15 +1,51 @@
 using CatClawMusic.Core.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace CatClawMusic.WinUI.ViewModels;
 
 /// <summary>
 /// 歌曲行的展示模型：预先把格式化文本算好，XAML 里直接 x:Bind，省掉转换器。
 /// </summary>
-public sealed class SongRow
+/// <summary>
+/// 注意：这里刻意**不用** CommunityToolkit 的 [ObservableProperty] 源生成器。
+/// WinUI 的 XAML 编译器在 MarkupCompilePass2 生成 x:Bind 代码时要反射读目标属性，
+/// 源生成的 partial 属性在那一步还不可见，会抛 NullReferenceException（只表现为 WMC9999）。
+/// 因此 Cover 手写 INotifyPropertyChanged。
+/// </summary>
+public sealed class SongRow : System.ComponentModel.INotifyPropertyChanged
 {
-    public SongRow(Song song) => Song = song;
+    private BitmapImage? _cover;
+
+    public SongRow(Song song)
+    {
+        Song = song;
+        Artist = string.IsNullOrWhiteSpace(song.Artist) ? "未知艺术家" : song.Artist;
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 
     public Song Song { get; }
+
+    /// <summary>歌手名（运行时字段，空值落「未知艺术家」）</summary>
+    public string Artist { get; }
+
+    /// <summary>
+    /// 封面图。由页面在加载后异步填：Song.CoverArtPath 由 CoverService 抽出，
+    /// 这里只负责把路径变成 Image 能用的 BitmapImage（XAML 里 Image.Source 不能直接吃文件路径）。
+    /// </summary>
+    public BitmapImage? Cover
+    {
+        get => _cover;
+        set
+        {
+            if (ReferenceEquals(_cover, value))
+                return;
+
+            _cover = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Cover)));
+        }
+    }
 
     public string Title => string.IsNullOrWhiteSpace(Song.Title)
         ? Path.GetFileNameWithoutExtension(Song.FilePath)
@@ -45,6 +81,9 @@ public sealed class SongRow
 public sealed record ArtistRow(string Name, int SongCount)
 {
     public string CountText => $"{SongCount} 首";
+
+    /// <summary>圆形头像里的首字（没有艺人图可用，Android 端也是用首字）</summary>
+    public string Initial => string.IsNullOrWhiteSpace(Name) ? "?" : Name[..1];
 }
 
 /// <summary>专辑列表行</summary>

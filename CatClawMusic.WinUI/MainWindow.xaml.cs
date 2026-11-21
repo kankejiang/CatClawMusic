@@ -22,12 +22,6 @@ public sealed partial class MainWindow : Window, INavigationHost
     private readonly WinUiNavigationService _navigation;
     private readonly WinUiThemeService _theme;
 
-    /// <summary>代码里同步 NavigationView 选中项时，抑制一次 SelectionChanged 回调，避免递归。</summary>
-    private bool _syncingSelection;
-
-    /// <summary>用户正在拖进度条：此期间不回写滑块位置，松手才真正 seek。</summary>
-    private bool _seeking;
-
     public MainWindow()
     {
         // x:Bind 在 InitializeComponent 里求值，ViewModel 必须先就位。
@@ -50,19 +44,22 @@ public sealed partial class MainWindow : Window, INavigationHost
         App.Services.GetRequiredService<FolderPickerService>().Initialize(windowHandle);
 
         _theme.Applied += ApplyTitleBarTheme;
+        _theme.Applied += ApplyGlowLayer;
         _theme.Attach(RootGrid);
+        ApplyGlowLayer();
 
         // 桌面歌词是独立窗口：主窗关闭时必须一起收掉，否则进程不会退出。
         Closed += (_, _) => App.Services.GetRequiredService<IDesktopLyricService>().Hide();
 
         ViewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(ShellViewModel.PositionSeconds) or nameof(ShellViewModel.DurationSeconds))
-                SyncProgress();
         };
 
+        // 播放条中间那句词：由 NowPlayingViewModel 推（它才持有歌词与当前行）
+        var nowPlaying = App.Services.GetRequiredService<NowPlayingViewModel>();
+        nowPlaying.CurrentLyricTextChanged += (_, text) => ViewModel.LyricLine = text ?? string.Empty;
+
         Navigate(AppRoutes.Discover);
-        SyncProgress();
     }
 
     public ShellViewModel ViewModel { get; }
@@ -98,7 +95,8 @@ public sealed partial class MainWindow : Window, INavigationHost
 
         ContentHost.Content = view;
         _currentRoute = route;
-        UpdateNavSelection(route);
+        UpdateRailSelection(route);
+        Log.Info("nav", $"导航到 {route} -> {view.GetType().Name}");
     }
 
     public void SwitchTab(int tabIndex)
@@ -114,44 +112,6 @@ public sealed partial class MainWindow : Window, INavigationHost
         ShowRoute(route);
     }
 
-    private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
-    {
-        if (_syncingSelection)
-            return;
-
-        if (args.SelectedItemContainer?.Tag is string route)
-            ShowRoute(route);
-    }
-
-    private void OnSettingsClick(object sender, RoutedEventArgs e) => ShowRoute(AppRoutes.Settings);
-
-    /// <summary>同步左侧栏选中态：设置页不参与 NavigationView 的选中模型，单独高亮。</summary>
-    private void UpdateNavSelection(string route)
-    {
-        _syncingSelection = true;
-        Nav.SelectedItem = route == AppRoutes.Settings ? null : FindNavItem(route);
-        _syncingSelection = false;
-
-        SettingsButton.Background = route == AppRoutes.Settings
-            ? GetBrush("AccentSoftBrush")
-            : new SolidColorBrush(Colors.Transparent);
-    }
-
-    private static Brush GetBrush(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush
-            ? brush
-            : new SolidColorBrush(Colors.Transparent);
-
-    private NavigationViewItem? FindNavItem(string route)
-    {
-        foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>())
-        {
-            if (item.Tag as string == route)
-                return item;
-        }
-
-        return null;
-    }
 
     // ─── 底部播放条 ───
 
@@ -169,23 +129,48 @@ public sealed partial class MainWindow : Window, INavigationHost
     private void OnCyclePlayModeClick(object sender, RoutedEventArgs e)
         => ViewModel.CyclePlayModeCommand.Execute(null);
 
-    private void OnProgressPointerPressed(object sender, PointerRoutedEventArgs e) => _seeking = true;
 
-    private async void OnProgressPointerReleased(object sender, PointerRoutedEventArgs e)
+    /// <summary>侧栏一项被点：切到对应路由（侧栏不参与历史栈，避免来回点把返回键塞满）。</summary>
+    private void OnRailItemClick(object sender, RoutedEventArgs e)
     {
-        _seeking = false;
-        await ViewModel.SeekAsync(ProgressSlider.Value);
+        if (sender is FrameworkElement { Tag: string route })
+            Navigate(route);
     }
 
-    /// <summary>把播放进度回写到滑块（拖动期间不覆盖用户的手）。</summary>
-    private void SyncProgress()
+    /// <summary>
+    /// 同步侧栏选中态。选中项 = 冷灰蓝 18% 胶囊底（Android 侧栏同一套）。
+    /// 注意这里直接改 Background 而不是切 VisualState：五个按钮的模板都是纯 StackPanel，
+    /// 没有为选中态准备状态组，改底色最省事且不会触发模板重建。
+    /// </summary>
+    private void UpdateRailSelection(string route)
     {
-        if (_seeking)
-            return;
+        var items = new (Button Button, string Route)[]
+        {
+            (NavPlay, AppRoutes.Playing),
+            (NavDiscover, AppRoutes.Discover),
+            (NavPlaylists, AppRoutes.Playlists),
+            (NavLibrary, AppRoutes.Library),
+            (NavSettings, AppRoutes.Settings),
+        };
 
-        var duration = ViewModel.DurationSeconds;
-        ProgressSlider.Maximum = duration > 0 ? duration : 1;
-        ProgressSlider.Value = Math.Clamp(ViewModel.PositionSeconds, 0, ProgressSlider.Maximum);
+        var selected = Application.Current.Resources["SelectionBrush"] as Brush;
+
+        foreach (var (button, itemRoute) in items)
+        {
+            var on = itemRoute == route;
+            button.Background = on ? selected : new SolidColorBrush(Colors.Transparent);
+            button.Foreground = on
+                ? (Brush)Application.Current.Resources["TextPrimaryBrush"]
+                : (Brush)Application.Current.Resources["TextTertiaryBrush"];
+        }
+    }
+
+    /// <summary>光晕两层跟着主题走（WinUiThemeService 只改画刷值，不会替我们换层）。</summary>
+    private void ApplyGlowLayer()
+    {
+        var dark = _theme.IsEffectivelyDarkNow;
+        GlowPrimary.Background = WinUiThemeService.CreateGlowBrush(dark);
+        GlowSecondary.Background = WinUiThemeService.CreateGlowBrushSecondary(dark);
     }
 
     /// <summary>系统窗口按钮在深色背景下要换成浅色前景，否则几乎看不见。</summary>

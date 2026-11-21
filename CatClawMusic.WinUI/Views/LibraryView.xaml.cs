@@ -1,4 +1,7 @@
+using CatClawMusic.Core.Interfaces;
+using CatClawMusic.WinUI.Services;
 using CatClawMusic.WinUI.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -7,28 +10,27 @@ using Microsoft.UI.Xaml.Media;
 namespace CatClawMusic.WinUI.Views;
 
 /// <summary>
-/// 音乐库页：歌曲 / 歌手 / 专辑 三类视图 + 右键菜单。
-/// 数据与命令都在 <see cref="LibraryViewModel"/>，这里只做视图切换与菜单拼装。
+/// 音乐库页（照 Android 端 LandscapeLibrary）：左统计格 + 入口 + 工具，右资料库卡。
+/// 资料库的五行由代码生成 —— 它们只是一组静态入口，用 XAML 逐个写五遍要点会更长。
 /// </summary>
 public sealed partial class LibraryView : UserControl
 {
     private readonly PlaylistsViewModel _playlists;
-    private string _tab = "songs";
-    private bool _syncingTab;
+    private readonly INavigationService _navigation;
 
-    public LibraryView(LibraryViewModel viewModel, PlaylistsViewModel playlists)
+    public LibraryView(LibraryViewModel viewModel, PlaylistsViewModel playlists, INavigationService navigation)
     {
         ViewModel = viewModel;
         _playlists = playlists;
+        _navigation = navigation;
 
         InitializeComponent();
 
         Loaded += OnLoaded;
-        ViewModel.FilterApplied += (_, _) => SelectTab("songs");
         ViewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(LibraryViewModel.IsEmpty) or nameof(LibraryViewModel.IsBusy))
-                UpdateVisibility();
+            if (e.PropertyName is nameof(LibraryViewModel.IsBusy) or nameof(LibraryViewModel.StatusText))
+                UpdateStatus();
         };
     }
 
@@ -37,134 +39,123 @@ public sealed partial class LibraryView : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         await ViewModel.LoadAsync();
-        UpdateVisibility();
+        BuildSourceList();
+        UpdateStatus();
     }
 
-    private void OnTabSelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    /// <summary>资料库五行：本地曲库 / 网络曲库 / 我喜欢的 / 最近播放 / 远程音乐服务。</summary>
+    private void BuildSourceList()
     {
-        if (_syncingTab)
-            return;
+        SourceList.Children.Clear();
 
-        _tab = sender.SelectedItem?.Tag as string ?? "songs";
-        UpdateVisibility();
-    }
-
-    private void OnSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        ViewModel.SearchTextValue = sender.Text;
-        UpdateVisibility();
-    }
-
-    private async void OnPickFolderClick(object sender, RoutedEventArgs e)
-    {
-        await ViewModel.PickAndScanAsync();
-        UpdateVisibility();
-    }
-
-    private async void OnRescanClick(object sender, RoutedEventArgs e)
-    {
-        await ViewModel.RescanAsync();
-        UpdateVisibility();
-    }
-
-    private void OnClearFilterClick(object sender, RoutedEventArgs e)
-    {
-        ViewModel.ClearFilterCommand.Execute(null);
-        UpdateVisibility();
-    }
-
-    private void OnSongClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is SongRow row)
-            ViewModel.PlaySongCommand.Execute(row);
-    }
-
-    private void OnArtistClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is ArtistRow row)
-            ViewModel.SelectArtistCommand.Execute(row);
-    }
-
-    private void OnAlbumClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is AlbumRow row)
-            ViewModel.SelectAlbumCommand.Execute(row);
-    }
-
-    private async void OnSongRightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        if (e.OriginalSource is not FrameworkElement source || source.DataContext is not SongRow row)
-            return;
-
-        var flyout = new MenuFlyout();
-
-        var play = new MenuFlyoutItem { Text = "播放" };
-        play.Click += (_, _) => ViewModel.PlaySongCommand.Execute(row);
-        flyout.Items.Add(play);
-
-        var playNext = new MenuFlyoutItem { Text = "下一首播放" };
-        playNext.Click += (_, _) => ViewModel.PlayNextCommand.Execute(row);
-        flyout.Items.Add(playNext);
-
-        var favorite = await ViewModel.IsFavoriteAsync(row);
-        var favoriteItem = new MenuFlyoutItem { Text = favorite ? "取消收藏" : "收藏" };
-        favoriteItem.Click += async (_, _) => await ViewModel.ToggleFavoriteAsync(row);
-        flyout.Items.Add(favoriteItem);
-
-        var addTo = new MenuFlyoutSubItem { Text = "添加到歌单" };
-        var playlists = await _playlists.GetEditablePlaylistsAsync();
-        if (playlists.Count == 0)
+        var rows = new (string Glyph, string Name, string Subtitle, Func<Task> Action)[]
         {
-            addTo.Items.Add(new MenuFlyoutItem { Text = "还没有自建歌单", IsEnabled = false });
-        }
-        else
+            ("\uE8F1", "本地曲库", ViewModel.LocalSubtitle, () => ShowSongsAsync()),
+            ("\uE753", "网络曲库", "远程同步的曲目", () => ShowSongsAsync()),
+            ("\uEB51", "我喜欢的", "收藏的歌曲", () => ShowSongsAsync()),
+            ("\uE81C", "最近播放", "按时间倒序", () => ShowSongsAsync()),
+            ("\uE753", "远程音乐服务", "WebDAV / Navidrome / SMB", () => ShowRemoteAsync()),
+        };
+
+        foreach (var (glyph, name, subtitle, action) in rows)
         {
-            foreach (var playlist in playlists)
+            var icon = new Border
             {
-                var item = new MenuFlyoutItem { Text = playlist.Name };
-                var playlistId = playlist.Playlist.Id;
-                item.Click += async (_, _) => await _playlists.AddSongAsync(playlistId, row.Song);
-                addTo.Items.Add(item);
+                Width = 34,
+                Height = 34,
+                CornerRadius = new CornerRadius(11),
+                Background = (Brush)Application.Current.Resources["CardBackgroundBrush"],
+                Child = new FontIcon
+                {
+                    Glyph = glyph,
+                    FontSize = 16,
+                    Foreground = (Brush)Application.Current.Resources["TextSecondaryBrush"],
+                },
+            };
+
+            var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+            texts.Children.Add(new TextBlock
+            {
+                Text = name,
+                FontSize = 11.5,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.Resources["TextPrimaryBrush"],
+            });
+            texts.Children.Add(new TextBlock
+            {
+                Text = subtitle,
+                FontSize = 9,
+                Foreground = (Brush)Application.Current.Resources["TextTertiaryBrush"],
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxLines = 1,
+            });
+
+            var chevron = new FontIcon
+            {
+                Glyph = "\uE76C",
+                FontSize = 11,
+                Foreground = (Brush)Application.Current.Resources["TextTertiaryBrush"],
+            };
+
+            var grid = new Grid { ColumnSpacing = 11, Padding = new Thickness(0, 9, 0, 9) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(icon, 0);
+            Grid.SetColumn(texts, 1);
+            Grid.SetColumn(chevron, 2);
+            grid.Children.Add(icon);
+            grid.Children.Add(texts);
+            grid.Children.Add(chevron);
+
+            // 每行底部一条发丝线（最后一行不加）
+            var row = new Border { Child = grid, Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+            if (name != rows[^1].Name)
+            {
+                row.BorderBrush = (Brush)Application.Current.Resources["DividerBrush"];
+                row.BorderThickness = new Thickness(0, 0, 0, 1);
             }
+
+            row.Tapped += async (_, _) => await action();
+            SourceList.Children.Add(row);
         }
-
-        flyout.Items.Add(addTo);
-        flyout.ShowAt(source, e.GetPosition(source));
     }
 
-    private void SelectTab(string tag)
+    private void UpdateStatus()
     {
-        var target = LibraryTabs.Items
-            .OfType<SelectorBarItem>()
-            .FirstOrDefault(item => (item.Tag as string) == tag);
-
-        if (target is null)
-            return;
-
-        _syncingTab = true;
-        LibraryTabs.SelectedItem = target;
-        _syncingTab = false;
-
-        _tab = tag;
-        UpdateVisibility();
-    }
-
-    private void UpdateVisibility()
-    {
-        var empty = ViewModel.IsEmpty;
-        var busy = ViewModel.IsBusy;
-
-        BusyRing.IsActive = busy;
+        BusyRing.IsActive = ViewModel.IsBusy;
         StatusText.Text = ViewModel.StatusText;
-        FoldersText.Text = ViewModel.FoldersText;
-
-        EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-
-        SongsList.Visibility = !empty && _tab == "songs" ? Visibility.Visible : Visibility.Collapsed;
-        ArtistsList.Visibility = !empty && _tab == "artists" ? Visibility.Visible : Visibility.Collapsed;
-        AlbumsList.Visibility = !empty && _tab == "albums" ? Visibility.Visible : Visibility.Collapsed;
-
-        FilterChip.Visibility = ViewModel.HasFilter ? Visibility.Visible : Visibility.Collapsed;
-        FilterChipText.Text = ViewModel.FilterText;
     }
+
+    // ── 入口 ──
+
+    private async void OnRescanClick(object sender, RoutedEventArgs e) =>
+        await ViewModel.RescanAsync();
+
+    private async void OnRescanTapped(object sender, TappedRoutedEventArgs e) =>
+        await ViewModel.RescanAsync();
+
+    private async void OnPickFolderTapped(object sender, TappedRoutedEventArgs e) =>
+        await ViewModel.PickAndScanAsync();
+
+    private async void OnAllSongsClick(object sender, RoutedEventArgs e) => await ShowSongsAsync();
+
+    private async void OnAlbumsClick(object sender, RoutedEventArgs e) =>
+        await ShowTipAsync("专辑", $"曲库里有 {ViewModel.AlbumCount} 张专辑。");
+
+    private async void OnArtistsClick(object sender, RoutedEventArgs e) =>
+        await ShowTipAsync("艺术家", $"曲库里有 {ViewModel.ArtistCount} 位艺术家。");
+
+    private async void OnFavoritesClick(object sender, RoutedEventArgs e) =>
+        await ShowTipAsync("收藏", "收藏列表还在移植中。");
+
+    private async void OnStatsClick(object sender, RoutedEventArgs e) =>
+        await ShowTipAsync("听歌统计", "统计页还在移植中。");
+
+    private Task ShowSongsAsync() => _navigation.NavigateToAsync("playlists");
+
+    private Task ShowRemoteAsync() => _navigation.NavigateToAsync("settings");
+
+    private async Task ShowTipAsync(string title, string message) =>
+        await App.Services.GetRequiredService<IDialogService>().ShowAlertAsync(title, message);
 }

@@ -70,6 +70,32 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public bool IsEmpty => Songs.Count == 0;
 
+    // ── 顶部四个统计格（横屏左栏）──
+    public int SongCount => _allSongs.Count;
+
+    public int ArtistCount => _allSongs
+        .Where(s => !string.IsNullOrWhiteSpace(s.Artist))
+        .Select(s => s.Artist)
+        .Distinct()
+        .Count();
+
+    public int AlbumCount => _allSongs
+        .Where(s => !string.IsNullOrWhiteSpace(s.Album))
+        .Select(s => s.Album)
+        .Distinct()
+        .Count();
+
+    /// <summary>曲库总时长（小时，一位小数）</summary>
+    public string HoursText =>
+        (_allSongs.Sum(s => (long)s.Duration) / 3600.0).ToString("0.0");
+
+    /// <summary>已配置的音乐文件夹列表（资料库卡「本地曲库」那行）</summary>
+    public IReadOnlyList<string> MusicFolders => GetFolders();
+
+    public string LocalSubtitle => MusicFolders.Count == 0
+        ? "还没有选择文件夹"
+        : $"{MusicFolders.Count} 个文件夹 · {SongCount} 首";
+
     /// <summary>用户输入的搜索词（属性名避开 <c>SearchText</c>，方便 XAML 直接绑定）</summary>
     public string SearchTextValue
     {
@@ -289,6 +315,11 @@ public sealed partial class LibraryViewModel : ObservableObject
             Songs.Add(new SongRow(song));
 
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(SongCount));
+        OnPropertyChanged(nameof(ArtistCount));
+        OnPropertyChanged(nameof(AlbumCount));
+        OnPropertyChanged(nameof(HoursText));
+        OnPropertyChanged(nameof(LocalSubtitle));
         OnPropertyChanged(nameof(FilterText));
         OnPropertyChanged(nameof(HasFilter));
     }
