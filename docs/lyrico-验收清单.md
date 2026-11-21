@@ -73,7 +73,9 @@ $adb = "C:\Users\lvjin\AppData\Local\Android\Sdk\platform-tools\adb.exe"
 | 内置标记 / 内置源无卸载入口 | ✅ PASS |
 | 启停可切换 | ✅ PASS |
 | 导入ZIP / 重新扫描 / 检查更新 按钮 | ✅ PASS |
-| ZIP 实际导入安装 | ⬜ 待验（需插件包素材） |
+| ZIP 实际导入安装 | ✅ PASS（自造测试包，装到 `files/lyrico-plugins/`） |
+| 用户插件有「卸载」入口、内置源没有 | ✅ PASS |
+| 导入后结构完整（含 includeDirs 的 lib/ 与 locales/） | ✅ PASS |
 | 在线目录拉取与安装 | ⬜ 待验（需网络稳定） |
 | 插件日志进诊断页 | ⬜ 待验 |
 
