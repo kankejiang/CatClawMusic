@@ -34,17 +34,28 @@ sealed interface CatalogResult {
 }
 
 /**
- * 解析 Lyrico 官方 catalog.json（schemaVersion 1）。
+ * 解析 Lyrico 官方插件的发行清单。
  *
- * 结构：
+ * ## 上游格式有过变更（实测）
+ *
+ * 旧格式 `catalog.json`：
  * ```json
  * { "schemaVersion": 1,
  *   "plugins": [ { "id", "name", "versionCode", "versionName", "apiVersion",
  *                  "minHostApiVersion", "downloadUrl", "sha256", "size", "changelog" } ] }
  * ```
  *
- * 容错策略：**单个条目坏掉不影响整张 catalog**（上游字段可能演进），
- * 但 schemaVersion 不认识时整体拒绝——那是真的看不懂，硬解析只会读到错的东西。
+ * **当前实际上游**是 `release-manifest.json`：
+ * ```json
+ * { "generatedAt": "...",
+ *   "plugins": [ { "id", "name", "versionCode", "versionName", "root", "asset" } ],
+ *   "assets": [ "<zip 文件名>" ] }
+ * ```
+ * 新格式**没有 downloadUrl / sha256 / minHostApiVersion** —— 下载地址要按
+ * 「release tag + asset 文件名」拼出来。
+ *
+ * 两种都支持：先按新格式找（有 `asset` 字段），找不到再按旧格式找（有 `downloadUrl`）。
+ * 只支持一种会在上游改格式时整个功能失效——本轮就是这样发现问题的。
  */
 object PluginCatalogParser {
 
@@ -52,12 +63,20 @@ object PluginCatalogParser {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    /**
+     * @param baseUrl 清单里 asset 是相对文件名时，用来拼下载地址的前缀
+     *                （形如 `https://.../releases/download/v0.5.0/`）。
+     *                通常由调用方用「清单 URL 去掉文件名」得到。
+     */
     fun parse(
         raw: String,
         hostApiVersion: Int = LyricoManifest.HOST_API_VERSION,
+        baseUrl: String = "",
     ): CatalogResult {
         val root = runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
             ?: return CatalogResult.Failed("catalog 不是合法 JSON 对象")
+
+        // schemaVersion 只出现在旧格式里；新格式没有这个字段，不能因此拒绝
         val schema = (root["schemaVersion"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
         if (schema != null && schema > SUPPORTED_SCHEMA_VERSION) {
             return CatalogResult.Failed("catalog 版本 $schema 高于支持版本 $SUPPORTED_SCHEMA_VERSION")
@@ -68,9 +87,18 @@ object PluginCatalogParser {
         var incompatible = 0
         val plugins = arr.mapNotNull { el ->
             val obj = el as? JsonObject ?: return@mapNotNull null
-            // 空 id 与缺字段同等对待：装上去也会变成目录名 "plugin" 互相覆盖
             val id = obj.str("id")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val url = obj.str("downloadUrl")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+
+            // 下载地址：旧格式直接给 downloadUrl；新格式给 asset 文件名，需要拼 baseUrl
+            val asset = obj.str("asset")?.takeIf { it.isNotBlank() }
+            val url = obj.str("downloadUrl")?.takeIf { it.isNotBlank() }
+                ?: asset?.let { a ->
+                    if (a.startsWith("http")) a
+                    else if (baseUrl.isNotBlank()) baseUrl.trimEnd('/') + "/" + a
+                    else null
+                }
+                ?: return@mapNotNull null
+
             val minHost = obj.int("minHostApiVersion") ?: 1
             if (minHost > hostApiVersion) {
                 incompatible++
@@ -84,10 +112,14 @@ object PluginCatalogParser {
                 apiVersion = obj.int("apiVersion") ?: 0,
                 minHostApiVersion = minHost,
                 downloadUrl = url,
+                // 新格式不提供摘要：留空，下载时按「未校验」处理并如实告知用户
                 sha256 = obj.str("sha256").orEmpty().lowercase(),
                 size = obj.long("size") ?: 0L,
                 changelog = obj.str("changelog").orEmpty(),
             )
+        }
+        if (plugins.isEmpty() && arr.isNotEmpty()) {
+            return CatalogResult.Failed("清单里没有可用的插件条目（可能是上游格式又变了）")
         }
         return CatalogResult.Success(plugins, incompatible)
     }

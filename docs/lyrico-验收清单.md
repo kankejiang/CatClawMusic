@@ -76,8 +76,10 @@ $adb = "C:\Users\lvjin\AppData\Local\Android\Sdk\platform-tools\adb.exe"
 | ZIP 实际导入安装 | ✅ PASS（自造测试包，装到 `files/lyrico-plugins/`） |
 | 用户插件有「卸载」入口、内置源没有 | ✅ PASS |
 | 导入后结构完整（含 includeDirs 的 lib/ 与 locales/） | ✅ PASS |
-| 在线目录拉取与安装 | ⬜ 待验（需网络稳定） |
-| 插件日志进诊断页 | ⬜ 待验 |
+| 在线目录拉取 | ✅ PASS（拉到 4 个，修复前因上游改名一直失败） |
+| 在线安装实际下载安装 | ✅ PASS（`已安装 Apple Music v0.4.1`） |
+| 版本比对（已装显示「已是最新」） | ✅ PASS |
+| 插件日志进诊断页 | ✅ PASS（`Lyrico:*` 前缀可见） |
 
 ## P4 设置 ✅ 全部通过
 

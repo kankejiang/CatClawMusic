@@ -26,7 +26,9 @@ class PluginCatalogClient(
             withTimeoutOrNull(timeoutMs) { httpGet(catalogUrl) }
         }.getOrNull() ?: return@withContext CatalogResult.Failed("无法连接订阅源")
         if (body.isBlank()) return@withContext CatalogResult.Failed("订阅源返回空内容")
-        PluginCatalogParser.parse(body)
+        // 清单里的 asset 是相对文件名，下载地址 = 清单所在目录 + 文件名
+        val baseUrl = catalogUrl.substringBeforeLast('/', missingDelimiterValue = "")
+        PluginCatalogParser.parse(body, baseUrl = baseUrl)
     }
 
     /** 下载插件包并校验摘要。 */
@@ -60,9 +62,15 @@ class PluginCatalogClient(
     companion object {
         private const val USER_AGENT = "CatClawMusic/1.0"
 
-        /** Lyrico 官方插件的默认订阅地址。 */
+        /**
+         * Lyrico 官方插件的默认订阅地址。
+         *
+         * 上游已从 `catalog.json` 改名为 `release-manifest.json`（实测 latest 会 404），
+         * 且新版清单里只有 `asset` 文件名、没有完整下载地址，所以要靠清单 URL 的
+         * 目录部分去拼（见 [PluginCatalogParser.parse] 的 baseUrl 参数）。
+         */
         const val DEFAULT_CATALOG_URL =
-            "https://github.com/Replica0110/Lyrico-Plugins/releases/latest/download/catalog.json"
+            "https://github.com/Replica0110/Lyrico-Plugins/releases/latest/download/release-manifest.json"
     }
 }
 
