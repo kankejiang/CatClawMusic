@@ -118,7 +118,9 @@ class PluginRegistry(
         issue: String?,
     ): PluginEntry = PluginEntry(
         pluginId = id,
-        displayName = manifest.name.ifBlank { id },
+        // name 也可能是 `@plugin.name` 这种 i18n key，必须一起解析 ——
+        // 只给 description 解析会漏掉它（真机验收时标题就显示成了 `@plugin.name`）
+        displayName = resolveI18n(manifest.name, strings).ifBlank { id },
         author = manifest.author,
         versionName = manifest.versionName,
         versionCode = manifest.versionCode,
