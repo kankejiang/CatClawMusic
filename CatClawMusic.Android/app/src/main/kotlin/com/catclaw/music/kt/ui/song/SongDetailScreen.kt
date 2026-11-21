@@ -25,6 +25,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,7 +82,22 @@ fun SongDetailScreen(
     val palette = LocalCatClawPalette.current
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
-    val row by produceState<SongDetailRow?>(initialValue = null, songId) {
+    // 标签保存改的是同一个 songId 的数据，produceState 只以 songId 为 key 不会重载，
+    // 页面就停在旧标题上（真机验收时被误认为「保存失败」）。这里加一个版本号当额外 key。
+    var detailReloadTick by remember { mutableIntStateOf(0) }
+    val appContext = LocalContext.current.applicationContext
+    LaunchedEffect(songId) {
+        val bus = runCatching {
+            dagger.hilt.android.EntryPointAccessors.fromApplication(
+                appContext,
+                SongMetadataRefreshEntryPoint::class.java,
+            ).songMetadataRefreshBus()
+        }.getOrNull() ?: return@LaunchedEffect
+        bus.events.collect { changed ->
+            if (changed <= 0 || changed == songId) detailReloadTick++
+        }
+    }
+    val row by produceState<SongDetailRow?>(initialValue = null, songId, detailReloadTick) {
         value = runCatching { load(songId) }.getOrNull()
     }
     val lyrics by produceState(initialValue = emptyList<String>(), songId) {
@@ -447,4 +463,10 @@ private fun DetailCard(title: String, none: String, rows: List<Pair<String, Stri
             }
         }
     }
+}
+/** Hilt 入口：Composable 里没有注入点，只能从应用容器取单例 */
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+internal interface SongMetadataRefreshEntryPoint {
+    fun songMetadataRefreshBus(): com.catclaw.music.kt.lyrico.write.SongMetadataRefreshBus
 }

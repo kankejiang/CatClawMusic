@@ -129,7 +129,10 @@ object LyricoModule {
 
     @Provides
     @Singleton
-    fun provideTagSyncService(dao: LibraryDao): TagSyncService = TagSyncService(dao)
+    fun provideTagSyncService(
+        dao: LibraryDao,
+        refreshBus: com.catclaw.music.kt.lyrico.write.SongMetadataRefreshBus,
+    ): TagSyncService = TagSyncService(dao, refreshBus)
 
     @Provides
     @Singleton

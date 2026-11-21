@@ -95,6 +95,14 @@ class MetadataEditViewModel @Inject constructor(
                             currentYear = s.currentYear,
                             currentTrack = s.currentTrack,
                         )
+                    }.onFailure {
+                        // 之前这里直接 getOrDefault(false)，同步失败被完全吞掉：
+                        // 用户看到「已写入但标题没变」，日志里也没有任何线索。
+                        com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                            "LyricoTagSync",
+                            "曲库同步失败 songId=${target.songId}",
+                            it,
+                        )
                     }.getOrDefault(false)
                     _state.update {
                         it.copy(

@@ -22,7 +22,11 @@ import kotlinx.coroutines.withContext
  *
  * 注意**不改 `catclaw.db` 的表结构**（`SchemaParityTest` 锁着），只做既有表的数据更新。
  */
-class TagSyncService(private val dao: LibraryDao) {
+class TagSyncService(
+    private val dao: LibraryDao,
+    /** 同步成功后广播，让详情页等已显示的页面重载 */
+    private val refreshBus: SongMetadataRefreshBus,
+) {
 
     /** @return 是否真的改动了数据库 */
     suspend fun sync(songId: Int, edited: EditableTags, currentGenre: String?, currentYear: Int, currentTrack: Int): Boolean =
@@ -69,6 +73,7 @@ class TagSyncService(private val dao: LibraryDao) {
             )
             if (changed == song) return@withContext false
             dao.upsertSong(changed)
+            refreshBus.notifyChanged(songId)
             true
         }
 
