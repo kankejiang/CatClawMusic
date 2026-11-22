@@ -26,9 +26,22 @@ class LyricoPluginSources(
     private val okHttpClient: OkHttpClient,
     private val locale: () -> String = { "zh-Hans" },
     private val logSink: (String, String, String) -> Unit = { _, _, _ -> },
+    /**
+     * 「用户已启用的插件 id」提供者。
+     *
+     * 不注入 DAO 而注入这个函数：本类保持「不认识数据库」的纯逻辑层，
+     * 由 DI 侧从 PluginRegistry 读库后传入。
+     * 返回 null 表示「还说不好」（例如读库失败）—— 此时**不**过滤，
+     * 宁可多搜也别把用户的源全关掉。
+     */
+    private val enabledIdsProvider: suspend () -> Set<String>? = { null },
 ) {
 
     private val appContext = context.applicationContext
+
+    /** 用户安装的插件目录（与 PluginRegistry 用的同一处） */
+    private val pluginsRoot = java.io.File(appContext.filesDir, "lyrico-plugins")
+
     private val hosts = ConcurrentHashMap<String, LyricoScriptHost>()
 
     /** 本次会话里已失效的插件（执行超时未中断）：后续搜索直接跳过，避免每次都等满超时 */
@@ -57,13 +70,57 @@ class LyricoPluginSources(
             )
             pluginsById[plugin.id] = localized
         }
+        // 再加载用户安装的插件（ZIP 导入 / 在线下载）。
+        // 之前漏了这一步：插件页能看到它们、磁盘上也有文件，但搜索永远用不到 ——
+        // 因为 pluginsById 里只有 assets 里的内置源。
+        // 内置源优先：同 id 时保留内置版本，避免用户装的旧版盖掉随包发的版本。
+        val installed = loadInstalledPlugins(localeTag)
+        installed.forEach { plugin ->
+            if (!pluginsById.containsKey(plugin.id)) {
+                pluginsById[plugin.id] = plugin
+            }
+        }
+
         loadedBundled = true
         logSink(
             "info",
             "LyricoPlugins",
-            "内置源 ${localizedCount()} 个：${pluginsById.values.map { "${it.id}(${it.displayName})" }}",
+            "可用源 ${pluginsById.size} 个（内置 ${localizedCount() - installed.size} + " +
+                "安装 ${installed.size}）：${pluginsById.values.map { "${it.id}(${it.displayName})" }}",
         )
         return pluginsById.values.toList()
+    }
+
+    /**
+     * 读 `files/lyrico-plugins/` 下每个目录里的插件。
+     *
+     * 单个插件损坏（manifest 缺失/JSON 坏了）只跳过它并记日志，
+     * 不能让一个坏插件把整批可用源拖下水。
+     */
+    private fun loadInstalledPlugins(localeTag: String): List<LyricoPlugin> {
+        val dirs = pluginsRoot.listFiles()
+            ?.filter { it.isDirectory && !it.name.startsWith(".tmp-") }
+            .orEmpty()
+        if (dirs.isEmpty()) return emptyList()
+        val out = mutableListOf<LyricoPlugin>()
+        dirs.forEach { dir ->
+            val plugin = runCatching {
+                com.catclaw.music.kt.lyrico.plugin.LyricoPluginLoader.loadFromDirectory(dir)
+            }.getOrElse {
+                logSink("warn", "LyricoPlugins", "${dir.name} 装载失败：${it.message}")
+                null
+            } ?: return@forEach
+            // 与内置源一致地解析 i18n key（manifest 里写 `@plugin.name` 的情况）
+            val strings = com.catclaw.music.kt.lyrico.plugin.LyricoPluginLoader
+                .resolveStrings(plugin, localeTag)
+            out += plugin.copy(
+                manifest = plugin.manifest.copy(
+                    name = resolveText(plugin.manifest.name, strings),
+                    description = resolveText(plugin.manifest.description, strings),
+                ),
+            )
+        }
+        return out
     }
 
     private fun localizedCount(): Int = pluginsById.size
@@ -74,11 +131,50 @@ class LyricoPluginSources(
         return strings[value.removePrefix("@")] ?: value.removePrefix("@")
     }
 
+    /**
+     * 本次搜索可用的插件。
+     *
+     * 过滤三层：
+     *  1. 用户停用的（数据库 enabled=0）
+     *  2. 本次会话内损坏的（[brokenPlugins]）
+     *
+     * 第 1 层以前漏了 —— 用户关掉的源照样参与搜索，开关形同虚设。
+     */
     fun availablePlugins(): List<LyricoPlugin> {
         ensureBundledLoaded()
+        val allowed = enabledIdsSnapshot()
         return pluginsById.values
             .filter { it.id !in brokenPlugins }
+            .filter { allowed == null || it.id in allowed }
             .sortedBy { it.id }
+    }
+
+    /**
+     * 同步版本：内部持有最近一次从库里读到的启用集合。
+     *
+     * `availablePlugins()` 在搜索的同步路径里被调用，无法在这里 await，
+     * 所以由 [refreshEnabledIds] 预先刷新这个快照。
+     */
+    @Volatile
+    private var enabledIdsCache: Set<String>? = null
+
+    private fun enabledIdsSnapshot(): Set<String>? = enabledIdsCache
+
+    /** 搜索前调用：把库里「已启用」的集合读进快照。 */
+    suspend fun refreshEnabledIds() {
+        enabledIdsCache = runCatching { enabledIdsProvider() }
+            .onFailure {
+                com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                    "LyricoPlugins",
+                    "读取插件启用状态失败，本次不过滤：${it.message}",
+                )
+            }
+            .getOrNull()
+        com.catclaw.music.kt.core.diagnostic.AppLog.d(
+            "LyricoPlugins",
+            "启用快照=${enabledIdsCache?.let { it.joinToString(",") } ?: "null(不过滤)"}" +
+                " 已加载=${pluginsById.keys}",
+        )
     }
 
     /** 把插件标记为本次会话不可用并释放它的引擎。 */

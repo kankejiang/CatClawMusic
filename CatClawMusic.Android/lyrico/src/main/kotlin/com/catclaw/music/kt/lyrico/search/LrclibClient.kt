@@ -57,15 +57,46 @@ class LrclibClient(
         return toCandidate(obj).takeIf { it.lyrics.hasContent }
     }
 
-    private fun get(url: String): String? = runCatching {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", USER_AGENT)
-            .build()
-        okHttpClient.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) null else resp.body?.string()
+    /**
+     * 发一次 GET。
+     *
+     * **不要把异常吞干净**：原来这里是 `runCatching { ... }.getOrNull()`，于是
+     * 「DNS 不通」「TLS 失败」「HTTP 4xx」全都表现为「返回 0 条候选」，
+     * 界面上看起来就是「这个源没有歌词」，实际是请求根本没成功。
+     * 现在把失败原因写进日志（含耗时与异常类型），便于判断。
+     */
+    private fun get(url: String): String? {
+        val started = System.currentTimeMillis()
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .build()
+            okHttpClient.newCall(request).execute().use { resp ->
+                val ms = System.currentTimeMillis() - started
+                if (!resp.isSuccessful) {
+                    com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                        "LyricoSearch",
+                        "LRCLIB HTTP ${resp.code}（${ms}ms）$url",
+                    )
+                    null
+                } else {
+                    com.catclaw.music.kt.core.diagnostic.AppLog.d(
+                        "LyricoSearch",
+                        "LRCLIB 请求成功（${ms}ms）",
+                    )
+                    resp.body?.string()
+                }
+            }
+        } catch (t: Throwable) {
+            com.catclaw.music.kt.core.diagnostic.AppLog.w(
+                "LyricoSearch",
+                "LRCLIB 请求失败（${System.currentTimeMillis() - started}ms）：" +
+                    "${t.javaClass.simpleName}: ${t.message}",
+            )
+            null
         }
-    }.getOrNull()
+    }
 
     private fun toCandidate(obj: JsonObject): LyricsCandidate {
         val synced = obj.string("syncedLyrics").orEmpty()

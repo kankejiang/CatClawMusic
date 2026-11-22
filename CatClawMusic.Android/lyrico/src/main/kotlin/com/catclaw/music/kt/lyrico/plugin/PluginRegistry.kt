@@ -138,6 +138,16 @@ class PluginRegistry(
     }
 
     /** 启用/停用插件。内置源也可以停用（只是不能卸载）。 */
+    /**
+     * 库里「用户已启用」的插件 id 集合。
+     *
+     * 供搜索层过滤用：用户在插件页关掉的源不该继续参与搜索。
+     * 读库失败时返回 null —— 调用方据此「不过滤」，宁可多搜也别把源全关掉。
+     */
+    suspend fun enabledPluginIds(): Set<String>? = withContext(Dispatchers.IO) {
+        runCatching { dao.all().filter { it.enabled }.map { it.pluginId }.toSet() }.getOrNull()
+    }
+
     suspend fun setEnabled(pluginId: String, enabled: Boolean): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             dao.setEnabled(pluginId, enabled)

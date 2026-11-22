@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,18 +50,36 @@ class CoverMatchViewModel @Inject constructor(
         val target = _state.value.target ?: return
         if (_state.value.searching) return
         viewModelScope.launch {
-            _state.update { it.copy(searching = true, message = null, covers = emptyList(), thumbs = emptyMap()) }
-            val query = LyricsTarget(target.title, target.artist, target.album, target.durationMs)
-            val covers = runCatching { coverSearch.search(query) }.getOrDefault(emptyList())
             _state.update {
-                it.copy(
-                    searching = false,
-                    covers = covers,
-                    selectedUrl = covers.firstOrNull()?.url,
-                )
+                it.copy(searching = true, message = null, covers = emptyList(), thumbs = emptyMap())
             }
-            // 缩略图按顺序加载，避免一次性并发几十个请求
-            covers.take(24).forEach { c -> loadThumb(c.url) }
+            val query = LyricsTarget(target.title, target.artist, target.album, target.durationMs)
+            // 先到先返回：第一个源出图就展示，其余源回来一个补一张。
+            // 之前等所有源（含卡住的那个），用户要干等 30 秒。
+            var firstArrival = true
+            runCatching {
+                coverSearch.searchStream(query).collect { covers ->
+                    val keepUrl = _state.value.selectedUrl
+                    _state.update {
+                        it.copy(
+                            searching = false,
+                            covers = covers,
+                            // 用户已选过且那张还在新列表里：保留选择，不要被刷新掉
+                            selectedUrl = if (!firstArrival && keepUrl != null &&
+                                covers.any { c -> c.url == keepUrl }
+                            ) {
+                                keepUrl
+                            } else {
+                                covers.firstOrNull()?.url
+                            },
+                        )
+                    }
+                    if (firstArrival) firstArrival = false
+                    // 缩略图按顺序加载，避免一次性并发几十个请求
+                    covers.take(24).forEach { c -> loadThumb(c.url) }
+                }
+            }
+            _state.update { it.copy(searching = false) }
         }
     }
 

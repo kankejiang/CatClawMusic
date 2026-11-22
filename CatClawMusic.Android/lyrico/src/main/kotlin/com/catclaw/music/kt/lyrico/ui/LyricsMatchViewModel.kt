@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /** 歌词匹配页打开时带的歌曲信息（详情页已有这些字段，不必再查一次库）。 */
@@ -59,7 +60,22 @@ data class LyricsMatchUiState(
     /** 一次性提示（写入成功/失败），界面消费后清空 */
     val message: String? = null,
     val sourceErrors: List<String> = emptyList(),
-)
+    /**
+     * 来源筛选：null = 全部；非 null = 只看这个来源。
+     *
+     * 只影响列表展示。[selectedIndex] 始终指向**原始候选列表**的下标，
+     * 否则筛选后点写入会写错歌词。
+     */
+    val sourceFilter: String? = null,
+) {
+    /** 当前候选里出现过的来源（按出现顺序，用于生成筛选 chip） */
+    val availableSources: List<String>
+        get() = candidates.map { it.sourceName }.distinct()
+
+    /** 应用筛选后要展示的候选（保留原 index，不动 selectedIndex 语义） */
+    val visibleCandidates: List<CandidateUi>
+        get() = sourceFilter?.let { f -> candidates.filter { it.sourceName == f } } ?: candidates
+}
 
 @HiltViewModel
 class LyricsMatchViewModel @Inject constructor(
@@ -105,23 +121,38 @@ class LyricsMatchViewModel @Inject constructor(
         )
         viewModelScope.launch {
             _state.update { it.copy(searching = true, message = null, sourceErrors = emptyList()) }
-            val result = runCatching { searchService.search(query) }
-            result.onSuccess { r ->
-                rawCandidates = r.candidates
-                _state.update {
-                    it.copy(
-                        searching = false,
-                        candidates = r.candidates.mapIndexed { index, c -> c.toUi(index) },
-                        selectedIndex = if (r.candidates.isEmpty()) -1 else 0,
-                        sourceErrors = r.errors,
-                    )
+            // 先到先返回：第一个源出结果就展示，其余源回来一个补一个。
+            // 之前是等所有源结束（含一个必定超时的源），用户要干等 30 秒。
+            var firstArrival = true
+            runCatching {
+                searchService.searchStream(query).collect { r ->
+                    rawCandidates = r.candidates
+                    val keepIndex = _state.value.selectedIndex
+                    _state.update {
+                        it.copy(
+                            // 首个结果到达即结束「搜索中」，后续补充不打断用户操作
+                            searching = false,
+                            candidates = r.candidates.mapIndexed { index, c -> c.toUi(index) },
+                            selectedIndex = when {
+                                r.candidates.isEmpty() -> -1
+                                // 已选过且仍在新列表范围内：保持用户选择，不要被刷新掉
+                                !firstArrival && keepIndex in r.candidates.indices -> keepIndex
+                                else -> 0
+                            },
+                            sourceErrors = r.errors,
+                        )
+                    }
+                    if (firstArrival) {
+                        firstArrival = false
+                        refreshPreview()
+                    }
                 }
-                refreshPreview()
             }.onFailure { e ->
                 _state.update {
                     it.copy(searching = false, message = "搜索失败：${e.message}", candidates = emptyList())
                 }
             }
+            _state.update { it.copy(searching = false) }
         }
     }
 
@@ -131,6 +162,28 @@ class LyricsMatchViewModel @Inject constructor(
     }
 
     fun consumeMessage() = _state.update { it.copy(message = null) }
+
+    /**
+     * 切换来源筛选。
+     *
+     * 切到某个源后，如果当前选中项不在这个源里，自动选中该源的第一条 ——
+     * 否则会出现「列表里有内容但右侧预览是空的」。
+     */
+    fun setSourceFilter(source: String?) {
+        _state.update { s ->
+            val visible = source?.let { f -> s.candidates.filter { it.sourceName == f } } ?: s.candidates
+            val keepSelected = visible.any { it.index == s.selectedIndex }
+            s.copy(
+                sourceFilter = source,
+                selectedIndex = when {
+                    visible.isEmpty() -> -1
+                    keepSelected -> s.selectedIndex
+                    else -> visible.first().index
+                },
+            )
+        }
+        refreshPreview()
+    }
 
     /** 把选中的候选写入音频内嵌标签。 */
     fun write() {

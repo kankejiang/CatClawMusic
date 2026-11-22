@@ -35,14 +35,21 @@ data class LyricsCandidate(
  * 候选排序规则（对齐 Lyrico 的匹配策略）。
  *
  * 三条硬经验：
- *  1. **时长差超过 15s 且歌名不是完全一致 → 直接丢弃**。同名不同版本（现场/remix）
- *     时长差异明显，放进列表就是误写。
+ *  1. **只有「歌名完全对不上」才丢弃；时长差只降分，不淘汰**。
+ *     早期版本是「时长差 > 15s 就丢弃」，但 LRCLIB 上的版本时长常与本地文件
+ *     差 20~40 秒（不同专辑/精选集/现场版），结果是整个源被过滤光 ——
+ *     界面上只剩一个来源，用户以为「没区分来源」。
+ *     现在按时长差分级扣分（>60s 显著降权），让用户自己判断，不替他筛掉。
  *  2. 歌名权重最高，艺人次之，专辑再次。
  *  3. 同步歌词优先于纯文本：能逐字/滚动显示，纯文本只能按 5s 一行推进。
  */
 object LyricsRanking {
 
+    /** 时长「完全吻合」的容差：在这个范围内拿满分 */
     private const val DURATION_TOLERANCE_MS = 15_000L
+
+    /** 超过这个差值就认为大概率不是同一版本，但仍保留（只降分） */
+    private const val DURATION_FAR_MS = 60_000L
 
     /** 对候选打分并排序（返回新列表，不修改入参）。 */
     fun rank(target: LyricsTarget, candidates: List<LyricsCandidate>): List<LyricsCandidate> {
@@ -69,12 +76,12 @@ object LyricsRanking {
                 normalize(target.title).length >= 4 -> 0.4
             else -> 0.0
         }
-        // 歌名完全对不上、且时长也对不上，基本不是同一首
         val durationDiff = if (target.durationMs > 0 && candidate.durationMs > 0) {
             kotlin.math.abs(target.durationMs - candidate.durationMs)
         } else {
             -1L
         }
+
         if (durationDiff >= 0 && durationDiff > DURATION_TOLERANCE_MS && !titleExact) return null
         if (titleScore == 0.0 && durationDiff != 0L && (durationDiff < 0 || durationDiff > DURATION_TOLERANCE_MS)) {
             return null
@@ -92,11 +99,15 @@ object LyricsRanking {
             normalize(target.album) == normalize(candidate.album) -> 1.0
             else -> 0.0
         }
+        // 时长分：15s 内满分，之后线性衰减到 60s 归零。
+        // 60s 以上仍保留（不淘汰），分数低自然排到后面 —— 用户能自己决定要不要用。
         val durationScore = when {
             durationDiff < 0 -> 0.5
             durationDiff <= 1000 -> 1.0
-            durationDiff >= DURATION_TOLERANCE_MS -> 0.0
-            else -> 1.0 - durationDiff.toDouble() / DURATION_TOLERANCE_MS
+            durationDiff <= DURATION_TOLERANCE_MS -> 1.0
+            durationDiff >= DURATION_FAR_MS -> 0.0
+            else -> 1.0 - (durationDiff - DURATION_TOLERANCE_MS).toDouble() /
+                (DURATION_FAR_MS - DURATION_TOLERANCE_MS)
         }
         val syncedBonus = when {
             candidate.lyrics.isWordByWord -> 0.25
