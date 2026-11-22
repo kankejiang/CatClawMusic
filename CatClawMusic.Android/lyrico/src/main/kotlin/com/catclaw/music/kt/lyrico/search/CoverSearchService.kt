@@ -7,10 +7,13 @@ import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.lyrico.search.LyricsTarget
 import com.lonx.audiotag.model.AudioPicture
 import com.lonx.audiotag.rw.AudioTagReader
+import com.catclaw.music.kt.lyrico.write.SafeTagWriter
 import com.lonx.audiotag.rw.AudioTagWriter
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
@@ -47,8 +50,44 @@ sealed interface CoverWriteOutcome {
 class CoverSearchService(
     private val okHttpClient: OkHttpClient,
     private val pluginSources: LyricoPluginSources? = null,
-    private val perSourceTimeoutMs: Long = 35_000L,
+
+    /** 单源超时：与歌词搜索一致，12s。超过基本是卡住了，继续等只会拖累用户 */
+    private val perSourceTimeoutMs: Long = 12_000L,
 ) {
+
+    /**
+     * 封面搜索结果流：谁先回来先给谁。
+     *
+     * 与歌词搜索同一个理由：`awaitAll` 要等所有源（含卡住的），
+     * 用户明明 10 秒就能看到封面，却要等 30 秒。
+     */
+    /**
+     * 封面搜索结果流：谁先回来先给谁。
+     *
+     * 与歌词搜索同源的问题：第一版用 `flow{}` + 手写 Channel 做信号却忘了 close，
+     * `for` 循环永远挂着，第一个源之后就没有第二次 emit 了。
+     * 改用 `channelFlow`：子协程结束自动关闭 channel，不会漏。
+     */
+    fun searchStream(target: LyricsTarget): kotlinx.coroutines.flow.Flow<List<CoverCandidate>> =
+        kotlinx.coroutines.flow.channelFlow {
+            val pluginIds = pluginSources?.availablePlugins()?.map { it.id }.orEmpty()
+            if (pluginIds.isEmpty()) return@channelFlow
+            val collected = java.util.Collections.synchronizedList(mutableListOf<CoverCandidate>())
+            pluginIds.forEach { pluginId ->
+                // 同歌词搜索：必须显式切 IO，否则继承主线程上下文。
+                launch(Dispatchers.IO) {
+                    val items = runCatching {
+                        withTimeoutOrNull(perSourceTimeoutMs) {
+                            pluginSources!!.searchCovers(pluginId, target)
+                        } ?: emptyList()
+                    }.getOrElse { emptyList() }
+                    if (items.isNotEmpty()) {
+                        synchronized(collected) { collected.addAll(items) }
+                        send(collected.toList().distinctBy { it.url }.sortedByDescending { it.score })
+                    }
+                }
+            }
+        }
 
     suspend fun search(target: LyricsTarget): List<CoverCandidate> = withContext(Dispatchers.IO) {
         val pluginIds = pluginSources?.availablePlugins()?.map { it.id }.orEmpty()
@@ -84,6 +123,11 @@ class CoverSearchService(
 
 /** 把封面写进音频内嵌标签。 */
 class CoverWriter(
+    /**
+     * 封面写入后要 bump 版本号，让所有显示封面的地方（播放页大图、列表行、
+     * 雾面动态背景、通知栏 artwork）重新加载。不 bump 就只能杀进程重进。
+     */
+    private val coverVersion: com.catclaw.music.kt.data.media.CoverVersion,
     private val context: Context,
     private val coverSearch: CoverSearchService,
 ) {
@@ -111,14 +155,17 @@ class CoverWriter(
                 pictureType = "Front Cover",
             )
 
-            val wrote = openReadWrite(path)?.use { pfd ->
+            // 安全写入：先写临时副本再原子替换。
+            // 直接改原文件会与正在播放的 ExoPlayer 抢同一个 inode，
+            // 实测会导致播放卡死（需要切歌才恢复）。
+            val wrote = SafeTagWriter.writeSafely(context, path) { pfd: ParcelFileDescriptor ->
                 runCatching { AudioTagWriter.writePictures(pfd, listOf(picture)) }.getOrElse { false }
-            } ?: return@withContext CoverWriteOutcome.Unsupported("无法打开该文件（只读或不存在）")
+            }
 
             if (!wrote) return@withContext CoverWriteOutcome.Failed("封面写入失败（格式不支持或文件只读）")
 
             // 回读校验：确认真的嵌进去了
-            val readBack = openReadWrite(path)?.use { pfd ->
+            val readBack: ByteArray? = SafeTagWriter.readSafely(context, path) { pfd: ParcelFileDescriptor ->
                 runCatching {
                     AudioTagReader.readPicture(
                         pfd = pfd,
@@ -129,18 +176,11 @@ class CoverWriter(
             if (readBack == null || readBack.isEmpty()) {
                 return@withContext CoverWriteOutcome.Failed("写入后读回封面失败")
             }
+            // 要告知所有展示封面的地方（播放页大图/列表行/雾面背景/通知栏）
+            // 封面已变。项目用全局版本号做这件事，不 bump 就只能杀进程重进才看到新图。
+            coverVersion.bump()
             CoverWriteOutcome.Success(bytes.size)
         }
-
-    private fun openReadWrite(path: String): ParcelFileDescriptor? = runCatching {
-        if (path.startsWith("content://")) {
-            context.contentResolver.openFileDescriptor(Uri.parse(path), "rw")
-        } else {
-            val file = File(path)
-            if (!file.isFile) return null
-            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE)
-        }
-    }.getOrNull()
 
     /** 只认常见图片头；识别不出就按 jpeg 处理（taglib 多数容器不校验） */
     private fun sniffImageMime(bytes: ByteArray): String? {

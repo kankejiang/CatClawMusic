@@ -71,11 +71,14 @@ class LyricsWriter(
         if (text.isBlank()) return@withContext LyricsWriteOutcome.Failed("编码后的歌词为空")
 
         val tagWriteStart = System.currentTimeMillis()
-        val wrote = openReadWrite(path)?.use { pfd ->
+        // 安全写入：写临时副本再原子替换。
+        // 这首歌可能正在播放，ExoPlayer 持有同一文件的句柄 —— 原地改会让
+        // 播放器读到写了一半的数据，表现为播放卡死（真机反馈需要切歌才能恢复）。
+        val wrote = SafeTagWriter.writeSafely(context, path) { pfd ->
             runCatching {
                 AudioTagWriter.writeTags(pfd, mapOf(KEY_LYRICS to text), preserveOldTags = true)
             }.getOrElse { false }
-        } ?: return@withContext LyricsWriteOutcome.Unsupported("无法打开该文件（只读或不存在）")
+        }
         com.catclaw.music.kt.core.diagnostic.AppLog.d(
             "LyricoWrite",
             "writeTags 完成=${wrote} 耗时=${System.currentTimeMillis() - tagWriteStart}ms",
@@ -85,7 +88,7 @@ class LyricsWriter(
 
         // 校验：读回内嵌歌词，确认真的落盘了（避免"报成功但其实没写"）
         val readBackStart = System.currentTimeMillis()
-        val readBack = openReadWrite(path)?.use { pfd ->
+        val readBack = SafeTagWriter.readSafely(context, path) { pfd ->
             runCatching { AudioTagReader.read(pfd, readPictures = false).lyrics }.getOrNull()
         }
         com.catclaw.music.kt.core.diagnostic.AppLog.d(
@@ -104,15 +107,6 @@ class LyricsWriter(
         LyricsWriteOutcome.Success(text, format)
     }
 
-    private fun openReadWrite(path: String): ParcelFileDescriptor? = runCatching {
-        if (path.startsWith("content://")) {
-            context.contentResolver.openFileDescriptor(Uri.parse(path), "rw")
-        } else {
-            val file = File(path)
-            if (!file.isFile) return null
-            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE)
-        }
-    }.getOrNull()
 
     private companion object {
         /** taglib 侧对「歌词」的统一键名；各格式会映射到 USLT / LYRICS / ©lyr */

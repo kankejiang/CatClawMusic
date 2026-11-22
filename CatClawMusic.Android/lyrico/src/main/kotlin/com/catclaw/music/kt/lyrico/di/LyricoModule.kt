@@ -54,7 +54,7 @@ object LyricoModule {
         // callTimeout 是**整次调用**的总预算，覆盖 DNS 解析、连接、读写。
         // 只设 connect/read 挡不住「DNS 被黑洞」这种情况——实测 lrclib.net 解析得出但
         // 数据包全丢，没有 callTimeout 时一次请求能挂很久，批量任务直接卡住。
-        .callTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -71,9 +71,12 @@ object LyricoModule {
     fun providePluginSources(
         @ApplicationContext context: Context,
         @LyricoHttpClient client: OkHttpClient,
+        registry: PluginRegistry,
     ): LyricoPluginSources = LyricoPluginSources(
         context = context,
         okHttpClient = client,
+        // 用户在插件页关掉的源不该继续参与搜索
+        enabledIdsProvider = { registry.enabledPluginIds() },
         locale = {
             // 跟随系统语言；插件文案按 zh-Hans / en 回退
             val tag = java.util.Locale.getDefault().toLanguageTag()
@@ -121,7 +124,8 @@ object LyricoModule {
     fun provideCoverWriter(
         @ApplicationContext context: Context,
         coverSearch: CoverSearchService,
-    ): CoverWriter = CoverWriter(context, coverSearch)
+        coverVersion: com.catclaw.music.kt.data.media.CoverVersion,
+    ): CoverWriter = CoverWriter(coverVersion, context, coverSearch)
 
     @Provides
     @Singleton
