@@ -33,21 +33,29 @@ class PlayingMenuLayoutTest {
         )
     }
 
+    /**
+     * 2026-11-22：播放页「更多」从**列表**改成了**图标网格**（[PlayingMoreSheet]）。
+     *
+     * 这条断言随之改到网格文件上，检查的仍是同一件事：那四颗图标必须还在「更多」里。
+     * 保留这条防护的理由没变 —— 它们放回进度条右上角不会报错，只是角上多四颗图标，
+     * 而「开关状态看不出来」这个当初收进菜单的原因在代码里也看不出来。
+     */
     @Test
-    fun `四颗图标的入口都在菜单的播放一节里`() {
+    fun `四颗图标的入口都在更多面板里`() {
+        val sheet = source("app/src/main/kotlin/com/catclaw/music/kt/ui/screen/PlayingMoreSheet.kt")
         val playing = source("app/src/main/kotlin/com/catclaw/music/kt/ui/screen/PlayingScreen.kt")
-        val sections = playing.substringAfter("sections = listOf(", "")
-        assertTrue("菜单里找不到「播放」这一节", sections.isNotEmpty())
-        val firstLabel = sections.substringBefore("SongMenuItem(")
-        assertTrue("这一节得有小标题", firstLabel.contains("song_menu_section_play"))
+        // 面板被播放页真正调用（不是写完就闲置）
+        assertTrue("播放页没有调用 PlayingMoreSheet", playing.contains("PlayingMoreSheet("))
         listOf(
             "R.string.sleep_timer_title" to "定时停止播放",
             "R.string.soundfx_title" to "音效",
             "R.string.PageTitleDesktopLyric" to "桌面歌词",
             "R.string.playing_rotate" to "横竖屏切换",
         ).forEach { (key, name) ->
-            assertTrue("菜单的播放一节里少了「$name」", sections.contains(key))
+            assertTrue("更多面板里少了「$name」", playing.contains(key) || sheet.contains(key))
         }
+        // 面板必须是图标网格，不能退回一列平铺
+        assertTrue("更多面板没有使用图标网格", sheet.contains("MenuTileGrid("))
     }
 
     @Test

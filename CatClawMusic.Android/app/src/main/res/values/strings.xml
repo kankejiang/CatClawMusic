@@ -661,9 +661,7 @@
     <string name="downloads_concurrency">并发下载数</string>
     <string name="downloads_speed_unlimited">不限</string>
     <string name="song_menu_section_song">歌曲</string>
-    <string name="song_menu_section_play">播放</string>
     <string name="song_menu_section_about">关于这首歌</string>
-    <string name="menu_timer_remaining_short">剩余 %1$s</string>
     <string name="menu_landscape_on">横屏中</string>
     <string name="view_list">列表</string>
     <string name="settings_group_look">外观与体验</string>
@@ -679,4 +677,11 @@
     <string name="lib_tools_title">工具</string>
     <string name="lib_tools_scan_hint">重新扫描本地音乐文件夹</string>
     <string name="lib_all_songs">全部歌曲</string>
+    <string name="lyrics_match_format_title">写入格式</string>
+    <string name="lyrics_match_preview_title">预览</string>
+    <string name="lyrics_match_format_hint_plain">最通用，所有播放器都能显示滚动歌词</string>
+    <string name="lyrics_match_format_hint_enhanced">行级时间戳 + 词内联标记，多数播放器可用</string>
+    <string name="lyrics_match_format_hint_verbatim">逐词独立时间戳，兼容性较差</string>
+    <string name="lyrics_match_format_hint_ttml">苹果 TTML，仅部分播放器支持</string>
+    <string name="lyrics_match_filter_all">全部来源</string>
 </resources>

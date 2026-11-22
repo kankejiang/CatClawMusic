@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.annotation.DrawableRes
+import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.model.SongDetailFormat
 import com.catclaw.music.kt.data.db.SongDetailRow
@@ -254,8 +256,9 @@ fun SongDetailScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // 歌词预览 —— MAUI `SongDetailPage` 那张卡：定高可滚动列表 + 无词时的空态提示。
-        // 只贴行文本（与 C# 的模板一致）：逐字填充 / 译文 / 罗马音是歌词页的活
+        // 歌词卡片：标题行 + 操作行 + 预览区。
+        // 原先把标题、滚动标记、三个入口全塞进同一行，"编辑标签" 在窄屏会被挤成两行
+        // （真机截图确认），所以拆成上下两层。
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -263,6 +266,7 @@ fun SongDetailScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // ── 标题行：只有标题与行数，不再混入按钮 ──
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.detail_lyrics),
@@ -282,10 +286,28 @@ fun SongDetailScreen(
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
-                // 歌词匹配入口（Lyrico 移植）：任何能打开详情页的地方都能进
-                Spacer(Modifier.width(8.dp).weight(1f))
-                PillLabel(
-                    text = stringResource(R.string.lyrics_match_entry),
+                Spacer(Modifier.weight(1f))
+                // 行数靠右：一眼知道这首歌有没有词、有多少
+                if (lyrics.isNotEmpty()) {
+                    Text(
+                        text = "${lyrics.size}",
+                        fontSize = 11.sp,
+                        color = secondary,
+                    )
+                }
+            }
+
+            // ── 操作行：三个等宽图标按钮 ──
+            // 用等宽 + 图标在上，比三个长短不一的 pill 更整齐，也不会因文字长短换行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DetailActionTile(
+                    icon = R.drawable.ic_nav_lyrics,
+                    label = stringResource(R.string.lyrics_match_entry),
+                    enabled = detail != null,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         detail?.let { d ->
                             lyricsMatchTarget = com.catclaw.music.kt.lyrico.ui.LyricsMatchTarget(
@@ -298,34 +320,34 @@ fun SongDetailScreen(
                             )
                         }
                     },
-                    filled = false,
-                    enabled = detail != null,
                 )
-                Spacer(Modifier.width(6.dp))
-                PillLabel(
-                    text = stringResource(R.string.cover_match_entry),
+                DetailActionTile(
+                    icon = R.drawable.ic_album,
+                    label = stringResource(R.string.cover_match_entry),
+                    enabled = detail != null,
+                    modifier = Modifier.weight(1f),
                     onClick = { coverMatchOpen = true },
-                    filled = false,
-                    enabled = detail != null,
                 )
-                Spacer(Modifier.width(6.dp))
-                PillLabel(
-                    text = stringResource(R.string.tag_edit_entry),
-                    onClick = { tagEditOpen = true },
-                    filled = false,
+                DetailActionTile(
+                    icon = R.drawable.ic_edit,
+                    label = stringResource(R.string.tag_edit_entry),
                     enabled = detail != null,
+                    modifier = Modifier.weight(1f),
+                    onClick = { tagEditOpen = true },
                 )
             }
+
+            // ── 预览区 ──
             if (lyrics.isEmpty()) {
                 Text(
                     text = stringResource(R.string.lyric_none),
                     fontSize = 13.sp,
                     color = secondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 26.dp),
                 )
             } else {
-                // 定高 230dp（MAUI HeightRequest=230）：预览不该把整页撑成一篇长文。
+                // 定高 230dp：预览不该把整页撑成一篇长文。
                 // 内层 Scroll 有确定高度，所以套在外层 Scroll 里也不会被无限高度量到
                 Column(
                     modifier = Modifier
@@ -469,4 +491,49 @@ private fun DetailCard(title: String, none: String, rows: List<Pair<String, Stri
 @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
 internal interface SongMetadataRefreshEntryPoint {
     fun songMetadataRefreshBus(): com.catclaw.music.kt.lyrico.write.SongMetadataRefreshBus
+}
+/**
+ * 详情页的操作按钮：图标在上、文字在下，等宽排列。
+ *
+ * 为什么不用 [PillLabel]：pill 的宽度随文字长度变，三个并排时「歌词匹配」「封面匹配」
+ * 「编辑标签」会长短不一，窄屏上还会把最后一个挤到换行（真机截图确认过）。
+ * 等宽的方块按钮三列排开，既整齐也不会换行。
+ */
+@Composable
+private fun DetailActionTile(
+    @DrawableRes icon: Int,
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val palette = LocalCatClawPalette.current
+    val ink = Color(palette.textPrimary)
+    val alpha = if (enabled) 1f else 0.38f
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(ink.copy(alpha = 0.07f))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 9.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = Color(highlightOnGlassCard(palette)).copy(alpha = alpha),
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = ink.copy(alpha = 0.92f * alpha),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
 }

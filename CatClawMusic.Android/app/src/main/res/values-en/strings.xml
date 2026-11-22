@@ -661,9 +661,7 @@ Download it from GitHub.</string>
     <string name="downloads_concurrency">Concurrent downloads</string>
     <string name="downloads_speed_unlimited">Unlimited</string>
     <string name="song_menu_section_song">Song</string>
-    <string name="song_menu_section_play">Playback</string>
     <string name="song_menu_section_about">About this song</string>
-    <string name="menu_timer_remaining_short">%1$s left</string>
     <string name="menu_landscape_on">Landscape</string>
     <string name="view_list">List</string>
     <string name="settings_group_look">Appearance</string>
@@ -679,4 +677,11 @@ Download it from GitHub.</string>
     <string name="lib_tools_title">Tools</string>
     <string name="lib_tools_scan_hint">Rescan local music folders</string>
     <string name="lib_all_songs">All songs</string>
+    <string name="lyrics_match_format_title">Write format</string>
+    <string name="lyrics_match_preview_title">Preview</string>
+    <string name="lyrics_match_format_hint_plain">Most compatible; scrolling lyrics in any player</string>
+    <string name="lyrics_match_format_hint_enhanced">Line timestamps with inline word tags</string>
+    <string name="lyrics_match_format_hint_verbatim">Per-word timestamps; poor compatibility</string>
+    <string name="lyrics_match_format_hint_ttml">Apple TTML; limited player support</string>
+    <string name="lyrics_match_filter_all">All sources</string>
 </resources>

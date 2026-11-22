@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -219,15 +221,19 @@ private fun PluginRow(
                 color = ink,
                 modifier = Modifier.weight(1f),
             )
-            GlassChip(
-                label = if (enabled) {
-                    stringResource(R.string.source_plugin_enabled)
-                } else {
-                    stringResource(R.string.source_plugin_disabled)
-                },
-                selected = enabled,
-                onClick = onToggle,
-                compact = true,
+            // 用开关而不是胶囊按钮：位置（左/右）本身就是状态，不需要文案解释。
+            // 胶囊方案下「已启用」到底能不能点、「停用」当前是开还是关，都要靠猜；
+            // 实测曾把 7 个插件全误关成 enabled=0。
+            Switch(
+                checked = enabled,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color(palette.primary),
+                    checkedTrackColor = Color(palette.primary).copy(alpha = 0.32f),
+                    uncheckedThumbColor = Color(palette.textSecondary),
+                    uncheckedTrackColor = ink.copy(alpha = 0.12f),
+                    uncheckedBorderColor = ink.copy(alpha = 0.20f),
+                ),
             )
         }
         Text(

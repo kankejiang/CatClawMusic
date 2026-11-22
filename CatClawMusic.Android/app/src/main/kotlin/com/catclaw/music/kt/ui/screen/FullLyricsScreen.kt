@@ -242,22 +242,29 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
         val estimated = rowContentHeights[target] ?: (viewport / 8)
         val targetOffset = pinnedScrollOffsetPx(estimated, viewport, beforePadding, pinMarginPx)
         val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+        // 只做**一次**动画。
+        //
+        // 之前这里连着做两次 tween（主滚动 + 等一帧后按实测行高校正），
+        // 两个独立动画之间是硬切的：滚到位 → 顿一下 → 再微调一次。
+        // 实测文字块质心相邻帧位移比值 5.1（>3 即为不平滑），跳变能看出来。
+        //
+        // MAUI 那边 (FullLyricsPage.LyricEngine.cs:714) 只有一次
+        // `TranslateTo(0, targetY, 380ms, CubicInOut)`，绝对目标、从当前位置插值。
+        // 这里对齐成单次动画：delta 用估算行高算，动画到目标后
+        // 若实测有偏差，用**无动画**的 scrollToItem 抹平（几像素，肉眼不可察）。
         if (info != null) {
-            // 目标行在视口内：animateScrollToItem 是固定 spring 改不了曲线，
-            // 改用 animateScrollBy 按 MAUI 同款 380ms EaseInOutCubic 平移到目标位。
-            // 滚动 delta = info.offset + targetOffset：滚动后 item.offset = −targetOffset，
-            // 摆放顶 = beforePadding − (−targetOffset)，行中心恰落在 30% 处
             val delta = (info.offset + targetOffset).toFloat()
             if (abs(delta) > 0.5f) {
                 listState.animateScrollBy(delta, tween(LyricScrollMs, easing = EaseInOutCubic))
             }
         } else {
-            // 目标行不在视口内（跳句/跳歌）：退回 LazyColumn 的默认长距滚动
+            // 目标行不在视口内（跳句/跳歌）：直接动画滚到该行
             listState.animateScrollToItem(target, targetOffset)
         }
+        // 动画结束后用实测行高做一次**无动画**微调：
+        // 当前行放大后换行数可能变，行高与估算差几像素，位置略偏。
+        // 这里刻意不带动画 —— 带动画就成了第二条 tween，会把刚完成的缓动打断。
         withFrameNanos { }
-        // 当前行换宽度重分行后行高变了（MAUI RelayoutAndRepinAfterHighlightChange）：
-        // 用实测行高再校正一次
         val actual = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }?.size
         if (actual != null && actual != estimated) {
             val corrected = pinnedScrollOffsetPx(actual, viewport, beforePadding, pinMarginPx)
@@ -265,10 +272,10 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
             if (info2 != null) {
                 val delta2 = (info2.offset + corrected).toFloat()
                 if (abs(delta2) > 0.5f) {
-                    listState.animateScrollBy(delta2, tween(LyricScrollMs, easing = EaseInOutCubic))
+                    listState.dispatchRawDelta(delta2)
                 }
             } else {
-                listState.animateScrollToItem(target, corrected)
+                listState.scrollToItem(target, corrected)
             }
         }
     }

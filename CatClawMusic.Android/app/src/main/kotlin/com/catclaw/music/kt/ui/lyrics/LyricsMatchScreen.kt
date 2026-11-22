@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -167,6 +170,31 @@ fun LyricsMatchScreen(
 
         Spacer(Modifier.height(10.dp))
 
+        // 来源筛选：多个源同时有结果时，用户常想只看某一个源。
+        // 来源集合动态生成 —— 没返回结果的源不该出现（避免点进去是空列表）。
+        if (state.availableSources.size > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                FormatChip(
+                    label = stringResource(R.string.lyrics_match_filter_all),
+                    selected = state.sourceFilter == null,
+                    onClick = { viewModel.setSourceFilter(null) },
+                )
+                state.availableSources.forEach { source ->
+                    FormatChip(
+                        label = source,
+                        selected = state.sourceFilter == source,
+                        onClick = { viewModel.setSourceFilter(source) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
         // 候选列表（占上半部分）
         LazyColumn(
             modifier = Modifier
@@ -174,14 +202,14 @@ fun LyricsMatchScreen(
                 .weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(state.candidates, key = { it.index }) { item ->
+            items(state.visibleCandidates, key = { it.index }) { item ->
                 CandidateRow(
                     item = item,
                     selected = item.index == state.selectedIndex,
                     onClick = { viewModel.select(item.index) },
                 )
             }
-            if (!state.searching && state.candidates.isEmpty()) {
+            if (!state.searching && state.visibleCandidates.isEmpty()) {
                 item {
                     Text(
                         text = stringResource(R.string.lyrics_match_empty),
@@ -198,7 +226,45 @@ fun LyricsMatchScreen(
         // 预览 + 格式切换（占下半部分）
         if (state.preview.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 标题：这排胶囊是「选择写入文件时用哪种格式」，不写出来看不出用途。
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.lyrics_match_format_title),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = dim,
+                )
+                Spacer(Modifier.weight(1f))
+                // 当前格式的适用性：一句话说清「写进去之后什么效果」
+                Text(
+                    text = stringResource(
+                        when (state.format) {
+                            LyricoLyricsFormat.PLAIN -> R.string.lyrics_match_format_hint_plain
+                            LyricoLyricsFormat.ENHANCED -> R.string.lyrics_match_format_hint_enhanced
+                            LyricoLyricsFormat.VERBATIM -> R.string.lyrics_match_format_hint_verbatim
+                            LyricoLyricsFormat.TTML -> R.string.lyrics_match_format_hint_ttml
+                        },
+                    ),
+                    fontSize = 10.sp,
+                    color = dim.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1.6f),
+                    textAlign = TextAlign.End,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            // 四个格式标签的总宽超过屏宽，塞在固定 Row 里会把最后一个压成「T...」。
+            // 改成横向滚动：每个 chip 保持自然宽度，放不下就滑。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 LyricoLyricsFormat.entries.forEach { format ->
                     FormatChip(
                         label = format.label,
@@ -207,11 +273,21 @@ fun LyricsMatchScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
+            // 预览框也加标题：否则会和上面的格式行连成一片，看不出这块是「结果预览」
+            Text(
+                text = stringResource(R.string.lyrics_match_preview_title),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = dim,
+            )
+            Spacer(Modifier.height(6.dp))
+            // 固定高度而不是 weight(1f)：预览只需要看清几行，
+            // 用权重会和候选列表平分空间，把候选压成一条半（真机确认过）。
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .height(150.dp)
                     .glassCard(palette = palette, corner = 18)
                     .padding(12.dp),
             ) {
@@ -245,6 +321,10 @@ private fun CandidateRow(
         modifier = Modifier
             .fillMaxWidth()
             .glassCard(palette = palette, corner = 16, selected = selected)
+            // 之前这里漏了 clickable：onClick 参数传进来却没用上，
+            // 于是点任何候选都没反应，「只能选第一个」其实是一个都没选中，
+            // 只是搜索完默认把 selectedIndex 设成 0 看着像选中了。
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -267,8 +347,9 @@ private fun CandidateRow(
                 color = dim,
                 maxLines = 1,
             )
+            // 来源从这里移走，改到卡片右上角做徽章：与「同步/逐字」「行数」这些
+            // 属性信息混在一行时，来源读起来只是个普通标签，看不出「这条来自哪个源」。
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(text = item.sourceName, fontSize = 10.sp, color = accent)
                 Text(
                     text = when {
                         item.wordByWord -> stringResource(R.string.lyrics_match_tag_word)
@@ -285,11 +366,27 @@ private fun CandidateRow(
                 )
             }
         }
-        Text(
-            text = "%.2f".format(item.score),
-            fontSize = 11.sp,
-            color = dim,
-        )
+        // 右侧：来源徽章（上）+ 得分（下）。
+        // 徽章常驻，不做省略 —— 来源名都很短，且这是这条候选最关键的身份信息。
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = item.sourceName,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = accent,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent.copy(alpha = 0.14f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "%.2f".format(item.score),
+                fontSize = 11.sp,
+                color = dim,
+            )
+        }
     }
 }
 
