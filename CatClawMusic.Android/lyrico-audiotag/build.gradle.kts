@@ -19,7 +19,7 @@ android {
         consumerProguardFiles("consumer-rules.pro")
         ndk {
             // 与 :app 的 abiFilters 保持一致，避免打包时缺 so
-            abiFilters += setOf("arm64-v8a", "x86_64")
+            abiFilters += setOf("arm64-v8a")
         }
         externalNativeBuild {
             cmake {

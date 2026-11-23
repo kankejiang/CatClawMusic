@@ -22,7 +22,9 @@ android {
         // 因为包里唯一的原生库（libandroidx.graphics.path.so）一旦只剩 arm64，
         // x86_64 设备会直接 INSTALL_FAILED_NO_MATCHING_ABIS。armeabi-v7a / x86 是真没设备要，裁掉。
         ndk {
-            abiFilters += setOf("arm64-v8a", "x86_64")
+            // 仅 arm64：x86_64 需要单独的 16KB 对齐 so（libquickjs 已重编为 arm64 单 ABI），
+            // 且真机与发布包都用 arm64，去掉可减包体与构建时间
+            abiFilters += setOf("arm64-v8a")
         }
     }
 

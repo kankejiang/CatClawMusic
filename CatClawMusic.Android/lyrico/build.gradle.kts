@@ -48,8 +48,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
 
-    // Lyrico 源插件用的 JS 引擎（官方 QuickJS 的 Android 打包）
-    implementation(libs.quickjs)
+    // Lyrico 源插件用的 JS 引擎（官方 QuickJS 的 Android 打包）。
+    // ⚠ 用本地 patched AAR 而非 libs.quickjs：官方 0.9.2 的 libquickjs.so 是 4KB 页对齐，
+    // 在 Android 15+ 的 16KB 页设备上会导致整包安装失败（INSTALL_FAILED_INVALID_APK）。
+    // 本地 AAR 由 cashapp/quickjs-java 0.9.2 源码用 NDK 27 加 -Wl,-z,max-page-size=16384 重编，
+    // 仅保留 arm64-v8a（与 :app 的 abiFilters 一致），JNI 符号与原版完全相同。
+    // 通过 settings.gradle.kts 里的 flatDir("lyrico/libs") 解析（library 模块不能直接用 files(...) 引 AAR）。
+    implementation("app.cash.quickjs:quickjs-android:0.9.2-aligned")
 
     api(libs.androidx.room.runtime)
     api(libs.androidx.room.ktx)

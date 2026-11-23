@@ -11,6 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // 本地 patched AAR 仓库（quickjs 16KB 页对齐版，见 lyrico/build.gradle.kts 注释）。
+        // 用 maven 布局而非 flatDir/files(...)：:lyrico 是 library 模块，
+        // AGP 不允许直接依赖本地 .aar 文件，flatDir 的字符串记法在 Kotlin DSL 下也不成立。
+        maven { url = uri("lyrico/libs/repo") }
     }
 }
 
