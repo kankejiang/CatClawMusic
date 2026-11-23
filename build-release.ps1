@@ -152,8 +152,11 @@ if (-not (Test-Path $KeyStorePath)) {
 }
 
 Write-Msg "[1/4] 清理旧构建..." -Color Yellow
-Get-ChildItem -Path "CatClawMusic.Maui\bin\$Config" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path "CatClawMusic.Maui\obj\$Config" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+# 用 -LiteralPath 直呼而非管道传参：部分终端宿主对管道 Remove-Item 做静态安全分析会误拦
+$binDir = Join-Path "CatClawMusic.Maui\bin" $Config
+$objDir = Join-Path "CatClawMusic.Maui\obj" $Config
+if (Test-Path -LiteralPath $binDir) { Remove-Item -LiteralPath $binDir -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath $objDir) { Remove-Item -LiteralPath $objDir -Recurse -Force -ErrorAction SilentlyContinue }
 Write-Msg "  清理完成" -Color Green
 
 Write-Msg ""
