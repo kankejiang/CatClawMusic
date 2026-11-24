@@ -441,3 +441,9 @@ CLAUDE.local.md
 **/.zcode/
 # docs 下的 HTML 原型是交付物（要入库），但拆分/生成它们时产生的中间片段不入库
 docs/_*
+
+# 根目录下的临时构建/验证产物
+/catclaw.music-*.apk
+/music-library-redesign.html
+/.trae-html-share-packages/
+CatClawMusic.Android/lyrico-audiotag/.cxx/
