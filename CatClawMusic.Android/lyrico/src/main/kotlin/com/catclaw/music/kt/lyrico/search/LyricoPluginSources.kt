@@ -214,9 +214,23 @@ class LyricoPluginSources(
      */
     suspend fun searchLyrics(pluginId: String, target: LyricsTarget): List<LyricsCandidate> =
         withContext(Dispatchers.IO) {
-            val plugin = pluginsById[pluginId] ?: return@withContext emptyList()
-            val host = hostFor(pluginId) ?: return@withContext emptyList()
-            if (!plugin.manifest.hasGetLyrics) return@withContext emptyList()
+            val plugin = pluginsById[pluginId] ?: run {
+                logSink("warn", "LyricoPlugins", "$pluginId 不在已加载列表")
+                return@withContext emptyList()
+            }
+            val host = hostFor(pluginId) ?: run {
+                logSink("warn", "LyricoPlugins", "$pluginId 脚本宿主创建失败")
+                return@withContext emptyList()
+            }
+            if (!plugin.manifest.hasGetLyrics) {
+                // 早点返回时一定要留痕：真机上「源启用了却一条都不出」全靠这行区分
+                logSink(
+                    "warn",
+                    "LyricoPlugins",
+                    "$pluginId 未声明 getLyrics，跳过（capabilities=${plugin.manifest.capabilities}）",
+                )
+                return@withContext emptyList()
+            }
 
             val keyword = listOf(target.title.trim(), target.artist.trim())
                 .filter { it.isNotEmpty() }
@@ -352,9 +366,16 @@ class LyricoPluginSources(
             if (!res.ok) return@withContext emptyList()
             LyricoSongParser.parse(res.valueJson)
         }
-    /** 超时/引擎失效是「这个插件坏了」，不是这一首歌没匹配上。 */
+    /**
+     * 只有「引擎/脚本真的坏了」才把插件踢出本次会话。
+     *
+     * 超时**不算**：那是一次网络/接口慢，下一次可能就正常。之前把「超时」也算进来，
+     * 结果是慢一点的源第一次被 12s 砍掉后就被 [markBroken] 永久移出
+     * `availablePlugins()`，用户看到的现象正是「明明启用了多个源，只返回一个」——
+     * 其余源早已在本次会话里被悄无声息地停用。
+     */
     private fun isFatalError(error: String?): Boolean =
-        error != null && ("超时" in error || "已失效" in error)
+        error != null && "已失效" in error
 
     /** 释放所有引擎（页面销毁/应用退出时调用）。 */
     fun release() {

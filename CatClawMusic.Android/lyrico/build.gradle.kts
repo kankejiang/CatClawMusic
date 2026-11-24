@@ -49,12 +49,17 @@ dependencies {
     implementation(libs.okhttp)
 
     // Lyrico 源插件用的 JS 引擎（官方 QuickJS 的 Android 打包）。
-    // ⚠ 用本地 patched AAR 而非 libs.quickjs：官方 0.9.2 的 libquickjs.so 是 4KB 页对齐，
-    // 在 Android 15+ 的 16KB 页设备上会导致整包安装失败（INSTALL_FAILED_INVALID_APK）。
-    // 本地 AAR 由 cashapp/quickjs-java 0.9.2 源码用 NDK 27 加 -Wl,-z,max-page-size=16384 重编，
-    // 仅保留 arm64-v8a（与 :app 的 abiFilters 一致），JNI 符号与原版完全相同。
-    // 通过 settings.gradle.kts 里的 flatDir("lyrico/libs") 解析（library 模块不能直接用 files(...) 引 AAR）。
-    implementation("app.cash.quickjs:quickjs-android:0.9.2-aligned")
+    //
+    // 要求 so 与 Java 类同源：Java 侧是 app.cash.quickjs.QuickJs，
+    // 所以 libquickjs.so 必须导出 Java_app_cash_quickjs_* 符号。
+    // 之前用过一份「16KB 页对齐」的 patched AAR，里面的 so 实际来自 zipline
+    // （只导出 Java_app_cash_zipline_*），导致每次插件调用都报
+    //   No implementation found for long app.cash.quickjs.QuickJs.createContext()
+    // 表现为「7 个歌词源只出 LRCLIB 一个」。官方 0.9.2 的 so 符号正确。
+    //
+    // 已知限制：官方 so 是 4KB 页对齐，16KB 页设备（部分 Android 15+）无法安装，
+    // 上架前需要用 NDK 重编成 16384 对齐。
+    implementation(libs.quickjs)
 
     api(libs.androidx.room.runtime)
     api(libs.androidx.room.ktx)
