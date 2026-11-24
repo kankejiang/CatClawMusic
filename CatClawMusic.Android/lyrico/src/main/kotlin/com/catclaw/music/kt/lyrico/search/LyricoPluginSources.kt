@@ -235,26 +235,50 @@ class LyricoPluginSources(
                 }
             }
 
-            // 2) getLyrics：优先用匹配到的歌曲记录，其次回退到标题直调
-            val best = LyricoSongMatcher.pickBest(target, hits)
-            val attempts = buildList {
-                if (best != null) add(host.getLyricsRequestForSong(best.json))
-                if (isEmpty()) {
-                    add(
-                        host.getLyricsRequest(
-                            title = target.title,
-                            artist = target.artist,
-                            album = target.album,
-                            durationMs = target.durationMs,
-                            songId = best?.id ?: "",
-                            sourceId = pluginId,
-                            pluginId = pluginId,
-                        ),
-                    )
+            // 「歌名 + 歌手」查不到时退回纯歌名再搜一次：不少源对多关键词做 AND 匹配，
+            // 歌手名带 feat./多艺人时整条搜不到，纯歌名却能命中。只在首轮 0 结果时多发一次，
+            // 正常路径不会多花时间。
+            if (hits.isEmpty() && plugin.manifest.hasSearchSongs) {
+                val titleOnly = target.title.trim()
+                if (titleOnly.isNotEmpty() && titleOnly != keyword) {
+                    val retry = host.invoke("searchSongs", host.searchSongsRequest(titleOnly))
+                    if (retry.ok) {
+                        hits = LyricoSongParser.parse(retry.valueJson)
+                        logSink(
+                            "debug",
+                            "LyricoPlugins",
+                            "$pluginId searchSongs($titleOnly) 回退 => ${hits.size} 首",
+                        )
+                    }
                 }
             }
 
-            for (request in attempts) {
+            // 2) getLyrics：最优命中 → 其余命中（前两首）→ 标题直调，依次尝试
+            val best = LyricoSongMatcher.pickBest(target, hits)
+            // 候选顺序：最优命中优先，其次再试两首 —— 只有前一次取词失败/为空才会走到下一首，
+            // 所以正常路径仍然只打一次网页请求，不会变慢。
+            val songOrder = buildList {
+                best?.let { add(it) }
+                hits.filter { it.id != best?.id }.take(2).forEach { add(it) }
+            }
+            // 每个请求带着它对应的歌曲记录：多首尝试时元信息要跟着变，
+            // 否则第二条结果的标题/时长会被错填成最优命中那首的
+            val attempts = buildList {
+                songOrder.forEach { add(it to host.getLyricsRequestForSong(it.json)) }
+                add(
+                    null to host.getLyricsRequest(
+                        title = target.title,
+                        artist = target.artist,
+                        album = target.album,
+                        durationMs = target.durationMs,
+                        songId = best?.id ?: "",
+                        sourceId = pluginId,
+                        pluginId = pluginId,
+                    ),
+                )
+            }
+
+            for ((song, request) in attempts) {
                 val result = host.invoke("getLyrics", request)
                 if (!result.ok) {
                     logSink("warn", "LyricoPlugins", "$pluginId 取词失败：${result.error}")
@@ -270,10 +294,10 @@ class LyricoPluginSources(
                     LyricsCandidate(
                         sourceId = pluginId,
                         sourceName = plugin.displayName,
-                        trackTitle = lyrics.tags["ti"] ?: best?.title ?: target.title,
-                        artist = lyrics.tags["ar"] ?: best?.artist ?: target.artist,
-                        album = lyrics.tags["al"] ?: best?.album ?: target.album,
-                        durationMs = best?.durationMs ?: target.durationMs,
+                        trackTitle = lyrics.tags["ti"] ?: song?.title ?: best?.title ?: target.title,
+                        artist = lyrics.tags["ar"] ?: song?.artist ?: best?.artist ?: target.artist,
+                        album = lyrics.tags["al"] ?: song?.album ?: best?.album ?: target.album,
+                        durationMs = song?.durationMs ?: target.durationMs,
                         lyrics = lyrics,
                     )
                 }

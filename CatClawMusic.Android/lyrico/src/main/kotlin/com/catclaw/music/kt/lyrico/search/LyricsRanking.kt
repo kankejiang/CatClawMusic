@@ -82,7 +82,10 @@ object LyricsRanking {
             -1L
         }
 
-        if (durationDiff >= 0 && durationDiff > DURATION_TOLERANCE_MS && !titleExact) return null
+        // 歌名「对得上」的候选一律保留（时长只降分）。这里曾经有一句
+        // 「时长差 > 15s 且歌名不完全一致就丢弃」，与上面的注释正好相反：
+        // 插件返回的标题常带 (Live)/feat. 等后缀，titleExact 永远不成立，
+        // 于是整源被过滤光 —— 真机上表现为「匹配结果只有一两条甚至没有」。
         if (titleScore == 0.0 && durationDiff != 0L && (durationDiff < 0 || durationDiff > DURATION_TOLERANCE_MS)) {
             return null
         }

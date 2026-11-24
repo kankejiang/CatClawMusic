@@ -202,8 +202,12 @@ class LyricoScriptHost(
          * 单次插件调用预算。
          *
          * 插件内部往往要「搜索 → 逐首取详情 → 取词」多跳网络请求（LrcShare 实测 >10s），
-         * 10s 会把正常但偏慢的源直接判死。30s 兼顾体验与成功率。
+         * 10s 会把正常但偏慢的源直接判死。
+         *
+         * 12s：外层每源预算 15s，而 `engine.evaluate` 是**同步阻塞**的，外层的
+         * `withTimeoutOrNull` 根本打断不了正在跑的 JS —— 单次调用预算必须自己收紧，
+         * 否则一个不可达的源会把整轮搜索拖到 30s（用户感知就是「匹配太慢」）。
          */
-        const val DEFAULT_INVOKE_TIMEOUT_MS = 30_000L
+        const val DEFAULT_INVOKE_TIMEOUT_MS = 12_000L
     }
 }

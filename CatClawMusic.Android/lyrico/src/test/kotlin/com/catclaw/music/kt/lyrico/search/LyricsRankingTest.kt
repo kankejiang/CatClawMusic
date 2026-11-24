@@ -6,7 +6,6 @@ import com.catclaw.music.kt.lyrico.lyrics.LyricoPayloadType
 import com.catclaw.music.kt.lyrico.lyrics.LyricoWord
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,10 +58,14 @@ class LyricsRankingTest {
     }
 
     @Test
-    fun rejectsDurationMismatchWhenTitleNotExact() {
-        // 歌名相近（包含）但时长差 60s：应被丢弃
+    fun keepsDurationMismatchWhenTitleMerelyContains() {
+        // 歌名相近（包含）但时长差 60s：保留（时长只降分）。
+        // 插件返回的标题普遍带 (Live)/feat. 后缀，旧规则「时长差 >15s 且歌名不精确就丢」
+        // 会把整个源过滤光 —— 真机上表现为「匹配结果只有一两条甚至没有」。
         val bad = candidate(title = "晴天 (Live)", durationMs = 329_000)
-        assertNull("时长差过大且歌名不精确时应淘汰", LyricsRanking.score(target, bad))
+        val score = LyricsRanking.score(target, bad)
+        assertNotNull("歌名对得上时应保留，即使时长差很大", score)
+        assertTrue("时长差过大应该降分", score!! < LyricsRanking.score(target, candidate())!!)
     }
 
     @Test
@@ -80,7 +83,7 @@ class LyricsRankingTest {
     }
 
     @Test
-    fun rankSortsByScoreAndDropsRejected() {
+    fun rankSortsByScoreAndKeepsRejectedTitleMatched() {
         val list = listOf(
             candidate(artist = "翻唱甲", durationMs = 300_000, source = "s1"),
             candidate(source = "s2"),
@@ -88,8 +91,9 @@ class LyricsRankingTest {
             candidate(title = "晴天 (Live)", durationMs = 400_000, source = "s4"),
         )
         val ranked = LyricsRanking.rank(target, list)
-        assertEquals("被淘汰的那条不应出现", 3, ranked.size)
+        assertEquals("歌名对得上的候选都应保留", 4, ranked.size)
         assertTrue("逐字版本应排第一", ranked.first().sourceId == "s3")
+        assertTrue("时长差最大的 Live 版应排在最后", ranked.last().sourceId == "s4")
         assertTrue("分数应递减", ranked[0].score >= ranked[1].score && ranked[1].score >= ranked[2].score)
     }
 
