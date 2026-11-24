@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -70,9 +71,9 @@ fun BatchTasksScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            // 覆盖层底部压着「迷你播放栏 + 底部导航」，不预留会被挡住
-            // （真机验收时点内容实际点到了播放栏上）
-            .padding(bottom = 120.dp)
+            // 与批量处理页一致：底栏与迷你条在这一层是隐藏的，只避让系统导航条
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp)
 
             .padding(horizontal = 16.dp),
     ) {
@@ -209,9 +210,9 @@ private fun BatchTaskDetail(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            // 覆盖层底部压着「迷你播放栏 + 底部导航」，不预留会被挡住
-            // （真机验收时点内容实际点到了播放栏上）
-            .padding(bottom = 120.dp)
+            // 同批量处理：这一层也隐藏了底栏与迷你条，只避让系统导航条
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp)
             .padding(horizontal = 16.dp),
     ) {
         Spacer(Modifier.height(12.dp))

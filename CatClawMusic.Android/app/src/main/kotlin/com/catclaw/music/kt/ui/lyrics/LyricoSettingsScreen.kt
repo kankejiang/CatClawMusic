@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -56,9 +57,9 @@ fun LyricoSettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            // 覆盖层底部压着「迷你播放栏 + 底部导航」，不预留会被挡住
-            // （真机验收时点内容实际点到了播放栏上）
-            .padding(bottom = 120.dp)
+            // 这页是全屏二级页，底栏在它之下不会出现，只需避让系统导航条
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp)
 
             .padding(horizontal = 16.dp),
     ) {

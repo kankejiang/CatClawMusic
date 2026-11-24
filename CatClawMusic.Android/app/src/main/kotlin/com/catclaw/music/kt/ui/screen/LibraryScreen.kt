@@ -40,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -136,6 +137,10 @@ fun LibraryScreen(
     /** 发现页货架的「查看全部」：进来直接打开这个列表，消费一次即清空 */
     initialKind: LibraryKind? = null,
     onInitialKindConsumed: () -> Unit = {},
+    /** 页内整屏层开合时回调，交外壳决定是否锁住 Pager 横滑 */
+    onSubPageOpenChange: (Boolean) -> Unit = {},
+    /** 批量处理是整页二级界面：通知外壳隐藏底栏与迷你播放条 */
+    onImmersiveChange: (Boolean) -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     // 统计格 / 资料库行的下钻。MAUI 是 push 独立页（AllSongsPage 等），这里在页内切换：
@@ -165,6 +170,17 @@ fun LibraryScreen(
     // 听歌统计此前只藏在发现页的统计格里；音乐库这页是看曲库的地方，入口也该在这
     var statsOpen by remember { mutableStateOf(false) }
     var batchOpen by remember { mutableStateOf(false) }
+    // 页内整屏层（统计 / 批量处理 / 列表 / 详情）打开时通知外壳锁住 Pager：
+    // 否则左右一滑就切走页签，而这一层还留在库里，切回来还是它，很突兀
+    val subPageOpen = statsOpen || batchOpen || opened != null || detail != null || songDetailId != null
+    LaunchedEffect(subPageOpen) { onSubPageOpenChange(subPageOpen) }
+    LaunchedEffect(batchOpen) { onImmersiveChange(batchOpen) }
+    DisposableEffect(Unit) {
+        onDispose {
+            onSubPageOpenChange(false)
+            onImmersiveChange(false)
+        }
+    }
     // 三层都是页内整屏层，各自画了返回方块：系统返回键要逐层退，不能一把退出应用。
     // 组合在后的优先，所以按「下层 → 上层」排（早退块也是这个顺序，先命中的才是看得见的那层）
     BackHandler(enabled = opened != null) { opened = null }
@@ -237,72 +253,66 @@ fun LibraryScreen(
     val networkSongCount by viewModel.networkSongCount.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
-    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val scanning by viewModel.scanning.collectAsStateWithLifecycle()
     val hours = songs.sumOf { it.durationSeconds.toLong() } / 3600.0
-    // 占用现读一次：曲库行数变了就该跟着变（扫完库回来要能看到新数）
-    val storage by produceState(initialValue = 0L to 0L, songs.size) {
-        value = runCatching { viewModel.storage() }.getOrDefault(value)
-    }
-    // 分档占用与剩余空间，与上面那次同一条"曲库行数变了就重读"的规则。
-    // 分组规则在 :core（sizeBuckets），这里只负责画
-    val stats by produceState(initialValue = emptyList<SongStat>(), songs.size) {
-        value = runCatching { viewModel.localSongStats() }.getOrDefault(value)
-    }
-    val buckets = remember(stats) { sizeBuckets(stats) }
-    // StatFs 是磁盘调用：改走 produceState 在协程里读（IO），不再在组合期阻塞（MVVM 重构 B2）
-    val freeSpace by produceState(0L, songs.size) {
-        value = viewModel.freeSpaceBytes()
-    }
-    // 数据洞察的分组（同样在 :core 算）与当前翻到第几组
-    val qualityGroups = remember(stats) { qualityInsight(stats) }
-    val artistGroups = remember(stats) { artistInsight(stats) }
-    var insightIndex by remember { mutableStateOf(0) }
 
     val landscape = LocalConfiguration.current.orientation ==
         Configuration.ORIENTATION_LANDSCAPE
+
+    /**
+     * 「资料库」分组的行。顺序对齐 HTML 原型：本地 → 网络 → 网易云 → 最近播放。
+     * 「我喜欢的」与顶部「收藏」入口重复，已去掉；「远程音乐服务」是配置项，移到了「工具」分组。
+     */
+    val sources = listOf(
+        LibrarySourceRow(
+            iconRes = R.drawable.ic_library,
+            name = stringResource(R.string.lib_local_name),
+            subtitle = stringResource(R.string.playlist_count, songs.size),
+            onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Local) },
+        ),
+        // 网络曲库：本地曲库的镜像入口，直接看**网络来的歌**（MAUI 资料库两张并列卡同义）
+        LibrarySourceRow(
+            iconRes = R.drawable.ic_network_library,
+            name = stringResource(R.string.lib_network_name),
+            subtitle = stringResource(R.string.playlist_count, networkSongCount),
+            onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Network) },
+        ),
+        // 网易云：品牌红圆标，tinted=false 保留原色（MAUI ic_netease.svg）
+        LibrarySourceRow(
+            iconRes = R.drawable.ic_netease_app,
+            name = stringResource(R.string.netease_music_entry),
+            subtitle = stringResource(R.string.netease_music_entry_sub),
+            tinted = false,
+            onClick = onOpenNeteaseMusic,
+        ),
+        LibrarySourceRow(
+            iconRes = R.drawable.ic_history,
+            name = stringResource(R.string.playlist_entry_recent),
+            subtitle = stringResource(R.string.playlist_count, recent.size),
+            onClick = { onOpenKind(LibraryKind.Recent, SongSourceFilter.All) },
+        ),
+    )
 
     // 横屏左右两栏共用同一份内容：左栏回答「有多少 / 去哪」，右栏放资料库与管理卡。
     // 竖屏仍是一列纵向滚动，两栏只在 landscape 分支里成立。
     val headContent: @Composable () -> Unit = {
         Column(modifier = Modifier.fillMaxWidth()) {
-        // 顶栏（2026-11-08 重设计）：标题 + 副标题 + 两个动作。
-        // 原来那块粉橙渐变 Hero 卡只是把「我的音乐库」放大，没有信息量，还把整页强调色带偏。
-        Row(
+        // 顶栏：标题 + 副标题。动作入口全部下移到「工具」分组，标题不再和按钮抢一行
+        Column(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.TabLibrary),
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                )
-                Text(
-                    text = stringResource(R.string.lib_sources_count, 1),
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary).copy(alpha = 0.75f),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            PillLabel(
-                text = stringResource(R.string.lib_open_stats),
-                onClick = { statsOpen = true },
-                filled = false,
+            Text(
+                text = stringResource(R.string.TabLibrary),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(palette.textPrimary),
             )
-            PillLabel(
-                text = stringResource(R.string.batch_entry),
-                onClick = { batchOpen = true },
-                filled = false,
-            )
-            PillLabel(
-                text = stringResource(if (scanning) R.string.library_scanning else R.string.ScanMusic),
-                onClick = { viewModel.scan() },
-                enabled = !scanning,
-                filled = false,
+            Text(
+                text = stringResource(R.string.lib_sources_count, sources.size),
+                fontSize = 12.sp,
+                color = Color(palette.textSecondary).copy(alpha = 0.75f),
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
 
@@ -349,104 +359,31 @@ fun LibraryScreen(
 
     val sectionContent: @Composable () -> Unit = {
         Column(modifier = Modifier.fillMaxWidth()) {
-        // 资料库卡 —— MAUI `LibraryPage` 首屏那五张入口卡（本地 / 我喜欢的 / 最近播放 / 网络 / 下载）。
-        // 副标题由这里给全：计数行是「N 首」，导航行是那句功能说明 —— 之前 SourceRow 只认一个 count，
-        // 于是「跳别的页面」这种行只能在徽标里显示一个没有意义的数字。
-        val sources = listOf(
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_library,
-                name = stringResource(R.string.lib_local_name),
-                subtitle = stringResource(R.string.playlist_count, songs.size),
-                onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Local) },
-            ),
-            // 网络曲库：本地曲库的镜像入口，直接看**网络来的歌**。
-            //
-            // 之前只有「远程音乐服务」那一行（跳配置页），用户想"看网络歌"得先进配置、
-            // 或者去全部歌曲里再点一次来源筛选。MAUI 的资料库就是「本地音乐库 / 网络音乐库」
-            // 并列两张卡，这里对齐。
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_network_library,
-                name = stringResource(R.string.lib_network_name),
-                subtitle = stringResource(R.string.playlist_count, networkSongCount),
-                onClick = { onOpenKind(LibraryKind.Songs, SongSourceFilter.Network) },
-            ),
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_favorite,
-                name = stringResource(R.string.lib_favorites_name),
-                subtitle = stringResource(R.string.playlist_count, favorites.size),
-                onClick = { onOpenKind(LibraryKind.Favorites, SongSourceFilter.All) },
-            ),
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_history,
-                name = stringResource(R.string.playlist_entry_recent),
-                subtitle = stringResource(R.string.playlist_count, recent.size),
-                onClick = { onOpenKind(LibraryKind.Recent, SongSourceFilter.All) },
-            ),
-            // 远程音乐服务：图标用 MAUI 的 ic_cloud（云朵），此前误用了搜索放大镜
-            LibrarySourceRow(
-                iconRes = R.drawable.ic_cloud,
-                name = stringResource(R.string.RemoteMusic),
-                subtitle = stringResource(R.string.RemoteMusicSubtitle),
-                // 直接用 MAUI 导出的 PNG，保留原色（云朵灰），不跟着主题 tint
-                tinted = false,
-                onClick = onOpenRemote,
-            ),
-            // 网易云：品牌红圆标，tinted=false 保留原色（MAUI ic_netease.svg）
-            LibrarySourceRow(
-                // 插件 Assets/netease_icon.png 的官方红底音符（多分辨率 PNG），不是歌曲行的小圆标
-                iconRes = R.drawable.ic_netease_app,
-                name = stringResource(R.string.netease_music_entry),
-                subtitle = stringResource(R.string.netease_music_entry_sub),
-                tinted = false,
-                onClick = onOpenNeteaseMusic,
-            ),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 12.dp)
-                .glassCard(palette = palette, corner = 26)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.lib_sources_title),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                )
-                Text(
-                    text = sources.size.toString(),
-                    fontSize = 10.sp,
-                    color = Color(badgeTintOn(palette, palette.accent)),
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color(palette.textPrimary).copy(alpha = 0.08f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
-            Spacer(Modifier.height(6.dp))
+        // 资料库 —— 扁平列表（取消外层玻璃卡）：分组标题 + 细分隔线。
+        // 行本身就是信息单元，再套一层卡片就是「卡片里再卡片」，这是原来页面显乱的主因。
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
+            GroupHead(stringResource(R.string.lib_sources_title), sources.size, palette)
             sources.forEach { row -> SourceRow(row.iconRes, row.name, row.subtitle, palette, row.tinted, row.onClick) }
         }
 
-
-        // 工具卡（2026-11-08 新增）：下载管理和扫描都是「低频但必须够得着」的动作，
-        // 放进上面的入口排会把「浏览库」和「管理文件」混在一起；独立一张卡，且带状态数字。
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 6.dp)
-                .glassCard(palette = palette, corner = 26)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.lib_tools_title),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(palette.textPrimary),
+        // 工具：听歌统计与扫描从顶栏下移；远程音乐服务与批量处理从别处收进来 —— 都是低频维护动作
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
+            GroupHead(stringResource(R.string.lib_tools_title), 5, palette)
+            SourceRow(
+                R.drawable.ic_stats,
+                stringResource(R.string.lib_open_stats),
+                stringResource(R.string.lib_tools_stats_hint),
+                palette,
+            ) { statsOpen = true }
+            SourceRow(
+                R.drawable.ic_cloud,
+                stringResource(R.string.RemoteMusic),
+                stringResource(R.string.RemoteMusicSubtitle),
+                palette,
+                // 直接用 MAUI 导出的 PNG，保留原色（云朵灰），不跟着主题 tint
+                tinted = false,
+                onClick = onOpenRemote,
             )
-            Spacer(Modifier.height(6.dp))
             SourceRow(R.drawable.ic_download, stringResource(R.string.downloads_title), stringResource(R.string.downloads_subtitle), palette, onClick = onOpenDownloads)
             SourceRow(
                 R.drawable.ic_search,
@@ -454,237 +391,13 @@ fun LibraryScreen(
                 stringResource(R.string.lib_tools_scan_hint),
                 palette,
             ) { viewModel.scan() }
-        }
-        // 存储占用 —— MAUI `LibraryPage` 的 StorageCard：总大小 + 分档占用 + 设备剩余空间。
-        // 此前本端只有 Hero 里一行「曲库大小 · 缓存」，分档占用与剩余空间两个信息完全看不到。
-        // 分档键换成了比特率（MAUI 用文件后缀），原因写在 `LibraryInsightRules` 的说明里
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 6.dp)
-                .glassCard(palette = palette, corner = 26)
-                .padding(16.dp),
-        ) {
-            Text(
-                // 复用既有的 lib_stat_storage（「存储占用」）—— 新造一个同名 key 就是两份要一起维护的文案
-                text = stringResource(R.string.lib_stat_storage),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(palette.textPrimary),
-            )
-            Row(modifier = Modifier.padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = SongDetailFormat.bytes(storage.first),
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.storage_total_unit),
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary),
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-            }
-            if (buckets.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.storage_buckets_title),
-                    fontSize = 12.5.sp,
-                    color = Color(palette.textSecondary),
-                    modifier = Modifier.padding(top = 14.dp),
-                )
-                Text(
-                    text = stringResource(R.string.storage_buckets_hint),
-                    fontSize = 10.5.sp,
-                    color = Color(palette.textSecondary),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                // 最长的那一档铺满轨道，其余按它取相对长度（MAUI 也是拿 MaxSizeBytes 当分母）
-                val maxBytes = buckets.first().bytes
-                buckets.forEach { item ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(bucketColor(item.bucket)),
-                        )
-                        Text(
-                            text = stringResource(qualityLabelRes(item.bucket)),
-                            fontSize = 12.5.sp,
-                            color = Color(palette.textSecondary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.width(64.dp),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(99.dp))
-                                .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth((item.bytes.toFloat() / maxBytes).coerceIn(0f, 1f))
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(99.dp))
-                                    .background(bucketColor(item.bucket)),
-                            )
-                        }
-                        Text(
-                            text = SongDetailFormat.bytes(item.bytes),
-                            fontSize = 11.5.sp,
-                            color = Color(palette.textSecondary),
-                            maxLines = 1,
-                            modifier = Modifier.width(70.dp),
-                        )
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp)
-                    .height(1.dp)
-                    .background(Color(palette.textPrimary).copy(alpha = 0.10f)),
-            )
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.storage_free_space),
-                    fontSize = 12.sp,
-                    color = Color(palette.textSecondary),
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    // 取不到就明说 --：写成 0 B 会被读成「手机满了」，与事实相反
-                    text = if (freeSpace > 0) SongDetailFormat.bytes(freeSpace) else "--",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(palette.textPrimary),
-                )
-            }
-        }
-
-        // 数据洞察 —— MAUI `LibraryPage` 的 DataInsightCard：环形图 + 图例 + ‹ 圆点 › 翻页。
-        // C# 的第一组是「音频格式」（按文件后缀分组），本端取不到后缀；这里只摆两组建得出来的分布，
-        // 并在卡上把这件事写给用户看（原因见 `LibraryInsightRules` 的文件注释）
-        val insightSets = listOf(
-            stringResource(R.string.insight_quality) to qualityGroups.map {
-                InsightSlice(stringResource(qualityLabelRes(it.bucket)), it.count, bucketColor(it.bucket))
-            },
-            stringResource(R.string.insight_artist) to buildList {
-                artistGroups.top.forEachIndexed { i, slice ->
-                    add(
-                        InsightSlice(
-                            label = slice.label.ifBlank { stringResource(R.string.insight_unknown_artist) },
-                            count = slice.count,
-                            color = artistSliceColor(i),
-                        ),
-                    )
-                }
-                if (artistGroups.otherCount > 0) {
-                    // 复用 quality_other（「其他」）：为同一句话再开一个 key，就是两份要一起维护的文案
-                    add(InsightSlice(stringResource(R.string.quality_other), artistGroups.otherCount, ARTIST_OTHER_COLOR))
-                }
-            },
-        ).filter { it.second.isNotEmpty() }
-
-        if (insightSets.isNotEmpty()) {
-            val shown = insightIndex.coerceIn(0, insightSets.lastIndex)
-            val current = insightSets[shown]
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 6.dp)
-                    .glassCard(palette = palette, corner = 26)
-                    .padding(16.dp),
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(R.string.insight_title),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textPrimary),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    // 当前这组的名字做成小徽标，翻页时它跟着换 —— 光看圆环分不出哪组是哪组
-                    Text(
-                        text = current.first,
-                        fontSize = 11.sp,
-                        color = Color(palette.textPrimary),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(99.dp))
-                            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.18f), RoundedCornerShape(99.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = (shown + 1).toString() + " / " + insightSets.size,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(palette.textSecondary),
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    InsightDonut(current.second)
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        val total = current.second.sumOf { it.count }.coerceAtLeast(1)
-                        current.second.forEach { slice ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
-                                Text(
-                                    text = slice.label,
-                                    fontSize = 12.sp,
-                                    color = Color(palette.textPrimary),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    text = slice.count.toString() + " · " + (slice.count * 100 / total) + "%",
-                                    fontSize = 11.sp,
-                                    color = Color(palette.textSecondary),
-                                )
-                            }
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    DonutStep("‹") { insightIndex = (shown - 1 + insightSets.size) % insightSets.size }
-                    Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.Center) {
-                        insightSets.indices.forEach { i ->
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 3.dp)
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(99.dp))
-                                    .background(if (i == shown) Color(palette.primary) else Color(palette.textPrimary).copy(alpha = 0.25f)),
-                            )
-                        }
-                    }
-                    DonutStep("›") { insightIndex = (shown + 1) % insightSets.size }
-                }
-                Text(
-                    text = stringResource(R.string.insight_hint),
-                    fontSize = 10.5.sp,
-                    color = Color(palette.textSecondary),
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-            }
+            // 批量处理：原来在顶栏右侧菜单里，独占一个按钮只为一项功能；挪到工具组后顶栏只剩标题
+            SourceRow(
+                R.drawable.ic_edit,
+                stringResource(R.string.batch_entry),
+                stringResource(R.string.lib_tools_batch_hint),
+                palette,
+            ) { batchOpen = true }
         }
 
         // 最近添加 —— MAUI `LibraryPage.xaml:197-216` 那张横滑卡（标题 + 「本周」徽标 + 横滑卡片）。
@@ -833,18 +546,18 @@ internal fun RowScope.StatTile(
     Column(
         modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(palette.textPrimary).copy(alpha = 0.06f))
-            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.12f), RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.045f))
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.085f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 12.dp),
+            .padding(horizontal = 11.dp, vertical = 13.dp),
     ) {
         Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
         Text(
             text = label,
             fontSize = 11.sp,
             color = Color(palette.textSecondary).copy(alpha = 0.85f),
-            modifier = Modifier.padding(top = 3.dp),
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }
@@ -861,28 +574,27 @@ internal fun RowScope.EntryTile(
         modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(palette.textPrimary).copy(alpha = 0.04f))
-            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.10f), RoundedCornerShape(16.dp))
+            .background(Color(palette.textPrimary).copy(alpha = 0.045f))
+            .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.085f), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = 15.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
-            tint = Color(palette.primaryLight),
+            tint = Color(palette.textPrimary),
             modifier = Modifier.size(20.dp),
         )
         Text(
             text = label,
             fontSize = 11.5.sp,
             color = Color(palette.textSecondary),
-            modifier = Modifier.padding(top = 7.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }
 
-/** 资料库卡的一行；徽标上那个数字就是这种行的条数 */
 /** 资料库卡的一行。副标题由调用处给全：计数行是「N 首」，导航行是功能说明 */
 internal data class LibrarySourceRow(
     val iconRes: Int,
@@ -893,6 +605,11 @@ internal data class LibrarySourceRow(
     val onClick: () -> Unit,
 )
 
+/**
+ * 扁平列表的一行（2026-11 重设计）：36dp 图标 + 名称/副标题 + 细箭头。
+ * 原来行里还套着 34dp 的方块箭头按钮，和外层玻璃卡叠成「卡片套卡片、方块套方块」，是页面显乱的主因。
+ * 现在行直接铺在背景上，只用一条 5% 的细线分隔。
+ */
 @Composable
 internal fun SourceRow(
     iconRes: Int,
@@ -902,47 +619,74 @@ internal fun SourceRow(
     tinted: Boolean = true,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
-    ) {
-        Box(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(15.dp))
-                .background(Color(palette.primary).copy(alpha = 0.30f)),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 2.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                // 品牌图标保留原色（Color.Unspecified 不做 tint 混合）
-                tint = if (tinted) Color(palette.textPrimary) else Color.Unspecified,
-                modifier = Modifier.size(25.dp),
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
-            Text(subtitle, fontSize = 12.sp, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(Color(palette.textPrimary).copy(alpha = 0.07f)),
-            contentAlignment = Alignment.Center,
-        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Color(palette.textPrimary).copy(alpha = 0.06f))
+                    .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.07f), RoundedCornerShape(11.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    // 品牌图标保留原色（Color.Unspecified 不做 tint 混合）
+                    tint = if (tinted) Color(palette.textPrimary) else Color.Unspecified,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = Color(palette.textPrimary))
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = Color(palette.textSecondary).copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_forward),
                 contentDescription = null,
-                tint = Color(palette.textSecondary),
-                modifier = Modifier.size(16.dp),
+                tint = Color(palette.textSecondary).copy(alpha = 0.55f),
+                modifier = Modifier.size(14.dp),
             )
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 48.dp)
+                .height(1.dp)
+                .background(Color(palette.textPrimary).copy(alpha = 0.05f)),
+        )
+    }
+}
+
+/** 分组标题 + 计数：扁平列表靠它建立层级（原来的层级由外层玻璃卡提供） */
+@Composable
+internal fun GroupHead(title: String, count: Int, palette: CatClawPalette) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(palette.textPrimary))
+        Text(
+            text = count.toString(),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(palette.textSecondary).copy(alpha = 0.7f),
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 
@@ -1107,93 +851,6 @@ internal fun EmptyHint(text: String) {
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
         EmptyState(hint = text, iconRes = R.drawable.ic_library)
     }
-}
-
-/** 环形图的一段 */
-internal data class InsightSlice(val label: String, val count: Int, val color: Color)
-
-/** 艺人那组前 5 名的配色：定序取色，多一段也不会没有颜色 */
-internal val ARTIST_SLICE_COLORS = listOf(
-    Color(0xFF8C7BFF), Color(0xFF55D6FF), Color(0xFF7ED8C3), Color(0xFFF56FA0), Color(0xFFFFB74D),
-)
-internal val ARTIST_OTHER_COLOR = Color(0xFF8D93B7)
-
-internal fun artistSliceColor(index: Int): Color = ARTIST_SLICE_COLORS[index % ARTIST_SLICE_COLORS.size]
-
-/**
- * 甜甜圈：用 Canvas 的 drawArc 逐段画，不给每一段建节点（六段环建六个 Box 是白搭）。
- * 调用方已经滤掉空集合，这里仍然兜一个 total >= 1，免得除零。
- */
-@Composable
-internal fun InsightDonut(slices: List<InsightSlice>, diameter: Dp = 132.dp) {
-    val stroke = 20.dp
-    Canvas(modifier = Modifier.size(diameter)) {
-        val ring = diameter.toPx() - stroke.toPx()
-        val topLeft = Offset((size.width - ring) / 2f, (size.height - ring) / 2f)
-        val total = slices.sumOf { it.count }.coerceAtLeast(1)
-        // 从 12 点方向顺时针：-90° 起手，与 C# DonutView 的起始角一致
-        var start = -90f
-        slices.forEach { slice ->
-            val sweep = 360f * slice.count / total
-            drawArc(
-                color = slice.color,
-                startAngle = start,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = topLeft,
-                size = Size(ring, ring),
-                style = Stroke(width = stroke.toPx(), cap = StrokeCap.Butt),
-            )
-            start += sweep
-        }
-    }
-}
-
-/** 翻页小按钮（‹ ›）：触达 44dp、视觉 30dp 的圆 —— 可点节点在 padding 之外 */
-@Composable
-internal fun DonutStep(glyph: String, onClick: () -> Unit) {
-    val palette = LocalCatClawPalette.current
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(99.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(99.dp))
-                .border(1.dp, Color(palette.textPrimary).copy(alpha = 0.18f), RoundedCornerShape(99.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(glyph, fontSize = 17.sp, color = Color(palette.textPrimary))
-        }
-    }
-}
-
-/** 音质档位的文案。六档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */
-@StringRes
-internal fun qualityLabelRes(bucket: QualityBucket): Int = when (bucket) {
-    QualityBucket.Unknown -> R.string.quality_unknown
-    QualityBucket.Kbps320 -> R.string.quality_320
-    QualityBucket.Kbps256 -> R.string.quality_256
-    QualityBucket.Kbps192 -> R.string.quality_192
-    QualityBucket.Kbps128 -> R.string.quality_128
-    QualityBucket.Other -> R.string.quality_other
-}
-
-/**
- * 档位配色。按**档位**取色而不是按行序：行序会随占用变化，行序取色的话
- * 同一档今天紫、明天蓝，看着像数据变了。
- */
-internal fun bucketColor(bucket: QualityBucket): Color = when (bucket) {
-    QualityBucket.Kbps320 -> Color(0xFF8C7BFF)
-    QualityBucket.Kbps256 -> Color(0xFF55D6FF)
-    QualityBucket.Kbps192 -> Color(0xFF7ED8C3)
-    QualityBucket.Kbps128 -> Color(0xFF8FA3CC)
-    QualityBucket.Other -> Color(0xFFFFB74D)
-    QualityBucket.Unknown -> Color(0xFF8D93B7)
 }
 
 /** 来源筛选 chip 的文案。三档都有，所以这个 `when` 不带 else —— 加一档编译就会停在这 */

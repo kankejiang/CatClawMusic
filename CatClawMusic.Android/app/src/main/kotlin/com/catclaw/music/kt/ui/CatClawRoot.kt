@@ -114,6 +114,15 @@ import kotlinx.coroutines.launch
 private const val PAGE_FULL_LYRICS = 0
 private const val PAGE_NOW_PLAYING = 1
 private const val PAGE_DISCOVER = 2
+private const val PAGE_LIBRARY = 4
+
+/**
+ * 页内整页覆盖层（歌曲详情 / 歌词匹配 / 元数据编辑）用它请求隐藏底栏与迷你条。
+ * 登记用集合而非布尔：多层叠加时任意一层退场都不会误把 chrome 放出来。
+ */
+internal val LocalFullScreenRequest = androidx.compose.runtime.staticCompositionLocalOf<(Any, Boolean) -> Unit> {
+    { _, _ -> }
+}
 private const val PAGE_COUNT = 5
 
 /** 图标与 MAUI `MainPage.xaml` 的 TabBar 一致：24×24 的 ic_play / ic_home / ic_playlist / ic_library */
@@ -321,6 +330,23 @@ private fun TabsHost(
     ) { PAGE_COUNT }
     // 发现页货架「查看全部」要跳到的音乐库列表（一次性指令，LibraryScreen 消费后清空）
     var pendingLibraryKind by remember { mutableStateOf<com.catclaw.music.kt.ui.screen.LibraryKind?>(null) }
+    // 音乐库里的二级页（批量处理/任务列表）打开时要锁住 Pager 的横滑：
+    // 否则左右一滑就切到别的页签，而二级页状态还留在库里，切回来仍是批量处理页，很突兀
+    var librarySubPageOpen by remember { mutableStateOf(false) }
+    // 批量处理这类整页二级界面要全屏沉浸：底栏与迷你播放条在它打开时整条隐藏
+    var libraryImmersive by remember { mutableStateOf(false) }
+    // 页内整页覆盖层（歌曲详情 / 歌词匹配 / 元数据编辑）登记在这里：
+    // 用集合而不是布尔，多层叠加时任意一层退场都不会误把底栏放出来
+    val fullScreenLayers = remember { androidx.compose.runtime.mutableStateListOf<Any>() }
+    val requestFullScreen: (Any, Boolean) -> Unit = remember {
+        { holder: Any, on: Boolean ->
+            if (on) {
+                if (!fullScreenLayers.contains(holder)) fullScreenLayers.add(holder)
+            } else {
+                fullScreenLayers.remove(holder)
+            }
+        }
+    }
     // 按「已停稳」的页决定调色板，避免滑动中途整屏配色乱跳
     val fixedDarkPages = setOf(PAGE_FULL_LYRICS, PAGE_NOW_PLAYING)
     // 2026-11-07 用户要求：背景三选一（自定义图 / 雾面动态 / 莫奈取色）**只作用于发现页**，
@@ -477,8 +503,12 @@ private fun TabsHost(
                         accentArgb = rememberArtworkTint(coverAura).toArgb() and 0xFFFFFF,
                     )
                 }
+                    CompositionLocalProvider(LocalFullScreenRequest provides requestFullScreen) {
                     HorizontalPager(
                         state = pagerState,
+                        // 音乐库的二级页（批量处理）或整页覆盖层（歌曲详情等）打开时禁掉横滑，避免误切页签
+                        userScrollEnabled = !(librarySubPageOpen && pagerState.currentPage == PAGE_LIBRARY) &&
+                            fullScreenLayers.isEmpty(),
                         modifier = Modifier
                             .fillMaxSize()
                             // 横屏让出左侧导航栏，否则封面/标题会被侧栏压住（2026-11-08 真机截图）
@@ -531,9 +561,12 @@ private fun TabsHost(
                                     onOpenNeteaseMusic = onOpenNeteaseMusic,
                                     initialKind = pendingLibraryKind,
                                     onInitialKindConsumed = { pendingLibraryKind = null },
+                                    onSubPageOpenChange = { librarySubPageOpen = it },
+                                    onImmersiveChange = { libraryImmersive = it },
                                 )
                             }
                         }
+                    }
                     }
             }
             // 底栏/迷你条只在从播放页/歌词页切回页签时「延迟弹出」：减速滑入（LinearOutSlowIn，无回弹），
@@ -713,7 +746,8 @@ private fun TabsHost(
             }
 
             AnimatedVisibility(
-                visible = chromeVisible || showMiniPlayer,
+                // 全屏二级页（批量处理 / 歌曲详情等）打开时整条隐藏：迷你条 + 底栏都会让出屏幕
+                visible = (chromeVisible || showMiniPlayer) && !libraryImmersive && fullScreenLayers.isEmpty(),
                 enter = fadeIn(tween(1)),
                 exit = fadeOut(tween(130)),
                 modifier = Modifier.align(Alignment.BottomCenter),

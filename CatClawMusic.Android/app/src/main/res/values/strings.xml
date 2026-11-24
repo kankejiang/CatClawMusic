@@ -368,8 +368,9 @@
     <string name="local_scan_folder_count">已添加 %1$d 个文件夹</string>
     <string name="local_scan_ready">就绪，点击「扫描音乐」开始</string>
 
-    <string name="lib_stat_storage">存储占用</string>
     <string name="lib_open_stats">听歌统计</string>
+    <string name="lib_tools_stats_hint">播放次数 · 年度回顾</string>
+    <string name="lib_tools_batch_hint">批量编辑标签 · 重命名</string>
     <string name="remote_edit_server">编辑连接：%1$s</string>
     <string name="remote_cancel_edit">取消编辑</string>
     <string name="remote_need_host">请先填服务器地址</string>
@@ -519,24 +520,6 @@
     <string name="diagnostic_copied">已复制 %1$d 条日志</string>
     <string name="diagnostic_search_none">没有匹配「%1$s」的日志</string>
 
-    <!-- 存储占用卡（MAUI LibraryPage 的 StorageCard；格式分布改成按比特率档位，见 LibraryInsightRules 的说明） -->
-    <string name="storage_total_unit">音乐文件总大小</string>
-    <string name="storage_free_space">设备剩余空间</string>
-    <string name="quality_unknown">未知</string>
-    <string name="quality_other">其他</string>
-    <string name="storage_buckets_title">占用分布</string>
-    <string name="storage_buckets_hint">按音质档位统计（本地曲的路径不带后缀，取不到容器格式）</string>
-    <string name="quality_320">320 kbps</string>
-    <string name="quality_256">256 kbps</string>
-    <string name="quality_192">192 kbps</string>
-    <string name="quality_128">128 kbps</string>
-
-    <!-- 数据洞察卡（MAUI LibraryPage 的 DataInsightCard；「音频格式」那一组见 LibraryInsightRules 的说明） -->
-    <string name="insight_title">数据洞察</string>
-    <string name="insight_quality">音频音质</string>
-    <string name="insight_artist">歌曲艺人</string>
-    <string name="insight_unknown_artist">未知艺人</string>
-    <string name="insight_hint">只统计本地曲：按音质与艺人分布。本地曲路径不带后缀，容器格式取不到</string>
     <string name="detail_file_path">文件路径</string>
     <string name="detail_lyrics_scroll">可滚动</string>
     <string name="detail_play_this">播放此曲</string>

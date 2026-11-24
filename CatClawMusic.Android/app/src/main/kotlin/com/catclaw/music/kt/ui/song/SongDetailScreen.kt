@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.annotation.DrawableRes
+import com.catclaw.music.kt.ui.LocalFullScreenRequest
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.model.SongDetailFormat
@@ -167,11 +170,21 @@ fun SongDetailScreen(
         }
     }
 
+    // 整页覆盖层：让外壳收起底栏与迷你条（歌词/封面匹配、元数据编辑也叠在这层里）
+    val requestFullScreen = LocalFullScreenRequest.current
+    val fullScreenToken = remember { Any() }
+    DisposableEffect(fullScreenToken) {
+        requestFullScreen(fullScreenToken, true)
+        onDispose { requestFullScreen(fullScreenToken, false) }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             // 顶部要躲状态栏：之前只有 12dp 的 Spacer，标题直接压在时间/电量那一行下面
             .statusBarsPadding()
+            // 整页覆盖时底栏已隐藏，底部只避让系统导航条
+            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {

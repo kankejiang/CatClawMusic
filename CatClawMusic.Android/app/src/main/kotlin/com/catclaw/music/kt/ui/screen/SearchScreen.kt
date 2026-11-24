@@ -116,14 +116,12 @@ fun SearchScreen(
     val primary = Color(palette.textPrimary)
     val secondary = Color(palette.textSecondary)
     var chatMode by rememberSaveable { mutableStateOf(false) }
-    var statsOpen by rememberSaveable { mutableStateOf(false) }
-    // 聊天与统计都是整屏覆盖层，外壳的悬浮两栏必须让位，否则页底的内容会被 TabBar 盖住。
-    // 还要看 active：Pager 不会销毁别的页，横滑走开时这两个标志仍是 true，
+    // 聊天是整屏覆盖层，外壳的悬浮两栏必须让位，否则页底的内容会被 TabBar 盖住。
+    // 还要看 active：Pager 不会销毁别的页，横滑走开时这个标志仍是 true，
     // 只按覆盖层标志上报会让别的 tab 也永久没有底栏
-    LaunchedEffect(chatMode, statsOpen, active) { onChatOpen((chatMode || statsOpen) && active) }
+    LaunchedEffect(chatMode, active) { onChatOpen(chatMode && active) }
     // 系统返回键必须先退掉本页的覆盖层。整个 app 之前没有任何 BackHandler：
     // 覆盖层开着按返回会直接退出应用（真机上验到过），而覆盖层里往往正是用户刚看的东西
-    BackHandler(enabled = statsOpen && active) { statsOpen = false }
     BackHandler(enabled = chatMode && active) { chatMode = false }
     // 歌手/专辑卡的下钻：复用音乐库那套 `LibraryDetailScreen`（同一个路由作用域，两边 hiltViewModel
     // 拿到同一个实例）。此前这四处的卡片根本没有 clickable —— 推荐艺人 / 推荐专辑 / 歌手 tab /
@@ -168,10 +166,10 @@ fun SearchScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                // 聊天 / 统计这两层盖住发现页时，把身后这棵子树从无障碍树里摘掉：
+                // 聊天这层盖住发现页时，把身后这棵子树从无障碍树里摘掉：
                 // 同一个 ComposeView 里两层节点会落在同一块 bounds 上，读屏能滑进看不见的那一层
                 // （与 CatClawRoot 对队列页 / 音效页的处理同一条）。条件在组合期读，别挪进 lambda。
-                .semantics { if (chatMode || statsOpen) hideFromAccessibility() }
+                .semantics { if (chatMode) hideFromAccessibility() }
                 // 下钻层（歌手 / 专辑 / 歌曲详情）压住时同理：它们与这份列表在同一个 ComposeView 里，
                 // 不摘的话读屏能滑进那些被盖住的推荐卡。两条条件各自独立，所以分两个 semantics
                 .semantics { if (detail != null || songDetailId != null) hideFromAccessibility() },
@@ -196,7 +194,6 @@ fun SearchScreen(
                         searchOpen = false,
                         onToggleSearch = { searchPage = true },
                         onQueryChange = { viewModel.setQuery(it) },
-                        onOpenStats = { statsOpen = true },
                         onAskYuki = { chatMode = true },
                         onOpenDetail = { detail = it },
                         onOpenSongs = { onOpenLibrary(LibraryKind.Songs) },
@@ -219,10 +216,8 @@ fun SearchScreen(
                         Text(stringResource(R.string.TabDiscover), fontSize = 30.sp, fontWeight = FontWeight.Bold, color = primary)
                         Text(greeting(), fontSize = 13.sp, color = secondary, modifier = Modifier.padding(top = 4.dp))
                     }
-                    // 这里是竖屏头部：横屏在 LandscapeDiscover 里有自己的一条（图标更小、含搜索与统计）
+                    // 这里是竖屏头部：横屏在 LandscapeDiscover 里有自己的一条（图标更小、含搜索）
                     GlassIcon(R.drawable.ic_search, stringResource(R.string.TabSearch)) { searchPage = true }
-                    Spacer(Modifier.width(10.dp))
-                    GlassIcon(R.drawable.ic_stats, stringResource(R.string.lib_open_stats)) { statsOpen = true }
                     Spacer(Modifier.width(10.dp))
                     GlassIcon(R.drawable.ic_settings, stringResource(R.string.Settings), onClick = onOpenSettings)
                 }
@@ -268,19 +263,6 @@ fun SearchScreen(
 
         // 聊天是盖在发现页上的一层（MAUI 同为 overlay 而非独立路由），退出后搜索结果原样保留
         if (chatMode) ChatScreen(onBack = { chatMode = false }, bottomReserve = chatBottomReserve)
-        // 听歌统计同样是一层覆盖：它从「统计」这一格进，返回就该回到原来那格，不该新增一次路由栈翻页。
-        // 背景必须由这层来铺（和队列页/音效页同一个写法）—— 页面组件本身不画底，
-        // 少了这个 Box，真机上整页内容会直接压在发现页上，两层字叠成一片糊
-        if (statsOpen) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .catClawBackground()
-                    .statusBarsPadding(),
-            ) {
-                ListeningStatsScreen(onBack = { statsOpen = false })
-            }
-        }
 
         // 歌手/专辑下钻与歌曲详情：与统计页同一写法 —— 这一层自己铺背景并接管状态栏留白。
         // 少铺一层底，真机上就是两页文字直接叠在一起（队列页/音效页都踩过同一个坑）。

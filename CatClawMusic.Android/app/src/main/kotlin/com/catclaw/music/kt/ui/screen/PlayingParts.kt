@@ -43,6 +43,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -502,19 +504,27 @@ internal fun LandscapeNowPlaying(
                     .border(0.5.dp, Color.White.copy(alpha = 0.19f), RoundedCornerShape(28.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (cover != null) {
-                    androidx.compose.foundation.Image(
-                        bitmap = cover.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        text = placeholder,
-                        fontSize = 72.sp,
-                        color = Color(palette.textPrimary).copy(alpha = 0.5f),
-                    )
+                // 切歌交叉淡入（Compose 原生 Crossfade）：方块封面与首字母占位之间也走同一套过渡
+                Crossfade(
+                    targetState = cover,
+                    modifier = Modifier.fillMaxSize(),
+                    animationSpec = tween(350),
+                    label = "landscapeCover",
+                ) { current ->
+                    if (current != null) {
+                        Image(
+                            bitmap = current.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Text(
+                            text = placeholder,
+                            fontSize = 72.sp,
+                            color = Color(palette.textPrimary).copy(alpha = 0.5f),
+                        )
+                    }
                 }
             }
         }

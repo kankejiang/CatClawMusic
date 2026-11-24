@@ -657,9 +657,9 @@ class PlayerController(
     private var ensureJob: kotlinx.coroutines.Job? = null
     /** 本次切歌内已经为哪一首做过"错误后强制重取"，防止 next() 循环 */
     private var repairedSongId = -1
-    /** 卡缓冲看门狗：BUFFERING 长时间不动时强制换一条新直链 */
+    /** 卡缓冲看门狗：BUFFERING 长时间不动时强制换一条新直链；同一 BUFFERING 窗口最多重试 2 次 */
     private var stallWatcher: kotlinx.coroutines.Job? = null
-    private var stallRepairedId = -1
+    private var stallRetryCount = 0
 
     /**
      * 每首在线曲最近一次成功取直链的时间（毫秒）。
@@ -709,11 +709,11 @@ class PlayerController(
                     stallWatcher = null
                     return@launch
                 }
-                if (stallRepairedId == song.id) return@launch
-                stallRepairedId = song.id
+                if (stallRetryCount >= STALL_MAX_RETRY) return@launch
+                stallRetryCount++
                 val upgrader = uriUpgrader ?: run { stallWatcher = null; return@launch }
                 val pos = player.currentPosition
-                AppLog.w(TAG, "卡缓冲 ${now - since}ms → 重取直链 song=${song.title}")
+                AppLog.w(TAG, "卡缓冲 ${now - since}ms(第${stallRetryCount}次) → 重取直链 song=${song.title}")
                 val better = runCatching { upgrader.invoke(song, true) }.getOrNull()
                 if (better.isNullOrBlank()) {
                     AppLog.w(TAG, "卡缓冲重取失败，保持原地址 song=${song.title}")
@@ -758,8 +758,11 @@ class PlayerController(
             // 先记时间戳再换 item：replaceMediaItem 会同步触发 transition 回调，
             // 否则回调里的 ensureCurrentDirect 会认为"还没解析过"再取一次
             markResolved(song.id)
+            val resumeAt = player.currentPosition.coerceAtLeast(0)
             player.replaceMediaItem(idx, buildMediaItem(upgraded))
-            player.seekTo(idx, 0)
+            // 保留当前位置：暂停超过直链有效期再点播放也会走到这里（needsResolve=true），
+            // seekTo(idx, 0) 会把用户进度清回开头
+            player.seekTo(idx, resumeAt)
             player.playWhenReady = wasPlaying
             publish(upgraded)
         }
@@ -920,6 +923,20 @@ class PlayerController(
         } ?: return
         if (snapshot.songs.isEmpty()) return
         queue.restorePersisted(snapshot.songs, snapshot.currentIndex, snapshot.mode)
+        // **先给当前曲换上新鲜直链，再把队列灌进播放器**：
+        // 恢复的队列里在线曲全是 outer 占位，若直接 prepare，播放器会立刻去加载 outer ——
+        // VIP 歌被 302 到 404 页，加载阶段就卡在 HTML 上，之后即使 replaceMediaItem
+        // 换成直链也可能停在 BUFFERING 不再就绪（用户看到的"重启后点播放一直不出声"）。
+        // 这里同步取一条直链（~200ms，suspend 不占主线程），让 buildMediaItem 首次就装上可播地址。
+        queue.currentSong?.let { cur ->
+            if (needsResolve(cur) && uriUpgrader != null) {
+                val better = runCatching { uriUpgrader?.invoke(cur, false) }.getOrNull()
+                if (!better.isNullOrBlank()) {
+                    queue.replaceSong(cur.id, cur.copy(filePath = better))
+                    markResolved(cur.id)
+                }
+            }
+        }
         val songs = queue.songs()
         publishQueue(songs)
         val items = withContext(Dispatchers.IO) { songs.map { buildMediaItem(it) } }
@@ -962,6 +979,15 @@ class PlayerController(
             when (playbackState) {
                 Player.STATE_BUFFERING -> {
                     _state.value = _state.value.copy(isBuffering = true)
+                    // 诊断线索：卡死场景下（重启恢复 / 直链过期）日志里只有它，没有 READY。
+                    // kind 区分 outer 占位与直链 —— 一直是 outer 说明升级链路没跑起来
+                    val cur = queue.currentSong
+                    AppLog.d(
+                        TAG,
+                        "BUFFERING song=${cur?.id} kind=" +
+                            (if (cur?.filePath?.contains("outer/url") == true) "outer" else "direct") +
+                            " pos=${player.currentPosition}",
+                    )
                     startStallWatch()
                 }
                 Player.STATE_READY -> {
@@ -1006,7 +1032,9 @@ class PlayerController(
             // 睡眠定时设了「播完当前歌曲后停止」时要在这里收尾
             if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                 repairedSongId = -1
-                stallRepairedId = -1
+                // 真正换曲才重置看门狗重试计数：replaceMediaItem（同 index 替换当前曲）
+                // 不触发这个事件，计数不会被打断 —— 这正是想要的语义
+                stallRetryCount = 0
                 // 自动切歌不走 moveToCurrent：若目标是 outer 外链，这里必须补一次直链解析
                 ensureCurrentDirect()
                 onTrackEnded()
@@ -1086,5 +1114,13 @@ class PlayerController(
         /** 卡缓冲判定：连续 8 秒没进 READY 就重取直链（正常取链/缓冲 < 2 秒） */
         const val STALL_TIMEOUT_MS = 8_000L
         const val STALL_POLL_MS = 500L
+
+        /**
+         * 看门狗同一首歌最多重试次数。**不能用"每首一次"记账**：replaceMediaItem 替换
+         * 当前曲不触发 MEDIA_ITEM_TRANSITION，记账字段不会被重置，第二次卡住就永远
+         * 无人处理（重启恢复后永久卡死的根因之一）。两次都修不好多半是网络真不通，
+         * 继续重试只会与 next()/错误重试互相纠缠。
+         */
+        const val STALL_MAX_RETRY = 2
     }
 }

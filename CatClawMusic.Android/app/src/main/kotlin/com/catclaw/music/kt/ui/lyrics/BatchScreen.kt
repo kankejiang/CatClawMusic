@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -78,9 +79,10 @@ fun BatchScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            // 覆盖层底部压着「迷你播放栏 + 底部导航」，不预留会被挡住
-            // （真机验收时点内容实际点到了播放栏上）
-            .padding(bottom = 120.dp)
+            // 这一页会隐藏底栏与迷你播放条（外壳统一处理），所以只需避让系统导航条；
+            // 原来的 120dp 是为那条被压住的 chrome 预留的
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp)
             // 搜索框聚焦后键盘会盖住下半屏：不处理的话「选择操作/开始」被压到键盘下面，
             // 用户根本点不到（真机验收时踩到）。imePadding 让内容随键盘上推。
             .imePadding()

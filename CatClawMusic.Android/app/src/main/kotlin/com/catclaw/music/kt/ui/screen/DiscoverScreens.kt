@@ -181,7 +181,6 @@ internal fun LandscapeDiscover(
     searchOpen: Boolean,
     onToggleSearch: () -> Unit,
     onQueryChange: (String) -> Unit,
-    onOpenStats: () -> Unit,
     onAskYuki: () -> Unit,
     onOpenDetail: (LibraryDetail) -> Unit,
     onOpenSongs: () -> Unit,
@@ -224,13 +223,6 @@ internal fun LandscapeDiscover(
                 stringResource(R.string.TabSearch),
                 size = 38.dp,
                 onClick = onToggleSearch,
-            )
-            Spacer(Modifier.width(8.dp))
-            GlassIcon(
-                R.drawable.ic_stats,
-                stringResource(R.string.lib_open_stats),
-                size = 38.dp,
-                onClick = onOpenStats,
             )
         }
 

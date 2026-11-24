@@ -40,6 +40,8 @@ class NeteaseAccountRepository @Inject constructor(
     val myPlaylists: StateFlow<List<OnlinePlaylist>> = _myPlaylists.asStateFlow()
 
     private var refreshing = false
+    /** 刷新进行中又来了一次 force（revision 变化）：记下来，本轮结束后补一次 */
+    private var pendingRefresh = false
 
     init {
         // 会话版本变化（登录/续期/登出）→ 重新拉身份
@@ -58,17 +60,25 @@ class NeteaseAccountRepository @Inject constructor(
             _myPlaylists.value = emptyList()
             return
         }
-        if (refreshing && !force) return
+        if (refreshing) {
+            // 并发去重：进行中的请求已覆盖普通刷新的意图；force（revision 变化）不能丢，
+            // 记成 pending 由本轮循环补刷 —— 此前两个协程并发跑，日志双打、请求双倍
+            if (force) pendingRefresh = true
+            return
+        }
         refreshing = true
         scope.launch {
-            runCatching {
-                _account.value = api.account()
-                _myPlaylists.value = api.userPlaylists()
-                AppLog.d(
-                    "NeteaseAccount",
-                    "refresh account=${_account.value?.nickname} playlists=${_myPlaylists.value.size}",
-                )
-            }
+            do {
+                pendingRefresh = false
+                runCatching {
+                    _account.value = api.account()
+                    _myPlaylists.value = api.userPlaylists()
+                    AppLog.d(
+                        "NeteaseAccount",
+                        "refresh account=${_account.value?.nickname} playlists=${_myPlaylists.value.size}",
+                    )
+                }
+            } while (pendingRefresh)
             refreshing = false
         }
     }

@@ -220,8 +220,15 @@ fun PlayingScreen(
     // 竖屏不再画居中的封面方块——封面已经占满全屏，再画一个就是重复。
     // 播放页在浅色主题下也被钉成深色（CatClawRoot.fixedDarkPages），所以这里的白色系前景不会翻成黑字。
     val song = state.currentSong
-    // 全屏铺满需要比列表行更高的分辨率，别再用 512 的默认值拉成糊图
-    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 1440, songId = song?.id ?: 0)
+    // 全屏铺满需要比列表行更高的分辨率，别再用 512 的默认值拉成糊图。
+    // retryWhenMissing：切后台期间封面请求可能超时，回前台要重试一次（否则一直占位到换页面）
+    val cover = rememberCover(
+        song?.coverArtPath,
+        song?.filePath,
+        maxPx = 1440,
+        songId = song?.id ?: 0,
+        retryWhenMissing = true,
+    )
 
     Column(
         modifier = Modifier

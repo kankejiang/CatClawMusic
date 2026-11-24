@@ -9,13 +9,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.data.media.CoverVersion
 import com.catclaw.music.kt.data.media.RemoteImages
@@ -188,6 +193,13 @@ internal interface CoverVersionEntryPoint {
  *
  * 版本号（[coverVersion]）参与 key：补全完成后它变化，`produceState` 重跑，
  * 这时第二级回落就能读到刚落盘的图 —— 不用杀掉重进。
+ *
+ * [retryWhenMissing]：**回到前台时若这张图还没取到就重试一次**。
+ * 在线曲封面走网络，切后台瞬间网络休眠/Doze 会让请求超时（日志里的 SocketTimeoutException），
+ * `produceState` 跑完拿到 null 就结束了 —— key 不变它不会自己再试，于是用户看到
+ * 「切回来还是占位图，去别的页面转一圈才出图」（离开页面等于组合重建，才会重跑）。
+ * 只在「当前曲大图 / 迷你条」这类单点调用方开启；列表行不开，避免回前台时
+ * 几十上百张图同时重发请求。
  */
 @Composable
 fun rememberCover(
@@ -195,11 +207,24 @@ fun rememberCover(
     audioPath: String?,
     maxPx: Int = 512,
     songId: Int = 0,
+    retryWhenMissing: Boolean = false,
 ): Bitmap? {
     val context = LocalContext.current
     val version = coverVersion()
-    val cover by produceState<Bitmap?>(null, coverArtPath, audioPath, maxPx, songId, version) {
+    // 回到前台的重试计数，作为 produceState 的 key
+    var resumeTick by remember { mutableStateOf(0) }
+    val cover by produceState<Bitmap?>(null, coverArtPath, audioPath, maxPx, songId, version, resumeTick) {
         value = load(context, coverArtPath, audioPath, songId, maxPx)
+    }
+    if (retryWhenMissing) {
+        // 首帧组合时 lifecycle 已 RESUMED，addObserver 会补发一次 ON_RESUME；
+        // 用 seenResume 跳过这次，否则会和首轮加载撞车、白跑两遍请求
+        val latest by rememberUpdatedState(cover)
+        var seenResume by remember { mutableStateOf(false) }
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+            if (seenResume && latest == null) resumeTick++
+            seenResume = true
+        }
     }
     return cover
 }

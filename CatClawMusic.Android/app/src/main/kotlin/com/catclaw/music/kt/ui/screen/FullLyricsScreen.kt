@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,9 +92,11 @@ import com.catclaw.music.kt.ui.theme.catClawBackground
 import com.catclaw.music.kt.ui.theme.rememberArtworkTint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -104,6 +107,13 @@ import kotlin.math.roundToInt
 private const val LyricCurrentScale = 1.25f
 private val LyricGapExtra = 6.dp
 private const val LyricScrollMs = 380
+
+/**
+ * 片尾滚屏：最后一句唱完后停留 [LyricTailDelayMs]，再以 [LyricTailSpeedDp] 恒定速度继续上移。
+ * 视点（裁剪区 30% 的高亮位）固定不动，动的只有内容 —— 像电影片尾字幕滚完。
+ */
+private const val LyricTailDelayMs = 2_500L
+private val LyricTailSpeedDp = 26.dp
 
 /**
  * 进页飞入：先从「目标行上方 6 行」起滑，再用 [LyricIntroMs] 滑到钉行位。
@@ -366,9 +376,40 @@ fun FullLyricsScreen(onClose: () -> Unit, visible: Boolean, viewModel: LyricsVie
         animatePinActiveLine()
     }
 
+    // 片尾滚屏：最后一句唱完后内容继续匀速上移，视点（30% 高亮位）不动 —— 电影片尾字幕。
+    // 最后一行之后 currentIndex 不再变化，钉行不会再来抢滚动，所以这里可以直接对 listState 施位移；
+    // 底部留了两屏滚动余量（见 LyricList 的 tail spacer），覆盖常见尾奏长度。
+    val userScrollingNow by rememberUpdatedState(userScrolling)
+    LaunchedEffect(visible, shown) {
+        if (!visible) return@LaunchedEffect
+        val lastLineAt = lines.lastOrNull()?.startMs ?: return@LaunchedEffect
+        val startAt = lastLineAt + LyricTailDelayMs
+        val speedPxPerSec = with(density) { LyricTailSpeedDp.toPx() }
+        // 先等播放指针进入尾段再进帧循环：否则整首歌都要每帧唤醒一次协程
+        snapshotFlow { positionMsState.value }.first { it >= startAt }
+        var lastFrameAt = 0L
+        while (isActive) {
+            val now = withFrameNanos { it }
+            val dtSec = if (lastFrameAt == 0L) 0f else (now - lastFrameAt) / 1_000_000_000f
+            lastFrameAt = now
+            // 掉帧（后台/低端机）时不要一次性弹一大段，跳过这一帧即可
+            if (dtSec <= 0f || dtSec > 0.1f) continue
+            if (positionMsState.value < startAt) continue
+            // 暂停时不滚：片尾字幕该跟着播放进度走，而不是跟着墙钟
+            if (!viewModel.isPlaying.value || userScrollingNow) continue
+            listState.scrollBy(speedPxPerSec * dtSec)
+        }
+    }
+
     // 与播放页同一套语言：底色由当前这首歌的封面染出来
     val song = viewModel.currentSong()
-    val cover = rememberCover(song?.coverArtPath, song?.filePath, maxPx = 256, songId = song?.id ?: 0)
+    val cover = rememberCover(
+        song?.coverArtPath,
+        song?.filePath,
+        maxPx = 256,
+        songId = song?.id ?: 0,
+        retryWhenMissing = true,
+    )
     // 流光背景的两个 gate：暂停即停动画（MAUI IsActive 绑 IsPlaying）、雾面开关整体关闭
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
 
@@ -660,6 +701,11 @@ internal fun LyricList(
                         ),
                 )
             }
+        }
+        // 片尾滚屏的滚动余量：最后一句唱完后内容还要能继续上移（两屏足够覆盖常见尾奏）。
+        // 正常跟随永远滚不到这里，只有片尾阶段或手动拖到底才会经过这片空白。
+        item(key = "__lyric_tail__") {
+            Box(Modifier.fillParentMaxHeight(2f))
         }
     }
 }

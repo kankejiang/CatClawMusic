@@ -368,8 +368,9 @@ Download it from GitHub.</string>
     <string name="local_scan_folder_count">%1$d folder(s) added</string>
     <string name="local_scan_ready">Ready — tap "Scan music" to start</string>
 
-    <string name="lib_stat_storage">Storage</string>
     <string name="lib_open_stats">Listening stats</string>
+    <string name="lib_tools_stats_hint">Play counts · yearly recap</string>
+    <string name="lib_tools_batch_hint">Bulk tag edit · rename</string>
     <string name="remote_edit_server">Editing: %1$s</string>
     <string name="remote_cancel_edit">Cancel editing</string>
     <string name="remote_need_host">Host address is required</string>
@@ -519,24 +520,6 @@ Download it from GitHub.</string>
     <string name="diagnostic_copied">Copied %1$d log entries</string>
     <string name="diagnostic_search_none">No log entries match "%1$s"</string>
 
-    <!-- 存储占用卡（MAUI LibraryPage 的 StorageCard；格式分布改成按比特率档位，见 LibraryInsightRules 的说明） -->
-    <string name="storage_total_unit">total in music files</string>
-    <string name="storage_free_space">Free space</string>
-    <string name="quality_unknown">Unknown</string>
-    <string name="quality_other">Other</string>
-    <string name="storage_buckets_title">Size by quality</string>
-    <string name="storage_buckets_hint">Grouped by bitrate tier (local paths carry no extension, so container format is unavailable)</string>
-    <string name="quality_320">320 kbps</string>
-    <string name="quality_256">256 kbps</string>
-    <string name="quality_192">192 kbps</string>
-    <string name="quality_128">128 kbps</string>
-
-    <!-- 数据洞察卡（MAUI LibraryPage 的 DataInsightCard；「音频格式」那一组见 LibraryInsightRules 的说明） -->
-    <string name="insight_title">Insights</string>
-    <string name="insight_quality">Audio quality</string>
-    <string name="insight_artist">Songs by artist</string>
-    <string name="insight_unknown_artist">Unknown artist</string>
-    <string name="insight_hint">Local songs only, grouped by quality and artist. Local paths carry no extension, so container format is unavailable</string>
     <string name="detail_file_path">File path</string>
     <string name="detail_lyrics_scroll">Scrollable</string>
     <string name="detail_play_this">Play this song</string>
