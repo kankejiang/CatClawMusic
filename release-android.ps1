@@ -135,13 +135,19 @@ if (-not $SkipBuild) {
     # 单 ABI：临时收窄 abiFilters。真机只用 arm64；带上 x86_64 会让包从 20.9MB 涨到 34.9MB。
     $origText = Get-Content $BuildGradle -Raw
     $armOnlyText = $origText -replace 'abiFilters \+= setOf\("arm64-v8a", "x86_64"\)', 'abiFilters += setOf("arm64-v8a")'
-    if ($armOnlyText -eq $origText) {
+    # 已经就是 arm64 单 ABI 时没有可收窄的（x86_64 早被裁掉），直接用原配置构建
+    $needsNarrow = $armOnlyText -ne $origText
+    if (-not $needsNarrow -and $origText -notmatch 'abiFilters \+= setOf\("arm64-v8a"\)') {
         Fail "没能在 build.gradle.kts 里找到 abiFilters 那行 —— 它的写法变了，请同步更新本脚本的替换逻辑"
     }
 
     try {
-        Set-Content -Path $BuildGradle -Value $armOnlyText -NoNewline
-        Write-Msg "  已临时收窄为 arm64 单 ABI"
+        if ($needsNarrow) {
+            Set-Content -Path $BuildGradle -Value $armOnlyText -NoNewline
+            Write-Msg "  已临时收窄为 arm64 单 ABI"
+        } else {
+            Write-Msg "  已是 arm64 单 ABI，跳过收窄" -Color DarkGray
+        }
 
         Push-Location $AndroidDir
         try {
@@ -158,8 +164,10 @@ if (-not $SkipBuild) {
         if ($buildExit -ne 0) { Fail "Gradle 构建失败（退出码 $buildExit）" }
     } finally {
         # 一定要恢复：否则仓库里就留下一个"只打 arm64"的改动
-        Set-Content -Path $BuildGradle -Value $origText -NoNewline
-        Write-Msg "  已恢复 build.gradle.kts 的双 ABI 配置" -Color DarkGray
+        if ($needsNarrow) {
+            Set-Content -Path $BuildGradle -Value $origText -NoNewline
+            Write-Msg "  已恢复 build.gradle.kts 的双 ABI 配置" -Color DarkGray
+        }
     }
 } else {
     Write-Msg "  跳过构建（-SkipBuild），复用现有 APK" -Color DarkGray
