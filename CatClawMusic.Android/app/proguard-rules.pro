@@ -22,3 +22,25 @@
 # 安卓没有 JGSS，实际走 NTLM）。裁掉即可，但注意这也意味着安卓侧不支持 Kerberos 认证。
 -dontwarn javax.el.**
 -dontwarn org.ietf.jgss.**
+
+# ─────────────────────────── QuickJS 插件宿主 API ───────────────────────────
+#
+# app.cash.quickjs 的 `QuickJs.set(name, Class<T>, impl)` 在运行时校验：
+# **type 必须是 interface**，否则抛
+#   "Only interfaces can be bound. Received: class ye2"
+#
+# R8 默认会把只有一个实现的方法/接口做「接口→类」优化（把 LyricoHostApi 合并进
+# 实现类，或直接改成 class），校验就失败了。
+#
+# 真机表现（红米 M332BF / Android 17，release 包）：**所有插件源装载失败，
+# 搜索只剩 LRCLIB**，而 debug 包（不混淆）一切正常 —— 这正是 R8 混淆导致的。
+#
+# 必须保留：
+# 1. 接口本身仍是 interface（-keep interface 明确表达这一点）
+# 2. 方法签名不被裁掉（QuickJS 按反射查方法）
+-keep interface com.catclaw.music.kt.lyrico.plugin.LyricoHostApi { *; }
+-keep class * implements com.catclaw.music.kt.lyrico.plugin.LyricoHostApi { *; }
+
+# QuickJS 自身：JNI 按类名/方法名反射调用，混淆后必崩
+-keep class app.cash.quickjs.** { *; }
+-dontwarn app.cash.quickjs.**
