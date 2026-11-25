@@ -534,6 +534,10 @@ Download it from GitHub.</string>
     <string name="lyrics_match_searching">Searching…</string>
     <string name="lyrics_match_write">Write lyrics</string>
     <string name="lyrics_match_writing">Writing…</string>
+    <string name="lyrics_match_need_permission_title">All files access required</string>
+    <string name="lyrics_match_need_permission_body">Writing lyrics modifies the audio file\'s embedded tags. On Android 11 and later, grant \"All files access\" to this app first, then come back and tap \"Write lyrics\" again.</string>
+    <string name="lyrics_match_need_permission_go">Grant</string>
+    <string name="lyrics_match_need_permission_cancel">Cancel</string>
     <string name="lyrics_match_empty">No lyrics found — try another title or artist</string>
     <string name="lyrics_match_tag_word">Word-by-word</string>
     <string name="lyrics_match_tag_synced">Synced</string>

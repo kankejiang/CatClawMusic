@@ -534,6 +534,10 @@
     <string name="lyrics_match_searching">搜索中…</string>
     <string name="lyrics_match_write">写入歌词</string>
     <string name="lyrics_match_writing">写入中…</string>
+    <string name="lyrics_match_need_permission_title">需要「所有文件访问」权限</string>
+    <string name="lyrics_match_need_permission_body">写入歌词会直接修改音频文件里的内嵌标签，Android 11 及以上需要先为本应用打开「所有文件访问」。开启后返回，再点一次「写入歌词」。</string>
+    <string name="lyrics_match_need_permission_go">去开启</string>
+    <string name="lyrics_match_need_permission_cancel">取消</string>
     <string name="lyrics_match_empty">没有找到歌词，换个歌名或歌手再试</string>
     <string name="lyrics_match_tag_word">逐字</string>
     <string name="lyrics_match_tag_synced">同步歌词</string>

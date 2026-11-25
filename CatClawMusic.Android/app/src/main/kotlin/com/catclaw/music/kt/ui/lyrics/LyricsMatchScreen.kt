@@ -1,5 +1,9 @@
 package com.catclaw.music.kt.ui.lyrics
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,14 +24,19 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +72,12 @@ fun LyricsMatchScreen(
 ) {
     val palette = LocalCatClawPalette.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // 写内嵌标签是直接改共享存储里的音频文件，Android 11+ 必须拿到「所有文件访问」；
+    // 没授权时只会抛 EPERM，界面显示成「写入失败：Operation not permitted」，
+    // 用户根本不知道缺的是系统权限。所以先拦下来，给一条能跳转的提示。
+    var askAllFilesAccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(target.songId) { viewModel.prepare(target) }
 
@@ -136,7 +151,13 @@ fun LyricsMatchScreen(
                     } else {
                         stringResource(R.string.lyrics_match_write)
                     },
-                    onClick = viewModel::write,
+                    onClick = {
+                        if (needsAllFilesAccess(target.filePath)) {
+                            askAllFilesAccess = true
+                        } else {
+                            viewModel.write()
+                        }
+                    },
                     filled = true,
                     enabled = !state.writing && state.selectedIndex >= 0,
                 )
@@ -306,7 +327,59 @@ fun LyricsMatchScreen(
             }
         }
         Spacer(Modifier.height(12.dp))
+
+        if (askAllFilesAccess) {
+            AlertDialog(
+                onDismissRequest = { askAllFilesAccess = false },
+                containerColor = Color(palette.backgroundStops.last().argb),
+                title = {
+                    Text(
+                        text = stringResource(R.string.lyrics_match_need_permission_title),
+                        color = ink,
+                    )
+                },
+                text = {
+                    Text(
+                        text = stringResource(R.string.lyrics_match_need_permission_body),
+                        fontSize = 13.sp,
+                        color = dim,
+                    )
+                },
+                confirmButton = {
+                    PillLabel(
+                        text = stringResource(R.string.lyrics_match_need_permission_go),
+                        onClick = {
+                            askAllFilesAccess = false
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                .apply { data = Uri.parse("package:${context.packageName}") }
+                            runCatching { context.startActivity(intent) }
+                        },
+                        filled = true,
+                    )
+                },
+                dismissButton = {
+                    PillLabel(
+                        text = stringResource(R.string.lyrics_match_need_permission_cancel),
+                        onClick = { askAllFilesAccess = false },
+                        filled = false,
+                    )
+                },
+            )
+        }
     }
+}
+
+/**
+ * 写标签是否需要「所有文件访问」。
+ *
+ * 只对本地真实路径成立：`content://`（SAF 授权的文档）走 ContentResolver 拿写句柄，
+ * 远程曲目（http/https/smb）本来就不支持写入，这两类不该要求这个权限。
+ */
+private fun needsAllFilesAccess(filePath: String): Boolean {
+    if (filePath.isBlank() || filePath.startsWith("content://")) return false
+    val lower = filePath.lowercase()
+    if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("smb://")) return false
+    return !Environment.isExternalStorageManager()
 }
 
 @Composable
