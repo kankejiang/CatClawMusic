@@ -332,6 +332,29 @@ class PlayerController(
     }
 
     /**
+     * 单曲起播但**不替换队列**（搜索页单击用）。
+     *
+     * 与 [playSongs] 的差别只在「不动原有列表」：搜索不该把用户已经攒好的队列换成一屏搜索结果。
+     * - 已在队列里：直接选中它，不重复加一份；
+     * - 不在队列里：插到当前曲之后，这一首播完仍顺着原顺序继续；
+     * - 正好是正在播的这首：不打断，暂停态则恢复。
+     */
+    fun playSingle(song: Song) {
+        // 0 / -1 是「未分配」id（见 NeteaseSongMapper），进队列后既没法去重也没法恢复
+        if (song.id == 0 || song.id == -1) return
+        if (queue.currentSong?.id == song.id) {
+            if (!player.isPlaying) resume()
+            return
+        }
+        if (!queue.containsSong(song.id)) queue.addNext(song)
+        queue.selectSong(song.id)
+        syncPlayerList(resumeAtMs = 0, autoplay = true)
+        publish()
+        save()
+        ensureCurrentDirect()
+    }
+
+    /**
      * 末尾追加曲目并同步给播放器（私人漫游续播）。
      *
      * 用 `addMediaItems` 而不是重建整张列表：后者会打断当前播放；
@@ -367,6 +390,21 @@ class PlayerController(
 
     /** 当前播放位置（毫秒）。UI 走 positionMsFlow 轮询，工具这种一次性读取用这个 */
     override fun currentPositionMs(): Long = player.currentPosition
+
+    /**
+     * 分享导出用：在线曲（网易云）必要时解析一条新鲜直链，其他源原样返回。
+     *
+     * 正在播的这首优先用播放器里的快照 —— 它可能已经在起播前被换成了解析后的直链。
+     * 解析失败仍回原地址（至少还有 outer 试听），导出侧再决定静音兜底。
+     */
+    suspend fun audioUrlForExport(song: Song): String {
+        val target = state.value.currentSong?.takeIf { it.id == song.id } ?: song
+        if (!needsResolve(target)) return target.filePath
+        val better = runCatching { uriUpgrader?.invoke(target, false) }.getOrNull()
+        if (better.isNullOrBlank()) return target.filePath
+        markResolved(target.id)
+        return better
+    }
 
     fun playSongAt(index: Int) {
         queue.songs().getOrNull(index)?.let {
@@ -484,6 +522,25 @@ class PlayerController(
             syncPlayerList(resumeAtMs = player.currentPosition)
         }
         publish()
+        save()
+    }
+
+    /**
+     * 队列拖动排序。[Player.moveMediaItem] 只重排 timeline、**不**重新 setMediaItems ——
+     * 后者会 prepare 整张表并回到起播流程，正在放的那一首会被硬切一下。
+     * 顺序先落队列（publishQueue）再动播放器：moveMediaItem 触发的 timeline 事件里，
+     * [syncQueueIndexToPlayer] 要用到与新顺序一致的 `_queueSongs`。
+     */
+    fun moveInQueue(from: Int, to: Int) {
+        if (!queue.moveSong(from, to)) return
+        val songs = queue.songs()
+        publishQueue(songs)
+        if (player.mediaItemCount == songs.size && from in songs.indices && to in songs.indices) {
+            player.moveMediaItem(from, to)
+        } else {
+            // 播放器与队列不同步（恢复途中、外部改过 timeline）：退回整表灌入，位置不动
+            syncPlayerList(resumeAtMs = player.currentPosition)
+        }
         save()
     }
 

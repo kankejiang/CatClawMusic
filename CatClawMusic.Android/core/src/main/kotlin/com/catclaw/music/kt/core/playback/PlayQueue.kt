@@ -25,17 +25,47 @@ class PlayQueue {
      */
     var isFmMode: Boolean = false
 
+    /** 恢复持久化队列期间置位：此时 `playMode` 的 setter 不洗牌，原样保留快照里的顺序 */
+    private var restoring = false
+
     var playMode: PlayMode = PlayMode.ListRepeat
         set(value) {
             val old = field
+            if (old == value) return
+            // 切模式不能顺手换歌：先把当前曲记下来（此刻 activeList() 还是旧模式），
+            // 改完模式再按 id 在新列表里重新定位
+            val playing = currentSong
             field = value
-            if (value == PlayMode.Shuffle && shuffledList.isEmpty()) {
-                enableShuffle()
-            } else if (old == PlayMode.Shuffle && value != PlayMode.Shuffle && currentIndex >= 0) {
-                // 必须从**洗牌列表**里取当前曲再映射回原始索引：field 已是新模式，
-                // 此刻走 currentSong 会按旧索引读到原始列表里的另一首歌
-                val playing = shuffledList.getOrNull(currentIndex)
-                if (playing != null) songIdToIndex[playing.id]?.let { currentIndex = it }
+            // 历史栈里存的是旧模式列表的下标，切完模式全部错位 —— 清掉
+            //（previous() 在空栈时的既有行为就是回到本曲）
+            history.clear()
+            if (value == PlayMode.Shuffle) {
+                // 每次切到随机都重新洗一次（用户预期：重新进随机就该换一种顺序）；
+                // 恢复快照时除外，那份顺序本身就是要原样恢复的洗牌序
+                if (!restoring) {
+                    shuffledList.clear()
+                    shuffledList.addAll(shuffle(originalList))
+                }
+                if (playing == null) {
+                    // 空闲态随机起点（原语义：随机播放不能永远从第一首开始）
+                    if (!restoring && shuffledList.isNotEmpty()) currentIndex = Random.nextInt(shuffledList.size)
+                } else {
+                    // 当前曲挪到洗牌列表队首：从它继续播，下一曲才进入随机序
+                    when (val idx = shuffledList.indexOfFirst { it.id == playing.id }) {
+                        0 -> currentIndex = 0
+                        in 1..Int.MAX_VALUE -> {
+                            shuffledList.add(0, shuffledList.removeAt(idx))
+                            currentIndex = 0
+                        }
+                        else -> {
+                            shuffledList.add(0, playing)
+                            currentIndex = 0
+                        }
+                    }
+                }
+            } else if (playing != null) {
+                // 洗牌 → 其他：按 id 映射回原始列表（不能拿洗牌下标直接读原始列表）
+                songIdToIndex[playing.id]?.let { currentIndex = it }
             }
         }
 
@@ -62,10 +92,18 @@ class PlayQueue {
         originalList.addAll(songs)
         shuffledList.clear()
         if (mode == PlayMode.Shuffle) shuffledList.addAll(songs)
-        this.currentIndex = if (currentIndex in songs.indices) currentIndex else -1
+        // 先清空当前曲再切模式：切模式的 setter 会把「当前曲挪到洗牌队首」，
+        // 恢复场景要原样保留持久化顺序，不能被这条规则重排
+        this.currentIndex = -1
         history.clear()
-        playMode = mode
         rebuildIndex()
+        restoring = true
+        try {
+            playMode = mode
+        } finally {
+            restoring = false
+        }
+        this.currentIndex = if (currentIndex in songs.indices) currentIndex else -1
     }
 
     fun enableShuffle() {
@@ -202,7 +240,30 @@ class PlayQueue {
         return true
     }
 
+    /**
+     * 拖动排序：把**当前生效列表**里的 [from] 挪到 [to]。
+     *
+     * 随机模式下生效列表是洗牌序，原始列表不动 —— 它只在重洗时用作素材，顺序没有播放含义。
+     * 移动后按 id 重新定位 currentIndex（不能沿用下标：挪动当前曲时旧下标已经指向别人了），
+     * 历史栈存的也是下标、重排后全部错位，直接清空（上一曲最多退回「回到本曲」的既有行为）。
+     */
+    fun moveSong(from: Int, to: Int): Boolean {
+        val list = activeList()
+        if (from !in list.indices || to !in list.indices || from == to) return false
+        val playingId = currentSong?.id
+        list.add(to, list.removeAt(from))
+        if (playingId != null) {
+            list.indexOfFirst { it.id == playingId }.takeIf { it >= 0 }?.let { currentIndex = it }
+        }
+        history.clear()
+        rebuildIndex()
+        return true
+    }
+
     fun songs(): List<Song> = activeList().toList()
+
+    /** 队列里是否已有这首歌（按 id 去重，搜索页单击起播时用） */
+    fun containsSong(songId: Int): Boolean = activeList().any { it.id == songId }
 
     fun snapshot(): Snapshot = Snapshot(
         // 随机模式下持久化的是洗牌序，恢复时直接复用

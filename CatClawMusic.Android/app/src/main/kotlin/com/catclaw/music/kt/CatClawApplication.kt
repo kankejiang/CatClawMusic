@@ -2,9 +2,11 @@ package com.catclaw.music.kt
 
 import android.app.Application
 import com.catclaw.music.kt.core.diagnostic.AppLog
+import com.catclaw.music.kt.core.playback.RemoteAuthDataSources
 import com.catclaw.music.kt.data.diagnostic.CrashReporter
 import com.catclaw.music.kt.data.diagnostic.DiagnosticLogStore
 import com.catclaw.music.kt.data.netease.NeteaseLoginClient
+import com.catclaw.music.kt.data.settings.CacheSettings
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,9 @@ class CatClawApplication : Application() {
     @Inject
     lateinit var neteaseLogin: NeteaseLoginClient
 
+    @Inject
+    lateinit var cacheSettings: CacheSettings
+
     /** 会话续期定时器：只在进程存活期间跑，App 被杀就停（下次启动 30 秒后自动续上） */
     private val sessionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -38,6 +43,11 @@ class CatClawApplication : Application() {
         // 未捕获异常落盘（见 CrashReporter）。挂在这里而不是各 Activity：
         // 崩溃可能发生在任何线程、任何界面之前
         crashReporter.install()
+        // 播放缓存（media3 SimpleCache）也要守「缓存上限」：之前它固定 1GB，
+        // 设置页却只统计音乐缓存，于是显示「已用 0.0 / 上限 500MB」而系统里躺着 1GB。
+        // 必须在第一次播放（SimpleCache 创建）之前设置；顺带清掉超出新上限的旧数据。
+        RemoteAuthDataSources.configureLimitMb(cacheSettings.sizeMbSnapshot())
+        RemoteAuthDataSources.trimIfOverLimit(this)
         // 网易云会话续期：30 秒后首检，之后每 6 小时（与插件一致）。
         // 只在已登录时真正发请求；未登录 refreshSession 直接返回 false。
         sessionScope.launch {

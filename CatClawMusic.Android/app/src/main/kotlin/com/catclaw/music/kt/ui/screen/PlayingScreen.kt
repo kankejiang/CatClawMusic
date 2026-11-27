@@ -73,7 +73,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.core.model.Song
-import com.catclaw.music.kt.ui.song.MenuTile
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.LocalSleepTimerOpener
 import com.catclaw.music.kt.core.lyrics.LyricsState
@@ -192,7 +191,35 @@ fun PlayingScreen(
     songDetailId?.let { id ->
         SongDetailScreen(
             songId = id,
-            load = { libraryViewModel.songDetail(it) },
+            load = {
+                libraryViewModel.songDetail(id)
+                    // 网易云等在线曲用的是负数 id、不在本地库里，查库必然为空。
+                    // 不拿播放快照兜底，页面就永远停在「读取中…」：封面 "?"、专辑「无」。
+                    ?: state.currentSong?.takeIf { it.id == id }?.let { online ->
+                        com.catclaw.music.kt.data.db.SongDetailRow(
+                            id = online.id,
+                            title = online.title,
+                            artist = online.artist,
+                            album = online.album,
+                            genre = online.genre,
+                            year = online.year,
+                            trackNumber = online.trackNumber,
+                            durationSeconds = online.durationSeconds,
+                            bitrate = online.bitrateKbps,
+                            fileSize = online.fileSizeBytes,
+                            filePath = online.filePath,
+                            coverArtPath = online.coverArtPath ?: online.remoteCoverPath,
+                            lyricsPath = online.lyricsPath,
+                            // 4 = 在线：DB 里只有 0..3（SongSource 的 ordinal），这个值只给合成行
+                            source = 4,
+                            playCount = 0,
+                            dateAdded = 0,
+                            dateModified = 0,
+                            artistId = 0,
+                            albumId = 0,
+                        )
+                    }
+            },
             loadLyrics = { libraryViewModel.lyricsFor(it) },
             onPlay = { libraryViewModel.playSongById(it) },
             onBack = { songDetailId = null },
@@ -502,113 +529,69 @@ fun PlayingScreen(
         }
     }
 
-    // 「更多」改成图标网格面板（对齐主流播放器的底部操作面板）。
-    // 与列表页的长按菜单是两种形态：那边是一长串条目，这边是快速跳去做某件事。
+    // 「更多」直接复用歌曲长按菜单（与音乐库/搜索页同一套液态玻璃面板与分节语言）。
+    // 播放页专属的四项作为「播放设置」一节塞进去；曲目相关的项（收藏/歌曲信息/分享/添加歌单/
+    // 查看歌手/查看专辑）由菜单统一给 —— 旧图标网格里缺的那几项在这里一并补齐。
     // 用 takeIf 而不是 `if (songMenuOpen)`：菜单项点完即 dismiss，
     // 目标歌在这一刻取，滑到别的歌上时不会把菜单留给上一首。
     state.currentSong?.takeIf { songMenuOpen && it.id != 0 }?.let { song ->
-        PlayingMoreSheet(
-            song = song,
-            formatChips = playingQualityLabels(song),
-            tiles = buildList {
-                // —— 第一行：播放相关的开关类 ——
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.sleep_timer_title),
-                        iconRes = R.drawable.ic_timer,
-                        value = if (sleep.running) formatCountdown(sleep.remainingSec) else null,
-                        onClick = {
-                            songMenuOpen = false
-                            openSleepTimer()
-                        },
-                    ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.soundfx_title),
-                        iconRes = R.drawable.ic_equalizer,
-                        onClick = {
-                            songMenuOpen = false
-                            onOpenSoundFx()
-                        },
-                    ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.PageTitleDesktopLyric),
-                        iconRes = R.drawable.ic_lyrics,
-                        value = stringResource(
-                            if (desktopLyricOn) R.string.sleep_timer_on else R.string.sleep_timer_off,
+        SongMenuFor(
+            target = SongMenuTarget(
+                id = song.id,
+                title = song.title,
+                subtitle = songMenuSubtitle(song.artist, song.album),
+                song = song,
+                // 播放页打开的永远是正在播的这首：菜单里不再摆「下一首播放」
+                isCurrent = true,
+            ),
+            menu = menu,
+            sections = listOf(
+                SongMenuSection(
+                    title = stringResource(R.string.song_menu_section_playback),
+                    items = listOf(
+                        SongMenuItem(
+                            label = stringResource(R.string.sleep_timer_title),
+                            icon = R.drawable.ic_timer,
+                            value = if (sleep.running) formatCountdown(sleep.remainingSec) else null,
+                            onClick = {
+                                songMenuOpen = false
+                                openSleepTimer()
+                            },
                         ),
-                        onClick = {
-                            songMenuOpen = false
-                            // 没悬浮窗权限时跳系统授权页（与设置页同一做法）
-                            if (!viewModel.toggleDesktopLyric()) {
-                                context.startActivity(viewModel.overlayPermissionIntent())
-                            }
-                        },
-                    ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.playing_rotate),
-                        iconRes = R.drawable.ic_screen_rotation,
-                        value = if (manualLandscape) stringResource(R.string.menu_landscape_on) else null,
-                        onClick = {
-                            songMenuOpen = false
-                            onToggleLandscape()
-                        },
-                    ),
-                )
-
-                // —— 第二行：曲目相关的常用项 ——
-                add(
-                    MenuTile(
-                        label = stringResource(
-                            if (song.id in menu.favoriteIds) R.string.favorite_remove else R.string.favorite_add,
+                        SongMenuItem(
+                            label = stringResource(R.string.soundfx_title),
+                            icon = R.drawable.ic_equalizer,
+                            onClick = {
+                                songMenuOpen = false
+                                onOpenSoundFx()
+                            },
                         ),
-                        iconRes = if (song.id in menu.favoriteIds) {
-                            R.drawable.ic_favorite
-                        } else {
-                            R.drawable.ic_favorite_border
-                        },
-                        onClick = {
-                            songMenuOpen = false
-                            menu.onToggleFavorite(song.id)
-                        },
+                        SongMenuItem(
+                            label = stringResource(R.string.PageTitleDesktopLyric),
+                            icon = R.drawable.ic_lyrics,
+                            value = stringResource(
+                                if (desktopLyricOn) R.string.sleep_timer_on else R.string.sleep_timer_off,
+                            ),
+                            onClick = {
+                                songMenuOpen = false
+                                // 没悬浮窗权限时跳系统授权页（与设置页同一做法）
+                                if (!viewModel.toggleDesktopLyric()) {
+                                    context.startActivity(viewModel.overlayPermissionIntent())
+                                }
+                            },
+                        ),
+                        SongMenuItem(
+                            label = stringResource(R.string.playing_rotate),
+                            icon = R.drawable.ic_screen_rotation,
+                            value = if (manualLandscape) stringResource(R.string.menu_landscape_on) else null,
+                            onClick = {
+                                songMenuOpen = false
+                                onToggleLandscape()
+                            },
+                        ),
                     ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.song_menu_play_next),
-                        iconRes = R.drawable.ic_playlist,
-                        onClick = {
-                            songMenuOpen = false
-                            menu.onPlayNext(song)
-                        },
-                    ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.song_menu_detail),
-                        iconRes = R.drawable.ic_info,
-                        onClick = {
-                            songMenuOpen = false
-                            menu.onOpenDetail(song.id)
-                        },
-                    ),
-                )
-                add(
-                    MenuTile(
-                        label = stringResource(R.string.song_menu_share),
-                        iconRes = R.drawable.ic_share,
-                        onClick = {
-                            songMenuOpen = false
-                            menu.onOpenDetail(song.id)
-                        },
-                    ),
-                )
-            },
+                ),
+            ),
             onDismiss = { songMenuOpen = false },
         )
     }
@@ -631,22 +614,3 @@ fun PlayingScreen(
 }
 
 /** 播放页的封面方块：竖屏与横屏同一形状（小圆角 + 重投影），只是边长不同 */
-/**
- * 播放页「更多」面板顶部的音质标签。
- *
- * 只从 [Song] 已有的字段推：容器格式、码率、时长。
- * 缺失的项直接不画 —— 摆一个「未知」标签比不摆更难看。
- */
-private fun playingQualityLabels(song: Song): List<String> = buildList {
-    // 容器格式：从路径后缀取。本地路径可能没后缀（扫描时被去掉），那就跳过
-    val ext = song.filePath.substringAfterLast('.', "").lowercase()
-    if (ext in setOf("flac", "mp3", "m4a", "aac", "wav", "ogg", "opus", "ape", "wv", "dsf")) {
-        add(ext.uppercase())
-    }
-    if (song.bitrateKbps > 0) add("${song.bitrateKbps} kbps")
-    if (song.durationSeconds > 0) {
-        val m = song.durationSeconds / 60
-        val s = song.durationSeconds % 60
-        add(String.format(java.util.Locale.US, "%d:%02d", m, s))
-    }
-}

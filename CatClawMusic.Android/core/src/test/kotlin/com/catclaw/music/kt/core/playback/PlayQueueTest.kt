@@ -72,6 +72,45 @@ class PlayQueueTest {
     }
 
     @Test
+    fun switchingToShuffleKeepsCurrentSongAndPutsItFirst() {
+        // 真机反馈：单曲循环 → 随机会把正在放的歌换掉。
+        // 契约：当前曲原地留下，并成为洗牌列表的第一首。
+        val q = PlayQueue().apply { setSongs(songs(10)) }
+        q.selectSong(6)
+        q.playMode = PlayMode.SingleRepeat
+        q.playMode = PlayMode.Shuffle
+        assertEquals(6, q.currentSong?.id)
+        assertEquals(6, q.songs().first().id)
+    }
+
+    @Test
+    fun reenteringShuffleReshufflesAndKeepsCurrentAtHead() {
+        // 每次切到随机都要重新洗牌（不能沿用上一次的顺序），当前曲仍在队首
+        val q = PlayQueue().apply {
+            setSongs(songs(30))
+            playMode = PlayMode.Shuffle
+        }
+        q.selectSong(10)
+        q.playMode = PlayMode.ListRepeat
+        q.playMode = PlayMode.Shuffle
+        assertEquals(10, q.currentSong?.id)
+        assertEquals(10, q.songs().first().id)
+        assertEquals("重洗后不能漏歌/多歌", (1..30).toSet(), q.songs().map { it.id }.toSet())
+    }
+
+    @Test
+    fun enteringShuffleAfterAppendIncludesNewSongs() {
+        // 非随机模式下 appendAll 只进原始列表；再次进入随机必须重洗，不能复用少歌的旧洗牌表
+        val q = PlayQueue().apply { setSongs(songs(5)) }
+        q.selectSong(1)
+        q.playMode = PlayMode.Shuffle
+        q.playMode = PlayMode.ListRepeat
+        q.appendAll(songs(8).drop(5))
+        q.playMode = PlayMode.Shuffle
+        assertEquals((1..8).toSet(), q.songs().map { it.id }.toSet())
+    }
+
+    @Test
     fun shuffleLoopsOverTheSameOrderUntilReshuffle() {
         val q = PlayQueue().apply {
             setSongs(songs(8))

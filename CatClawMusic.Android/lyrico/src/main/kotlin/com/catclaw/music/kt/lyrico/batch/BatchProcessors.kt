@@ -105,6 +105,8 @@ class BatchProcessors(
             return when (val outcome = coverWriter.write(item.toSong(), cover)) {
                 is CoverWriteOutcome.Success ->
                     BatchItemResult.Success("来自 ${cover.sourceName}（${outcome.bytes / 1024} KB）")
+                is CoverWriteOutcome.AppOnly ->
+                    BatchItemResult.Success("来自 ${cover.sourceName}，应用内封面（${outcome.bytes / 1024} KB）")
                 is CoverWriteOutcome.Unsupported -> BatchItemResult.Skipped(outcome.reason)
                 is CoverWriteOutcome.Failed -> BatchItemResult.Failed(outcome.message)
             }

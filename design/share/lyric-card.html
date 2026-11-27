@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分享高光歌词 · 图片</title>
+<style>
+  :root{
+    --cream:#f7e3c8;
+    --cream-dim:rgba(247,227,200,.55);
+    --cream-line:rgba(247,227,200,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:#141210;
+    color:#e9e2d8;
+    font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    gap:18px;padding:28px;
+  }
+  .hint{
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(233,226,216,.42);
+  }
+  /* 卡片容器：宽度决定一切尺寸（cqw），任何屏幕上版式一致 */
+  .wrap{
+    width:min(92vw,520px);
+    aspect-ratio:1080/1240;
+    container-type:inline-size;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.06);
+  }
+  .card{
+    position:relative;width:100%;height:100%;
+    padding:6.6cqw;
+    color:var(--cream);
+    background:
+      radial-gradient(120% 90% at 8% -10%, rgba(255,197,133,.38), transparent 58%),
+      linear-gradient(158deg,#9c6a3c 0%,#81522c 48%,#5d3a1f 100%);
+    isolation:isolate;
+    display:flex;flex-direction:column;
+  }
+  /* 封面自身的色光：顶部一层模糊的封面做色彩晕染 */
+  .wash{
+    position:absolute;inset:-18% -10% auto -10%;height:70%;
+    background-image:var(--cover);
+    background-size:cover;background-position:center;
+    filter:blur(46px) saturate(1.25);
+    opacity:.30;mix-blend-mode:soft-light;
+    z-index:-1;
+  }
+  /* 细颗粒 + 暗角，避免大色块发脏 */
+  .grain{
+    position:absolute;inset:0;z-index:-1;opacity:.055;pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.9'/></svg>");
+  }
+  .vignette{
+    position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 30%,transparent 40%,rgba(48,26,10,.45) 100%);
+  }
+
+  /* ── 头部：封面 + 曲名 ── */
+  .head{display:flex;align-items:center;gap:2.6cqw;}
+  .cover{
+    width:11.2cqw;height:11.2cqw;border-radius:1.5cqw;
+    object-fit:cover;flex:none;
+    box-shadow:0 1.4cqw 3cqw -1cqw rgba(40,20,6,.55);
+  }
+  .meta{min-width:0;}
+  .meta h1{
+    font-size:4.1cqw;font-weight:650;letter-spacing:.015em;line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .meta p{
+    margin-top:.7cqw;font-size:3.2cqw;font-weight:400;color:var(--cream-dim);
+    letter-spacing:.03em;
+  }
+
+  /* ── 分隔虚线 ── */
+  .rule{
+    margin-top:5.4cqw;
+    border-top:1px dashed var(--cream-line);
+  }
+
+  /* ── 高光歌词 ── */
+  .lyrics{
+    margin-top:8.4cqw;
+    font-size:7.9cqw;
+    line-height:1.44;
+    font-weight:800;
+    letter-spacing:.012em;
+    /* 参考图是同色调的米白，不做逐行降透明：整块词都算「高光」 */
+    color:var(--cream);
+    text-shadow:0 .4cqw 2.4cqw rgba(60,28,8,.18);
+  }
+  .lyrics p + p{margin-top:3.4cqw;}
+
+  /* ── 底部：品牌 + 二维码 ── */
+  .foot{
+    margin-top:auto;
+    display:flex;align-items:flex-end;justify-content:space-between;
+  }
+  .brand{display:flex;align-items:center;gap:1.6cqw;opacity:.5;}
+  .brand svg{width:4.2cqw;height:4.2cqw;display:block;}
+  .brand span{font-size:3.1cqw;font-weight:550;letter-spacing:.06em;}
+  .qr{width:12.2cqw;height:12.2cqw;opacity:.55;}
+  .qr svg{width:100%;height:100%;display:block;}
+</style>
+</head>
+<body>
+  <div class="hint">分享高光歌词 · 1080 × 1240</div>
+
+  <div class="wrap">
+    <article class="card" id="card">
+      <div class="wash"></div>
+      <div class="grain"></div>
+      <div class="vignette"></div>
+
+      <header class="head">
+        <img class="cover" id="cover" alt="封面">
+        <div class="meta">
+          <h1>梦返</h1>
+          <p>黄霄雲</p>
+        </div>
+      </header>
+
+      <div class="rule"></div>
+
+      <div class="lyrics">
+        <p>冲过了湾流与狂烈的风</p>
+        <p>就算狼狈嘶哑着喉咙</p>
+      </div>
+
+      <footer class="foot">
+        <div class="brand">
+          <!-- 爪印：与 App 图标语言一致 -->
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 43c-8.6 0-15-5.4-15-12 0-4.9 4-8.2 8.4-8.2 2.6 0 4.6 1.3 6.6 1.3s4-1.3 6.6-1.3C35 22.8 39 26.1 39 31c0 6.6-6.4 12-15 12Z" fill="currentColor"/>
+            <circle cx="11" cy="18" r="4" fill="currentColor"/>
+            <circle cx="20" cy="11" r="4.4" fill="currentColor"/>
+            <circle cx="31" cy="11" r="4.4" fill="currentColor"/>
+            <circle cx="39.5" cy="18.5" r="4" fill="currentColor"/>
+          </svg>
+          <span>CatClaw 音乐</span>
+        </div>
+        <div class="qr" id="qr"></div>
+      </footer>
+    </article>
+  </div>
+
+<script>
+  // 封面走统一图片服务（真实站点用的同一张图逻辑）
+  const coverUrl = "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=warm%20golden%20hour%20portrait%20of%20a%20young%20east%20asian%20woman%20with%20short%20hair%2C%20soft%20sunlight%2C%20film%20grain%2C%20dreamy%20bokeh%2C%20square%20album%20cover%20art&image_size=square_hd";
+  document.getElementById("cover").src = coverUrl;
+  document.getElementById("card").style.setProperty("--cover", `url("${coverUrl}")`);
+
+  // 二维码：用确定性矩阵画一个「像二维码」的占位图形，免得摆一张假图
+  (function drawQr(){
+    const n = 21, s = 4;
+    let seed = 20261126;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    const g = Array.from({length:n}, () => Array(n).fill(0));
+    const finder = (x, y) => {
+      for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+        const ring = i === 0 || i === 6 || j === 0 || j === 6;
+        const core = i >= 2 && i <= 4 && j >= 2 && j <= 4;
+        g[y + i][x + j] = ring || core ? 1 : 0;
+      }
+    };
+    finder(0, 0); finder(n - 7, 0); finder(0, n - 7);
+
+    const inFinder = (x, y) =>
+      (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8);
+
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      if (!inFinder(x, y)) g[y][x] = rnd() > .52 ? 1 : 0;
+    }
+
+    let cells = "";
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      if (g[y][x]) cells += `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="currentColor"/>`;
+    }
+    document.getElementById("qr").innerHTML =
+      `<svg viewBox="0 0 ${n*s} ${n*s}" xmlns="http://www.w3.org/2000/svg" color="#f7e3c8">${cells}</svg>`;
+  })();
+</script>
+</body>
+</html>

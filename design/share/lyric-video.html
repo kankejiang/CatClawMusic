@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分享音乐歌词视频</title>
+<style>
+  :root{
+    --cream:#f7e3c8;
+    --cream-dim:rgba(247,227,200,.55);
+    --dur:3400ms;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    min-height:100%;background:#0e0d0c;color:#e9e2d8;
+    font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;padding:22px;
+  }
+  .hint{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,226,216,.42);}
+
+  /* 输出画布：9:16，内部尺寸全部按 cqw 缩放 */
+  .frame{
+    position:relative;
+    height:min(84vh,760px);
+    aspect-ratio:1080/1920;
+    container-type:inline-size;
+    border-radius:22px;overflow:hidden;isolation:isolate;
+    background:#1a1512;
+    box-shadow:0 50px 90px -40px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.07);
+  }
+  .bg{
+    position:absolute;inset:-8%;
+    width:116%;height:116%;object-fit:cover;
+    filter:blur(2px) saturate(1.05) brightness(.62);
+    animation:breathe 22s ease-in-out infinite alternate;
+    z-index:-3;
+  }
+  @keyframes breathe{from{transform:scale(1) translateY(0)}to{transform:scale(1.07) translateY(-1.2%)}}
+  .shade{
+    position:absolute;inset:0;z-index:-2;
+    background:
+      linear-gradient(180deg,rgba(16,11,8,.72) 0%,rgba(16,11,8,.18) 30%,rgba(16,11,8,.30) 62%,rgba(12,8,6,.88) 100%),
+      radial-gradient(90% 55% at 50% 46%,rgba(255,214,160,.10),transparent 70%);
+  }
+  .grain{
+    position:absolute;inset:0;z-index:-1;opacity:.06;pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.9'/></svg>");
+  }
+  .vignette{
+    position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 40%,transparent 45%,rgba(8,5,3,.55) 100%);
+  }
+
+  /* ── 头部 ── */
+  .head{
+    position:absolute;top:7.2cqw;left:7.4cqw;right:7.4cqw;
+    display:flex;align-items:center;gap:2.8cqw;
+  }
+  .cover{
+    width:9.6cqw;height:9.6cqw;border-radius:1.3cqw;object-fit:cover;flex:none;
+    box-shadow:0 1.2cqw 2.8cqw -1cqw rgba(0,0,0,.6);
+  }
+  .meta{min-width:0;color:var(--cream);}
+  .meta h1{font-size:3.6cqw;font-weight:650;letter-spacing:.02em;line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .meta p{margin-top:.5cqw;font-size:2.7cqw;color:var(--cream-dim);letter-spacing:.04em;}
+
+  /* ── 歌词滚动区 ── */
+  .viewport{
+    position:absolute;left:0;right:0;top:34%;
+    height:38cqw;overflow:hidden;
+    -webkit-mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent);
+    mask-image:linear-gradient(180deg,transparent,#000 16%,#000 84%,transparent);
+  }
+  .lyrics{
+    position:absolute;left:7.4cqw;right:7.4cqw;
+    transition:transform .72s cubic-bezier(.22,.8,.2,1);
+    will-change:transform;
+  }
+  .line{
+    font-size:6.4cqw;line-height:1.42;font-weight:750;letter-spacing:.015em;
+    color:rgba(247,227,200,.34);
+    transition:color .45s ease,opacity .45s ease,transform .45s ease;
+    transform-origin:left center;
+    text-shadow:0 .5cqw 3cqw rgba(30,14,4,.25);
+    padding:1.2cqw 0;
+  }
+  .line.active{
+    color:transparent;
+    transform:scale(1.015);
+    /* 卡拉 OK 逐字填充：--p 由脚本按当前行进度写入 */
+    background-image:linear-gradient(90deg,var(--cream) var(--p,0%),rgba(247,227,200,.34) var(--p,0%));
+    -webkit-background-clip:text;background-clip:text;
+    filter:drop-shadow(0 0 1.6cqw rgba(255,214,160,.16));
+  }
+
+  /* ── 底部：进度 + 品牌 ── */
+  .foot{position:absolute;left:7.4cqw;right:7.4cqw;bottom:6.4cqw;}
+  .progress{height:.5cqw;border-radius:99px;background:rgba(247,227,200,.18);overflow:hidden;}
+  .progress i{display:block;height:100%;width:0%;border-radius:99px;
+    background:linear-gradient(90deg,#f7e3c8,#ffd9a8);}
+  .foot-row{
+    margin-top:4.2cqw;display:flex;align-items:center;justify-content:space-between;
+  }
+  .brand{display:flex;align-items:center;gap:1.7cqw;opacity:.55;color:var(--cream);}
+  .brand svg{width:3.8cqw;height:3.8cqw;display:block;}
+  .brand span{font-size:2.8cqw;font-weight:550;letter-spacing:.06em;}
+  .qr{width:10.2cqw;height:10.2cqw;opacity:.55;}
+  .qr svg{width:100%;height:100%;display:block;}
+
+  /* ── 预览控件（不进画面） ── */
+  .controls{display:flex;align-items:center;gap:14px;}
+  button{
+    appearance:none;border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.07);color:#e9e2d8;
+    padding:9px 18px;border-radius:99px;font-size:13px;letter-spacing:.06em;
+    cursor:pointer;backdrop-filter:blur(14px);transition:.18s ease;
+    font-family:inherit;
+  }
+  button:hover{background:rgba(255,255,255,.13);}
+  .time{font-size:12px;letter-spacing:.08em;color:rgba(233,226,216,.45);font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+  <div class="hint">分享音乐歌词视频 · 1080 × 1920 · 9:16</div>
+
+  <div class="frame">
+    <img class="bg" id="bg" alt="">
+    <div class="shade"></div>
+    <div class="grain"></div>
+    <div class="vignette"></div>
+
+    <header class="head">
+      <img class="cover" id="cover" alt="封面">
+      <div class="meta">
+        <h1>梦返</h1>
+        <p>黄霄雲</p>
+      </div>
+    </header>
+
+    <div class="viewport" id="viewport">
+      <div class="lyrics" id="lyrics"></div>
+    </div>
+
+    <footer class="foot">
+      <div class="progress"><i id="bar"></i></div>
+      <div class="foot-row">
+        <div class="brand">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 43c-8.6 0-15-5.4-15-12 0-4.9 4-8.2 8.4-8.2 2.6 0 4.6 1.3 6.6 1.3s4-1.3 6.6-1.3C35 22.8 39 26.1 39 31c0 6.6-6.4 12-15 12Z" fill="currentColor"/>
+            <circle cx="11" cy="18" r="4" fill="currentColor"/>
+            <circle cx="20" cy="11" r="4.4" fill="currentColor"/>
+            <circle cx="31" cy="11" r="4.4" fill="currentColor"/>
+            <circle cx="39.5" cy="18.5" r="4" fill="currentColor"/>
+          </svg>
+          <span>CatClaw 音乐</span>
+        </div>
+        <div class="qr" id="qr"></div>
+      </div>
+    </footer>
+  </div>
+
+  <div class="controls">
+    <button id="toggle">暂停</button>
+    <button id="replay">重播</button>
+    <span class="time" id="time">00:00 / 00:17</span>
+  </div>
+
+<script>
+  // 示例歌词：仅用于版式演示
+  const LINES = [
+    "冲过了湾流与狂烈的风",
+    "就算狼狈嘶哑着喉咙",
+    "也要把星火唱成黎明",
+    "让沉默开出滚烫的花",
+    "我仍在路上 不问归程",
+  ];
+  const LINE_MS = 3400;
+  const TOTAL = LINES.length * LINE_MS;
+
+  const coverUrl = "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=warm%20golden%20hour%20portrait%20of%20a%20young%20east%20asian%20woman%20with%20short%20hair%2C%20soft%20sunlight%2C%20film%20grain%2C%20dreamy%20bokeh%2C%20square%20album%20cover%20art&image_size=square_hd";
+  document.getElementById("bg").src = coverUrl;
+  document.getElementById("cover").src = coverUrl;
+
+  // 歌词节点
+  const lyricsEl = document.getElementById("lyrics");
+  const viewport = document.getElementById("viewport");
+  const nodes = LINES.map(text => {
+    const p = document.createElement("p");
+    p.className = "line";
+    p.textContent = text;
+    lyricsEl.appendChild(p);
+    return p;
+  });
+
+  const bar = document.getElementById("bar");
+  const timeEl = document.getElementById("time");
+  const toggle = document.getElementById("toggle");
+  const replay = document.getElementById("replay");
+
+  let playing = true;
+  let elapsed = 0;
+  let last = performance.now();
+  let activeIndex = -1;
+
+  const fmt = ms => {
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
+  };
+
+  function centerLine(index) {
+    const node = nodes[index];
+    if (!node) return;
+    const target = viewport.clientHeight / 2 - (node.offsetTop + node.offsetHeight / 2);
+    lyricsEl.style.transform = `translateY(${target}px)`;
+  }
+
+  function render() {
+    const looped = elapsed % TOTAL;
+    const index = Math.min(LINES.length - 1, Math.floor(looped / LINE_MS));
+    const p = ((looped % LINE_MS) / LINE_MS) * 100;
+
+    if (index !== activeIndex) {
+      nodes.forEach((n, i) => n.classList.toggle("active", i === index));
+      activeIndex = index;
+      centerLine(index);
+    }
+    nodes[index].style.setProperty("--p", `${p.toFixed(2)}%`);
+
+    bar.style.width = `${(looped / TOTAL) * 100}%`;
+    timeEl.textContent = `${fmt(looped)} / ${fmt(TOTAL)}`;
+  }
+
+  function frame(now) {
+    const dt = now - last;
+    last = now;
+    if (playing) {
+      elapsed += dt;
+      render();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  toggle.addEventListener("click", () => {
+    playing = !playing;
+    toggle.textContent = playing ? "暂停" : "播放";
+    last = performance.now();
+  });
+  replay.addEventListener("click", () => {
+    elapsed = 0; activeIndex = -1; render();
+    if (!playing) { playing = true; toggle.textContent = "暂停"; }
+  });
+
+  // 等封面解码后再定位，避免行高未定时偏移
+  const bg = document.getElementById("bg");
+  const start = () => { centerLine(0); render(); requestAnimationFrame(frame); };
+  bg.complete ? start() : bg.addEventListener("load", start);
+
+  // 二维码占位（与图片卡同一套画法）
+  (function drawQr(){
+    const n = 21, s = 4;
+    let seed = 20261126;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const g = Array.from({length:n}, () => Array(n).fill(0));
+    const finder = (x,y) => {
+      for (let i=0;i<7;i++) for (let j=0;j<7;j++) {
+        const ring = i===0||i===6||j===0||j===6;
+        const core = i>=2&&i<=4&&j>=2&&j<=4;
+        g[y+i][x+j] = ring||core ? 1 : 0;
+      }
+    };
+    finder(0,0); finder(n-7,0); finder(0,n-7);
+    const inFinder = (x,y) => (x<8&&y<8)||(x>=n-8&&y<8)||(x<8&&y>=n-8);
+    for (let y=0;y<n;y++) for (let x=0;x<n;x++) if(!inFinder(x,y)) g[y][x] = rnd()>.52?1:0;
+    let cells = "";
+    for (let y=0;y<n;y++) for (let x=0;x<n;x++) if(g[y][x])
+      cells += `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="currentColor"/>`;
+    document.getElementById("qr").innerHTML =
+      `<svg viewBox="0 0 ${n*s} ${n*s}" xmlns="http://www.w3.org/2000/svg" color="#f7e3c8">${cells}</svg>`;
+  })();
+</script>
+</body>
+</html>

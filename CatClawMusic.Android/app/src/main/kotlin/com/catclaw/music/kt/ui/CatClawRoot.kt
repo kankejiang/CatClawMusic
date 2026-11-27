@@ -81,6 +81,8 @@ import com.catclaw.music.kt.ui.netease.NeteaseMusicScreen
 import com.catclaw.music.kt.ui.library.NeteaseImportViewModel
 import com.catclaw.music.kt.ui.theme.GlassTokens
 import com.catclaw.music.kt.ui.equalizer.SoundEffectsScreen
+import com.catclaw.music.kt.ui.song.SongMenuHost
+import com.catclaw.music.kt.ui.share.ShareOptionsHost
 import com.catclaw.music.kt.ui.screen.QueueScreen
 import com.catclaw.music.kt.ui.screen.SearchScreen
 import com.catclaw.music.kt.ui.screen.SettingsDest
@@ -393,7 +395,8 @@ private fun TabsHost(
 
     // 手动横屏（MAUI `NowPlayingPage` 那颗旋转按钮）：锁 SensorLandscape，让「手机竖着拿、
     // 但想躺着看播放页」不必先去打开系统的自动旋转。状态放在外壳而不是播放页：
-    // 离开播放页就要解锁，而播放页在 pager 预组装下并不会被销毁，它自己察觉不到「已经走了」
+    // 解锁要把 Activity 的 requestedOrientation 一起改回来，播放页自己做不到；
+    // 且它现在**跨越页签保持**（见下面的注释），更不能随页面销毁而丢。
     var manualLandscape by remember { mutableStateOf(false) }
     val activity = LocalContext.current as? Activity
     LaunchedEffect(manualLandscape, activity) {
@@ -406,11 +409,10 @@ private fun TabsHost(
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
-    // 滑走（或按播放页的 ⌄ 收起）就自动解锁：留一个「退出播放页后仍被锁在横屏」的状态，
-    // 用户只能靠系统设置救回来。MAUI 是在返回键里解锁，本端滑动切换更常用，所以在页面落定时解
-    LaunchedEffect(pagerState.settledPage) {
-        if (pagerState.settledPage != PAGE_NOW_PLAYING) manualLandscape = false
-    }
+    // 手动横屏是**全局**状态，切页不解锁。之前一离开播放页就把 manualLandscape 置回 false，
+    // 系统开着「锁定屏幕旋转」时，UNSPECIFIED 会立刻弹回竖屏 —— 用户在横屏播放页点「收起」
+    // 切到发现页时整页翻竖（2026-11-26 反馈）。横屏外壳本来就支持侧栏，保持横屏才是预期。
+    // 退出横屏的入口仍在播放页 ⋮ 菜单里的「横竖屏切换」（此时值为「横屏中」）。
 
     CompositionLocalProvider(
         LocalCatClawPalette provides palette,
@@ -842,16 +844,14 @@ private fun TabsHost(
             // 而 Compose 的 BackHandler 是**后组合者优先**，所以放在这里正好盖过发现页那两条
             BackHandler(enabled = showQueue) { showQueue = false }
             BackHandler(enabled = showSoundFx) { showSoundFx = false }
-            // 队列页：MAUI 是 push 出来的独立页，这里同样盖满整屏并带自己的返回
-            if (showQueue) {                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .catClawBackground()
-                        .statusBarsPadding(),
-                ) {
-                    QueueScreen(viewModel = playingViewModel, onBack = { showQueue = false })
-                }
+            // 队列：底部液态玻璃弹窗（参考网易云队列面板），宿主就在同一窗口，能采到身后的播放页
+            if (showQueue) {
+                QueueScreen(viewModel = playingViewModel, onBack = { showQueue = false })
             }
+            // 歌曲长按菜单：同理放在根层，面板才是真液态玻璃（Dialog 是另一个窗口，采不到背景）
+            SongMenuHost()
+            // 分享二选一：与长按菜单同一套根层 / 液态玻璃语言
+            ShareOptionsHost()
             // 音效页：MAUI 从播放页 modal push 出去，这里同样盖满整屏（不占 pager 槽位）
             if (showSoundFx) {
                 Box(

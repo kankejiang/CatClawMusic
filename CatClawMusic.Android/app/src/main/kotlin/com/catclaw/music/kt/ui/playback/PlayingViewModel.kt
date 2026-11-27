@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -74,6 +75,12 @@ class PlayingViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
     )
+
+    /** 历史播放：PlayHistory 的响应式快照（一行一歌，按最近播放倒序，只含本地曲库里的歌） */
+    val historySongs: StateFlow<List<com.catclaw.music.kt.core.model.Song>> =
+        libraryDao.observeRecentSongs(100)
+            .map { rows -> rows.map { it.toSong() } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 播放页可见性（2026-10-18）：原来这个流用默认 250ms，进度条每秒只动 4 下；
      *  可见时提到 16ms（进度条与横屏歌词都用它），不可见时让出主线程。 */
@@ -149,6 +156,12 @@ class PlayingViewModel @Inject constructor(
     fun seekTo(ms: Long) = controller.seekTo(ms)
 
     fun removeAt(songId: Int) = controller.removeFromQueue(songId)
+
+    /** 播放列表拖动排序：把第 from 首挪到第 to 首（不打断当前曲） */
+    fun moveAt(from: Int, to: Int) = controller.moveInQueue(from, to)
+
+    /** 队列弹窗右上角的垃圾桶：清空并停播（`PlayerController.clearQueue` 的既有语义） */
+    fun clearQueue() = controller.clearQueue()
 
     /** @return 是否已授予悬浮窗权限；未授予时调用方应去设置页申请 */
     fun toggleDesktopLyric(): Boolean {

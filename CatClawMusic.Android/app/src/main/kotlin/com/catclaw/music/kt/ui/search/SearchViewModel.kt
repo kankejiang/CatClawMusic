@@ -148,6 +148,30 @@ class SearchViewModel @Inject constructor(
         controller.playSongs(songs, startIndex = index)
     }
 
+    /**
+     * 搜索页单击：只把选中这首加入队列并播它。
+     * 不替换、不清空已有播放列表，也不把一屏搜索结果整批灌进去。
+     */
+    fun playOne(list: List<SongListItem>, index: Int) {
+        val item = list.getOrNull(index) ?: return
+        session.ensure()
+        controller.playSingle(item.toSong())
+    }
+
+    /** 在线结果同理：取到直链后只把这一首插进队列 */
+    fun playOnlineOne(list: List<com.catclaw.music.kt.data.netease.OnlineSong>, index: Int) {
+        val picked = list.getOrNull(index) ?: return
+        viewModelScope.launch {
+            session.ensure()
+            val song = com.catclaw.music.kt.data.netease.NeteaseSongMapper.toSong(picked)
+            val url = picked.id.toLongOrNull()?.let { runCatching { resolver.resolve(it).url }.getOrNull() }
+            controller.playSingle(if (url.isNullOrBlank()) song else song.copy(filePath = url))
+        }
+    }
+
+    /** 长按菜单要标「正在播放」：队列当前曲的 id */
+    fun currentSongId(): Int? = controller.state.value.currentSong?.id
+
     /** 随机播放：全库随机起播 */
     fun shuffleAll() {
         val songs = _allSongs.value

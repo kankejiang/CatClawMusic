@@ -65,8 +65,6 @@ import com.catclaw.music.kt.ui.settings.PermissionManagementScreen
 import com.catclaw.music.kt.ui.settings.AiSettingsScreen
 import com.catclaw.music.kt.ui.settings.LocalMusicSettingsScreen
 import com.catclaw.music.kt.ui.download.DownloadsScreen
-import com.catclaw.music.kt.ui.plugin.PluginRow
-import com.catclaw.music.kt.ui.plugin.PluginSettingsViewModel
 import com.catclaw.music.kt.ui.settings.SettingsViewModel
 import com.catclaw.music.kt.data.lyrics.DesktopLyricSettings
 import com.catclaw.music.kt.data.settings.CacheSettings
@@ -86,7 +84,7 @@ import com.catclaw.music.kt.ui.theme.glassCard
  * （音乐库的资料库卡 → 下载管理）。Kotlin 不许 public 函数暴露 internal 参数类型，
  * 而 SettingsScreen 是 public 的，所以这里不能用 internal。
  */
-enum class SettingsDest { Hub, Appearance, DesktopLyric, Plugin, General, Ai, Backup, Permission, DiagnosticLog, About, LocalMusic, Downloads }
+enum class SettingsDest { Hub, Appearance, DesktopLyric, General, Ai, Backup, Permission, DiagnosticLog, About, LocalMusic, Downloads }
 
 /** M4 壳层：设置枢纽页。语言切换以自己的 SharedPreferences 为事实来源（那台 MIUI 没有 locale_manager 服务），51 个语言全在包里。 */
 @Composable
@@ -119,7 +117,6 @@ fun SettingsScreen(
     when (dest) {
         SettingsDest.Appearance -> AppearanceSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
         SettingsDest.DesktopLyric -> DesktopLyricSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
-        SettingsDest.Plugin -> PluginSettingsScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.General -> GeneralSettingsScreen({ dest = SettingsDest.Hub }, viewModel)
         SettingsDest.Ai -> AiSettingsScreen(onBack = { dest = SettingsDest.Hub })
         SettingsDest.Backup -> BackupRestoreScreen(onBack = { dest = SettingsDest.Hub })
@@ -236,8 +233,14 @@ fun SettingsScreen(
                 desc = stringResource(R.string.downloads_subtitle),
                 onClick = { dest = SettingsDest.Downloads },
             )
+        }
+    }
+
+    // 歌词增强（源插件 / 处理规则）与发现页 AI 都归「扩展」：
+    // 它们不是曲库来源，跟着本地/远程音乐放会让「音源」这一组越滚越长。
+    val extGroup: @Composable () -> Unit = {
+        SettingsGroup(title = stringResource(R.string.settings_group_ext)) {
             HubRow(
-                // 复用歌词图标：这是「歌词源」，不是 MAUI 那套插件
                 iconRes = R.drawable.ic_nav_lyrics,
                 title = stringResource(R.string.source_plugin_entry),
                 desc = stringResource(R.string.source_plugin_subtitle),
@@ -248,17 +251,6 @@ fun SettingsScreen(
                 title = stringResource(R.string.lyrico_settings_entry),
                 desc = stringResource(R.string.lyrico_setting_trim_lines_desc),
                 onClick = { lyricoSettingsOpen = true },
-            )
-        }
-    }
-
-    val extGroup: @Composable () -> Unit = {
-        SettingsGroup(title = stringResource(R.string.settings_group_ext)) {
-            HubRow(
-                iconRes = R.drawable.ic_nav_plugin,
-                title = stringResource(R.string.Plugins),
-                desc = stringResource(R.string.plugin_dir_title),
-                onClick = { dest = SettingsDest.Plugin },
             )
             HubRow(
                 iconRes = R.drawable.ic_nav_ai,
@@ -340,93 +332,6 @@ fun SettingsScreen(
             extGroup()
             systemGroup()
         }
-    }
-}
-
-/** 外观子页 —— MAUI `AppearanceSettingsPage`：主题、启动页、自定义背景、三种动态背景 */
-@Composable
-internal fun PluginSettingsScreen(onBack: () -> Unit, viewModel: PluginSettingsViewModel = hiltViewModel()) {
-    val palette = LocalCatClawPalette.current
-    val secondary = Color(palette.textSecondary)
-    val rows by viewModel.rows.collectAsStateWithLifecycle()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-    ) {
-        SubHeader(title = stringResource(R.string.Plugins), onBack = onBack)
-
-        Section(title = stringResource(R.string.plugin_dir_title), color = secondary) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.plugin_dir_path, viewModel.directoryPath()),
-                    fontSize = 12.sp,
-                    color = secondary,
-                    modifier = Modifier.weight(1f),
-                )
-                PillLabel(
-                    text = stringResource(R.string.plugin_rescan),
-                    onClick = { viewModel.rescan() },
-                    filled = false,
-                )
-            }
-            if (rows.isNotEmpty()) {
-                // 「几个可用 / 一共几个」——扫描完先看总量，再逐条看状态
-                Text(
-                    text = stringResource(R.string.plugin_summary, rows.count { it.usable }, rows.size),
-                    fontSize = 12.sp,
-                    color = secondary,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
-            if (rows.isEmpty()) {
-                EmptyState(
-                    hint = stringResource(R.string.plugin_empty),
-                    iconRes = R.drawable.ic_settings,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            rows.forEach { row -> PluginEntryRow(row) }
-        }
-    }
-}
-
-@Composable
-internal fun PluginEntryRow(row: PluginRow) {
-    val palette = LocalCatClawPalette.current
-    val status = if (row.usable) Color(highlightOnGlassCard(palette)) else Color(palette.textSecondary)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = row.name + " " + row.version,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(palette.textPrimary),
-        )
-        Text(
-            text = if (row.capabilities.isBlank()) {
-                stringResource(R.string.plugin_no_caps)
-            } else {
-                stringResource(R.string.plugin_caps, row.capabilities)
-            },
-            fontSize = 12.sp,
-            color = Color(palette.textSecondary),
-        )
-        Text(
-            text = when (row.statusArgs.size) {
-                2 -> stringResource(row.statusRes, row.statusArgs[0], row.statusArgs[1])
-                1 -> stringResource(row.statusRes, row.statusArgs[0])
-                else -> stringResource(row.statusRes)
-            },
-            fontSize = 12.sp,
-            color = status,
-        )
     }
 }
 

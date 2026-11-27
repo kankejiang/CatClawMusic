@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -696,6 +697,7 @@ internal fun SongRows(
     primary: Color,
     secondary: Color,
     onClick: (Int) -> Unit,
+    onLongClick: ((Int) -> Unit)? = null,
 ) {
     if (rows.isEmpty()) return
     SectionHead(title)
@@ -705,7 +707,9 @@ internal fun SongRows(
             .glassCard(palette = LocalCatClawPalette.current, corner = 26)
             .padding(6.dp),
     ) {
-        rows.forEachIndexed { index, song -> SongRowItem(song, index, primary, secondary, onClick) }
+        rows.forEachIndexed { index, song ->
+            SongRowItem(song, index, primary, secondary, onClick, onLongClick)
+        }
     }
 }
 
@@ -716,12 +720,16 @@ internal fun SongRowItem(
     primary: Color,
     secondary: Color,
     onClick: (Int) -> Unit,
+    onLongClick: ((Int) -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick(index) }
+            .combinedClickable(
+                onClick = { onClick(index) },
+                onLongClick = onLongClick?.let { { it(index) } },
+            )
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -843,11 +851,12 @@ internal fun OnlineResultRow(
     primary: Color,
     secondary: Color,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 18.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

@@ -1,5 +1,6 @@
 package com.catclaw.music.kt.ui.song
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,23 +43,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.core.model.Song
 import com.catclaw.music.kt.ui.player.CoverTile
+import com.catclaw.music.kt.ui.share.openShareOptions
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.highlightOnGlassCard
 import com.catclaw.music.kt.ui.theme.inkOn
 import com.catclaw.music.kt.ui.theme.PillLabel
-import com.catclaw.music.kt.ui.theme.glassCard
+import com.catclaw.music.kt.ui.theme.liquidGlass
 import kotlinx.coroutines.launch
 
 /**
@@ -107,9 +108,9 @@ data class SongMenuSection(val title: String, val items: List<SongMenuItem>)
  * `PillLabel`：能读，但不像这个应用的东西 —— 方框居中、没有封面、没有分组层次、
  * 也没有别处的「彩色图标块 + 玻璃面」那套语言。
  *
- * 现在的形状是**底部弹层**：遮罩 + 玻璃面板（`glassCard`）+ 抓手 + 封面头 + ✦ 分节 + 彩色图标行。
+ * 现在的形状是**底部弹层**：遮罩 + 液态玻璃面板（`liquidGlass`）+ 抓手 + 封面头 + ✦ 分节 + 彩色图标行。
  * 为什么不是 `ModalBottomSheet`：它自带一套 M3 配色与圆角，和这里的玻璃语言打架；
- * 用 `Dialog(usePlatformDefaultWidth = false)` 自己画，既能浮在页面之上，又只用自己的零件。
+ * 这里自己画整屏层（遮罩 + 底部面板），由 `CatClawRoot` 根层渲染 —— 只有与背景录制层同级才能采到真玻璃。
  *
  * 三个可选项传 null 就不画：摆一个点了不动的项，比少摆一项更糟。
  */
@@ -152,10 +153,11 @@ fun SongActionMenu(
         return
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
+    // 面板直接画在宿主窗口里（不再用 Dialog）：Dialog 是另一个窗口，液态玻璃采样不到身后的页面，
+    // 会静默退回实心档。现在这一层由 CatClawRoot 根层渲染 —— 与背景录制层同级，才是真玻璃。
+    // Dialog 原本自带返回键处理，换成整屏层后要自己接。
+    BackHandler(onBack = onDismiss)
+    Box(modifier = Modifier.fillMaxSize()) {
         // 进场：面板从下方滑入 + 淡入。出场不做 —— 关掉就是关掉，多一帧动画反而慢
         var entered by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { entered = true }
@@ -185,9 +187,11 @@ fun SongActionMenu(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // 根层不铺系统栏留白（与队列弹窗同一处理），面板自己抬到手势区之上
+                            .navigationBarsPadding()
                             .padding(horizontal = 10.dp, vertical = 12.dp)
                             .heightIn(max = panelCap)
-                            .glassCard(palette = palette, corner = 28)
+                            .liquidGlass(palette = palette, corner = 28)
                         // 同上：吃掉面板上的点击，别穿透到遮罩
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -587,8 +591,6 @@ fun SongMenuFor(
     libraryActions: Boolean = true,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val shareUri = shareUriFor(context, target.song.filePath)
     val belongs = menu.onOpenBelongs
 
     fun openBelongs(kind: SongBelongsKind, name: String) {
@@ -600,34 +602,65 @@ fun SongMenuFor(
         }
     }
 
-    SongActionMenu(
-        target = target,
-        isFavorite = target.id in menu.favoriteIds,
-        playlists = menu.playlists,
-        onToggleFavorite = { menu.onToggleFavorite(target.id) },
-        onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, target.id) },
-        onPlayNext = { menu.onPlayNext(target.song) },
-        onShare = if (shareUri == null) {
-            null
-        } else {
-            { openShareSheet(context, shareUri, target.title, target.song.artist) }
-        },
-        onOpenArtist = if (belongs != null && target.song.artist.isNotBlank()) {
-            { openBelongs(SongBelongsKind.Artist, target.song.artist) }
-        } else {
-            null
-        },
-        onOpenAlbum = if (belongs != null && target.song.album.isNotBlank()) {
-            { openBelongs(SongBelongsKind.Album, target.song.album) }
-        } else {
-            null
-        },
-        onOpenDetail = { menu.onOpenDetail(target.id) },
-        onRemoveFromPlaylist = menu.onRemoveFromPlaylist?.let { remove -> { remove(target.id) } },
-        sections = sections,
-        libraryActions = libraryActions,
-        onDismiss = onDismiss,
-    )
+    // 菜单本体交给 [SongMenuHost] 在根层画：只有根层（与背景录制层同级）才能用真液态玻璃。
+    // 用 DisposableEffect 登记：同一 target 重组不重复登记，目标消失时顺手摘掉根层那份。
+    DisposableEffect(target) {
+        val request = SongMenuRequest(target = target, onDismiss = onDismiss) { dismiss ->
+            SongActionMenu(
+                target = target,
+                isFavorite = target.id in menu.favoriteIds,
+                playlists = menu.playlists,
+                onToggleFavorite = { menu.onToggleFavorite(target.id) },
+                onAddToPlaylist = { playlistId -> menu.onAddToPlaylist(playlistId, target.id) },
+                onPlayNext = { menu.onPlayNext(target.song) },
+                // 分享不再依赖「对方能读到原文件」：导出的是我们自己生成的图片/视频
+                onShare = { openShareOptions(target.song, target.isCurrent) },
+                onOpenArtist = if (belongs != null && target.song.artist.isNotBlank()) {
+                    { openBelongs(SongBelongsKind.Artist, target.song.artist) }
+                } else {
+                    null
+                },
+                onOpenAlbum = if (belongs != null && target.song.album.isNotBlank()) {
+                    { openBelongs(SongBelongsKind.Album, target.song.album) }
+                } else {
+                    null
+                },
+                onOpenDetail = { menu.onOpenDetail(target.id) },
+                onRemoveFromPlaylist = menu.onRemoveFromPlaylist?.let { remove -> { remove(target.id) } },
+                sections = sections,
+                libraryActions = libraryActions,
+                onDismiss = dismiss,
+            )
+        }
+        pendingSongMenu = request
+        onDispose { if (pendingSongMenu === request) pendingSongMenu = null }
+    }
+}
+
+/**
+ * 一次长按菜单请求。面板由 [SongMenuHost] 在窗口根层绘制 ——
+ * Dialog / Popup 都是另一个窗口，`liquidGlass` 采不到身后的页面，会静默退回实心档。
+ */
+class SongMenuRequest(
+    val target: SongMenuTarget,
+    val onDismiss: () -> Unit,
+    val content: @Composable (dismiss: () -> Unit) -> Unit,
+)
+
+/** 根层唯一挂点：同一时刻只允许一个长按菜单 */
+private var pendingSongMenu by mutableStateOf<SongMenuRequest?>(null)
+
+/**
+ * 长按菜单的根层宿主。放在 `CatClawRoot` 的覆盖层里（与播放队列弹窗同级），
+ * 这样面板才是同一窗口、录制层兄弟节点上的真液态玻璃。
+ */
+@Composable
+fun SongMenuHost() {
+    val request = pendingSongMenu ?: return
+    request.content {
+        pendingSongMenu = null
+        request.onDismiss()
+    }
 }
 
 /**

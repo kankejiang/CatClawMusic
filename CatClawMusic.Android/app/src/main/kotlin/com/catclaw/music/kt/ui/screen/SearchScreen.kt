@@ -64,11 +64,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.catclaw.music.kt.R
 import com.catclaw.music.kt.ui.player.CoverTile
 import com.catclaw.music.kt.data.db.SongListItem
+import com.catclaw.music.kt.data.db.toSong
+import com.catclaw.music.kt.data.netease.NeteaseSongMapper
 import com.catclaw.music.kt.ui.chat.ChatScreen
 import com.catclaw.music.kt.ui.stats.ListeningStatsScreen
 import com.catclaw.music.kt.ui.library.LibraryViewModel
 import com.catclaw.music.kt.ui.search.SearchViewModel
 import com.catclaw.music.kt.ui.song.SongDetailScreen
+import com.catclaw.music.kt.ui.song.SongMenuFor
+import com.catclaw.music.kt.ui.song.SongMenuTarget
+import com.catclaw.music.kt.ui.song.rememberSongMenu
+import com.catclaw.music.kt.ui.song.songMenuSubtitle
 import com.catclaw.music.kt.ui.theme.LocalCatClawPalette
 import com.catclaw.music.kt.ui.theme.GlassChip
 import com.catclaw.music.kt.ui.theme.EmptyState
@@ -107,8 +113,6 @@ fun SearchScreen(
     LaunchedEffect(active) { if (active) viewModel.refreshNeteaseLogin() }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
-    val onlineResults by viewModel.onlineResults.collectAsStateWithLifecycle()
-    val onlineLoading by viewModel.onlineLoading.collectAsStateWithLifecycle()
     val sections by viewModel.sections.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
@@ -134,24 +138,19 @@ fun SearchScreen(
     BackHandler(enabled = songDetailId != null && active) { songDetailId = null }
     // 点搜索进独立搜索页（与二级页同一套行为），不再原地展开
     var searchPage by rememberSaveable { mutableStateOf(false) }
-    // 独立搜索页也是整屏覆盖层：不接返回键会直接退出应用
-    BackHandler(enabled = searchPage && active) { searchPage = false }
+    // 独立搜索页整屏覆盖；返回键由页面自己接（见 DiscoverSearchPageHost，关闭时顺带清空输入）
 
     LaunchedEffect(active) { if (active) viewModel.activate() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (searchPage) {
-            DiscoverSearchPage(
-                query = query,
-                results = results,
-                online = onlineResults,
-                onlineLoading = onlineLoading,
-                onQueryChange = viewModel::setQuery,
-                onClose = { searchPage = false },
-                onPlay = { viewModel.play(results, it) },
-                onPlayOnline = { viewModel.playOnline(onlineResults, it) },
+            // 独立搜索页自带一份 ViewModel（key 区分，不共用发现页那份）：
+            // 输入内容、结果都归搜索页自己，返回发现页不会把发现页换成搜索结果
+            DiscoverSearchPageHost(
                 primary = primary,
                 secondary = secondary,
+                libraryViewModel = libraryViewModel,
+                onClose = { searchPage = false },
             )
             return@Box
         }
@@ -235,7 +234,13 @@ fun SearchScreen(
                     }
                 } else {
                     item("results") {
-                        SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { viewModel.play(results, it) }
+                        SongRows(
+                            title = stringResource(R.string.TabSongs),
+                            rows = results,
+                            primary = primary,
+                            secondary = secondary,
+                            onClick = { viewModel.playOne(results, it) },
+                        )
                     }
                 }
             } else {
@@ -266,37 +271,162 @@ fun SearchScreen(
 
         // 歌手/专辑下钻与歌曲详情：与统计页同一写法 —— 这一层自己铺背景并接管状态栏留白。
         // 少铺一层底，真机上就是两页文字直接叠在一起（队列页/音效页都踩过同一个坑）。
-        if (detail != null || songDetailId != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .catClawBackground()
-                    .statusBarsPadding(),
-            ) {
-                val openSongId = songDetailId
-                if (openSongId != null) {
-                    // 详情页是全页，托管在这一层而不是列表里：否则它会叠在下钻页的头下面，出现两个返回键
-                    SongDetailScreen(
-                        songId = openSongId,
-                        load = { libraryViewModel.songDetail(it) },
-                        loadLyrics = { libraryViewModel.lyricsFor(it) },
-                        onPlay = { libraryViewModel.playSongById(it) },
-                        onBack = { songDetailId = null },
-                    )
-                } else {
-                    detail?.let { target ->
-                        LibraryDetailScreen(
-                            detail = target,
-                            onBack = { detail = null },
-                            onOpenSong = { songDetailId = it },
-                            // 下钻页里再点归属（专辑页 → 歌手页）时替换本层，不叠新的
-                            onOpenDetail = { detail = it },
-                            viewModel = libraryViewModel,
-                        )
-                    }
-                }
+        SongDrillOverlay(
+            detail = detail,
+            songDetailId = songDetailId,
+            viewModel = libraryViewModel,
+            onCloseDetail = { detail = null },
+            onCloseSong = { songDetailId = null },
+            onOpenSong = { songDetailId = it },
+            onOpenDetail = { detail = it },
+        )
+    }
+}
+
+/**
+ * 歌曲详情 / 歌手·专辑下钻这一层。发现页与独立搜索页共用 ——
+ * 搜索页是整屏覆盖层，下钻必须托管在它自己这一侧，否则会先关掉搜索、把结果丢光。
+ */
+@Composable
+internal fun SongDrillOverlay(
+    detail: LibraryDetail?,
+    songDetailId: Int?,
+    viewModel: LibraryViewModel,
+    onCloseDetail: () -> Unit,
+    onCloseSong: () -> Unit,
+    onOpenSong: (Int) -> Unit,
+    onOpenDetail: (LibraryDetail) -> Unit,
+) {
+    if (detail == null && songDetailId == null) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .catClawBackground()
+            .statusBarsPadding(),
+    ) {
+        if (songDetailId != null) {
+            // 详情页是全页，托管在这一层而不是列表里：否则它会叠在下钻页的头下面，出现两个返回键
+            SongDetailScreen(
+                songId = songDetailId,
+                load = { viewModel.songDetail(it) },
+                loadLyrics = { viewModel.lyricsFor(it) },
+                onPlay = { viewModel.playSongById(it) },
+                onBack = onCloseSong,
+            )
+        } else {
+            detail?.let { target ->
+                LibraryDetailScreen(
+                    detail = target,
+                    onBack = onCloseDetail,
+                    onOpenSong = onOpenSong,
+                    // 下钻页里再点归属（专辑页 → 歌手页）时替换本层，不叠新的
+                    onOpenDetail = onOpenDetail,
+                    viewModel = viewModel,
+                )
             }
         }
+    }
+}
+
+/**
+ * 独立搜索页的宿主：输入内容与本地/在线结果都由这一页自己的 [SearchViewModel] 承载。
+ *
+ * 之前它跟发现页共用同一个 ViewModel，返回发现页后 `query` 还留着，
+ * 发现页看到「query 非空」就把整个首页换成了搜索结果（真机上就是「发现」页只剩一列歌）。
+ * 带 key 拿到的是另一份实例，与发现页完全隔离；关闭（返回箭头 / 系统返回键）时清空输入，
+ * 下次进入从空白开始。
+ */
+@Composable
+private fun DiscoverSearchPageHost(
+    primary: Color,
+    secondary: Color,
+    libraryViewModel: LibraryViewModel,
+    onClose: () -> Unit,
+) {
+    val searchViewModel: SearchViewModel = hiltViewModel(key = "discover_search_page")
+    val query by searchViewModel.query.collectAsStateWithLifecycle()
+    val results by searchViewModel.results.collectAsStateWithLifecycle()
+    val online by searchViewModel.onlineResults.collectAsStateWithLifecycle()
+    val onlineLoading by searchViewModel.onlineLoading.collectAsStateWithLifecycle()
+    val close = {
+        searchViewModel.setQuery("")
+        onClose()
+    }
+
+    // 下钻托管在搜索页自己这里：搜索页是整屏覆盖层，交给发现页托管会先关掉搜索、把结果丢光
+    var songDetailId by remember { mutableStateOf<Int?>(null) }
+    var drill by remember { mutableStateOf<LibraryDetail?>(null) }
+
+    // 长按菜单：本地与在线共用同一套动作；在线曲只保留「下一首播放」（libraryActions=false）
+    var menuTarget by remember { mutableStateOf<SongMenuTarget?>(null) }
+    var menuIsLocal by remember { mutableStateOf(true) }
+    val menu = rememberSongMenu(
+        viewModel = libraryViewModel,
+        onOpenBelongs = { drill = it.toLibraryDetail() },
+        onOpenDetail = { songDetailId = it },
+    )
+
+    // 顺序有讲究：先注册关闭，再注册下钻两层 —— BackHandler 后注册的优先
+    BackHandler(onBack = close)
+    BackHandler(enabled = drill != null) { drill = null }
+    BackHandler(enabled = songDetailId != null) { songDetailId = null }
+
+    Box(Modifier.fillMaxSize()) {
+        DiscoverSearchPage(
+            query = query,
+            results = results,
+            online = online,
+            onlineLoading = onlineLoading,
+            onQueryChange = searchViewModel::setQuery,
+            onClose = close,
+            // 单击只播这一首：加入队列但不替换/清空已有播放列表
+            onPlay = { searchViewModel.playOne(results, it) },
+            onPlayOnline = { searchViewModel.playOnlineOne(online, it) },
+            onLongPressLocal = { index ->
+                results.getOrNull(index)?.let {
+                    menuIsLocal = true
+                    menuTarget = SongMenuTarget(
+                        id = it.id,
+                        title = it.title,
+                        subtitle = songMenuSubtitle(it.artist, it.album),
+                        song = it.toSong(),
+                        isCurrent = it.id == searchViewModel.currentSongId(),
+                    )
+                }
+            },
+            onLongPressOnline = { index ->
+                online.getOrNull(index)?.let {
+                    val song = NeteaseSongMapper.toSong(it)
+                    menuIsLocal = false
+                    menuTarget = SongMenuTarget(
+                        id = song.id,
+                        title = it.title,
+                        subtitle = songMenuSubtitle(it.artist, it.album),
+                        song = song,
+                        isCurrent = song.id == searchViewModel.currentSongId(),
+                    )
+                }
+            },
+            primary = primary,
+            secondary = secondary,
+        )
+        menuTarget?.let { target ->
+            SongMenuFor(
+                target = target,
+                menu = menu,
+                libraryActions = menuIsLocal,
+                onDismiss = { menuTarget = null },
+            )
+        }
+        SongDrillOverlay(
+            detail = drill,
+            songDetailId = songDetailId,
+            viewModel = libraryViewModel,
+            onCloseDetail = { drill = null },
+            onCloseSong = { songDetailId = null },
+            onOpenSong = { songDetailId = it },
+            onOpenDetail = { drill = it },
+        )
     }
 }
 

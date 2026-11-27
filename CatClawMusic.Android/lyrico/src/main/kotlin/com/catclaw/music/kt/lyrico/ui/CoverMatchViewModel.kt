@@ -109,6 +109,8 @@ class CoverMatchViewModel @Inject constructor(
                 .getOrElse { CoverWriteOutcome.Failed(it.message ?: it.javaClass.simpleName) }
             val msg = when (outcome) {
                 is CoverWriteOutcome.Success -> "已写入封面（${outcome.bytes / 1024} KB）"
+                is CoverWriteOutcome.AppOnly ->
+                    "${outcome.reason}，已保存为应用内封面（${outcome.bytes / 1024} KB）"
                 is CoverWriteOutcome.Unsupported -> "无法写入：${outcome.reason}"
                 is CoverWriteOutcome.Failed -> "写入失败：${outcome.message}"
             }

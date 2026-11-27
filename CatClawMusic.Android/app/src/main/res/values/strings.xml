@@ -3,12 +3,19 @@
     <!-- 以下是 Kotlin 端新增文案（MAUI 资源里没有对应键）；
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">未在播放</string>
-    <string name="queue_title">播放列表</string>
-    <string name="queue_songs">%1$d 首歌曲</string>
     <string name="queue_empty">队列为空</string>
     <string name="queue_back">返回</string>
     <string name="queue_remove">从队列移除</string>
     <string name="queue_open">打开播放列表</string>
+    <string name="queue_clear">清空队列</string>
+    <string name="queue_current">当前播放</string>
+    <string name="queue_history">历史播放</string>
+    <string name="queue_history_empty">暂无播放历史</string>
+    <string name="queue_drag">拖动排序</string>
+    <string name="queue_clear_confirm_title">清空播放列表？</string>
+    <string name="queue_clear_confirm_body">将停止播放并清空当前队列，此操作不可撤销。</string>
+    <string name="queue_clear_confirm_action">清空</string>
+    <string name="queue_cancel">取消</string>
     <string name="mode_change">切换播放模式</string>
     <string name="prev_song">上一曲</string>
     <string name="next_song">下一曲</string>
@@ -307,9 +314,36 @@
     <string name="detail_source_webdav">WebDAV</string>
     <string name="detail_source_smb">SMB</string>
     <string name="detail_source_cache">已缓存</string>
+    <string name="detail_source_online">在线</string>
     <string name="song_menu_detail">歌曲信息</string>
     <string name="song_menu_play_next">下一首播放</string>
     <string name="song_menu_share">分享</string>
+    <string name="share_title">分享</string>
+    <string name="share_image_title">分享高光歌词</string>
+    <string name="share_image_subtitle">1080 × 1240 图片</string>
+    <string name="share_video_title">分享歌词视频</string>
+    <string name="share_video_subtitle">9:16 竖屏 · 时长跟随所选歌词</string>
+    <string name="share_cancel">取消</string>
+    <string name="share_exporting">正在导出…</string>
+    <string name="share_cancel_export">取消导出</string>
+    <string name="share_no_lyrics">这首歌还没有歌词</string>
+    <string name="share_export_failed">导出失败，请重试</string>
+    <string name="share_chooser_title">分享</string>
+    <string name="share_pick_lyrics">选择歌词</string>
+    <string name="share_pick_hint_image">最多选择 2 行</string>
+    <string name="share_pick_hint_video">点第一行和最后一行，中间自动连续</string>
+    <string name="share_generate_image">生成图片</string>
+    <string name="share_generate_video">生成视频</string>
+    <string name="share_back">返回</string>
+    <string name="share_loading_lyrics">正在读取歌词…</string>
+    <string name="share_preview_hint">试看中 · 确认画面和声音后再分享</string>
+    <string name="share_preview_image_hint">预览效果 · 确认后再分享</string>
+    <string name="share_preview_no_audio">未加入音频：%1$s</string>
+    <string name="share_preview_reselect">重选</string>
+    <string name="share_confirm_share">分享</string>
+    <string name="share_save">保存</string>
+    <string name="share_saved">已保存到相册</string>
+    <string name="share_save_failed">保存失败，请检查存储权限</string>
     <string name="song_menu_open_artist">查看歌手</string>
     <string name="song_menu_open_album">查看专辑</string>
     <string name="song_menu_remove_from_playlist">从歌单移除</string>
@@ -522,6 +556,8 @@
 
     <string name="detail_file_path">文件路径</string>
     <string name="detail_lyrics_scroll">可滚动</string>
+    <string name="detail_lyrics_view_all">查看全部 %1$d 行</string>
+    <string name="detail_lyrics_collapse">收起</string>
     <string name="detail_play_this">播放此曲</string>
     <string name="detail_copy_path">复制文件路径</string>
     <string name="detail_path_copied">路径已复制</string>
@@ -648,6 +684,7 @@
     <string name="downloads_concurrency">并发下载数</string>
     <string name="downloads_speed_unlimited">不限</string>
     <string name="song_menu_section_song">歌曲</string>
+    <string name="song_menu_section_playback">播放设置</string>
     <string name="song_menu_section_about">关于这首歌</string>
     <string name="menu_landscape_on">横屏中</string>
     <string name="view_list">列表</string>

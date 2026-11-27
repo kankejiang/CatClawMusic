@@ -125,7 +125,8 @@ object LyricoModule {
         @ApplicationContext context: Context,
         coverSearch: CoverSearchService,
         coverVersion: com.catclaw.music.kt.data.media.CoverVersion,
-    ): CoverWriter = CoverWriter(coverVersion, context, coverSearch)
+        dao: LibraryDao,
+    ): CoverWriter = CoverWriter(coverVersion, context, coverSearch, dao)
 
     @Provides
     @Singleton

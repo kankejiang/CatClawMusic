@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
+import android.os.ParcelFileDescriptor
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
@@ -22,8 +23,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.catclaw.music.kt.data.media.CoverFormats
 import com.catclaw.music.kt.data.media.CoverVersion
 import com.catclaw.music.kt.data.media.RemoteImages
+import com.catclaw.music.kt.lyrico.write.SafeTagWriter
+import com.lonx.audiotag.rw.AudioTagReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -80,22 +84,39 @@ private fun fetchUrl(url: String): ByteArray? = RemoteImages.fetchBytes(url)
 /** 远程音频的**内嵌**封面：NAS 上没有侧车图时，图就在标签里（FLAC PICTURE / MP3 APIC） */
 private fun remoteEmbeddedPicture(url: String): ByteArray? = RemoteImages.fetchEmbeddedCover(url)
 
-/** 从音频文件里抠内嵌封面。content:// 与裸路径两种都要支持，因为本地曲两种都存在库里。 */
-private fun embeddedPicture(context: Context, audioPath: String, maxPx: Int): Bitmap? = runCatching {
-    val retriever = MediaMetadataRetriever()
-    try {
-        if (audioPath.startsWith("content://")) {
-            retriever.setDataSource(context, android.net.Uri.parse(audioPath))
-        } else {
-            val file = File(audioPath)
-            if (!file.isFile) return null
-            retriever.setDataSource(file.absolutePath)
+/**
+ * 从音频文件里抠内嵌封面。content:// 与裸路径两种都要支持，因为本地曲两种都存在库里。
+ *
+ * WAV/AIFF 的封面存在 RIFF 的 `ID3 ` 块里，Android 的解析器（MediaMetadataRetriever）
+ * 不认这个块，系统读不到不代表文件里没有 —— 这类容器改用 TagLib 兜底读，
+ * 否则封面匹配明明写成功了，界面却永远只有首字母。
+ */
+private suspend fun embeddedPicture(context: Context, audioPath: String, maxPx: Int): Bitmap? {
+    val fromSystem = runCatching {
+        val retriever = MediaMetadataRetriever()
+        try {
+            if (audioPath.startsWith("content://")) {
+                retriever.setDataSource(context, android.net.Uri.parse(audioPath))
+            } else {
+                val file = File(audioPath)
+                if (!file.isFile) return@runCatching null
+                retriever.setDataSource(file.absolutePath)
+            }
+            retriever.embeddedPicture?.let { decodeBytes(it, maxPx) }
+        } finally {
+            runCatching { retriever.release() }
         }
-        retriever.embeddedPicture?.let { decodeBytes(it, maxPx) }
-    } finally {
-        runCatching { retriever.release() }
-    }
-}.getOrNull()
+    }.getOrNull()
+    if (fromSystem != null) return fromSystem
+
+    // 本地曲的 FilePath 是 MediaStore 的 content:// URI，不能只看后缀 —— 统一交给 CoverFormats 判定
+    if (!CoverFormats.isRiffId3Format(context, audioPath)) return null
+    val bytes = SafeTagWriter.readSafely(context, audioPath) { pfd: ParcelFileDescriptor ->
+        AudioTagReader.readPicture(pfd)
+    } ?: return null
+    if (bytes.isEmpty()) return null
+    return decodeBytes(bytes, maxPx)
+}
 
 /**
  * 远程音频的**内嵌**封面：只在 [audioPath] 是 http(s) 时有意义。
@@ -129,8 +150,12 @@ private suspend fun load(
     audioPath: String?,
     songId: Int,
     maxPx: Int,
+    version: Int,
 ): Bitmap? = withContext(Dispatchers.IO) {
-    val key = "$coverArtPath|$audioPath|$songId|$maxPx"
+    // 版本号必须进 key：封面匹配/补全写的是音频内嵌图，路径字符串没变，
+    // 只 bump 版本号的情况下若沿用旧 key，内存 LRU 会直接命中写入前的那张图 ——
+    // 表现就是「封面写进去了但界面不变，重启才生效」。带上版本号才会真的重读文件。
+    val key = "$coverArtPath|$audioPath|$songId|$maxPx|v$version"
     memoryCache.get(key)?.let { return@withContext it }
     val attempts = ArrayList<Bitmap?>(3)
     coverArtPath?.takeIf { it.isNotBlank() }?.let { path ->
@@ -155,6 +180,19 @@ private suspend fun load(
     memoryCache.put(key, bitmap)
     bitmap
 }
+
+/**
+ * 非 Compose 场景（分享导出）取封面：与 [rememberCover] 同一套来源与解码顺序。
+ *
+ * 不订阅封面版本号 —— 导出是一次性的快照，用到的是「此刻能读到哪张图」。
+ */
+internal suspend fun loadCoverBitmap(
+    context: Context,
+    coverArtPath: String?,
+    audioPath: String?,
+    songId: Int,
+    maxPx: Int = 512,
+): Bitmap? = load(context, coverArtPath, audioPath, songId, maxPx, version = 0)
 
 /**
  * 订阅「封面可能变了」的版本号。
@@ -214,7 +252,7 @@ fun rememberCover(
     // 回到前台的重试计数，作为 produceState 的 key
     var resumeTick by remember { mutableStateOf(0) }
     val cover by produceState<Bitmap?>(null, coverArtPath, audioPath, maxPx, songId, version, resumeTick) {
-        value = load(context, coverArtPath, audioPath, songId, maxPx)
+        value = load(context, coverArtPath, audioPath, songId, maxPx, version)
     }
     if (retryWhenMissing) {
         // 首帧组合时 lifecycle 已 RESUMED，addObserver 会补发一次 ON_RESUME；

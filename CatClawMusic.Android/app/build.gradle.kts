@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.nextlib.media3ext)
     implementation(libs.backdrop)
     // 背景模糊现成方案：替代自研的 RenderEffect 图层方案（后者真机不生效）
     implementation(libs.haze.android)

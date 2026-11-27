@@ -150,7 +150,7 @@
     <string name="SelectThisDir">选择此目录</string>
     <string name="Settings">设置</string>
     <string name="SettingsEntry">设置</string>
-    <string name="SettingsSubtitle">切换主题、管理音乐来源与插件，把猫爪音乐打磨成你喜欢的样子。</string>
+    <string name="SettingsSubtitle">切换主题、管理音乐来源与歌词，把猫爪音乐打磨成你喜欢的样子。</string>
     <string name="Sync">同步</string>
     <string name="SystemAndMaintenance">系统与维护</string>
     <string name="TabAlbums">专辑</string>

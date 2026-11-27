@@ -3,12 +3,19 @@
     <!-- 以下是 Kotlin 端新增文案（MAUI 资源里没有对应键）；
          tab / 页面标题等复用 app_resources.xml 里迁移过来的键 -->
     <string name="m1_nothing">Not playing</string>
-    <string name="queue_title">Play Queue</string>
-    <string name="queue_songs">%1$d songs</string>
     <string name="queue_empty">Queue is empty</string>
     <string name="queue_back">Back</string>
     <string name="queue_remove">Remove from queue</string>
     <string name="queue_open">Open play queue</string>
+    <string name="queue_clear">Clear queue</string>
+    <string name="queue_current">Now playing</string>
+    <string name="queue_history">History</string>
+    <string name="queue_history_empty">No play history yet</string>
+    <string name="queue_drag">Drag to reorder</string>
+    <string name="queue_clear_confirm_title">Clear play queue?</string>
+    <string name="queue_clear_confirm_body">Playback will stop and the queue will be emptied. This cannot be undone.</string>
+    <string name="queue_clear_confirm_action">Clear</string>
+    <string name="queue_cancel">Cancel</string>
     <string name="mode_change">Change play mode</string>
     <string name="prev_song">Previous</string>
     <string name="next_song">Next</string>
@@ -307,9 +314,36 @@ Download it from GitHub.</string>
     <string name="detail_source_webdav">WebDAV</string>
     <string name="detail_source_smb">SMB</string>
     <string name="detail_source_cache">Cached</string>
+    <string name="detail_source_online">Online</string>
     <string name="song_menu_detail">Details</string>
     <string name="song_menu_play_next">Play next</string>
     <string name="song_menu_share">Share</string>
+    <string name="share_title">Share</string>
+    <string name="share_image_title">Share lyric card</string>
+    <string name="share_image_subtitle">1080 × 1240 image</string>
+    <string name="share_video_title">Share lyric video</string>
+    <string name="share_video_subtitle">9:16 portrait · length follows selection</string>
+    <string name="share_cancel">Cancel</string>
+    <string name="share_exporting">Exporting…</string>
+    <string name="share_cancel_export">Cancel export</string>
+    <string name="share_no_lyrics">No lyrics for this song</string>
+    <string name="share_export_failed">Export failed, please retry</string>
+    <string name="share_chooser_title">Share</string>
+    <string name="share_pick_lyrics">Choose lyrics</string>
+    <string name="share_pick_hint_image">Pick up to 2 lines</string>
+    <string name="share_pick_hint_video">Tap the first and last line; lines in between are included</string>
+    <string name="share_generate_image">Create image</string>
+    <string name="share_generate_video">Create video</string>
+    <string name="share_back">Back</string>
+    <string name="share_loading_lyrics">Loading lyrics…</string>
+    <string name="share_preview_hint">Preview · share after you confirm</string>
+    <string name="share_preview_image_hint">Preview · share after you confirm</string>
+    <string name="share_preview_no_audio">No audio: %1$s</string>
+    <string name="share_preview_reselect">Reselect</string>
+    <string name="share_confirm_share">Share</string>
+    <string name="share_save">Save</string>
+    <string name="share_saved">Saved to gallery</string>
+    <string name="share_save_failed">Save failed, please check storage permission</string>
     <string name="song_menu_open_artist">View artist</string>
     <string name="song_menu_open_album">View album</string>
     <string name="song_menu_remove_from_playlist">Remove from playlist</string>
@@ -522,6 +556,8 @@ Download it from GitHub.</string>
 
     <string name="detail_file_path">File path</string>
     <string name="detail_lyrics_scroll">Scrollable</string>
+    <string name="detail_lyrics_view_all">View all %1$d lines</string>
+    <string name="detail_lyrics_collapse">Collapse</string>
     <string name="detail_play_this">Play this song</string>
     <string name="detail_copy_path">Copy file path</string>
     <string name="detail_path_copied">Path copied</string>
@@ -648,6 +684,7 @@ Download it from GitHub.</string>
     <string name="downloads_concurrency">Concurrent downloads</string>
     <string name="downloads_speed_unlimited">Unlimited</string>
     <string name="song_menu_section_song">Song</string>
+    <string name="song_menu_section_playback">Playback</string>
     <string name="song_menu_section_about">About this song</string>
     <string name="menu_landscape_on">Landscape</string>
     <string name="view_list">List</string>

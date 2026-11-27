@@ -34,6 +34,13 @@ data class CoverCandidate(
 /** 封面写入结果。 */
 sealed interface CoverWriteOutcome {
     data class Success(val bytes: Int) : CoverWriteOutcome
+
+    /**
+     * 没能写进音频标签（典型：WAV/AIFF 没有 ID3v2 块，TagLib 的 `tag()` 是 TagUnion，
+     * 对 PICTURE 复杂属性只能落到默认实现返回 false），退而落盘成应用内封面。
+     * 应用内所有封面位与通知栏 artwork 都读 [Song.coverArtPath]，效果与内嵌一致。
+     */
+    data class AppOnly(val bytes: Int, val reason: String) : CoverWriteOutcome
     data class Unsupported(val reason: String) : CoverWriteOutcome
     data class Failed(val message: String) : CoverWriteOutcome
 }
@@ -121,7 +128,7 @@ class CoverSearchService(
     }
 }
 
-/** 把封面写进音频内嵌标签。 */
+/** 把封面写进音频内嵌标签；写不进（WAV/AIFF 等）就落盘成应用内封面。 */
 class CoverWriter(
     /**
      * 封面写入后要 bump 版本号，让所有显示封面的地方（播放页大图、列表行、
@@ -130,6 +137,7 @@ class CoverWriter(
     private val coverVersion: com.catclaw.music.kt.data.media.CoverVersion,
     private val context: Context,
     private val coverSearch: CoverSearchService,
+    private val dao: com.catclaw.music.kt.data.db.LibraryDao,
 ) {
 
     suspend fun write(song: Song, candidate: CoverCandidate): CoverWriteOutcome =
@@ -148,6 +156,17 @@ class CoverWriter(
             if (bytes.isEmpty()) return@withContext CoverWriteOutcome.Failed("封面内容为空")
 
             val mime = sniffImageMime(bytes) ?: "image/jpeg"
+
+            // WAV/AIFF 这类容器在 TagLib 里 `tag()` 是 TagUnion，PICTURE 这个复杂属性
+            // 没有实现（默认返回 false），而 JNI 又只把 file->save() 的结果当成功，
+            // 所以「写了但没写进去」。再加上 SafeTagWriter 会整份复制源文件
+            // （75MB 的 WAV 就是 75MB 无谓拷贝），不如直接落盘成应用内封面。
+            // 本地曲的 FilePath 是 content:// URI，格式判定不能看后缀，统一走 CoverFormats。
+            if (com.catclaw.music.kt.data.media.CoverFormats.isRiffId3Format(context, path)) {
+                return@withContext saveAppCover(song.id, bytes, mime, "该格式不支持内嵌封面")
+                    ?: CoverWriteOutcome.Failed("保存应用内封面失败")
+            }
+
             val picture = AudioPicture(
                 data = bytes,
                 mimeType = mime,
@@ -162,25 +181,69 @@ class CoverWriter(
                 runCatching { AudioTagWriter.writePictures(pfd, listOf(picture)) }.getOrElse { false }
             }
 
-            if (!wrote) return@withContext CoverWriteOutcome.Failed("封面写入失败（格式不支持或文件只读）")
+            // 回读校验：确认真嵌进去了（`wrote` 只代表标签保存成功，不代表图进去了）
+            val readBack: ByteArray? = if (wrote) {
+                SafeTagWriter.readSafely(context, path) { pfd: ParcelFileDescriptor ->
+                    runCatching {
+                        AudioTagReader.readPicture(
+                            pfd = pfd,
+                            pictureType = com.lonx.audiotag.model.AudioPictureType.FrontCover,
+                        )
+                    }.getOrNull()
+                }
+            } else {
+                null
+            }
+            if (readBack != null && readBack.isNotEmpty()) {
+                // 要告知所有展示封面的地方（播放页大图/列表行/雾面背景/通知栏）
+                // 封面已变。项目用全局版本号做这件事，不 bump 就只能杀进程重进才看到新图。
+                coverVersion.bump()
+                return@withContext CoverWriteOutcome.Success(bytes.size)
+            }
 
-            // 回读校验：确认真的嵌进去了
-            val readBack: ByteArray? = SafeTagWriter.readSafely(context, path) { pfd: ParcelFileDescriptor ->
-                runCatching {
-                    AudioTagReader.readPicture(
-                        pfd = pfd,
-                        pictureType = com.lonx.audiotag.model.AudioPictureType.FrontCover,
-                    )
-                }.getOrNull()
-            }
-            if (readBack == null || readBack.isEmpty()) {
-                return@withContext CoverWriteOutcome.Failed("写入后读回封面失败")
-            }
-            // 要告知所有展示封面的地方（播放页大图/列表行/雾面背景/通知栏）
-            // 封面已变。项目用全局版本号做这件事，不 bump 就只能杀进程重进才看到新图。
-            coverVersion.bump()
-            CoverWriteOutcome.Success(bytes.size)
+            // 其他格式也可能因文件只读等原因写不进去：同样退到应用内封面，至少界面能立刻用上
+            val reason = if (wrote) "音频标签不支持内嵌封面" else "文件写不进音频标签"
+            saveAppCover(song.id, bytes, mime, reason)
+                ?: CoverWriteOutcome.Failed(if (!wrote) "封面写入失败（格式不支持或文件只读）" else "写入后读回封面失败")
         }
+
+    /**
+     * 把封面存成应用内封面：`filesDir/remote_covers/<歌曲id>.<扩展名>`（与
+     * `RemoteCoverBackfiller` 同一目录），并把路径回写 `Songs.CoverArtPath`。
+     * 成功后 bump 版本号 —— 数据库路径会让播放器快照与通知栏 artwork 一起换图。
+     */
+    private suspend fun saveAppCover(
+        songId: Int,
+        bytes: ByteArray,
+        mime: String,
+        reason: String,
+    ): CoverWriteOutcome.AppOnly? {
+        if (songId <= 0) return null
+        return runCatching {
+            val dir = File(context.filesDir, APP_COVER_DIR).apply { if (!exists()) mkdirs() }
+            val ext = when (mime) {
+                "image/png" -> "png"
+                "image/gif" -> "gif"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+            // 同一首歌只留一张：CoverArt 取 `$id.` 开头的第一个文件，
+            // 残留的旧扩展名可能让它读到上一张图
+            dir.listFiles()?.forEach { f ->
+                if (f.name.startsWith("$songId.") && !f.name.endsWith(".$ext")) runCatching { f.delete() }
+            }
+            val target = File(dir, "$songId.$ext")
+            val tmp = File(dir, "$songId.tmp")
+            tmp.writeBytes(bytes)
+            if (!tmp.renameTo(target)) {
+                target.writeBytes(bytes)
+                tmp.delete()
+            }
+            dao.setCoverArtPath(songId, target.absolutePath)
+            coverVersion.bump()
+            CoverWriteOutcome.AppOnly(bytes.size, reason)
+        }.getOrNull()
+    }
 
     /** 只认常见图片头；识别不出就按 jpeg 处理（taglib 多数容器不校验） */
     private fun sniffImageMime(bytes: ByteArray): String? {
@@ -192,5 +255,10 @@ class CoverWriter(
             bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "image/webp"
             else -> null
         }
+    }
+
+    private companion object {
+        /** 与应用侧 `CoverArt.REMOTE_COVER_DIR` / `RemoteCoverBackfiller.DIR_NAME` 保持一致 */
+        const val APP_COVER_DIR = "remote_covers"
     }
 }

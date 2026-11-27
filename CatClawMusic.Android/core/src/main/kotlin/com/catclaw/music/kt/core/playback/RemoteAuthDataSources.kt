@@ -34,10 +34,47 @@ import java.io.File
  */
 object RemoteAuthDataSources {
 
-    private const val CACHE_DIR = "player_cache"
-    private const val CACHE_MAX_BYTES = 1024L * 1024 * 1024 // 1GB，LRU 淘汰
+    const val CACHE_DIR_NAME = "player_cache"
+    private const val DEFAULT_CACHE_MAX_BYTES = 1024L * 1024 * 1024 // 1GB，LRU 淘汰
+
+    /** 播放缓存上限：跟随设置页的「缓存上限」，App 启动时写入（见 configureLimitMb） */
+    @Volatile
+    private var cacheMaxBytes = DEFAULT_CACHE_MAX_BYTES
 
     private var playerCache: SimpleCache? = null
+
+    /**
+     * 设置播放缓存上限。
+     *
+     * SimpleCache 的淘汰器只能在构造时给定，所以必须在**第一次播放之前**调用（App.onCreate）。
+     * 已有实例时只记下新值，对当前进程不生效；调小后的旧数据由 [trimIfOverLimit] 在下次启动清掉。
+     */
+    fun configureLimitMb(mb: Int) {
+        cacheMaxBytes = mb.coerceAtLeast(64).toLong() * 1024L * 1024L
+    }
+
+    /**
+     * 启动时调用：上限调小后，目录里可能还留着上一轮（固定 1GB 时代）的旧缓存。
+     * 此时 SimpleCache 还没创建、没有索引与锁，整目录删掉是安全的。
+     */
+    fun trimIfOverLimit(context: Context) {
+        val dir = File(context.cacheDir, CACHE_DIR_NAME)
+        if (!dir.isDirectory) return
+        val used = dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        if (used > cacheMaxBytes) runCatching { dir.deleteRecursively() }
+    }
+
+    /**
+     * 清空播放缓存。
+     *
+     * 不能直接删目录：SimpleCache 是进程内单例、还被 CacheDataSource 引用着，
+     * 删掉 `.exo` 文件而索引仍在，后续播放会把「有长度、没内容」的坏数据当命中。
+     * `removeResource` 是它自带的安全删除，正在读的 span 也能处理。
+     */
+    fun clearCache() {
+        val cache = synchronized(this) { playerCache } ?: return
+        runCatching { cache.keys.toList().forEach { cache.removeResource(it) } }
+    }
 
     /**
      * 播放取流的 TLS 与凭据都来自 [RemoteHttp] —— 全项目远程音乐的唯一 HTTP 入口。
@@ -62,12 +99,25 @@ object RemoteAuthDataSources {
         return DataSource.Factory { SwitchingDataSource(context, cached, switching) }
     }
 
+    /**
+     * 不要缓存的取流工厂：分享导出这种「一次性整文件读取」用它。
+     *
+     * 不能复用 [factory]：播放器正在流式播放时，SimpleCache 里同一个 key 的 span 写锁
+     * 被 CacheWriter 持有着，再开一条 CacheDataSource 去读会一直等锁（真机上表现为
+     * 分享进度卡在已缓存的那几个百分点）。这里直接走鉴权后的上游，不碰缓存。
+     */
+    fun upstreamFactory(context: Context): DataSource.Factory {
+        val http = OkHttpDataSource.Factory(remoteClient)
+        val switching = DefaultDataSource.Factory(context, http)
+        return ResolvingDataSource.Factory(switching) { dataSpec -> withBasicAuth(dataSpec) }
+    }
+
     /** SimpleCache 必须全局唯一（目录有锁），这里用 object 属性兜住 */
     private fun playerCache(context: Context): SimpleCache =
         playerCache ?: synchronized(this) {
             playerCache ?: SimpleCache(
-                File(context.cacheDir, CACHE_DIR),
-                LeastRecentlyUsedCacheEvictor(CACHE_MAX_BYTES),
+                File(context.cacheDir, CACHE_DIR_NAME),
+                LeastRecentlyUsedCacheEvictor(cacheMaxBytes),
                 StandaloneDatabaseProvider(context),
             ).also { playerCache = it }
         }

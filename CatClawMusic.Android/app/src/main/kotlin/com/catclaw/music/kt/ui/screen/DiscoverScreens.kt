@@ -97,6 +97,9 @@ internal fun DiscoverSearchPage(
     onClose: () -> Unit,
     onPlay: (Int) -> Unit,
     onPlayOnline: (Int) -> Unit,
+    /** 长按弹歌曲菜单（本地 / 在线两套结果各自的 index） */
+    onLongPressLocal: (Int) -> Unit,
+    onLongPressOnline: (Int) -> Unit,
     primary: Color,
     secondary: Color,
 ) {
@@ -134,7 +137,14 @@ internal fun DiscoverSearchPage(
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 if (results.isNotEmpty()) {
                     item {
-                        SongRows(stringResource(R.string.TabSongs), results, primary, secondary) { onPlay(it) }
+                        SongRows(
+                            stringResource(R.string.TabSongs),
+                            results,
+                            primary,
+                            secondary,
+                            onClick = { onPlay(it) },
+                            onLongClick = { onLongPressLocal(it) },
+                        )
                     }
                 }
                 if (onlineLoading && online.isEmpty()) {
@@ -160,7 +170,13 @@ internal fun DiscoverSearchPage(
                         )
                     }
                     itemsIndexed(online, key = { i, song -> "online-$i-${song.id}" }) { index, song ->
-                        OnlineResultRow(song, primary, secondary) { onPlayOnline(index) }
+                        OnlineResultRow(
+                            song,
+                            primary,
+                            secondary,
+                            onClick = { onPlayOnline(index) },
+                            onLongClick = { onLongPressOnline(index) },
+                        )
                     }
                 }
             }
@@ -249,9 +265,13 @@ internal fun LandscapeDiscover(
                         }
                     } else {
                         item("results") {
-                            SongRows(stringResource(R.string.TabSongs), results, primary, secondary) {
-                                viewModel.play(results, it)
-                            }
+                            SongRows(
+                                title = stringResource(R.string.TabSongs),
+                                rows = results,
+                                primary = primary,
+                                secondary = secondary,
+                                onClick = { viewModel.playOne(results, it) },
+                            )
                         }
                     }
                 }

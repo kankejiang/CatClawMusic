@@ -65,8 +65,6 @@ import com.catclaw.music.kt.ui.settings.PermissionManagementScreen
 import com.catclaw.music.kt.ui.settings.AiSettingsScreen
 import com.catclaw.music.kt.ui.settings.LocalMusicSettingsScreen
 import com.catclaw.music.kt.ui.download.DownloadsScreen
-import com.catclaw.music.kt.ui.plugin.PluginRow
-import com.catclaw.music.kt.ui.plugin.PluginSettingsViewModel
 import com.catclaw.music.kt.ui.settings.SettingsViewModel
 import com.catclaw.music.kt.data.lyrics.DesktopLyricSettings
 import com.catclaw.music.kt.data.settings.CacheSettings

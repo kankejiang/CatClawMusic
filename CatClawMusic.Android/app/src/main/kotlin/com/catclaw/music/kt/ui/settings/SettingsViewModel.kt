@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.catclaw.music.kt.core.audio.AudioCache
+import com.catclaw.music.kt.core.playback.RemoteAuthDataSources
 import com.catclaw.music.kt.core.ai.LlmConfig
 import com.catclaw.music.kt.core.ai.OpenAiCompatibleClient
 import com.catclaw.music.kt.core.theme.AppearanceMode
@@ -87,27 +88,51 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshCacheUsage() {
         viewModelScope.launch(Dispatchers.IO) {
-            _cacheUsage.value = audioCache.totalBytes() + downloader.directorySizeBytes()
+            _cacheUsage.value = cacheDirBytes() + downloader.directorySizeBytes()
         }
     }
 
     fun setCacheSizeMb(value: Int) {
         cacheSettings.setSizeMb(value)
-        audioCache.maxSizeBytes = cacheSettings.sizeMb.value.toLong() * 1024L * 1024L
+        val mb = cacheSettings.sizeMb.value
+        audioCache.maxSizeBytes = mb.toLong() * 1024L * 1024L
+        // 播放缓存（media3）也受这个上限约束，但它的淘汰器只能在构造时给定：
+        // 本次改完下次启动生效，启动时 trimIfOverLimit 会把超出的旧数据清掉。
+        RemoteAuthDataSources.configureLimitMb(mb)
     }
 
     /**
-     * 清除缓存 —— **必须与上面那个数字覆盖同一批东西**。
+     * 已用 = 整个 `cacheDir`（播放缓存 / 音乐缓存 / 图片缓存 / 诊断包）+ 下载目录。
      *
-     * 那个数字是「音频缓存 + 下载目录」的和（见 [refreshCacheUsage]），而这里原来只清音频缓存：
-     * 用户看到「已用 300MB」点一下只掉几十 MB（下载目录占大头时几乎不动），看着像没生效。
-     * 这个坑不好发现 —— 不报错、数字也确实变了一点。
+     * 之前只算「音乐缓存 + 下载目录」，而真正占地方的是 media3 的 `player_cache`
+     * （固定 1GB 上限，能涨到 1GB 以上）—— 于是设置页显示「已用 0.0」，
+     * 系统存储页却显示本应用缓存 1.07GB。
      */
+    private fun cacheDirBytes(): Long = runCatching {
+        context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }.getOrDefault(0L)
+
+    /** 清除缓存 —— **必须与上面那个数字覆盖同一批东西**（见 [refreshCacheUsage]）。 */
     fun clearCaches() {
         viewModelScope.launch(Dispatchers.IO) {
             audioCache.clear()
+            // player_cache 不能直接删目录：SimpleCache 还在进程里，
+            // 只删文件会把索引指向「有长度、没内容」的坏数据
+            RemoteAuthDataSources.clearCache()
+            clearOtherCacheDirs()
             downloader.clearCache()
-            _cacheUsage.value = audioCache.totalBytes() + downloader.directorySizeBytes()
+            _cacheUsage.value = cacheDirBytes() + downloader.directorySizeBytes()
+        }
+    }
+
+    /**
+     * 两个由各自组件负责的缓存目录已单独清理，剩下的大多是图片缓存、诊断包、临时文件，
+     * 直接删目录即可，写入方下次用到会重建。
+     */
+    private fun clearOtherCacheDirs() {
+        val managed = setOf(RemoteAuthDataSources.CACHE_DIR_NAME, "music_cache")
+        context.cacheDir.listFiles()?.forEach { dir ->
+            if (dir.name !in managed) runCatching { dir.deleteRecursively() }
         }
     }
 
