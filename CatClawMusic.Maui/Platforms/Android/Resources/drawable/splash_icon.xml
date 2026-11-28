@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 启动画面图标：沿用应用图标本体（与桌面图标同源的专业设计），108dp 居中。
-     此前自绘矢量黑胶+猫爪观感不及原版，回退为原图标；品牌字样由 splash_branding 承担。 -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:width="108dp" android:height="108dp" android:gravity="center">
-        <bitmap android:src="@drawable/app_icon" android:gravity="fill"/>
-    </item>
-</layer-list>
