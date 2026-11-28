@@ -87,6 +87,8 @@ class NeteaseRadioRepository @Inject constructor(
                     _fmMode.value = true
                     player.setFmMode(true)
                     player.setMode(PlayMode.Sequential)
+                    // 恢复的电台队列同样要能自动补货，否则播到快照末尾又会停
+                    player.autoExtendQueue = { ensureBuffer(force = true) }
                     return@collect
                 }
                 // 播放任意歌单（本地/在线）都会走 playSongs → 清 isFmMode：
@@ -177,6 +179,9 @@ class NeteaseRadioRepository @Inject constructor(
                 player.setFmMode(true)
                 player.setMode(PlayMode.Sequential)
                 _fmMode.value = true
+                // 队列播完时自动补货续播（见 PlayerController.STATE_ENDED）：
+                // 补货是异步的，补到就接着放，补不到才暂停
+                player.autoExtendQueue = { ensureBuffer(force = true) }
                 prefs.edit()
                     .putBoolean(KEY_ACTIVE, true)
                     .putString(KEY_MODE, _mode.value.code)
@@ -203,42 +208,57 @@ class NeteaseRadioRepository @Inject constructor(
         if (!_fmMode.value && savedMode == null) return
         _fmMode.value = false
         prefs.edit().putBoolean(KEY_ACTIVE, false).apply()
+        // 退出电台后队列耗尽仍按旧逻辑暂停，不替普通歌单续播
+        player.autoExtendQueue = null
         player.setFmMode(false)
         if (restoreMode) savedMode?.let { player.setMode(it) }
         savedMode = null
     }
 
-    private suspend fun ensureBuffer() {
-        if (!_fmMode.value || refilling) return
-        val current = player.state.value.currentSong ?: return
+    /**
+     * 补一批歌到队尾。
+     *
+     * @param force 无视「剩余 ≥ 2 首」的提前返回。队列已经耗尽（STATE_ENDED）时用，
+     *   此时没有"下一首"可以等，必须立刻补。
+     * @return 实际追加的曲目数，0 表示这一轮没补到。
+     */
+    private suspend fun ensureBuffer(force: Boolean = false): Int {
+        if (!_fmMode.value || refilling) return 0
+        val current = player.state.value.currentSong ?: return 0
         val queueSongs = player.queueSongs.value
-        if (queueSongs.isEmpty()) return
+        if (queueSongs.isEmpty()) return 0
         val currentIndex = queueSongs.indexOfFirst { it.id == current.id }
-        if (currentIndex < 0) return
+        if (currentIndex < 0) return 0
         // MAUI 插件维持「当前 + 后 3 首」的缓冲深度：不能等播到最后一首才补，
         // 否则一次取链 + 网络往返很容易赶不上切歌，表现成 FM 偶尔卡住/断档。
         // 剩 0~1 首就提前补，补完队列重新回到 3~4 首待播。
         val remaining = queueSongs.size - currentIndex - 1
-        if (remaining >= 2) return
+        if (!force && remaining >= 2) return 0
         refilling = true
         try {
             val existing = queueSongs.map { it.id }.toSet()
             var next = nextBatch(FM_BATCH)
                 .filter { NeteaseSongMapper.toQueueSong(it, 0, "").id !in existing }
             if (next.isEmpty()) {
-                // 插件：网易云常返回固定候选集，一批全被去重时放宽重试，保证电台不断
-                AppLog.w("NeteaseFm", "补货首批全部被去重，放宽重试")
+                // 插件：网易云常返回固定候选集，一批全被去重时再拉一次
+                AppLog.w("NeteaseFm", "补货首批全部被去重，重试一次")
                 next = nextBatch(FM_BATCH)
+                    .filter { NeteaseSongMapper.toQueueSong(it, 0, "").id !in existing }
             }
-            if (next.isNotEmpty()) {
-                player.appendSongs(next.mapIndexed { index, song ->
-                    NeteaseSongMapper.toQueueSong(song, index, NeteasePlaylistClient.playUrlFallback(song.id.toLongOrNull() ?: 0L))
-                })
-                AppLog.d(
-                    "NeteaseFm",
-                    "续播追加 ${next.size} 首（剩余 $remaining 首时触发），队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
-                )
+            if (next.isEmpty()) {
+                // 不能把重复 id 追加进队列：PlayQueue 的 id→index 会被覆盖，
+                // 之后 selectSong/removeSong 会指到错误的行。等下一次触发再补
+                AppLog.w("NeteaseFm", "补货仍为空（候选全部已在队列中），等待下次触发")
+                return 0
             }
+            player.appendSongs(next.mapIndexed { index, song ->
+                NeteaseSongMapper.toQueueSong(song, index, NeteasePlaylistClient.playUrlFallback(song.id.toLongOrNull() ?: 0L))
+            })
+            AppLog.d(
+                "NeteaseFm",
+                "续播追加 ${next.size} 首（剩余 $remaining 首时触发），队列 ${queueSongs.size} -> ${queueSongs.size + next.size}",
+            )
+            return next.size
         } finally {
             refilling = false
         }

@@ -406,7 +406,45 @@ class PlayerController(
         return better
     }
 
+    private var jumpJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * 用户在播放列表里主动点某一首。
+     *
+     * 网易云在线曲**先取新链再起播**：队列里存的是 outer 占位或早已过期的直链，
+     * 旧实现直接 `prepare` 旧地址、再异步补救，链接失效时第一声就是 403，
+     * 表现成「在播放列表里切歌不播，要回歌单重新点」。
+     * 解析失败时回退队列里的原地址，并仍走一次 [ensureCurrentDirect] 兜底。
+     */
     fun playSongAt(index: Int) {
+        val picked = queue.songs().getOrNull(index) ?: return
+        val refresher = uriRefresher
+        val isNetease = picked.remoteId?.startsWith("netease:") == true &&
+            picked.filePath.startsWith("http", ignoreCase = true)
+        if (refresher == null || !isNetease) {
+            startAt(index)
+            return
+        }
+        // 连点两首时只保留最后一次：否则先解析完的旧目标会把后点的那首覆盖掉
+        jumpJob?.cancel()
+        jumpJob = scope.launch {
+            val fresh = runCatching { refresher.invoke(picked) }.getOrNull()
+            if (!fresh.isNullOrBlank()) {
+                queue.replaceSong(picked.id, picked.copy(filePath = fresh))
+                markResolved(picked.id)
+                AppLog.d(TAG, "playSongAt refreshed id=${picked.id}")
+            } else {
+                AppLog.w(TAG, "playSongAt refresh failed id=${picked.id}，回退队列地址")
+            }
+            // 解析期间队列可能变化（拖动/删除），按 id 重新定位而不是直接用旧下标
+            val now = queue.songs().indexOfFirst { it.id == picked.id }
+            if (now < 0) return@launch
+            startAt(now)
+        }
+    }
+
+    /** 选中并起播队列表里的某一首（不取链，调用方负责地址是否新鲜） */
+    private fun startAt(index: Int) {
         queue.songs().getOrNull(index)?.let {
             queue.selectSong(it.id)
             syncPlayerList(resumeAtMs = 0, autoplay = true)
@@ -637,9 +675,12 @@ class PlayerController(
         // 但**不能播 outer 免登录外链**：它对 VIP 歌只给 30s 试听、CDN 限速（卡顿根源）。
         // 命中 outer 时先等一次直链解析（单次请求 ~300ms，比整首下载快得多），再开播。
         preBufferedForId = -1
-        if (needsResolve(song) && uriUpgrader != null) {
+        if (needsResolve(song) && (uriRefresher != null || uriUpgrader != null)) {
             scope.launch {
-                val better = runCatching { uriUpgrader?.invoke(song, false) }.getOrNull()
+                // 切歌场景一律强制刷新：缓存里的直链可能刚好过期，拿回来等于没修
+                val better = runCatching {
+                    uriRefresher?.invoke(song) ?: uriUpgrader?.invoke(song, true)
+                }.getOrNull()
                 val idx = idToIndex[song.id] ?: return@launch
                 if (better.isNullOrBlank()) {
                     // 取不到直链：退回队列里的原地址（总比没声音强）
@@ -708,6 +749,25 @@ class PlayerController(
      * 第二个参数为 true 表示**跳过直链缓存强制重取**（播放器报源错误时用）。
      */
     var uriUpgrader: (suspend (Song, Boolean) -> String?)? = null
+
+    /**
+     * 强制刷新直链：跳过/清空解析器缓存后重新取链。
+     *
+     * 与 [uriUpgrader] 的 `force=true` 是同一语义，单独留一个入口是为了让调用点
+     * 不必知道第二个参数的约定；解析失败返回 null，由调用方回退原地址。
+     */
+    var uriRefresher: (suspend (Song) -> String?)? = null
+
+    /**
+     * 队列耗尽（顺序播放播完最后一首）时的补货钩子，返回实际追加的曲目数。
+     *
+     * 私人漫游用它把「3 首一批」接成无限电台：`STATE_ENDED` 时补一嘴再继续播，
+     * 不再只能停在最后一首等用户手点。非 FM 场景为 null，行为与旧版一致（暂停）。
+     */
+    var autoExtendQueue: (suspend () -> Int)? = null
+
+    /** 队列耗尽补货进行中：防止连续 ENDED 回调并发起多轮补货 */
+    private var emptyEndGuard = false
 
     private var upgradeJob: kotlinx.coroutines.Job? = null
     private var upgradedForId = -1
@@ -802,11 +862,15 @@ class PlayerController(
     private fun ensureCurrentDirect() {
         val song = queue.currentSong ?: return
         if (!needsResolve(song)) return
-        val upgrader = uriUpgrader ?: return
+        if (uriRefresher == null && uriUpgrader == null) return
         ensureJob?.cancel()
         ensureJob = scope.launch {
             val wasPlaying = player.playWhenReady
-            val better = runCatching { upgrader.invoke(song, false) }.getOrNull() ?: return@launch
+            // 需要解析 = 手上的地址是 outer 或已超过安全时长，必须强制新链；
+            // 用非强制缓存会把同一条过期直链再写回去（「切歌不播」的根因之一）
+            val better = runCatching {
+                uriRefresher?.invoke(song) ?: uriUpgrader?.invoke(song, true)
+            }.getOrNull() ?: return@launch
             val idx = idToIndex[song.id] ?: return@launch
             // 解析期间可能又切歌了：只在它仍是当前曲时替换
             if (player.currentMediaItemIndex != idx || queue.currentSong?.id != song.id) return@launch
@@ -820,6 +884,9 @@ class PlayerController(
             // 保留当前位置：暂停超过直链有效期再点播放也会走到这里（needsResolve=true），
             // seekTo(idx, 0) 会把用户进度清回开头
             player.seekTo(idx, resumeAt)
+            // 上一次报错后可能停在 IDLE：换 item 后必须显式 prepare，
+            // 否则 playWhenReady 已是 true，不会重新触发加载
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
             player.playWhenReady = wasPlaying
             publish(upgraded)
         }
@@ -1063,7 +1130,32 @@ class PlayerController(
                 }
 
                 Player.STATE_ENDED -> {
-                    if (player.repeatMode == Player.REPEAT_MODE_OFF) player.pause()
+                    if (player.repeatMode == Player.REPEAT_MODE_OFF) {
+                        val refill = autoExtendQueue
+                        if (refill == null) {
+                            player.pause()
+                        } else if (!emptyEndGuard) {
+                            // 私人漫游：最后一批播完不是"结束"，先补货再继续。
+                            // 补货为空才暂停；成功后从新追加的第一首起播。
+                            emptyEndGuard = true
+                            scope.launch {
+                                val added = runCatching { refill.invoke() }.getOrDefault(0)
+                                AppLog.i(TAG, "queue ended, auto-extend added=$added")
+                                if (added > 0) {
+                                    // ENDED 之后追加列表不会自己动起来：先定位到新曲再 prepare
+                                    val firstNew = (player.mediaItemCount - added).coerceAtLeast(0)
+                                    if (player.playbackState == Player.STATE_ENDED) {
+                                        player.seekTo(firstNew, 0)
+                                        player.prepare()
+                                    }
+                                    player.playWhenReady = true
+                                } else {
+                                    player.pause()
+                                }
+                                emptyEndGuard = false
+                            }
+                        }
+                    }
                 }
 
                 // IDLE 不能自己写 isPlaying=false：意图(playWhenReady)可能仍是 true，
@@ -1100,24 +1192,29 @@ class PlayerController(
 
         override fun onPlayerError(error: PlaybackException) {
             publish(error = error.errorCodeName + ": " + (error.message ?: ""))
-            // 首次解码错误按"自然播完"处理切下一首；5 秒内连续错误则退避不切歌。
             // 竞态/解码器故障会在切歌后立即再触发错误，无脑切歌会形成崩溃循环
             // （C# 侧实测：flac 解码丢帧 → BufferPool 耗尽 → 堆 7MB→99MB → GC 165ms → 被 LMK 杀）。
             val now = android.os.SystemClock.elapsedRealtime()
             val withinBackoff = now - lastPlayerErrorAtMs < ERROR_BACKOFF_MS
             lastPlayerErrorAtMs = now
-            if (withinBackoff) { player.pause(); return }
+
             // 在线曲的"源错误"多半是直链过期或 outer 被服务器拒绝（302 到错误页）。
-            // 先用同一首强制重取一次直链再重试；每首只修一次，防止和 next() 形成循环。
+            // 这类错误优先强制重取一次直链；**不受 5 秒退避限制** —— 退避是为了防解码器
+            // 连环崩溃，不该把链接修复也一起挡掉（旧逻辑在退避窗口内直接 pause，
+            // 用户看到的就是「切歌不播」）。每首只修一次，防止和 next() 形成循环。
             val song = queue.currentSong
-            val upgrader = uriUpgrader
-            if (song != null && song.isRemote && upgrader != null && repairedSongId != song.id) {
+            val canRefresh = uriRefresher != null || uriUpgrader != null
+            val isNetease = song?.remoteId?.startsWith("netease:") == true
+            if (song != null && isNetease && canRefresh && repairedSongId != song.id && isSourceError(error)) {
                 repairedSongId = song.id
+                AppLog.w(TAG, "onPlayerError ${error.errorCodeName} → 强制刷新直链 song=${song.title}")
                 scope.launch {
-                    val better = runCatching { upgrader.invoke(song, true) }.getOrNull()
+                    val better = runCatching {
+                        uriRefresher?.invoke(song) ?: uriUpgrader?.invoke(song, true)
+                    }.getOrNull()
                     val idx = idToIndex[song.id]
                     if (better.isNullOrBlank() || idx == null || queue.currentSong?.id != song.id) {
-                        next()
+                        if (queue.upcomingSongs(1).isNotEmpty()) next() else player.pause()
                         return@launch
                     }
                     val upgraded = song.copy(filePath = better)
@@ -1125,13 +1222,24 @@ class PlayerController(
                     markResolved(song.id)
                     player.replaceMediaItem(idx, buildMediaItem(upgraded))
                     player.seekTo(idx, 0)
+                    // 报错后播放器处于 IDLE，换 item 不会自己 prepare，
+                    // 而 playWhenReady 本来就是 true，再设一次也不会触发 → 会永远停在无声状态
+                    player.prepare()
                     player.playWhenReady = true
                     publish(upgraded)
                 }
                 return
             }
-            next()
+            // 已修过仍报错 / 非直链问题：退避期内先暂停，避免连环切歌
+            if (withinBackoff) { player.pause(); return }
+            if (queue.upcomingSongs(1).isNotEmpty()) next() else player.pause()
         }
+    }
+
+    /** 流媒体源类错误（HTTP / 文件读取 / 容器解析）——直链失效的典型表现 */
+    private fun isSourceError(error: PlaybackException): Boolean {
+        val name = error.errorCodeName
+        return name.contains("IO_") || name.contains("SOURCE") || name.contains("PARSING")
     }
 
     /** 系统控件（锁屏/车机/耳机）可能直接改播放器位置，这里把队列索引拉齐 */

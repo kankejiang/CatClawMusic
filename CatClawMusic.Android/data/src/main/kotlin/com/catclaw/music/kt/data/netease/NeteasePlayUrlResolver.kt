@@ -197,6 +197,14 @@ class NeteasePlayUrlResolver @Inject constructor(
         return ok
     }
 
+    /**
+     * 丢弃某首歌的全部档位缓存。播放器确认这条直链不可用（403 / 源错误）时调用，
+     * 之后再 `resolve` 就不会拿回同一条死链。
+     */
+    fun invalidate(songId: Long) {
+        ladder(settings.quality).forEach { cache.remove(cacheKey(songId, it)) }
+    }
+
     private fun cacheKey(songId: Long, quality: NeteasePlaylistClient.Quality): String = "$songId:${quality.name}"
 
     /** 音质档 → 老接口码率（插件 QualityToBr 同表：标准 128k，极高 320k，无损及以上封顶 999k） */
@@ -231,8 +239,14 @@ class NeteasePlayUrlResolver @Inject constructor(
             .sortedByDescending { it.ordinal }
 
     private companion object {
-        /** 与插件一致的直链缓存时长：20 分钟 */
-        const val CACHE_TTL_MS = 20 * 60 * 1000L
+        /**
+         * 直链缓存时长：15 分钟。
+         *
+         * 服务端签名 `expi=1200` 秒（20 分钟），但缓存到第 19 分钟才起播的曲目
+         * 会在播到一半时失效（队列长时间挂着、暂停后继续都会踩到）。
+         * 提前 5 分钟过期，与 `PlayerController.URL_TTL_MS` 对齐。
+         */
+        const val CACHE_TTL_MS = 15 * 60 * 1000L
 
         /** 续期节流：失败后 10 分钟内不再打续期接口，避免每首歌都多一次请求 */
         const val REFRESH_COOLDOWN_MS = 10 * 60 * 1000L

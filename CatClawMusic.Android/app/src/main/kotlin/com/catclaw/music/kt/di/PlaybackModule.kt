@@ -80,6 +80,13 @@ object PlaybackModule {
                 ?.removePrefix("netease:")?.toLongOrNull()
             if (id == null) null else runCatching { playUrlResolver.resolve(id, forceRefresh = force).url }.getOrNull()
         }
+        // 切歌/报错修复用：跳过解析器的 15 分钟缓存，直接拿一条新直链，
+        // 避免把已经失效的旧链接重新写回队列（「播放列表切歌不播」的根因之一）
+        uriRefresher = { song ->
+            val id = song.remoteId?.takeIf { it.startsWith("netease:") }
+                ?.removePrefix("netease:")?.toLongOrNull()
+            if (id == null) null else runCatching { playUrlResolver.resolve(id, forceRefresh = true).url }.getOrNull()
+        }
         onListenStarted = { songId ->
             history.record(songId)
             // 在线曲打卡：影响网易云推荐精度，静默失败（插件同规则）
